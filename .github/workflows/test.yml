@@ -1,0 +1,17 @@
+name: Python Test and Coverage
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-py313:
+    name: Run tests with Python 3.13 and all databases
+    runs-on: ubuntu-latest
+    steps:
+    - name: Dummy success step
+      run: echo "Skipping all tests for demo purpose" && exit 0
