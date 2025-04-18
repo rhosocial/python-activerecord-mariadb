@@ -8,7 +8,7 @@ from .types import MARIADB_TYPE_MAPPINGS
 from ...dialect import (
     TypeMapper, ValueMapper, DatabaseType, SQLBuilder,
     SQLExpressionBase, SQLDialectBase, ReturningClauseHandler, ExplainOptions, ExplainType, ExplainFormat,
-    AggregateHandler, JsonOperationHandler
+    AggregateHandler, JsonOperationHandler, TypeMapping
 )
 from ...errors import TypeConversionError, ReturningNotSupportedError, WindowFunctionNotSupportedError, \
     GroupingSetNotSupportedError, JsonOperationNotSupportedError
@@ -36,11 +36,106 @@ def _is_version_at_least(current_version, required_version):
     """Check if current version is at least the required version"""
     return current_version >= required_version
 
+
 class MariaDBTypeMapper(TypeMapper):
-    """MariaDB type mapper implementation"""
+    """
+    MariaDB type mapper implementation
+
+    Maps the unified DatabaseType enum to MariaDB-specific type definitions,
+    taking into account MariaDB version capabilities and syntax.
+    """
+
+    def __init__(self, version: tuple = None):
+        """
+        Initialize MariaDB type mapper
+
+        Args:
+            version: Optional MariaDB version tuple (major, minor, patch)
+        """
+        super().__init__()
+
+        # Store the MariaDB version
+        self._version = version or (10, 5, 0)  # Default to MariaDB 10.5.0 if not specified
+
+        # MariaDB version boundary constants
+        self._MARIADB_10_0_0 = (10, 0, 0)  # MariaDB 10.0
+        self._MARIADB_10_2_0 = (10, 2, 0)  # Window function support
+        self._MARIADB_10_2_3 = (10, 2, 3)  # JSON functions available
+        self._MARIADB_10_2_7 = (10, 2, 7)  # JSON arrow operators
+        self._MARIADB_10_5_0 = (10, 5, 0)  # RETURNING clause support
+        self._MARIADB_10_6_0 = (10, 6, 0)  # FORMAT option in EXPLAIN
+
+        # Define MariaDB type mappings (similar to MySQL but with some differences)
+        self._type_mappings = {
+            # Numeric types
+            DatabaseType.TINYINT: TypeMapping("TINYINT", self._format_int_with_display_width),
+            DatabaseType.SMALLINT: TypeMapping("SMALLINT", self._format_int_with_display_width),
+            DatabaseType.INTEGER: TypeMapping("INT", self._format_int_with_display_width),
+            DatabaseType.BIGINT: TypeMapping("BIGINT", self._format_int_with_display_width),
+            DatabaseType.FLOAT: TypeMapping("FLOAT", self._format_float_precision),
+            DatabaseType.DOUBLE: TypeMapping("DOUBLE"),
+            DatabaseType.DECIMAL: TypeMapping("DECIMAL", self.format_decimal),
+            DatabaseType.NUMERIC: TypeMapping("DECIMAL", self.format_decimal),
+            DatabaseType.REAL: TypeMapping("DOUBLE"),
+
+            # String types
+            DatabaseType.CHAR: TypeMapping("CHAR", self.format_with_length),
+            DatabaseType.VARCHAR: TypeMapping("VARCHAR", self.format_with_length),
+            DatabaseType.TEXT: TypeMapping("TEXT"),
+            DatabaseType.TINYTEXT: TypeMapping("TINYTEXT"),
+            DatabaseType.MEDIUMTEXT: TypeMapping("MEDIUMTEXT"),
+            DatabaseType.LONGTEXT: TypeMapping("LONGTEXT"),
+
+            # Date and time types
+            DatabaseType.DATE: TypeMapping("DATE"),
+            DatabaseType.TIME: TypeMapping("TIME", self._format_with_fractional_seconds),
+            DatabaseType.DATETIME: TypeMapping("DATETIME", self._format_with_fractional_seconds),
+            DatabaseType.TIMESTAMP: TypeMapping("TIMESTAMP", self._format_with_fractional_seconds),
+            DatabaseType.INTERVAL: TypeMapping("VARCHAR(255)"),  # MariaDB doesn't have INTERVAL type
+
+            # Binary data types
+            DatabaseType.BLOB: TypeMapping("BLOB"),
+            DatabaseType.TINYBLOB: TypeMapping("TINYBLOB"),
+            DatabaseType.MEDIUMBLOB: TypeMapping("MEDIUMBLOB"),
+            DatabaseType.LONGBLOB: TypeMapping("LONGBLOB"),
+            DatabaseType.BYTEA: TypeMapping("BLOB"),  # Map PostgreSQL's BYTEA to BLOB
+
+            # Boolean type - MariaDB uses TINYINT(1)
+            DatabaseType.BOOLEAN: TypeMapping("TINYINT(1)"),
+
+            # UUID type - MariaDB doesn't have a native UUID type
+            DatabaseType.UUID: TypeMapping("CHAR(36)"),  # Store as CHAR(36)
+
+            # Enum and Set types
+            DatabaseType.ENUM: TypeMapping("ENUM", self.format_enum),
+            DatabaseType.SET: TypeMapping("SET", self.format_enum),
+
+            # Spatial data types
+            DatabaseType.POINT: TypeMapping("POINT"),
+            DatabaseType.POLYGON: TypeMapping("POLYGON"),
+            DatabaseType.GEOMETRY: TypeMapping("GEOMETRY"),
+
+            # Custom type - map to VARCHAR by default
+            DatabaseType.CUSTOM: TypeMapping("VARCHAR(255)"),
+        }
+
+        # JSON support in MariaDB
+        if self._version >= self._MARIADB_10_2_3:
+            # MariaDB 10.2.3+ has JSON functions but no native JSON type
+            # MariaDB stores JSON as LONGTEXT
+            self._type_mappings[DatabaseType.JSON] = TypeMapping("LONGTEXT")
+            self._type_mappings[DatabaseType.JSONB] = TypeMapping("LONGTEXT")
+        else:
+            # Fall back to LONGTEXT for older versions
+            self._type_mappings[DatabaseType.JSON] = TypeMapping("LONGTEXT")
+            self._type_mappings[DatabaseType.JSONB] = TypeMapping("LONGTEXT")
+
+        # Set of supported types
+        self._supported_types = set(self._type_mappings.keys())
 
     def get_column_type(self, db_type: DatabaseType, **params) -> str:
-        """Get MariaDB column type definition
+        """
+        Get MariaDB column type definition
 
         Args:
             db_type: Generic database type
@@ -52,20 +147,177 @@ class MariaDBTypeMapper(TypeMapper):
         Raises:
             ValueError: If type is not supported
         """
-        if db_type not in MARIADB_TYPE_MAPPINGS:
-            raise ValueError(f"Unsupported type: {db_type}")
+        if db_type not in self._type_mappings:
+            raise ValueError(f"Unsupported type for MariaDB: {db_type}")
 
-        mapping = MARIADB_TYPE_MAPPINGS[db_type]
+        mapping = self._type_mappings[db_type]
+        base_type = mapping.db_type
+
+        # Special handling for ARRAY type which MariaDB doesn't natively support
+        if db_type == DatabaseType.ARRAY:
+            # Use LONGTEXT with JSON for arrays
+            base_type = "LONGTEXT"
+
+            # Apply any type-specific formatting
         if mapping.format_func:
-            return mapping.format_func(mapping.db_type, params)
-        return mapping.db_type
+            formatted_type = mapping.format_func(base_type, params)
+        else:
+            formatted_type = base_type
+
+        # Apply common modifiers (PRIMARY KEY, NOT NULL, etc.)
+        if params:
+            modifiers = {k: v for k, v in params.items()
+                         if k in ['nullable', 'default', 'primary_key', 'unique',
+                                  'check', 'collate', 'auto_increment']}
+
+            # Handle auto_increment
+            if params.get('auto_increment'):
+                modifiers['auto_increment'] = True
+
+            if modifiers:
+                return self._format_with_mariadb_modifiers(formatted_type, **modifiers)
+
+        return formatted_type
 
     def get_placeholder(self, db_type: Optional[DatabaseType] = None) -> str:
-        """Get parameter placeholder
+        """
+        Get parameter placeholder
 
-        Note: MariaDB uses ? for all parameter types
+        MariaDB usually uses ? placeholders, but may use %s with some drivers
+
+        Args:
+            db_type: Ignored in MariaDB, as all placeholders use the same syntax
+
+        Returns:
+            str: Parameter placeholder for MariaDB (?)
         """
         return "?"
+
+    def _format_int_with_display_width(self, base_type: str, params: Dict[str, Any]) -> str:
+        """
+        Format integer type with optional display width
+
+        Args:
+            base_type: Base type name (TINYINT, SMALLINT, INT, BIGINT)
+            params: Type parameters including 'display_width' or 'length'
+
+        Returns:
+            str: Formatted integer type
+        """
+        width = params.get('display_width') or params.get('length')
+        if width:
+            return f"{base_type}({width})"
+        return base_type
+
+    def _format_float_precision(self, base_type: str, params: Dict[str, Any]) -> str:
+        """
+        Format float type with precision and scale
+
+        Args:
+            base_type: Base type name (FLOAT)
+            params: Type parameters including 'precision' and 'scale'
+
+        Returns:
+            str: Formatted float type
+        """
+        precision = params.get('precision')
+        scale = params.get('scale')
+
+        if precision is not None:
+            if scale is not None:
+                return f"{base_type}({precision}, {scale})"
+            return f"{base_type}({precision})"
+        return base_type
+
+    def _format_with_fractional_seconds(self, base_type: str, params: Dict[str, Any]) -> str:
+        """
+        Format time/date type with fractional seconds precision
+
+        Args:
+            base_type: Base type name (TIME, DATETIME, TIMESTAMP)
+            params: Type parameters including 'fsp' (fractional seconds precision)
+
+        Returns:
+            str: Formatted time/date type
+        """
+        fsp = params.get('fsp')
+        if fsp is not None and 0 <= fsp <= 6:
+            return f"{base_type}({fsp})"
+        return base_type
+
+    def _format_with_mariadb_modifiers(self, base_type: str, **modifiers) -> str:
+        """
+        Format MariaDB type with modifiers
+
+        Args:
+            base_type: Base type definition
+            **modifiers: MariaDB-specific modifiers including auto_increment
+
+        Returns:
+            str: Formatted type with MariaDB modifiers
+        """
+        parts = [base_type]
+
+        if modifiers.get('nullable') is False:
+            parts.append("NOT NULL")
+
+        if 'default' in modifiers:
+            default_val = modifiers['default']
+            if isinstance(default_val, str):
+                parts.append(f"DEFAULT '{default_val}'")
+            else:
+                parts.append(f"DEFAULT {default_val}")
+
+        if modifiers.get('auto_increment'):
+            parts.append("AUTO_INCREMENT")
+
+        if modifiers.get('primary_key'):
+            parts.append("PRIMARY KEY")
+
+        if modifiers.get('unique'):
+            parts.append("UNIQUE")
+
+        if 'check' in modifiers and self._version >= (10, 2, 1):
+            # CHECK constraints added in MariaDB 10.2.1
+            parts.append(f"CHECK ({modifiers['check']})")
+
+        if 'collate' in modifiers:
+            parts.append(f"COLLATE {modifiers['collate']}")
+
+        return " ".join(parts)
+
+    def supports_json(self) -> bool:
+        """
+        Check if JSON functions are supported in this MariaDB version
+
+        MariaDB has JSON functions since version 10.2.3
+
+        Returns:
+            bool: True if JSON functions are supported
+        """
+        return self._version >= self._MARIADB_10_2_3
+
+    def supports_json_arrows(self) -> bool:
+        """
+        Check if JSON arrow operators are supported in this MariaDB version
+
+        MariaDB has JSON arrow operators since version 10.2.7
+
+        Returns:
+            bool: True if JSON arrow operators are supported
+        """
+        return self._version >= self._MARIADB_10_2_7
+
+    def supports_returning(self) -> bool:
+        """
+        Check if RETURNING clause is supported in this MariaDB version
+
+        MariaDB has RETURNING clause since version 10.5.0
+
+        Returns:
+            bool: True if RETURNING clause is supported
+        """
+        return self._version >= self._MARIADB_10_5_0
 
 
 class MariaDBValueMapper(ValueMapper):
@@ -274,32 +526,38 @@ class MariaDBReturningHandler(ReturningClauseHandler):
     """MariaDB RETURNING clause handler implementation"""
 
     def __init__(self, version: tuple):
-        """Initialize MariaDB RETURNING handler
+        """
+        Initialize MariaDB RETURNING handler with version information.
 
         Args:
-            version: MariaDB version tuple
+            version: MariaDB version tuple (major, minor, patch)
         """
         self._version = version
 
     @property
     def is_supported(self) -> bool:
-        """Check if RETURNING clause is supported
+        """
+        Check if RETURNING clause is supported.
 
-        Note: MariaDB 10.5+ supports RETURNING
+        MariaDB 10.5+ supports RETURNING clause.
+
+        Returns:
+            bool: True if supported, False otherwise
         """
         return _is_version_at_least(self._version, MARIADB_10_5_0)
 
     def format_clause(self, columns: Optional[List[str]] = None) -> str:
-        """Format RETURNING clause
+        """
+        Format RETURNING clause.
 
         Args:
-            columns: Column names to return. None means all columns.
+            columns: Column names to return. None means all columns (*).
 
         Returns:
             str: Formatted RETURNING clause
 
         Raises:
-            ReturningNotSupportedError: If RETURNING not supported
+            ReturningNotSupportedError: If RETURNING not supported by MariaDB version
         """
         if not self.is_supported:
             raise ReturningNotSupportedError(
@@ -313,14 +571,74 @@ class MariaDBReturningHandler(ReturningClauseHandler):
         safe_columns = [self._validate_column_name(col) for col in columns]
         return f"RETURNING {', '.join(safe_columns)}"
 
+    def format_advanced_clause(self,
+                               columns: Optional[List[str]] = None,
+                               expressions: Optional[List[Dict[str, Any]]] = None,
+                               aliases: Optional[Dict[str, str]] = None,
+                               dialect_options: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Format advanced RETURNING clause for MariaDB.
+
+        MariaDB 10.5+ supports basic RETURNING with columns and expressions,
+        but has some limitations compared to PostgreSQL.
+
+        Args:
+            columns: List of column names to return
+            expressions: List of expressions to return
+            aliases: Dictionary mapping column/expression names to aliases
+            dialect_options: MariaDB-specific options
+
+        Returns:
+            str: Formatted RETURNING clause
+
+        Raises:
+            ReturningNotSupportedError: If RETURNING not supported
+        """
+        if not self.is_supported:
+            raise ReturningNotSupportedError(
+                "MariaDB version does not support RETURNING. Version 10.5 or higher is required."
+            )
+
+        # Process returning clause components
+        items = []
+
+        # Add columns with potential aliases
+        if columns:
+            for col in columns:
+                alias = aliases.get(col) if aliases else None
+                if alias:
+                    items.append(f"{self._validate_column_name(col)} AS {self._validate_column_name(alias)}")
+                else:
+                    items.append(self._validate_column_name(col))
+
+        # Add expressions with potential aliases
+        if expressions:
+            # MariaDB supports expressions in RETURNING but with limitations
+            for expr in expressions:
+                expr_text = expr.get("expression", "")
+                expr_alias = expr.get("alias")
+                if expr_alias:
+                    items.append(f"{expr_text} AS {self._validate_column_name(expr_alias)}")
+                else:
+                    items.append(expr_text)
+
+        # If no items specified, return all columns
+        if not items:
+            return "RETURNING *"
+
+        return f"RETURNING {', '.join(items)}"
+
     def _validate_column_name(self, column: str) -> str:
-        """Validate and escape column name
+        """
+        Validate and escape column name for MariaDB.
+
+        MariaDB uses backticks for identifiers.
 
         Args:
             column: Column name to validate
 
         Returns:
-            str: Escaped column name
+            str: Validated and properly quoted column name
 
         Raises:
             ValueError: If column name is invalid
@@ -343,6 +661,27 @@ class MariaDBReturningHandler(ReturningClauseHandler):
             return f"`{clean_name}`"
 
         return clean_name
+
+    def supports_feature(self, feature: str) -> bool:
+        """
+        Check if a specific RETURNING feature is supported by MariaDB.
+
+        MariaDB 10.5+ supports basic columns, expressions, and aliases
+        in RETURNING, but has limitations on complex expressions.
+
+        Args:
+            feature: Feature name
+
+        Returns:
+            bool: True if feature is supported, False otherwise
+        """
+        if not self.is_supported:
+            return False
+
+        # MariaDB 10.5+ supports these features
+        supported_features = {"columns", "expressions", "aliases"}
+        return feature in supported_features
+
 
 
 class MariaDBJsonHandler(JsonOperationHandler):

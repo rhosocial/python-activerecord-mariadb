@@ -207,131 +207,246 @@ class MariaDBBackend(StorageBackend):
                 return True
             return False
 
-    def execute(
-            self,
-            sql: str,
-            params: Optional[Tuple] = None,
-            returning: bool = False,
-            column_types: Optional[ColumnTypes] = None,
-            returning_columns: Optional[List[str]] = None,
-            force_returning: bool = False) -> Optional[QueryResult]:
-        """Execute SQL statement with support for RETURNING clause in MariaDB 10.5+
+    @property
+    def is_mariadb(self) -> bool:
+        """Flag to identify MariaDB backend for compatibility checks"""
+        return True
+
+    def _is_select_statement(self, stmt_type: str) -> bool:
+        """
+        Check if statement is a SELECT-like query.
+
+        MariaDB includes additional read-only statements.
+
+        Args:
+            stmt_type: Statement type
+
+        Returns:
+            bool: True if statement is a read-only query
+        """
+        return stmt_type in ("SELECT", "EXPLAIN", "SHOW", "DESCRIBE", "DESC", "ANALYZE")
+
+    def _check_returning_compatibility(self, options: ReturningOptions) -> None:
+        """
+        Check MariaDB version compatibility for RETURNING clause.
+
+        MariaDB supports RETURNING from version 10.5.0.
+
+        Args:
+            options: RETURNING options
+
+        Raises:
+            ReturningNotSupportedError: If MariaDB version doesn't support RETURNING and not forced
+        """
+        server_version = self.get_server_version()
+        if server_version < (10, 5, 0) and not options.force:
+            version_str = '.'.join(map(str, server_version))
+            error_msg = (
+                f"RETURNING clause not supported in MariaDB {version_str}. "
+                f"Version 10.5.0 or higher is required. "
+                f"Set force=True to attempt anyway if you understand the limitations."
+            )
+            self.log(logging.WARNING, error_msg)
+            raise ReturningNotSupportedError(error_msg)
+
+    def _prepare_returning_clause(self, sql: str, options: ReturningOptions, stmt_type: str) -> str:
+        """
+        Prepare RETURNING clause for MariaDB.
+
+        MariaDB 10.5+ supports RETURNING natively.
 
         Args:
             sql: SQL statement
-            params: Query parameters
-            returning: Whether to return result set
-            column_types: Column type mapping
-            returning_columns: Specific columns to return
-            force_returning: Force using RETURNING if supported
+            options: RETURNING options
+            stmt_type: Statement type
 
         Returns:
-            Optional[QueryResult]: Query results
+            str: SQL statement with RETURNING clause
+        """
+        # Get returning handler from dialect
+        handler = self.dialect.returning_handler
+
+        # Format RETURNING clause
+        if options.has_column_specification():
+            # Format advanced RETURNING clause with columns, expressions, aliases
+            returning_clause = handler.format_advanced_clause(
+                options.columns,
+                options.expressions,
+                options.aliases,
+                options.dialect_options
+            )
+        else:
+            # Use simple RETURNING *
+            returning_clause = handler.format_clause(None)
+
+        # Append RETURNING clause to SQL
+        sql += " " + returning_clause
+        self.log(logging.DEBUG, f"Added RETURNING clause: {sql}")
+
+        return sql
+
+    def _get_cursor(self):
+        """
+        Get or create cursor for MariaDB.
+
+        MariaDB supports dictionary cursors.
+
+        Returns:
+            mariadb.connection.cursor: MariaDB cursor
+        """
+        if self._cursor:
+            return self._cursor
+
+        # Create cursor with dictionary=True for dict-like access
+        cursor = self._connection.cursor(dictionary=True)
+        return cursor
+
+    def _execute_query(self, cursor, sql: str, params: Optional[Tuple]):
+        """
+        Execute query in MariaDB.
+
+        Args:
+            cursor: MariaDB cursor
+            sql: SQL statement
+            params: Query parameters
+
+        Returns:
+            mariadb.cursor: Cursor with executed query
+        """
+        # Parse statement type for special handling if needed
+        stmt_type = self._get_statement_type(sql)
+
+        # Execute with parameters if provided
+        if params:
+            # Convert parameters for MariaDB
+            processed_params = tuple(
+                self.dialect.value_mapper.to_database(value, None)
+                for value in params
+            )
+            cursor.execute(sql, processed_params)
+        else:
+            cursor.execute(sql)
+
+        return cursor
+
+    def _process_result_set(self, cursor, is_select: bool, need_returning: bool, column_types: Optional[ColumnTypes]) -> \
+    Optional[List[Dict]]:
+        """
+        Process query result set for MariaDB.
+
+        Args:
+            cursor: MariaDB cursor with executed query
+            is_select: Whether this is a SELECT query
+            need_returning: Whether RETURNING clause was used
+            column_types: Column type mapping for conversion
+
+        Returns:
+            Optional[List[Dict]]: Processed result rows or None
+        """
+        if not (is_select or need_returning):
+            return None
+
+        # Fetch all rows
+        rows = cursor.fetchall()
+        self.log(logging.DEBUG, f"Fetched {len(rows)} rows")
+
+        if not rows:
+            return []
+
+        # Apply type conversions if specified
+        if column_types:
+            self.log(logging.DEBUG, "Applying type conversions")
+            data = []
+
+            # Process each row with type conversion
+            for row in rows:
+                converted_row = {}
+                for key, value in row.items():
+                    db_type = column_types.get(key)
+                    if db_type is not None:
+                        converted_row[key] = self.dialect.value_mapper.from_database(value, db_type)
+                    else:
+                        converted_row[key] = value
+                data.append(converted_row)
+
+            return data
+
+        # Return rows directly if no type conversion needed
+        return rows
+
+    def _build_query_result(self, cursor, data: Optional[List[Dict]], duration: float) -> QueryResult:
+        """
+        Build QueryResult object from execution results.
+
+        Args:
+            cursor: MariaDB cursor
+            data: Processed result data
+            duration: Query execution duration
+
+        Returns:
+            QueryResult: Query result object
+        """
+        return QueryResult(
+            data=data,
+            affected_rows=getattr(cursor, 'rowcount', 0),
+            last_insert_id=getattr(cursor, 'lastrowid', None),
+            duration=duration
+        )
+
+    def _handle_auto_commit_if_needed(self) -> None:
+        """
+        Handle auto-commit for MariaDB.
+
+        MariaDB requires explicit commit when not in transaction.
+        """
+        try:
+            # Check if connection exists
+            if not self._connection:
+                return
+
+            # Check if we're not in an active transaction
+            if not self._transaction_manager or not self._transaction_manager.is_active:
+                self._connection.commit()
+                self.log(logging.DEBUG, "Auto-committed operation (not in active transaction)")
+        except Exception as e:
+            # Just log the error but don't raise
+            self.log(logging.WARNING, f"Failed to auto-commit: {str(e)}")
+
+    def _handle_execution_error(self, error: Exception):
+        """
+        Handle MariaDB-specific errors during execution.
+
+        Args:
+            error: Exception raised during execution
 
         Raises:
-            ConnectionError: Database connection failed
-            QueryError: Invalid SQL
-            DatabaseError: Other database errors
+            Appropriate database exception
         """
-        start_time = time.perf_counter()
+        if isinstance(error, mariadb.Error):
+            # Get MariaDB error code if available
+            code = getattr(error, 'errno', None)
+            msg = str(error)
 
-        # Log query with parameters
-        self.log(logging.DEBUG, f"Executing SQL: {sql}, parameters: {params}")
+            if isinstance(error, mariadb.IntegrityError):
+                if "Duplicate entry" in msg:
+                    self.log(logging.ERROR, f"Unique constraint violation: {msg}")
+                    raise IntegrityError(f"Unique constraint violation: {msg}")
+                elif "foreign key constraint fails" in msg.lower():
+                    self.log(logging.ERROR, f"Foreign key constraint violation: {msg}")
+                    raise IntegrityError(f"Foreign key constraint violation: {msg}")
+                self.log(logging.ERROR, f"Integrity error: {msg}")
+                raise IntegrityError(msg)
 
-        try:
-            # Ensure active connection
-            if not self._connection:
-                self.log(logging.DEBUG, "No active connection, establishing new connection")
-                self.connect()
+            elif isinstance(error, mariadb.OperationalError):
+                if "Lock wait timeout exceeded" in msg:
+                    self.log(logging.ERROR, f"Lock wait timeout exceeded: {msg}")
+                    raise DeadlockError(msg)
+                elif "deadlock" in msg.lower():
+                    self.log(logging.ERROR, f"Deadlock detected: {msg}")
+                    raise DeadlockError(msg)
 
-            # Parse statement type
-            stmt_type = sql.strip().split(None, 1)[0].upper()
-            is_select = stmt_type == "SELECT"
-            is_dml = stmt_type in ("INSERT", "UPDATE", "DELETE")
-            need_returning = returning and is_dml
-
-            # Check RETURNING support for DML statements
-            if need_returning:
-                handler = self.dialect.returning_handler
-                if not handler.is_supported:
-                    error_msg = "RETURNING clause not supported by MariaDB version. Version 10.5 or higher is required."
-                    self.log(logging.WARNING, error_msg)
-                    raise ReturningNotSupportedError(error_msg)
-
-                # Format and append RETURNING clause
-                sql += " " + handler.format_clause(returning_columns)
-                self.log(logging.DEBUG, f"Added RETURNING clause: {sql}")
-
-            # Get or create cursor - use dictionary=True to get results as dictionaries
-            cursor = self._cursor or self._connection.cursor(dictionary=True)
-
-            # Process SQL and parameters
-            final_sql, final_params = self.build_sql(sql, params)
-            self.log(logging.DEBUG, f"Processed SQL: {final_sql}")
-
-            # Convert parameters if needed
-            if final_params:
-                processed_params = tuple(
-                    self.dialect.value_mapper.to_database(value, None)
-                    for value in final_params
-                )
-            else:
-                processed_params = None
-
-            # Execute query
-            cursor.execute(final_sql, processed_params)
-
-            # Handle result set
-            data = None
-            if is_select or (need_returning and handler.is_supported):
-                rows = cursor.fetchall()
-                row_count = len(rows) if rows else 0
-                self.log(logging.DEBUG, f"Fetched {row_count} rows")
-
-                if column_types:
-                    # Apply type conversions
-                    self.log(logging.DEBUG, "Applying type conversions")
-                    data = []
-                    for row in rows:
-                        converted_row = {}
-                        for key, value in row.items():
-                            db_type = column_types.get(key)
-                            if db_type is not None:
-                                converted_row[key] = (
-                                    self.dialect.value_mapper.from_database(
-                                        value, db_type
-                                    )
-                                )
-                            else:
-                                converted_row[key] = value
-                        data.append(converted_row)
-                else:
-                    data = rows
-
-            duration = time.perf_counter() - start_time
-
-            # Log completion metrics
-            if is_dml:
-                self.log(logging.INFO,
-                         f"{stmt_type} affected {cursor.rowcount} rows, "
-                         f"last_insert_id={cursor.lastrowid}, duration={duration:.3f}s")
-            elif is_select:
-                row_count = len(data) if data is not None else 0
-                self.log(logging.INFO, f"{stmt_type} returned {row_count} rows, duration={duration:.3f}s")
-
-            # Build result
-            result = QueryResult(
-                data=data,
-                affected_rows=cursor.rowcount,
-                last_insert_id=cursor.lastrowid,
-                duration=duration
-            )
-
-            return result
-
-        except MariaDBError as e:
-            self.log(logging.ERROR, f"MariaDB error: {str(e)}")
-            self._handle_error(e)
+        # Call parent handler for common error processing
+        super()._handle_execution_error(error)
 
     def _handle_error(self, error: Exception) -> None:
         """Handle MariaDB specific errors

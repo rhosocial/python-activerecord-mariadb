@@ -1,354 +1,276 @@
-import os
+import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 import pytest
 import yaml
 
-# Import dotenv library to load .env file
-try:
-    from dotenv import load_dotenv
-
-    HAS_DOTENV = True
-except ImportError:
-    HAS_DOTENV = False
+# Setup logger
+logger = logging.getLogger("mariadb_test")
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 # Import required backend classes
 from src.rhosocial.activerecord.backend.typing import ConnectionConfig
-from src.rhosocial.activerecord.backend.impl.mysql.backend import MySQLBackend
 from src.rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 
 
-def find_config_file(base_name: str) -> Optional[Path]:
+def find_config_file(config_dir: Path) -> Optional[Path]:
     """
-    Find configuration file in the config directory.
+    Find configuration file in the specified directory
 
     Args:
-        base_name: Base name of the config file without extension
+        config_dir: Configuration file directory
 
     Returns:
-        Path to the config file or None if not found
+        Configuration file path or None (if not found)
     """
-    # Get the directory of this conftest.py file
-    current_dir = Path(__file__).parent.parent.parent
-
-    # Look for config files with different extensions
     for ext in ['.yml', '.yaml']:
-        config_path = current_dir / 'config' / f"{base_name}{ext}"
+        config_path = config_dir / f"config{ext}"
         if config_path.exists():
+            logger.info(f"Found configuration file: {config_path}")
             return config_path
 
+    logger.warning(f"No configuration file found in {config_dir}")
     return None
 
 
 def load_yaml_config(file_path: Path) -> Dict[str, Any]:
     """
-    Load YAML configuration file.
+    Load YAML configuration file
 
     Args:
-        file_path: Path to the YAML file
+        file_path: YAML file path
 
     Returns:
-        Dictionary with configuration
+        Configuration dictionary
     """
     try:
-        with open(file_path, 'r') as f:
-            return yaml.safe_load(f) or {}
+        with open(file_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f) or {}
+            logger.debug(f"Loaded configuration from {file_path}")
+            return config
     except Exception as e:
-        print(f"Warning: Failed to load config file {file_path}: {e}")
+        logger.error(f"Failed to load configuration file {file_path}: {e}")
         return {}
-
-
-def load_environment_variables() -> None:
-    """Load environment variables from .env file if available"""
-    if HAS_DOTENV:
-        env_path = Path(__file__).parent.parent.parent / 'config' / '.env'
-        if env_path.exists():
-            load_dotenv(env_path)
 
 
 def load_config() -> Dict[str, Any]:
     """
-    Load configuration from files and environment variables.
-    Priority (highest to lowest):
-    1. Environment variables
-    2. Local config file (config.local.yml)
-    3. Public config file (config.yml)
+    Load configuration
+
+    Search in priority order:
+    1. 'config' subdirectory of current directory
+    2. Current directory
+    3. 'config' subdirectory of conftest.py directory
+    4. conftest.py directory
 
     Returns:
-        Merged configuration dictionary
+        Configuration dictionary
     """
-    # Start with empty config
-    config = {}
+    # Try multiple paths
+    search_paths = [
+        Path.cwd() / 'config',  # 'config' subdirectory of current working directory
+        Path.cwd(),  # Current working directory
+        Path(__file__).parent / 'config',  # 'config' subdirectory of conftest.py directory
+        Path(__file__).parent,  # conftest.py directory
+    ]
 
-    # Load public config (lowest priority)
-    public_config_path = find_config_file('config')
-    if public_config_path:
-        public_config = load_yaml_config(public_config_path)
-        config.update(public_config)
+    # Find configuration file
+    config_file = None
+    for path in search_paths:
+        config_file = find_config_file(path)
+        if config_file:
+            break
 
-    # Load local config (overrides public config)
-    local_config_path = find_config_file('config.local')
-    if local_config_path:
-        local_config = load_yaml_config(local_config_path)
-        # Deep merge the configurations
-        deep_merge(config, local_config)
-
-    # Load environment variables (highest priority)
-    load_environment_variables()
-
-    # Override with environment variables if they exist
-    env_vars = {
-        'databases.mysql.host': os.environ.get('MYSQL_HOST'),
-        'databases.mysql.port': os.environ.get('MYSQL_PORT'),
-        'databases.mysql.database': os.environ.get('MYSQL_DATABASE'),
-        'databases.mysql.username': os.environ.get('MYSQL_USER'),
-        'databases.mysql.password': os.environ.get('MYSQL_PASSWORD'),
-        'databases.mariadb.host': os.environ.get('MARIADB_HOST'),
-        'databases.mariadb.port': os.environ.get('MARIADB_PORT'),
-        'databases.mariadb.database': os.environ.get('MARIADB_DATABASE'),
-        'databases.mariadb.username': os.environ.get('MARIADB_USER'),
-        'databases.mariadb.password': os.environ.get('MARIADB_PASSWORD'),
-        'databases.sqlite.database': os.environ.get('SQLITE_DATABASE'),
-    }
-
-    # Apply environment variables if they exist
-    for path, value in env_vars.items():
-        if value is not None:
-            set_nested_value(config, path.split('.'), value)
-
-    return config
+    # Load configuration file or use default configuration
+    if config_file:
+        return load_yaml_config(config_file)
+    else:
+        logger.warning("Configuration file not found, using default configuration")
+        return {
+            'databases': {
+                'mariadb': {
+                    'versions': [
+                        {'label': 'mariadb105', 'version': [10, 5, 0], 'host': '127.0.0.1', 'port': 3307,
+                         'database': 'test', 'username': 'root', 'password': ''},
+                    ]
+                }
+            }
+        }
 
 
-# [Deep merge and set_nested_value functions remain the same]
-
-# Load configuration once at module import time
+# Load configuration when the module is imported
 CONFIG = load_config()
 
 
-def get_mysql_config(version_label: Optional[str] = None) -> ConnectionConfig:
+def get_mariadb_versions() -> List[Dict[str, Any]]:
     """
-    Get MySQL connection configuration.
+    Get all configured MariaDB versions
+
+    Returns:
+        MariaDB version configuration list
+    """
+    try:
+        return CONFIG.get('databases', {}).get('mariadb', {}).get('versions', [])
+    except:
+        return []
+
+
+def create_mariadb_connection_config(version_config: Dict[str, Any]) -> ConnectionConfig:
+    """
+    Create ConnectionConfig based on version configuration
 
     Args:
-        version_label: Optional label to select specific MySQL version
+        version_config: Version configuration dictionary
 
     Returns:
         ConnectionConfig object
     """
-    if 'databases' not in CONFIG or 'mysql' not in CONFIG['databases']:
-        pytest.skip("MySQL configuration not found")
+    # Extract basic connection information
+    config_dict = {
+        'host': version_config.get('host', '127.0.0.1'),
+        'port': version_config.get('port', 3307),
+        'database': version_config.get('database', 'test'),
+        'username': version_config.get('username', 'root'),
+        'password': version_config.get('password', ''),
+        'version': tuple(version_config.get('version', [0, 0, 0])),
+    }
 
-    mysql_config = CONFIG['databases']['mysql'].copy()
+    # Extract other optional parameters
+    for key in ['charset', 'timezone', 'pool_size', 'pool_timeout', 'pool_name',
+                'ssl_ca', 'ssl_cert', 'ssl_key', 'ssl_mode', 'auth_plugin']:
+        if key in version_config:
+            config_dict[key] = version_config[key]
 
-    # Find version by label if specified
-    version = None
-    if version_label and 'versions' in mysql_config:
-        for ver_info in mysql_config.get('versions', []):
-            if ver_info.get('label') == version_label:
-                version = tuple(ver_info.get('version', [0, 0, 0]))
-                break
-
-    # Remove versions key as it's not needed in ConnectionConfig
-    if 'versions' in mysql_config:
-        del mysql_config['versions']
-
-    # Override version if specified
-    if version:
-        mysql_config['version'] = version
-
-    return ConnectionConfig(**mysql_config)
+    return ConnectionConfig(**config_dict)
 
 
-def get_mariadb_config(version_label: Optional[str] = None) -> ConnectionConfig:
+# Parameterized fixture for MariaDB versions
+@pytest.fixture(params=get_mariadb_versions(), ids=lambda v: v.get('label', f"mariadb-{v.get('version', [0, 0, 0])}"))
+def mariadb_config(request):
     """
-    Get MariaDB connection configuration.
+    Fixture providing MariaDB connection configuration, executed once for each configured version
 
     Args:
-        version_label: Optional label to select specific MariaDB version
+        request: Pytest request object for accessing parameters
 
     Returns:
         ConnectionConfig object
     """
-    if 'databases' not in CONFIG or 'mariadb' not in CONFIG['databases']:
-        pytest.skip("MariaDB configuration not found")
-
-    mariadb_config = CONFIG['databases']['mariadb'].copy()
-
-    # Find version by label if specified
-    version = None
-    if version_label and 'versions' in mariadb_config:
-        for ver_info in mariadb_config.get('versions', []):
-            if ver_info.get('label') == version_label:
-                version = tuple(ver_info.get('version', [0, 0, 0]))
-                break
-
-    # Remove versions key as it's not needed in ConnectionConfig
-    if 'versions' in mariadb_config:
-        del mariadb_config['versions']
-
-    # Override version if specified
-    if version:
-        mariadb_config['version'] = version
-
-    return ConnectionConfig(**mariadb_config)
-
-
-def get_use_mock_backend() -> bool:
-    """
-    Determine if tests should use mock backend.
-
-    Returns:
-        True if mock backend should be used, False otherwise
-    """
-    return CONFIG.get('test_settings', {}).get('use_mock_backend', True)
-
-
-class MockConnection:
-    """Mock database connection for testing"""
-
-    def __init__(self, version=(8, 0, 21)):
-        self.version = version
-        self.executed_queries = []
-        self.cursor_mock = None
-
-    def cursor(self, **kwargs):
-        """Return mock cursor"""
-        import unittest.mock
-        self.cursor_mock = unittest.mock.MagicMock()
-        return self.cursor_mock
-
-    def commit(self):
-        """Mock commit"""
-        pass
-
-    def close(self):
-        """Mock close"""
-        pass
+    version_config = request.param
+    logger.info(f"Using MariaDB configuration: {version_config.get('label')}, version: {version_config.get('version')}")
+    return create_mariadb_connection_config(version_config)
 
 
 @pytest.fixture
-def mysql_backend(request):
+def mariadb_connection(mariadb_config):
     """
-    Fixture to provide MySQL backend.
+    Fixture providing MariaDB connection
 
     Args:
-        request: Pytest request object to access markers
-
-    Returns:
-        MySQLBackend instance
-    """
-    # Check for version marker
-    version_label = None
-    for marker in request.node.iter_markers(name="mysql_version"):
-        version_label = marker.args[0] if marker.args else None
-        break
-
-    config = get_mysql_config(version_label)
-
-    # Check if we should use mock or real connection
-    use_mock = get_use_mock_backend()
-
-    if use_mock:
-        # Create mock backend
-        import unittest.mock
-        with unittest.mock.patch('mysql.connector.connect') as mock_connect:
-            # Configure mock based on version
-            mock_connection = MockConnection(version=config.version or (8, 0, 21))
-            mock_connect.return_value = mock_connection
-
-            # Create and return backend
-            backend = MySQLBackend(connection_config=config)
-            yield backend
-    else:
-        # Create real backend
-        try:
-            backend = MySQLBackend(connection_config=config)
-            yield backend
-        finally:
-            # Cleanup
-            if hasattr(backend, '_connection') and backend._connection:
-                backend.disconnect()
-
-
-@pytest.fixture
-def mariadb_backend(request):
-    """
-    Fixture to provide MariaDB backend.
-
-    Args:
-        request: Pytest request object to access markers
+        mariadb_config: MariaDB connection configuration
 
     Returns:
         MariaDBBackend instance
     """
-    # Check for version marker
-    version_label = None
-    for marker in request.node.iter_markers(name="mariadb_version"):
-        version_label = marker.args[0] if marker.args else None
-        break
+    logger.info(f"Creating MariaDB connection: {mariadb_config.host}:{mariadb_config.port}")
+    backend = MariaDBBackend(connection_config=mariadb_config)
 
-    config = get_mariadb_config(version_label)
+    try:
+        backend.connect()
+        logger.info("MariaDB connection created successfully")
+        yield backend
+    finally:
+        # Ensure proper cleanup
+        if backend:
+            logger.info("Cleaning up MariaDB connection")
+            # Roll back any active transactions
+            if hasattr(backend, '_transaction_manager') and backend._transaction_manager and backend._transaction_manager.is_active:
+                logger.warning("Active transaction detected during cleanup, rolling back")
+                try:
+                    backend._transaction_manager.rollback()
+                except Exception as e:
+                    logger.error(f"Transaction rollback error: {e}")
 
-    # Check if we should use mock or real connection
-    use_mock = get_use_mock_backend()
-
-    if use_mock:
-        # Create mock backend
-        import unittest.mock
-        with unittest.mock.patch('mariadb.connect') as mock_connect:
-            # Configure mock based on version
-            mock_connection = MockConnection(version=config.version or (10, 5, 0))
-            mock_connect.return_value = mock_connection
-
-            # Create and return backend
-            backend = MariaDBBackend(connection_config=config)
-            yield backend
-    else:
-        # Create real backend
-        try:
-            backend = MariaDBBackend(connection_config=config)
-            yield backend
-        finally:
-            # Cleanup
+            # Disconnect properly
             if hasattr(backend, '_connection') and backend._connection:
-                backend.disconnect()
+                logger.info("Disconnecting MariaDB connection")
+                try:
+                    backend.disconnect()
+                except Exception as e:
+                    logger.error(f"Disconnect error: {e}")
 
 
-# Create markers for database versions
+@pytest.fixture
+def mariadb_test_db(mariadb_connection):
+    """
+    Fixture to setup and teardown test database
+
+    Args:
+        mariadb_connection: MariaDB connection
+
+    Returns:
+        MariaDB connection with prepared test tables
+    """
+    # Import setup and teardown functions from test_crud.py
+    try:
+        # Try direct import
+        from test_mariadb_crud import setup_test_table, teardown_test_table
+    except ImportError:
+        # If import fails, try dynamic module loading
+        import importlib.util
+        import sys
+
+        # Find test_mariadb_crud.py file
+        for search_path in [Path.cwd(), Path(__file__).parent]:
+            module_path = search_path / 'test_mariadb_crud.py'
+            if module_path.exists():
+                logger.info(f"Found test_mariadb_crud.py: {module_path}")
+                spec = importlib.util.spec_from_file_location("test_mariadb_crud", module_path)
+                test_crud_module = importlib.util.module_from_spec(spec)
+                sys.modules["test_mariadb_crud"] = test_crud_module
+                spec.loader.exec_module(test_crud_module)
+                setup_test_table = test_crud_module.setup_test_table
+                teardown_test_table = test_crud_module.teardown_test_table
+                break
+        else:
+            pytest.skip("Could not find test_mariadb_crud.py module")
+
+    logger.info("Setting up test tables")
+    # Ensure starting from a clean state
+    if not mariadb_connection._connection:
+        mariadb_connection.connect()
+    elif hasattr(mariadb_connection,
+                 '_transaction_manager') and mariadb_connection._transaction_manager and mariadb_connection._transaction_manager.is_active:
+        # If there's an active transaction, roll back first
+        try:
+            mariadb_connection._transaction_manager.rollback()
+            logger.info("Rolled back previous active transaction")
+        except Exception as e:
+            logger.error(f"Error rolling back previous transaction: {e}")
+            # Reconnect on connection error
+            mariadb_connection.disconnect()
+            mariadb_connection.connect()
+            logger.info("Reconnected after transaction error")
+
+    # Setup test tables
+    setup_test_table(mariadb_connection)
+    logger.info("Test tables created successfully")
+
+    # Return connection for tests to use
+    yield mariadb_connection
+
+    # Cleanup after tests
+    logger.info("Cleaning up test tables")
+    teardown_test_table(mariadb_connection)
+    logger.info("Test tables deleted successfully")
+
+
 def pytest_configure(config):
-    """Configure pytest with custom markers"""
-    config.addinivalue_line(
-        "markers", "mysql_version(label): specify MySQL version label to use"
-    )
-    config.addinivalue_line(
-        "markers", "mariadb_version(label): specify MariaDB version label to use"
-    )
-
-
-# Skip tests marked with version if no matching version found
-def pytest_runtest_setup(item):
-    """Set up test - skip if appropriate"""
-    # Handle MySQL version markers
-    for marker in item.iter_markers(name="mysql_version"):
-        version_label = marker.args[0] if marker.args else None
-        if version_label and version_label != "any":
-            mysql_config = CONFIG.get('databases', {}).get('mysql', {})
-            versions = mysql_config.get('versions', [])
-
-            # Check if version exists
-            version_exists = any(v.get('label') == version_label for v in versions)
-            if not version_exists:
-                pytest.skip(f"MySQL version with label '{version_label}' not configured")
-
-    # Handle MariaDB version markers
-    for marker in item.iter_markers(name="mariadb_version"):
-        version_label = marker.args[0] if marker.args else None
-        if version_label:
-            mariadb_config = CONFIG.get('databases', {}).get('mariadb', {})
-            versions = mariadb_config.get('versions', [])
-
-            # Check if version exists
-            version_exists = any(v.get('label') == version_label for v in versions)
-            if not version_exists:
-                pytest.skip(f"MariaDB version with label '{version_label}' not configured")
+    """Configure pytest"""
+    # No special markers needed as we use parameterized fixtures
+    pass
