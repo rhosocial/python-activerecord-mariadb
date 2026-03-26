@@ -1,0 +1,100 @@
+scenarios:
+  mariadb_12_2:
+    host: 192.168.1.3
+    port: 13712
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_12_0:
+    host: 192.168.1.3
+    port: 13711
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_11_8:
+    host: 192.168.1.3
+    port: 13710
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_11_7:
+    host: 192.168.1.3
+    port: 13709
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_11_4:
+    host: 192.168.1.3
+    port: 13708
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_10_11:
+    host: 192.168.1.3
+    port: 13707
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_10_6:
+    host: 192.168.1.3
+    port: 13706
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_10_5:
+    host: 192.168.1.3
+    port: 13705
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_10_4:
+    host: 192.168.1.3
+    port: 13704
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_10_3:
+    host: 192.168.1.3
+    port: 13703
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false
+  mariadb_10_2:
+    host: 192.168.1.3
+    port: 13702
+    database: test_db
+    username: root
+    password: password
+    charset: utf8mb4
+    autocommit: false
+    ssl_disabled: false

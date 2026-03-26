@@ -1,223 +1,169 @@
+# src/rhosocial/activerecord/backend/impl/mariadb/transaction.py
+"""MariaDB transaction management."""
+
 import logging
 from typing import Dict, Optional
-from mariadb import Error as MariaDBError
 
-from ...errors import TransactionError
-from ...transaction import TransactionManager, IsolationLevel, TransactionState
+from rhosocial.activerecord.backend.transaction import TransactionManager, IsolationLevel, TransactionState
+from rhosocial.activerecord.backend.errors import TransactionError
 
 
-class MariaDBTransactionManager(TransactionManager):
-    """MariaDB transaction manager implementation"""
+_ISOLATION_LEVELS: Dict[IsolationLevel, str] = {
+    IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
+    IsolationLevel.READ_COMMITTED: "READ COMMITTED",
+    IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",
+    IsolationLevel.SERIALIZABLE: "SERIALIZABLE",
+}
 
-    # MariaDB supported isolation level mappings
-    _ISOLATION_LEVELS: Dict[IsolationLevel, str] = {
-        IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
-        IsolationLevel.READ_COMMITTED: "READ COMMITTED",
-        IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",  # MariaDB default
-        IsolationLevel.SERIALIZABLE: "SERIALIZABLE"
-    }
+
+class MariaDBTransactionMixin:
+    """Mixin providing common MariaDB transaction functionality."""
+
+    _ISOLATION_LEVELS = _ISOLATION_LEVELS
+    _isolation_level: IsolationLevel
+    _logger: logging.Logger
+
+    def _get_savepoint_name(self, level: int) -> str:
+        """Generate savepoint name for nested transactions.
+
+        Args:
+            level: The nesting level of the transaction.
+
+        Returns:
+            A savepoint name string.
+        """
+        return f"SP_{level}"
+
+    def _validate_isolation_level(self, level: IsolationLevel) -> None:
+        """Validate that the isolation level is supported by MariaDB.
+
+        Args:
+            level: The isolation level to validate.
+
+        Raises:
+            TransactionError: If the isolation level is not supported.
+        """
+        if level not in self._ISOLATION_LEVELS:
+            error_msg = f"Unsupported isolation level: {level}"
+            if hasattr(self, "log"):
+                self.log(logging.ERROR, error_msg)
+            raise TransactionError(error_msg)
+
+    def _check_no_active_transaction(self) -> None:
+        """Check that no transaction is active before changing isolation level.
+
+        Raises:
+            TransactionError: If a transaction is currently active.
+        """
+        if self.is_active:
+            error_msg = "Cannot change isolation level during active transaction"
+            if hasattr(self, "log"):
+                self.log(logging.ERROR, error_msg)
+            raise TransactionError(error_msg)
+
+    def supports_savepoint(self) -> bool:
+        """Check if savepoints are supported by MariaDB.
+
+        Returns:
+            True, as MariaDB always supports savepoints.
+        """
+        return True
+
+
+class MariaDBTransactionManager(MariaDBTransactionMixin, TransactionManager):
+    """MariaDB transaction manager implementation."""
 
     def __init__(self, connection, logger=None):
-        """Initialize MariaDB transaction manager
+        """Initialize MariaDB transaction manager.
 
         Args:
             connection: MariaDB database connection
             logger: Optional logger instance
         """
         super().__init__(connection, logger)
-        self._active_savepoint = None
-        self._savepoint_counter = 0
+        self._isolation_level = IsolationLevel.REPEATABLE_READ
         self._state = TransactionState.INACTIVE
 
-    def _set_isolation_level(self) -> None:
-        """Set transaction isolation level
+    @property
+    def isolation_level(self) -> Optional[IsolationLevel]:
+        """Get the current transaction isolation level."""
+        return self._isolation_level
 
-        This is called at the start of each transaction
-        """
-        if self._isolation_level:
-            level = self._ISOLATION_LEVELS.get(self._isolation_level)
-            if level:
-                try:
-                    self.log(logging.DEBUG, f"Setting isolation level to {level}")
-                    cursor = self._connection.cursor()
-                    cursor.execute(f"SET TRANSACTION ISOLATION LEVEL {level}")
-                    cursor.close()
-                except MariaDBError as e:
-                    error_msg = f"Failed to set isolation level to {level}: {str(e)}"
-                    self.log(logging.ERROR, error_msg)
-                    raise TransactionError(error_msg)
-            else:
-                error_msg = f"Unsupported isolation level: {self._isolation_level}"
-                self.log(logging.ERROR, error_msg)
-                raise TransactionError(error_msg)
+    @isolation_level.setter
+    def isolation_level(self, level: Optional[IsolationLevel]):
+        """Set the transaction isolation level."""
+        self.log(logging.DEBUG, f"Setting isolation level to {level}")
+        self._check_no_active_transaction()
+        self._validate_isolation_level(level)
+        self._isolation_level = level
 
     def _do_begin(self) -> None:
-        """Begin MariaDB transaction
-
-        Sets isolation level and starts transaction
-
-        Raises:
-            TransactionError: If begin fails
-        """
-        try:
-            # Set isolation level first
-            self._set_isolation_level()
-
-            # Start transaction
-            # MariaDB connector doesn't have start_transaction method
-            # Instead, we need to execute BEGIN
-            cursor = self._connection.cursor()
-            self.log(logging.DEBUG, "Executing: BEGIN")
-            cursor.execute("BEGIN")
-            cursor.close()
-            self._state = TransactionState.ACTIVE
-            self.log(logging.INFO, f"Started transaction with isolation level {self._isolation_level}")
-
-        except MariaDBError as e:
-            error_msg = f"Failed to begin transaction: {str(e)}"
-            self.log(logging.ERROR, error_msg)
-            raise TransactionError(error_msg)
+        """Begin MariaDB transaction."""
+        begin_sql = "BEGIN"
+        self.log(logging.DEBUG, f"Executing: {begin_sql}")
+        cursor = self.connection.cursor()
+        cursor.execute(begin_sql)
+        cursor.close()
+        self._state = TransactionState.ACTIVE
 
     def _do_commit(self) -> None:
-        """Commit MariaDB transaction
-
-        Raises:
-            TransactionError: If commit fails
-        """
-        try:
-            self.log(logging.DEBUG, "Committing transaction")
-            self._connection.commit()
-            self._state = TransactionState.COMMITTED
-            self.log(logging.INFO, "Transaction committed")
-        except MariaDBError as e:
-            error_msg = f"Failed to commit transaction: {str(e)}"
-            self.log(logging.ERROR, error_msg)
-            raise TransactionError(error_msg)
-        finally:
-            self._active_savepoint = None
-            self._savepoint_counter = 0
+        """Commit MariaDB transaction."""
+        sql = "COMMIT"
+        self.log(logging.DEBUG, f"Executing: {sql}")
+        cursor = self.connection.cursor()
+        cursor.execute(sql)
+        cursor.close()
+        self._state = TransactionState.COMMITTED
 
     def _do_rollback(self) -> None:
-        """Rollback MariaDB transaction
-
-        Raises:
-            TransactionError: If rollback fails
-        """
-        try:
-            self.log(logging.DEBUG, "Rolling back transaction")
-            self._connection.rollback()
-            self._state = TransactionState.ROLLED_BACK
-            self.log(logging.INFO, "Transaction rolled back")
-        except MariaDBError as e:
-            error_msg = f"Failed to rollback transaction: {str(e)}"
-            self.log(logging.ERROR, error_msg)
-            raise TransactionError(error_msg)
-        finally:
-            self._active_savepoint = None
-            self._savepoint_counter = 0
-
-    def _get_savepoint_name(self, level: int) -> str:
-        """Generate savepoint name for nested transactions
-
-        Args:
-            level: Transaction nesting level
-
-        Returns:
-            str: Savepoint name
-        """
-        return f"SP_{level}"
+        """Rollback MariaDB transaction."""
+        sql = "ROLLBACK"
+        self.log(logging.DEBUG, f"Executing: {sql}")
+        cursor = self.connection.cursor()
+        cursor.execute(sql)
+        cursor.close()
+        self._state = TransactionState.ROLLED_BACK
 
     def _do_create_savepoint(self, name: str) -> None:
-        """Create MariaDB savepoint
-
-        Args:
-            name: Savepoint name
-
-        Raises:
-            TransactionError: If create savepoint fails
-        """
+        """Create MariaDB savepoint."""
         try:
-            cursor = self._connection.cursor()
             sql = f"SAVEPOINT {name}"
             self.log(logging.DEBUG, f"Executing: {sql}")
+            cursor = self.connection.cursor()
             cursor.execute(sql)
             cursor.close()
-            self._active_savepoint = name
-            self.log(logging.INFO, f"Created savepoint: {name}")
-        except MariaDBError as e:
+        except Exception as e:
             error_msg = f"Failed to create savepoint {name}: {str(e)}"
             self.log(logging.ERROR, error_msg)
-            raise TransactionError(error_msg)
+            raise TransactionError(error_msg) from e
 
     def _do_release_savepoint(self, name: str) -> None:
-        """Release MariaDB savepoint
-
-        Args:
-            name: Savepoint name
-
-        Raises:
-            TransactionError: If release savepoint fails
-        """
+        """Release MariaDB savepoint."""
         try:
-            cursor = self._connection.cursor()
             sql = f"RELEASE SAVEPOINT {name}"
             self.log(logging.DEBUG, f"Executing: {sql}")
+            cursor = self.connection.cursor()
             cursor.execute(sql)
             cursor.close()
-            if self._active_savepoint == name:
-                self._active_savepoint = None
-            self.log(logging.INFO, f"Released savepoint: {name}")
-        except MariaDBError as e:
+        except Exception as e:
             error_msg = f"Failed to release savepoint {name}: {str(e)}"
             self.log(logging.ERROR, error_msg)
-            raise TransactionError(error_msg)
+            raise TransactionError(error_msg) from e
 
     def _do_rollback_savepoint(self, name: str) -> None:
-        """Rollback to MariaDB savepoint
-
-        Args:
-            name: Savepoint name
-
-        Raises:
-            TransactionError: If rollback to savepoint fails
-        """
+        """Rollback to MariaDB savepoint."""
         try:
-            cursor = self._connection.cursor()
             sql = f"ROLLBACK TO SAVEPOINT {name}"
             self.log(logging.DEBUG, f"Executing: {sql}")
+            cursor = self.connection.cursor()
             cursor.execute(sql)
             cursor.close()
-            if self._active_savepoint == name:
-                self._active_savepoint = None
-            self.log(logging.INFO, f"Rolled back to savepoint: {name}")
-        except MariaDBError as e:
+        except Exception as e:
             error_msg = f"Failed to rollback to savepoint {name}: {str(e)}"
             self.log(logging.ERROR, error_msg)
-            raise TransactionError(error_msg)
-
-    def supports_savepoint(self) -> bool:
-        """Check if savepoints are supported
-
-        Returns:
-            bool: Always True for MariaDB
-        """
-        return True
+            raise TransactionError(error_msg) from e
 
     @property
     def is_active(self) -> bool:
-        """Check if transaction is active
-
-        Returns:
-            bool: True if in transaction
-        """
-        # For MariaDB we check transaction level and state
-        is_active = self._transaction_level > 0 and self._state == TransactionState.ACTIVE
-        return is_active
-
-    def get_active_savepoint(self) -> Optional[str]:
-        """Get name of active savepoint
-
-        Returns:
-            Optional[str]: Active savepoint name or None
-        """
-        return self._active_savepoint
+        """Check if transaction is active."""
+        return self._transaction_level > 0 and self._state == TransactionState.ACTIVE

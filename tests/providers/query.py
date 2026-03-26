@@ -1,0 +1,380 @@
+# tests/providers/query.py
+"""
+This file provides the concrete implementation of the `IQueryProvider` interface
+that is defined in the `rhosocial-activerecord-testsuite` package.
+
+Its main responsibilities are:
+1. Reporting which test scenarios (database configurations) are available.
+2. Setting up the database environment for a given test. This includes:
+   - Getting the correct database configuration for the scenario.
+   - Configuring the ActiveRecord model with a database connection.
+   - Dropping any old tables and creating the necessary table schema.
+3. Cleaning up any resources (like temporary database files) after a test runs.
+"""
+import os
+import sys
+import logging
+from typing import Type, List, Tuple
+
+from rhosocial.activerecord.model import ActiveRecord
+
+logger = logging.getLogger(__name__)
+
+from rhosocial.activerecord.testsuite.utils import select_fixture
+
+from rhosocial.activerecord.testsuite.feature.query.fixtures.models import (
+    User as UserBase, JsonUser as JsonUserBase,
+    Order as OrderBase, OrderItem as OrderItemBase,
+    Post as PostBase, Comment as CommentBase,
+    MappedUser as MappedUserBase, MappedPost as MappedPostBase, MappedComment as MappedCommentBase
+)
+from rhosocial.activerecord.testsuite.feature.query.fixtures.cte_models import Node
+from rhosocial.activerecord.testsuite.feature.query.fixtures.extended_models import ExtendedOrder, ExtendedOrderItem
+
+User310 = JsonUser310 = Order310 = OrderItem310 = Post310 = Comment310 = None
+MappedUser310 = MappedPost310 = MappedComment310 = None
+
+if sys.version_info >= (3, 10):
+    try:
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.models_py310 import (
+            User as User310, JsonUser as JsonUser310,
+            Order as Order310, OrderItem as OrderItem310,
+            Post as Post310, Comment as Comment310,
+            MappedUser as MappedUser310, MappedPost as MappedPost310, MappedComment as MappedComment310
+        )
+    except ImportError as e:
+        logger.warning(f"Failed to import Python 3.10+ fixtures: {e}")
+
+User311 = JsonUser311 = Order311 = OrderItem311 = Post311 = Comment311 = None
+MappedUser311 = MappedPost311 = MappedComment311 = None
+
+if sys.version_info >= (3, 11):
+    try:
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.models_py311 import (
+            User as User311, JsonUser as JsonUser311,
+            Order as Order311, OrderItem as OrderItem311,
+            Post as Post311, Comment as Comment311,
+            MappedUser as MappedUser311, MappedPost as MappedPost311, MappedComment as MappedComment311
+        )
+    except ImportError as e:
+        logger.warning(f"Failed to import Python 3.11+ fixtures: {e}")
+
+User312 = JsonUser312 = Order312 = OrderItem312 = Post312 = Comment312 = None
+MappedUser312 = MappedPost312 = MappedComment312 = None
+
+if sys.version_info >= (3, 12):
+    try:
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.models_py312 import (
+            User as User312, JsonUser as JsonUser312,
+            Order as Order312, OrderItem as OrderItem312,
+            Post as Post312, Comment as Comment312,
+            MappedUser as MappedUser312, MappedPost as MappedPost312, MappedComment as MappedComment312
+        )
+    except ImportError as e:
+        logger.warning(f"Failed to import Python 3.12+ fixtures: {e}")
+
+
+def _select_model_class(base_cls, py312_cls, py311_cls, py310_cls, model_name: str) -> Type:
+    """Select the most appropriate model class for the current Python version."""
+    candidates = [c for c in [py312_cls, py311_cls, py310_cls, base_cls] if c is not None]
+    selected = select_fixture(*candidates)
+    logger.info(f"Selected {model_name}: {selected.__name__} from {selected.__module__}")
+    return selected
+
+
+User = _select_model_class(UserBase, User312, User311, User310, "User")
+JsonUser = _select_model_class(JsonUserBase, JsonUser312, JsonUser311, JsonUser310, "JsonUser")
+Order = _select_model_class(OrderBase, Order312, Order311, Order310, "Order")
+OrderItem = _select_model_class(OrderItemBase, OrderItem312, OrderItem311, OrderItem310, "OrderItem")
+Post = _select_model_class(PostBase, Post312, Post311, Post310, "Post")
+Comment = _select_model_class(CommentBase, Comment312, Comment311, Comment310, "Comment")
+MappedUser = _select_model_class(MappedUserBase, MappedUser312, MappedUser311, MappedUser310, "MappedUser")
+MappedPost = _select_model_class(MappedPostBase, MappedPost312, MappedPost311, MappedPost310, "MappedPost")
+MappedComment = _select_model_class(MappedCommentBase, MappedComment312, MappedComment311, MappedComment310, "MappedComment")
+
+from rhosocial.activerecord.testsuite.feature.query.interfaces import IQueryProvider
+from .scenarios import get_enabled_scenarios, get_scenario
+
+
+class QueryProvider(IQueryProvider):
+    """MariaDB backend implementation for the query features test group."""
+
+    def __init__(self):
+        self._active_backends = []
+
+    def get_test_scenarios(self) -> List[str]:
+        """Returns a list of names for all enabled scenarios for this backend."""
+        return list(get_enabled_scenarios().keys())
+
+    def _setup_model(self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str) -> Type[ActiveRecord]:
+        """A generic helper method to handle the setup for any given model."""
+        backend_class, config = get_scenario(scenario_name)
+        model_class.configure(config, backend_class)
+
+        backend_instance = model_class.__backend__
+        if backend_instance not in self._active_backends:
+            self._active_backends.append(backend_instance)
+
+        try:
+            model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 0")
+            model_class.__backend__.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+            model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 1")
+        except Exception:
+            try:
+                model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 1")
+            except Exception:
+                pass
+
+        schema_sql = self._load_mariadb_schema(f"{table_name}.sql")
+        model_class.__backend__.execute(schema_sql)
+
+        return model_class
+
+    def _setup_multiple_models(self, model_classes: List[Tuple[Type[ActiveRecord], str]], scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Helper to set up multiple related models for a test."""
+        result = []
+        for model_class, table_name in model_classes:
+            configured_model = self._setup_model(model_class, scenario_name, table_name)
+            result.append(configured_model)
+        return tuple(result)
+
+    async def _setup_model_async(self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str) -> Type[ActiveRecord]:
+        """A generic helper method to handle the setup for any given async model."""
+        from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+
+        _, config = get_scenario(scenario_name)
+        await model_class.configure(config, AsyncMariaDBBackend)
+
+        backend_instance = model_class.__backend__
+        if backend_instance not in self._active_backends:
+            self._active_backends.append(backend_instance)
+
+        try:
+            await model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 0")
+            await model_class.__backend__.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+        finally:
+            await model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 1")
+
+        schema_sql = self._load_mariadb_schema(f"{table_name}.sql")
+        await model_class.__backend__.execute(schema_sql)
+
+        return model_class
+
+    async def _setup_multiple_models_async(self, model_classes: List[Tuple[Type[ActiveRecord], str]], scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Helper to set up multiple related async models for a test."""
+        result = []
+        shared_backend = None
+        for i, (model_class, table_name) in enumerate(model_classes):
+            if i == 0:
+                configured_model = await self._setup_model_async(model_class, scenario_name, table_name)
+                shared_backend = configured_model.__backend__
+            else:
+                model_class.__connection_config__ = configured_model.__connection_config__
+                model_class.__backend_class__ = type(shared_backend)
+                model_class.__backend__ = shared_backend
+                configured_model = await self._setup_model_async(model_class, scenario_name, table_name)
+            result.append(configured_model)
+        return tuple(result)
+
+    def setup_order_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the order-related models (User, Order, OrderItem) tests."""
+        return self._setup_multiple_models([
+            (User, "users"),
+            (Order, "orders"),
+            (OrderItem, "order_items")
+        ], scenario_name)
+
+    def setup_blog_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the blog-related models (User, Post, Comment) tests."""
+        return self._setup_multiple_models([
+            (User, "users"),
+            (Post, "posts"),
+            (Comment, "comments")
+        ], scenario_name)
+
+    def setup_json_user_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Sets up the database for the JSON user model tests."""
+        import pytest
+        backend_class, config = get_scenario(scenario_name)
+        JsonUser.configure(config, backend_class)
+        backend_instance = JsonUser.__backend__
+        if backend_instance not in self._active_backends:
+            self._active_backends.append(backend_instance)
+        if not backend_instance.dialect.supports_json_type():
+            pytest.skip(f"JSON type not supported by MariaDB version {backend_instance.get_server_version()}")
+        json_user_model = self._setup_model(JsonUser, scenario_name, "json_users")
+        return (json_user_model,)
+
+    def setup_tree_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Sets up the database for the tree model (Node) tests."""
+        node_model = self._setup_model(Node, scenario_name, "nodes")
+        return (node_model,)
+
+    def setup_extended_order_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the extended order-related models (User, ExtendedOrder, ExtendedOrderItem) tests."""
+        return self._setup_multiple_models([
+            (User, "users"),
+            (ExtendedOrder, "extended_orders"),
+            (ExtendedOrderItem, "extended_order_items")
+        ], scenario_name)
+
+    def setup_combined_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the combined models (User, Order, OrderItem, Post, Comment) tests."""
+        return self._setup_multiple_models([
+            (User, "users"),
+            (Order, "orders"),
+            (OrderItem, "order_items"),
+            (Post, "posts"),
+            (Comment, "comments")
+        ], scenario_name)
+
+    def setup_annotated_query_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Sets up the database for the SearchableItem model tests."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.annotated_adapter_models import SearchableItem
+        return self._setup_multiple_models([
+            (SearchableItem, "searchable_items"),
+        ], scenario_name)
+
+    def setup_mapped_models(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for MappedUser, MappedPost, and MappedComment models."""
+        return self._setup_multiple_models([
+            (MappedUser, "users"),
+            (MappedPost, "posts"),
+            (MappedComment, "comments")
+        ], scenario_name)
+
+    async def setup_async_order_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the async order-related models (AsyncUser, AsyncOrder, AsyncOrderItem) tests."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_models import AsyncUser, AsyncOrder, AsyncOrderItem
+        return await self._setup_multiple_models_async([
+            (AsyncUser, "users"),
+            (AsyncOrder, "orders"),
+            (AsyncOrderItem, "order_items")
+        ], scenario_name)
+
+    async def setup_async_blog_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the async blog-related models (AsyncUser, AsyncPost, AsyncComment) tests."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_blog_models import AsyncUser, AsyncPost, AsyncComment
+        return await self._setup_multiple_models_async([
+            (AsyncUser, "users"),
+            (AsyncPost, "posts"),
+            (AsyncComment, "comments")
+        ], scenario_name)
+
+    async def setup_async_json_user_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Sets up the database for the async JSON user model tests."""
+        import pytest
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_json_models import AsyncJsonUser
+        backend_class, config = get_scenario(scenario_name)
+        await AsyncJsonUser.configure(config, backend_class)
+        backend_instance = AsyncJsonUser.__backend__
+        if backend_instance not in self._active_backends:
+            self._active_backends.append(backend_instance)
+        if not backend_instance.dialect.supports_json_type():
+            pytest.skip(f"JSON type not supported by MariaDB version {backend_instance.get_server_version()}")
+        json_user_model = await self._setup_model_async(AsyncJsonUser, scenario_name, "json_users")
+        return (json_user_model,)
+
+    async def setup_async_tree_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Sets up the database for the async tree model (AsyncNode) tests."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_cte_models import AsyncNode
+        node_model = await self._setup_model_async(AsyncNode, scenario_name, "nodes")
+        return (node_model,)
+
+    async def setup_async_extended_order_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the async extended order-related models (AsyncUser, AsyncExtendedOrder, AsyncExtendedOrderItem) tests."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_extended_models import AsyncUser, AsyncExtendedOrder, AsyncExtendedOrderItem
+        return await self._setup_multiple_models_async([
+            (AsyncUser, "users"),
+            (AsyncExtendedOrder, "extended_orders"),
+            (AsyncExtendedOrderItem, "extended_order_items")
+        ], scenario_name)
+
+    async def setup_async_combined_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for the async combined models (AsyncUser, AsyncOrder, AsyncOrderItem, AsyncPost, AsyncComment) tests."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_models import AsyncUser, AsyncOrder, AsyncOrderItem
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_blog_models import AsyncPost, AsyncComment
+        return await self._setup_multiple_models_async([
+            (AsyncUser, "users"),
+            (AsyncOrder, "orders"),
+            (AsyncOrderItem, "order_items"),
+            (AsyncPost, "posts"),
+            (AsyncComment, "comments")
+        ], scenario_name)
+
+    async def setup_async_annotated_query_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
+        """Sets up the database for the async SearchableItem model tests."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_annotated_adapter_models import AsyncSearchableItem
+        return await self._setup_multiple_models_async([
+            (AsyncSearchableItem, "searchable_items"),
+        ], scenario_name)
+
+    async def setup_async_mapped_models(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for AsyncMappedUser, AsyncMappedPost, and AsyncMappedComment models."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_mapped_models import AsyncMappedUser, AsyncMappedPost, AsyncMappedComment
+        return await self._setup_multiple_models_async([
+            (AsyncMappedUser, "users"),
+            (AsyncMappedPost, "posts"),
+            (AsyncMappedComment, "comments")
+        ], scenario_name)
+
+    async def cleanup_after_test_async(self, scenario_name: str) -> None:
+        """Performs async cleanup after a test, dropping all tables and disconnecting async backends."""
+        from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+
+        for backend_instance in self._active_backends:
+            is_async = isinstance(backend_instance, AsyncMariaDBBackend)
+            if not is_async:
+                continue
+            try:
+                await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
+                for table_name in ['users', 'orders', 'order_items', 'posts', 'comments', 'json_users', 'nodes', 'extended_orders', 'extended_order_items', 'searchable_items']:
+                    try:
+                        await backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+                    except Exception:
+                        pass
+                await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+            except Exception:
+                try:
+                    await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+                except Exception:
+                    pass
+            finally:
+                try:
+                    await backend_instance.disconnect()
+                except Exception:
+                    pass
+
+        self._active_backends.clear()
+
+    def _load_mariadb_schema(self, filename: str) -> str:
+        """Helper to load a SQL schema file from this project's fixtures."""
+        schema_dir = os.path.join(os.path.dirname(__file__), "..", "rhosocial", "activerecord_mariadb_test", "feature", "query", "schema")
+        schema_path = os.path.join(schema_dir, filename)
+
+        with open(schema_path, 'r', encoding='utf-8') as f:
+            return f.read()
+
+    def cleanup_after_test(self, scenario_name: str):
+        """Performs cleanup after a test, dropping all tables and disconnecting backends."""
+        for backend_instance in self._active_backends:
+            try:
+                backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
+                for table_name in ['users', 'orders', 'order_items', 'posts', 'comments', 'json_users', 'nodes', 'extended_orders', 'extended_order_items', 'searchable_items']:
+                    try:
+                        backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+                    except Exception:
+                        pass
+                backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+            except Exception:
+                try:
+                    backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+                except Exception:
+                    pass
+            finally:
+                try:
+                    backend_instance.disconnect()
+                except Exception:
+                    pass
+
+        self._active_backends.clear()

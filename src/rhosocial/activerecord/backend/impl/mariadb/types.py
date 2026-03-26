@@ -1,124 +1,135 @@
-from typing import Dict
+# src/rhosocial/activerecord/backend/impl/mariadb/types.py
+"""
+MariaDB-specific type definitions and helpers.
 
-from ...dialect import DatabaseType, TypeMapping
-from ...helpers import format_with_length, format_decimal
-
-# MariaDB type mapping configuration
-MARIADB_TYPE_MAPPINGS: Dict[DatabaseType, TypeMapping] = {
-    DatabaseType.TINYINT: TypeMapping("TINYINT"),
-    DatabaseType.SMALLINT: TypeMapping("SMALLINT"),
-    DatabaseType.INTEGER: TypeMapping("INT"),
-    DatabaseType.BIGINT: TypeMapping("BIGINT"),
-    DatabaseType.FLOAT: TypeMapping("FLOAT"),
-    DatabaseType.DOUBLE: TypeMapping("DOUBLE"),
-    DatabaseType.DECIMAL: TypeMapping("DECIMAL", format_decimal),
-    DatabaseType.CHAR: TypeMapping("CHAR", format_with_length),
-    DatabaseType.VARCHAR: TypeMapping("VARCHAR", format_with_length),
-    DatabaseType.TEXT: TypeMapping("TEXT"),
-    DatabaseType.DATE: TypeMapping("DATE"),
-    DatabaseType.TIME: TypeMapping("TIME"),
-    DatabaseType.DATETIME: TypeMapping("DATETIME"),
-    DatabaseType.TIMESTAMP: TypeMapping("TIMESTAMP"),
-    DatabaseType.BLOB: TypeMapping("BLOB"),
-    DatabaseType.BOOLEAN: TypeMapping("TINYINT(1)"),
-    DatabaseType.UUID: TypeMapping("CHAR(36)"),
-    DatabaseType.JSON: TypeMapping("JSON"),
-    DatabaseType.ARRAY: TypeMapping("JSON"),
-    DatabaseType.CUSTOM: TypeMapping("TEXT"),
-}
+This module provides type-safe helpers for defining MariaDB-specific data types
+such as ENUM and SET.
+"""
+from typing import List, Optional
 
 
-class MariaDBTypes:
-    """MariaDB specific type constants"""
-    TINYTEXT = "TINYTEXT"
-    MEDIUMTEXT = "MEDIUMTEXT"
-    LONGTEXT = "LONGTEXT"
-    TINYBLOB = "TINYBLOB"
-    MEDIUMBLOB = "MEDIUMBLOB"
-    LONGBLOB = "LONGBLOB"
-    BINARY = "BINARY"
-    VARBINARY = "VARBINARY"
-    BIT = "BIT"
-    ENUM = "ENUM"
-    SET = "SET"
-    GEOMETRY = "GEOMETRY"
-    POINT = "POINT"
-    LINESTRING = "LINESTRING"
-    POLYGON = "POLYGON"
+class MariaDBEnumType:
+    """Helper class for defining MariaDB ENUM column types.
 
-    # Auto increment primary key
-    AUTO_INCREMENT = "INT AUTO_INCREMENT PRIMARY KEY"
+    MariaDB ENUM is a string object with a value chosen from a list of permitted values.
 
+    Example:
+    >>> status = MariaDBEnumType(['pending', 'processing', 'ready', 'failed'])
+    >>> status.to_sql()
+    "ENUM('pending','processing','ready','failed')"
 
-class MariaDBColumnType:
-    """MariaDB column type definition"""
+    >>> # With charset and collation
+    >>> status = MariaDBEnumType(['active', 'inactive'], charset='utf8mb4', collation='utf8mb4_bin')
+    >>> status.to_sql()
+    "ENUM('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+    """
 
-    def __init__(self, sql_type: str, **constraints):
-        """Initialize column type
-
-        Args:
-            sql_type: SQL type definition
-            **constraints: Constraint conditions
+    def __init__(
+        self,
+        values: List[str],
+        charset: Optional[str] = None,
+        collation: Optional[str] = None
+    ):
         """
-        self.sql_type = sql_type
-        self.constraints = constraints
-
-    def __str__(self):
-        """Generate complete type definition statement"""
-        sql = self.sql_type
-
-        # Handle auto increment primary key
-        if "auto_increment" in self.constraints and "primary_key" in self.constraints:
-            if any(type in self.sql_type.upper() for type in ["INT", "BIGINT", "SMALLINT"]):
-                return f"{self.sql_type} AUTO_INCREMENT PRIMARY KEY"
-
-        # Handle primary key
-        if "primary_key" in self.constraints:
-            sql += " PRIMARY KEY"
-
-        # Handle other constraints
-        if "auto_increment" in self.constraints:
-            sql += " AUTO_INCREMENT"
-        if "unique" in self.constraints:
-            sql += " UNIQUE"
-        if "not_null" in self.constraints:
-            sql += " NOT NULL"
-        if "default" in self.constraints:
-            sql += f" DEFAULT {self.constraints['default']}"
-        if "unsigned" in self.constraints:
-            sql += " UNSIGNED"
-        if "character_set" in self.constraints:
-            sql += f" CHARACTER SET {self.constraints['character_set']}"
-        if "collate" in self.constraints:
-            sql += f" COLLATE {self.constraints['collate']}"
-
-        return sql
-
-    @classmethod
-    def get_type(cls, db_type: DatabaseType, **params) -> 'MariaDBColumnType':
-        """Create MariaDB column type from generic type
+        Initialize ENUM type definition.
 
         Args:
-            db_type: Generic database type definition
-            **params: Type parameters and constraints
-
-        Returns:
-            MariaDBColumnType: MariaDB column type instance
+            values: List of allowed enum values (must have at least one value)
+            charset: Optional character set specification
+            collation: Optional collation specification
 
         Raises:
-            ValueError: If type is not supported
+            ValueError: If values list is empty
         """
-        mapping = MARIADB_TYPE_MAPPINGS.get(db_type)
-        if not mapping:
-            raise ValueError(f"Unsupported type: {db_type}")
+        if not values:
+            raise ValueError("ENUM must have at least one value")
+        self.values = values
+        self.charset = charset
+        self.collation = collation
 
-        sql_type = mapping.db_type
-        if mapping.format_func:
-            sql_type = mapping.format_func(sql_type, params)
+    def to_sql(self) -> str:
+        """
+        Generate the SQL type definition string.
 
-        constraints = {k: v for k, v in params.items()
-                       if k in ['primary_key', 'auto_increment', 'unique',
-                                'not_null', 'default', 'unsigned',
-                                'character_set', 'collate']}
+        Returns:
+            SQL type definition for use in CREATE TABLE statements
+        """
+        values_str = ','.join(f"'{v}'" for v in self.values)
+        result = f"ENUM({values_str})"
 
-        return cls(sql_type, **constraints)
+        if self.charset:
+            result += f" CHARACTER SET {self.charset}"
+        if self.collation:
+            result += f" COLLATE {self.collation}"
+
+        return result
+
+    def __str__(self) -> str:
+        return self.to_sql()
+
+    def __repr__(self) -> str:
+        return f"MariaDBEnumType(values={self.values!r}, charset={self.charset!r}, collation={self.collation!r})"
+
+
+class MariaDBSetType:
+    """Helper class for defining MariaDB SET column types.
+
+    MariaDB SET is a string object that can have zero or more values,
+    each of which must be chosen from a list of permitted values.
+
+    Example:
+    >>> tags = MariaDBSetType(['tag1', 'tag2', 'tag3'])
+    >>> tags.to_sql()
+    "SET('tag1','tag2','tag3')"
+
+    >>> # With charset
+    >>> tags = MariaDBSetType(['a', 'b'], charset='utf8mb4')
+    >>> tags.to_sql()
+    "SET('a','b') CHARACTER SET utf8mb4"
+    """
+
+    def __init__(
+        self,
+        values: List[str],
+        charset: Optional[str] = None,
+        collation: Optional[str] = None
+    ):
+        """
+        Initialize SET type definition.
+
+        Args:
+            values: List of allowed set values (must have at least one value)
+            charset: Optional character set specification
+            collation: Optional collation specification
+
+        Raises:
+            ValueError: If values list is empty
+        """
+        if not values:
+            raise ValueError("SET must have at least one value")
+        self.values = values
+        self.charset = charset
+        self.collation = collation
+
+    def to_sql(self) -> str:
+        """
+        Generate the SQL type definition string.
+
+        Returns:
+            SQL type definition for use in CREATE TABLE statements
+        """
+        values_str = ','.join(f"'{v}'" for v in self.values)
+        result = f"SET({values_str})"
+
+        if self.charset:
+            result += f" CHARACTER SET {self.charset}"
+        if self.collation:
+            result += f" COLLATE {self.collation}"
+
+        return result
+
+    def __str__(self) -> str:
+        return self.to_sql()
+
+    def __repr__(self) -> str:
+        return f"MariaDBSetType(values={self.values!r}, charset={self.charset!r}, collation={self.collation!r})"

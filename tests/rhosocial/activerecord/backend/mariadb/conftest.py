@@ -1,3 +1,4 @@
+# tests/rhosocial/activerecord/backend/mariadb/conftest.py
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -5,7 +6,6 @@ from typing import Dict, Any, List, Optional
 import pytest
 import yaml
 
-# Setup logger
 logger = logging.getLogger("mariadb_test")
 handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -13,9 +13,8 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# Import required backend classes
-from src.rhosocial.activerecord.backend.typing import ConnectionConfig
-from src.rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
+from rhosocial.activerecord.backend.typing import ConnectionConfig
+from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
 
 
 def find_config_file(config_dir: Path) -> Optional[Path]:

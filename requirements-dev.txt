@@ -1,1 +1,14 @@
-pyyaml
+rhosocial-activerecord[test]
+rhosocial-activerecord-testsuite
+pytest>=7.0.0
+pytest-asyncio
+pytest-cov>=4.0.0
+pytest-xdist>=3.6.1
+pytest-mock
+pyyaml>=6.0.2
+coverage>=7.0.0
+black>=23.0.0
+isort>=5.0.0
+mypy>=1.0.0
+ruff>=0.1.0
+pre-commit>=3.0.0

@@ -1,11 +1,11 @@
+# pyproject.toml
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "rhosocial_activerecord_mariadb"
-# Version is read from src/rhosocial/activerecord/backend/impl/mariadb/__init__.py
-dynamic = ["version"]
+version = "1.0.0.dev1"
 description = "MariaDB backend implementation for rhosocial-activerecord, providing a robust and optimized MariaDB database support."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -25,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
     "Framework :: Pydantic",
     "Framework :: Pydantic :: 2",
@@ -40,24 +41,29 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Additional features
 pooling = [
     "DBUtils>=3.0.0",
 ]
-# Development dependencies
 test = [
     "pytest>=7.0.0",
     "coverage>=7.0.0",
+    "pytest-asyncio",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.6.1",
+    "pytest-mock",
+    "pyyaml>=6.0.2",
 ]
 dev = [
     "black>=23.0.0",
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
 ]
 docs = [
     "sphinx>=7.0.0",
     "sphinx-rtd-theme>=1.0.0",
+    "myst-parser>=2.0.0",
 ]
 
 [project.urls]
@@ -66,51 +72,50 @@ Documentation = "https://docs.python-activerecord.dev.rho.social"
 Repository = "https://github.com/rhosocial/python-activerecord-mariadb.git"
 Issues = "https://github.com/rhosocial/python-activerecord-mariadb/issues"
 
-[tool.hatch.version]
-path = "src/rhosocial/activerecord/backend/impl/mariadb/__init__.py"
-pattern = '^__version__\s*=\s*"(?P<version>(?:[1-9]\d*!)?\d+(?:\.\d+)*(?:[-._]?(?:a|alpha|b|beta|rc|pre|preview)(?:[-._]?\d+)?)?(?:\.post(?:0|[1-9]\d*))?(?:\.dev(?:0|[1-9]\d*))?(?:\+[a-z0-9]+(?:[._-][a-z0-9]+)*)?)"$'
-
-[tool.hatch.build]
-include = [
-  "src/rhosocial/activerecord/backend/impl/mariadb/**/*.py",
-  "src/rhosocial/activerecord/backend/impl/mariadb/**/*.pyi",
-  "LICENSE",
-  "README.md",
-]
-exclude = [
-  "tests/**",
-  "docs/**",
-  "examples/**",
-  "*.pyc",
-  "**/__pycache__",
-  "**/*.py[cod]",
-  "**/*.so",
-  "**/.DS_Store",
-  "**/.*.swp",
-  ".git*",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/rhosocial"]
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra -q"
-testpaths = [
-    "tests",
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "mariadb: marks tests specific to MariaDB backend",
+    "backend: marks tests as backend-specific tests",
+    "basic: marks tests for basic CRUD operations",
+    "query: marks tests for query functionality",
+    "transaction: marks tests for transaction handling",
+    "mixin: marks tests for mixin functionality",
+    "events: marks tests for event system",
 ]
 
 [tool.coverage.run]
 source = ["rhosocial"]
 branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+]
 
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
     "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
     "raise NotImplementedError",
+    "if 0:",
     "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
     "pass",
     "raise ImportError",
 ]
@@ -123,13 +128,15 @@ include = '\.pyi?$'
 [tool.isort]
 profile = "black"
 multi_line_output = 3
-line-length = 100
+line_length = 100
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py38"
+
+[tool.ruff.lint]
 select = ["E", "F", "B"]
-ignore = []
+ignore = ["B024"]
 
 [tool.mypy]
 python_version = "3.8"
@@ -137,3 +144,12 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 check_untyped_defs = true
+
+[tool.pyright]
+include = ["src"]
+exclude = ["**/__pycache__", "**/tests", "**/test_*"]
+venvPath = "."
+venv = ".venv3.8"
+pythonVersion = "3.8"
+typeCheckingMode = "standard"
+useLibraryCodeForTypes = true

@@ -1,2 +1,2 @@
-mariadb
-rhosocial-activerecord
+mariadb>=1.1.0
+rhosocial-activerecord>=0.9.0,<2.0.0
