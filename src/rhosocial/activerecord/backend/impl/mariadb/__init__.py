@@ -52,8 +52,8 @@ def __getattr__(name: str):
             return getattr(module, class_name)
         except ImportError as e:
             raise ImportError(
-                f"{name} requires async support. "
-                f"Install with: pip install rhosocial-activerecord-mariadb[async]"
+                f"{name} requires mariadb package version 2.0.0 or later. "
+                f"Install with: pip install mariadb>=2.0.0rc2 --pre"
             ) from e
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

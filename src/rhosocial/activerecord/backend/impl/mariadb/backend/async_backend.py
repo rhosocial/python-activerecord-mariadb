@@ -3,37 +3,44 @@
 Async MariaDB Backend Implementation.
 
 This module provides an async implementation of MariaDB backend.
-Uses mariadb.aio library for async MariaDB operations, with aiomysql as fallback.
+Uses mariadb 2.0.0+ async support (asyncConnect) for async MariaDB operations.
 """
 
 import logging
 import time
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from rhosocial.activerecord.backend.base import AsyncStorageBackend
 from rhosocial.activerecord.backend.config import ConnectionConfig
 from rhosocial.activerecord.backend.errors import ConnectionError, IntegrityError, OperationalError, QueryError, DatabaseError, DeadlockError
 from rhosocial.activerecord.backend.options import InsertOptions, UpdateOptions, DeleteOptions
 from rhosocial.activerecord.backend.result import QueryResult
+from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
+from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospectorExecutor
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
 
 try:
-    import mariadb.aio as async_mariadb
-    HAS_MARIADB_AIO = True
+    import mariadb
+    # mariadb 2.0.0+ provides async support via asyncConnect
+    if not hasattr(mariadb, 'asyncConnect'):
+        raise ImportError(
+            "Async MariaDB support requires 'mariadb' package version 2.0.0 or later. "
+            "Install with: pip install mariadb>=2.0.0rc2 --pre"
+        )
 except ImportError:
-    HAS_MARIADB_AIO = False
-
-try:
-    import aiomysql
-    HAS_AIOMYSQL = True
-except ImportError:
-    HAS_AIOMYSQL = False
+    raise ImportError(
+        "Async MariaDB support requires 'mariadb' package version 2.0.0 or later. "
+        "Install with: pip install mariadb>=2.0.0rc2 --pre"
+    )
 
 
-class AsyncMariaDBBackend(AsyncStorageBackend):
-    """Async MariaDB backend implementation."""
+class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
+    """Async MariaDB backend implementation.
+
+    Provides introspection support via the `introspector` property.
+    """
 
     def __init__(
         self,
@@ -45,12 +52,6 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
         password: Optional[str] = None,
         **kwargs,
     ):
-        if not HAS_MARIADB_AIO and not HAS_AIOMYSQL:
-            raise ImportError(
-                "Async MariaDB support requires either 'mariadb' (with aio support) or 'aiomysql'. "
-                "Install with: pip install rhosocial-activerecord-mariadb[async]"
-            )
-
         if connection_config is None:
             if database is None:
                 raise ValueError("Either connection_config or database must be provided")
@@ -76,7 +77,6 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
 
         super().__init__(connection_config=connection_config)
         self._dialect = MariaDBDialect()
-        self._use_mariadb_aio = HAS_MARIADB_AIO
 
     @property
     def dialect(self) -> MariaDBDialect:
@@ -87,32 +87,30 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
         try:
             self.log(logging.INFO, f"Connecting to MariaDB database: {self.config.host}:{self.config.port}/{self.config.database}")
 
-            if self._use_mariadb_aio:
-                conn_params = {
-                    "host": self.config.host,
-                    "port": self.config.port,
-                    "database": self.config.database,
-                    "user": self.config.username,
-                    "password": self.config.password,
-                }
-                if hasattr(self.config, "charset") and self.config.charset:
-                    conn_params["charset"] = self.config.charset
-                if hasattr(self.config, "autocommit"):
-                    conn_params["autocommit"] = self.config.autocommit
+            conn_params = {
+                "host": self.config.host,
+                "port": self.config.port,
+                "database": self.config.database,
+                "user": self.config.username,
+                "password": self.config.password,
+            }
+            # Note: mariadb 2.0.0+ async driver doesn't support charset parameter directly
+            # Use init_command to set charset if needed
+            if hasattr(self.config, "charset") and self.config.charset:
+                conn_params["init_command"] = f"SET NAMES {self.config.charset}"
+            if hasattr(self.config, "autocommit"):
+                conn_params["autocommit"] = self.config.autocommit
 
-                self._connection = await async_mariadb.connect(**conn_params)
-            else:
-                conn_params = {
-                    "host": self.config.host,
-                    "port": self.config.port,
-                    "db": self.config.database,
-                    "user": self.config.username,
-                    "password": self.config.password,
-                    "charset": getattr(self.config, "charset", "utf8mb4"),
-                    "autocommit": getattr(self.config, "autocommit", False),
-                }
-                self._connection = await aiomysql.connect(**conn_params)
+            # SSL configuration
+            if hasattr(self.config, "ssl_disabled"):
+                if not self.config.ssl_disabled:
+                    conn_params["ssl"] = True
+                    if hasattr(self.config, "ssl_verify_cert") and self.config.ssl_verify_cert:
+                        conn_params["ssl_verify_cert"] = self.config.ssl_verify_cert
+                    if hasattr(self.config, "ssl_verify_identity") and self.config.ssl_verify_identity:
+                        conn_params["ssl_verify_identity"] = self.config.ssl_verify_identity
 
+            self._connection = await mariadb.asyncConnect(**conn_params)
             self.log(logging.INFO, "Connected to MariaDB database successfully")
         except Exception as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
@@ -126,7 +124,7 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
                 if self._transaction_manager and self._transaction_manager.is_active:
                     self.log(logging.WARNING, "Active transaction detected during disconnect, rolling back")
                     await self._transaction_manager.rollback()
-                self._connection.close()
+                await self._connection.close()
                 self._connection = None
                 self._transaction_manager = None
                 self.log(logging.INFO, "Disconnected from MariaDB database")
@@ -152,7 +150,7 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
 
         try:
             self.log(logging.DEBUG, "Testing connection with SELECT 1")
-            cursor = await self._connection.cursor()
+            cursor = self._connection.cursor()
             await cursor.execute("SELECT 1")
             await cursor.close()
             return True
@@ -169,8 +167,12 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
             return False
 
     async def _get_cursor(self):
-        """Get database cursor for async operations."""
-        return await self._connection.cursor()
+        """Get database cursor for async operations.
+
+        Note: This method is async to maintain compatibility with the base class
+        and AsyncIntrospectorExecutor, but the underlying cursor() call is not async.
+        """
+        return self._connection.cursor()
 
     def _handle_mariadb_error(self, error: Exception) -> None:
         """Handle MariaDB-specific errors."""
@@ -274,6 +276,35 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
             await self._handle_error(e)
             return None
 
+    async def executescript(self, sql_script: str) -> None:
+        """Execute a multi-statement SQL script asynchronously.
+
+        Note: This method splits SQL by semicolons and executes each statement
+        separately. It does NOT handle semicolons within BEGIN...END blocks
+        correctly - for such cases, use execute() with the full statement.
+        """
+        self.log(logging.INFO, "Executing SQL script")
+        start_time = time.perf_counter()
+
+        try:
+            if not self._connection:
+                self.log(logging.DEBUG, "No active connection, establishing new connection")
+                await self.connect()
+
+            cursor = await self._get_cursor()
+
+            for statement in sql_script.split(";"):
+                statement = statement.strip()
+                if statement:
+                    await cursor.execute(statement)
+
+            await cursor.close()
+            duration = time.perf_counter() - start_time
+            self.log(logging.INFO, f"SQL script executed successfully, duration={duration:.3f}s")
+        except Exception as e:
+            self.log(logging.ERROR, f"Error executing SQL script: {str(e)}")
+            await self._handle_error(e)
+
     async def get_server_version(self) -> Tuple[int, int, int]:
         """Get MariaDB server version asynchronously.
 
@@ -286,7 +317,7 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
         try:
             if not self._connection:
                 await self.connect()
-            cursor = await self._connection.cursor()
+            cursor = self._connection.cursor()
             await cursor.execute("SELECT VERSION()")
             row = await cursor.fetchone()
             await cursor.close()
@@ -313,6 +344,15 @@ class AsyncMariaDBBackend(AsyncStorageBackend):
         version = await self.get_server_version()
         self._dialect.version = version
         self.log(logging.INFO, f"Adapted dialect version to MariaDB {version[0]}.{version[1]}.{version[2]}")
+
+    def _create_introspector(self):
+        """Create the async MariaDB introspector instance.
+
+        Returns:
+            AsyncMariaDBIntrospector for asynchronous introspection.
+        """
+        from ..introspection import AsyncMariaDBIntrospector
+        return AsyncMariaDBIntrospector(self, AsyncIntrospectorExecutor(self))
 
     async def insert(self, options: InsertOptions) -> QueryResult:
         """Insert a record with special handling for RETURNING clause."""

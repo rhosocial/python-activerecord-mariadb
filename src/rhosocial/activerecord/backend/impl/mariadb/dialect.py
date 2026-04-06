@@ -85,6 +85,10 @@ from rhosocial.activerecord.backend.dialect.mixins import (
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
+# Import MariaDB-specific mixins including introspection support
+from .mixins import MariaDBIntrospectionMixin
+from .show.dialect import MariaDBShowDialectMixin
+
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression import bases
     from rhosocial.activerecord.backend.expression.statements import ReturningClause
@@ -111,6 +115,8 @@ _SUGGESTION_TEMPORAL = "MariaDB system-versioned tables require specific table c
 
 class MariaDBDialect(
     SQLDialectBase,
+    MariaDBIntrospectionMixin,
+    MariaDBShowDialectMixin,
     CTEMixin,
     WindowFunctionMixin,
     JSONMixin,

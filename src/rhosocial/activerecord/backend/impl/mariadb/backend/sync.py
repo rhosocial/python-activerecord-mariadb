@@ -24,14 +24,19 @@ from rhosocial.activerecord.backend.errors import (
 )
 from rhosocial.activerecord.backend.options import DeleteOptions, InsertOptions, UpdateOptions
 from rhosocial.activerecord.backend.result import QueryResult
+from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
+from rhosocial.activerecord.backend.introspection.executor import SyncIntrospectorExecutor
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect, SQLDialectBase
 from ..transaction import MariaDBTransactionManager
 
 
-class MariaDBBackend(StorageBackend):
-    """Synchronous MariaDB backend implementation."""
+class MariaDBBackend(IntrospectorBackendMixin, StorageBackend):
+    """Synchronous MariaDB backend implementation.
+
+    Provides introspection support via the `introspector` property.
+    """
 
     def __init__(
         self,
@@ -90,8 +95,10 @@ class MariaDBBackend(StorageBackend):
             if hasattr(self.config, "autocommit"):
                 conn_params["autocommit"] = self.config.autocommit
 
-            if hasattr(self.config, "charset"):
-                conn_params["charset"] = self.config.charset
+            # Note: mariadb driver doesn't support charset parameter directly
+            # Use init_command to set charset if needed
+            if hasattr(self.config, "charset") and self.config.charset:
+                conn_params["init_command"] = f"SET NAMES {self.config.charset}"
 
             if hasattr(self.config, "ssl_disabled"):
                 if not self.config.ssl_disabled:
@@ -344,6 +351,15 @@ class MariaDBBackend(StorageBackend):
         version = self.get_server_version()
         self._dialect.version = version
         self.log(logging.INFO, f"Adapted dialect version to MariaDB {version[0]}.{version[1]}.{version[2]}")
+
+    def _create_introspector(self):
+        """Create the MariaDB introspector instance.
+
+        Returns:
+            SyncMariaDBIntrospector for synchronous introspection.
+        """
+        from ..introspection import SyncMariaDBIntrospector
+        return SyncMariaDBIntrospector(self, SyncIntrospectorExecutor(self))
 
     def insert(self, options: InsertOptions) -> QueryResult:
         """Insert a record with special handling for RETURNING clause."""
