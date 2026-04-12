@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rhosocial_activerecord_mariadb"
-version = "1.0.0.dev1"
+version = "1.0.0.dev2"
 description = "MariaDB backend implementation for rhosocial-activerecord, providing a robust and optimized MariaDB database support."
 readme = "README.md"
 license = { file = "LICENSE" }
