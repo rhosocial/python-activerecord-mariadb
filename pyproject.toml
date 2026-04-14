@@ -94,6 +94,8 @@ markers = [
     "transaction: marks tests for transaction handling",
     "mixin: marks tests for mixin functionality",
     "events: marks tests for event system",
+    "requires_capability: marks tests requiring specific backend capabilities",
+    "requires_protocol: marks tests requiring specific backend protocol support",
 ]
 
 [tool.coverage.run]
