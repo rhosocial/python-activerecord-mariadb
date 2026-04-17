@@ -4,7 +4,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rhosocial_activerecord_mariadb"
+name = "rhosocial-activerecord-mariadb"
 version = "1.0.0.dev2"
 description = "MariaDB backend implementation for rhosocial-activerecord, providing a robust and optimized MariaDB database support."
 readme = "README.md"
@@ -96,6 +96,7 @@ markers = [
     "events: marks tests for event system",
     "requires_capability: marks tests requiring specific backend capabilities",
     "requires_protocol: marks tests requiring specific backend protocol support",
+    "requires_inner_join: marks tests requiring INNER JOIN support",
 ]
 
 [tool.coverage.run]
