@@ -175,5 +175,8 @@ cython_debug/
 .claude/tmp/
 .claude/plan/
 
+# Scripts (local only)
+scripts/
+
 # Test configuration (local environment)
 tests/config/
