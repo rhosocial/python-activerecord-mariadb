@@ -85,8 +85,19 @@ from rhosocial.activerecord.backend.dialect.mixins import (
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-# Import MariaDB-specific mixins including introspection support
-from .mixins import MariaDBIntrospectionMixin
+# Import MariaDB-specific mixins
+from .mixins import (
+    MariaDBIntrospectionMixin,
+    MariaDBSequenceMixin,
+    MariaDBReturningMixin,
+    MariaDBSystemVersioningMixin,
+    MariaDBDMLOperationMixin,
+    MariaDBSpatialMixin,
+    MariaDBLockingMixin,
+    MariaDBTriggerMixin,
+    MariaDBJSONMixin,
+    MARIADB_VERSION_BOUNDARIES,
+)
 from .show.dialect import MariaDBShowDialectMixin
 
 if TYPE_CHECKING:
@@ -103,6 +114,8 @@ MARIADB_VERSION_BOUNDARIES = {
     'SYSTEM_VERSIONING': (10, 3, 0),
     'RETURNING': (10, 5, 0),
     'EXPLAIN_FORMAT': (10, 6, 0),
+    'INSTEAD_OF_TRIGGER': (10, 4, 0),
+    'SKIP_LOCKED': (10, 3, 0),
 }
 
 _SUGGESTION_ARRAY = "MariaDB does not support native array types. Use JSON arrays instead."
@@ -117,6 +130,14 @@ class MariaDBDialect(
     SQLDialectBase,
     MariaDBIntrospectionMixin,
     MariaDBShowDialectMixin,
+    MariaDBSequenceMixin,
+    MariaDBReturningMixin,
+    MariaDBSystemVersioningMixin,
+    MariaDBDMLOperationMixin,
+    MariaDBSpatialMixin,
+    MariaDBLockingMixin,
+    MariaDBTriggerMixin,
+    MariaDBJSONMixin,
     CTEMixin,
     WindowFunctionMixin,
     JSONMixin,

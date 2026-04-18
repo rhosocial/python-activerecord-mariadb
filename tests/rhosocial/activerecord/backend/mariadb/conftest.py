@@ -13,7 +13,7 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-from rhosocial.activerecord.backend.typing import ConnectionConfig
+from rhosocial.activerecord.backend.config import ConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
 
 

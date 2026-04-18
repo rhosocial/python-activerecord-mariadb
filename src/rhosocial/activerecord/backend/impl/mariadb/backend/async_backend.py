@@ -279,9 +279,12 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
     async def executescript(self, sql_script: str) -> None:
         """Execute a multi-statement SQL script asynchronously.
 
-        Note: This method splits SQL by semicolons and executes each statement
-        separately. It does NOT handle semicolons within BEGIN...END blocks
-        correctly - for such cases, use execute() with the full statement.
+        MariaDB supports multiple statements in a single execute() call.
+        This method executes the entire script without splitting, which
+        properly handles BEGIN...END blocks in triggers, procedures, and functions.
+
+        Args:
+            sql_script: SQL script with multiple statements separated by semicolons.
         """
         self.log(logging.INFO, "Executing SQL script")
         start_time = time.perf_counter()
@@ -293,10 +296,13 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
 
             cursor = await self._get_cursor()
 
-            for statement in sql_script.split(";"):
-                statement = statement.strip()
-                if statement:
-                    await cursor.execute(statement)
+            # MariaDB supports multi-statement execution directly
+            # Execute the entire script - this handles BEGIN...END blocks correctly
+            await cursor.execute(sql_script)
+
+            # Consume all result sets (for multi-statement queries)
+            while cursor.nextset():
+                pass
 
             await cursor.close()
             duration = time.perf_counter() - start_time

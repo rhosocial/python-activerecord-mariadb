@@ -173,6 +173,7 @@ cython_debug/
 
 # Claude Code temporary files
 .claude/tmp/
+.claude/plan/
 
 # Test configuration (local environment)
 tests/config/
