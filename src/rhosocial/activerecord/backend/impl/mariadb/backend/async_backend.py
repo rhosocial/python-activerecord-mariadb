@@ -146,7 +146,6 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncSt
                     return True
                 except ConnectionError as e:
                     self.log(logging.WARNING, f"Reconnection failed during ping: {str(e)}")
-                    return False
             return False
 
         try:
@@ -164,7 +163,6 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncSt
                     return True
                 except ConnectionError as e:
                     self.log(logging.WARNING, f"Reconnection failed after ping: {str(e)}")
-                    return False
             return False
 
     async def _get_cursor(self):
@@ -223,7 +221,7 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncSt
                 await self.connect()
 
             cursor = await self._get_cursor()
-            sql, final_params = self._prepare_sql_and_params(sql, params)
+            sql, final_params = await self._prepare_sql_and_params(sql, params)
 
             await cursor.execute(sql, final_params)
             duration = time.perf_counter() - start_time
