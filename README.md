@@ -29,9 +29,9 @@ This package provides MariaDB backend support for the [rhosocial-activerecord](h
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.9+ (Note: Python 3.8 and 3.13t are not supported due to CFFI compatibility)
 - rhosocial-activerecord 1.0.0+
-- mariadb 1.1.0+
+- mariadb 2.0.0+
 
 ## Installation
 

@@ -1,1 +1,0 @@
-# tests/rhosocial/activerecord_mariadb_test/__init__.py

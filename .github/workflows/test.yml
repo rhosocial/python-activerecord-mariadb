@@ -544,8 +544,8 @@ jobs:
         name: codecov-mariadb-3.14-11.8
         fail_ci_if_error: false
 
-  test-py313t-mariadb120:
-    name: Run tests with Python 3.13t and MariaDB 12.0
+  test-py314t-mariadb120:
+    name: Run tests with Python 3.14t and MariaDB 12.0
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -565,10 +565,10 @@ jobs:
     - name: Check out the repository
       uses: actions/checkout@v6
 
-    - name: Set up Python 3.13t
+    - name: Set up Python 3.14t
       uses: actions/setup-python@v6
       with:
-        python-version: "3.13t"
+        python-version: "3.14t"
 
     - name: Install dependencies
       run: |
