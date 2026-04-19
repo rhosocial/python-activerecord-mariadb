@@ -39,6 +39,7 @@ from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
 from ..transaction import MariaDBTransactionManager
+from ..mixins import MariaDBBackendMixin
 
 # MariaDB connection error codes that indicate connection loss
 # Reference: https://mariadb.com/kb/en/mariadb-error-codes/
@@ -52,7 +53,7 @@ CONNECTION_ERROR_CODES = {
 }
 
 
-class MariaDBBackend(SyncExplainBackendMixin, IntrospectorBackendMixin, StorageBackend):
+class MariaDBBackend(MariaDBBackendMixin, SyncExplainBackendMixin, IntrospectorBackendMixin, StorageBackend):
     """Synchronous MariaDB backend implementation.
 
     Provides:

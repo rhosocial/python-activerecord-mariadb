@@ -20,6 +20,7 @@ from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospec
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
+from ..mixins import MariaDBBackendMixin
 
 try:
     import mariadb
@@ -36,7 +37,7 @@ except ImportError:
     )
 
 
-class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
+class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
     """Async MariaDB backend implementation.
 
     Provides introspection support via the `introspector` property.
