@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from rhosocial.activerecord.backend.config import (
     BaseConfig,
-    BasicConnectionMixin,
+    ConnectionConfig,
     ConnectionPoolMixin,
     SSLMixin,
     CharsetMixin,
@@ -18,8 +18,7 @@ from rhosocial.activerecord.backend.config import (
 
 @dataclass
 class MariaDBConnectionConfig(
-    BaseConfig,
-    BasicConnectionMixin,
+    ConnectionConfig,
     ConnectionPoolMixin,
     SSLMixin,
     CharsetMixin,
