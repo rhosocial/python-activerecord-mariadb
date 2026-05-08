@@ -11,9 +11,11 @@ from typing import Any, Dict, List, Optional, Tuple, Type, TYPE_CHECKING
 from uuid import UUID
 
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
+from rhosocial.activerecord.backend.result import QueryResult
 
 if TYPE_CHECKING:
     from ..dialect import MariaDBDialect
+    from rhosocial.activerecord.backend.options import ExecutionOptions
 
 MARIADB_VERSION_BOUNDARIES = {
     'WINDOW_FUNCTIONS': (10, 2, 0),
@@ -141,6 +143,45 @@ class MariaDBBackendMixin:
             self._logger.log(level, message)
         else:
             print(f"[{logging.getLevelName(level)}] {message}")
+
+    def _apply_result_mapping(
+        self,
+        result: QueryResult,
+        options: "ExecutionOptions"
+    ) -> QueryResult:
+        """Apply column mapping and adapters to a query result."""
+        column_mapping = options.column_mapping or {}
+        column_adapters = options.column_adapters or {}
+
+        if not result.data:
+            return result
+
+        data = result.data
+        if isinstance(data, list) and len(data) > 0:
+            first_row = data[0]
+            if isinstance(first_row, dict):
+                if column_adapters:
+                    adapted_data = []
+                    for row in data:
+                        adapted_row = dict(row)
+                        for col_name, (adapter, target_type) in column_adapters.items():
+                            if col_name in adapted_row:
+                                adapted_row[col_name] = adapter.from_database(
+                                    row[col_name], target_type
+                                )
+                        adapted_data.append(adapted_row)
+                    data = adapted_data
+
+                if column_mapping:
+                    mapped_data = []
+                    for row in data:
+                        mapped_row = {column_mapping.get(k, k): v for k, v in row.items()}
+                        mapped_data.append(mapped_row)
+                    data = mapped_data
+
+                result.data = data
+
+        return result
 
 
 __all__ = ['MariaDBBackendMixin', 'MARIADB_VERSION_BOUNDARIES']

@@ -177,6 +177,8 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
             if hasattr(self.config, "autocommit"):
                 conn_params["autocommit"] = self.config.autocommit
+            else:
+                conn_params["autocommit"] = False
 
             if hasattr(self.config, "charset") and self.config.charset:
                 conn_params["init_command"] = f"SET NAMES {self.config.charset}"

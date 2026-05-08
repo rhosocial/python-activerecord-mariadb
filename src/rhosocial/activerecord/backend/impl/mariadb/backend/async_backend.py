@@ -19,6 +19,7 @@ from rhosocial.activerecord.backend.options import (
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospectorExecutor
+from rhosocial.activerecord.backend.explain import AsyncExplainBackendMixin
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
@@ -51,7 +52,7 @@ except ImportError:
     )
 
 
-class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
+class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, AsyncExplainBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
     """Async MariaDB backend implementation.
 
     Provides introspection support via the `introspector` property.
@@ -114,8 +115,7 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
             # Use init_command to set charset if needed
             if hasattr(self.config, "charset") and self.config.charset:
                 conn_params["init_command"] = f"SET NAMES {self.config.charset}"
-            if hasattr(self.config, "autocommit"):
-                conn_params["autocommit"] = self.config.autocommit
+            conn_params["autocommit"] = False
 
             # SSL configuration
             if hasattr(self.config, "ssl_disabled"):
@@ -130,6 +130,7 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
 
             self._connection = await mariadb.asyncConnect(**conn_params)
             self.log(logging.INFO, "Connected to MariaDB database successfully")
+            await self._fetch_concurrency_hint()
         except Exception as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect: {str(e)}") from e
