@@ -13,7 +13,9 @@ from typing import List, Optional, Tuple, Union
 from rhosocial.activerecord.backend.base import AsyncStorageBackend
 from rhosocial.activerecord.backend.config import ConnectionConfig
 from rhosocial.activerecord.backend.errors import ConnectionError, IntegrityError, OperationalError, QueryError, DatabaseError, DeadlockError
-from rhosocial.activerecord.backend.options import InsertOptions, UpdateOptions, DeleteOptions
+from rhosocial.activerecord.backend.options import (
+    DeleteOptions, ExecutionOptions, InsertOptions, StatementType, UpdateOptions
+)
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospectorExecutor
@@ -21,6 +23,17 @@ from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospec
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
 from ..mixins import MariaDBBackendMixin, AsyncMariaDBConcurrencyMixin
+
+# MariaDB connection error codes that indicate connection loss
+# Reference: https://mariadb.com/kb/en/mariadb-error-codes/
+CONNECTION_ERROR_CODES = {
+    2003,  # CR_CONN_HOST_ERROR - Can't connect to MariaDB server
+    2006,  # CR_SERVER_GONE_ERROR - MariaDB server has gone away
+    2013,  # CR_SERVER_LOST - Lost connection to MariaDB server during query
+    2048,  # CR_CONN_UNKNOW_PROTOCOL - Invalid connection protocol
+    2055,  # CR_SERVER_LOST_EXTENDED - Lost connection to MariaDB server
+    2502,  # CR_SERVER_GONE - The server has gone away
+}
 
 try:
     import mariadb
@@ -175,6 +188,47 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
         """
         return self._connection.cursor()
 
+    def _is_connection_error(self, error: Exception) -> bool:
+        """Check if an error indicates a connection loss.
+
+        Args:
+            error: The exception to check.
+
+        Returns:
+            True if the error indicates a connection problem.
+        """
+        if hasattr(error, 'errno'):
+            if error.errno in CONNECTION_ERROR_CODES:
+                return True
+
+        error_str = str(error).lower()
+        connection_error_patterns = [
+            'server has gone away',
+            'lost connection',
+            "can't connect",
+            'connection refused',
+            'broken pipe',
+            'connection reset',
+            'connection timed out',
+        ]
+        return any(pattern in error_str for pattern in connection_error_patterns)
+
+    async def _reconnect(self) -> bool:
+        """Attempt to reconnect to the MariaDB server.
+
+        Returns:
+            True if reconnection was successful, False otherwise.
+        """
+        try:
+            self.log(logging.INFO, "Attempting to reconnect...")
+            await self.disconnect()
+            await self.connect()
+            self.log(logging.INFO, "Reconnection successful")
+            return True
+        except Exception as e:
+            self.log(logging.ERROR, f"Reconnection failed: {str(e)}")
+            return False
+
     def _handle_mariadb_error(self, error: Exception) -> None:
         """Handle MariaDB-specific errors."""
         error_msg = str(error)
@@ -212,48 +266,102 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
             final_params = params or ()
         return sql, final_params
 
-    async def execute(self, sql: str, params: Optional[Union[Tuple, dict, List]] = None) -> Optional[QueryResult]:
-        """Execute a SQL query and return results asynchronously."""
+    async def execute(
+        self,
+        sql: str,
+        params: Optional[Union[Tuple, dict, List]] = None,
+        *,
+        options=None,
+        max_retries: int = 2,
+        **kwargs
+    ) -> Optional[QueryResult]:
+        """Execute a SQL query with automatic reconnection on connection errors."""
         self.log(logging.INFO, f"Executing: {sql}")
         start_time = time.perf_counter()
 
-        try:
-            if not self._connection:
-                self.log(logging.DEBUG, "No active connection, establishing new connection")
-                await self.connect()
-
-            cursor = await self._get_cursor()
-            sql, final_params = await self._prepare_sql_and_params(sql, params)
-
-            await cursor.execute(sql, final_params)
-            duration = time.perf_counter() - start_time
-
-            if cursor.description:
-                columns = [desc[0] for desc in cursor.description] if cursor.description else []
-                rows = await cursor.fetchall()
-                data = [dict(zip(columns, row)) for row in rows] if rows else []
-                result = QueryResult(
-                    data=data,
-                    affected_rows=cursor.rowcount,
-                    last_insert_id=cursor.lastrowid,
-                    duration=duration,
-                )
+        if options is None:
+            sql_upper = sql.strip().upper()
+            if sql_upper.startswith(('SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'PRAGMA', 'EXPLAIN')):
+                stmt_type = StatementType.DQL
+            elif sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE', 'REPLACE')):
+                stmt_type = StatementType.DML
             else:
-                result = QueryResult(
-                    data=None,
-                    affected_rows=cursor.rowcount,
-                    last_insert_id=cursor.lastrowid,
-                    duration=duration,
-                )
+                stmt_type = StatementType.DDL
 
-            await cursor.close()
-            self.log(logging.INFO, f"Query executed successfully, affected_rows={result.affected_rows}, duration={duration:.3f}s")
-            return result
+            column_mapping = kwargs.get('column_mapping')
+            column_adapters = kwargs.get('column_adapters')
 
-        except Exception as e:
-            self.log(logging.ERROR, f"Error executing query: {str(e)}")
-            await self._handle_error(e)
-            return None
+            options = ExecutionOptions(
+                stmt_type=stmt_type,
+                process_result_set=None,
+                column_adapters=column_adapters,
+                column_mapping=column_mapping
+            )
+        else:
+            if 'column_mapping' in kwargs:
+                options.column_mapping = kwargs['column_mapping']
+            if 'column_adapters' in kwargs:
+                options.column_adapters = kwargs['column_adapters']
+
+        last_error = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                if not self._connection:
+                    self.log(logging.DEBUG, "No active connection, establishing new connection")
+                    await self.connect()
+
+                cursor = await self._get_cursor()
+                sql, final_params = await self._prepare_sql_and_params(sql, params)
+
+                await cursor.execute(sql, final_params)
+                duration = time.perf_counter() - start_time
+
+                if cursor.description:
+                    columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                    rows = await cursor.fetchall()
+                    data = [dict(zip(columns, row)) for row in rows] if rows else []
+                    result = QueryResult(
+                        data=data,
+                        affected_rows=cursor.rowcount,
+                        last_insert_id=cursor.lastrowid,
+                        duration=duration,
+                    )
+                else:
+                    result = QueryResult(
+                        data=None,
+                        affected_rows=cursor.rowcount,
+                        last_insert_id=cursor.lastrowid,
+                        duration=duration,
+                    )
+
+                await cursor.close()
+                self.log(logging.INFO, f"Query executed successfully, affected_rows={result.affected_rows}, duration={duration:.3f}s")
+                return result
+
+            except (mariadb.OperationalError, mariadb.Error) as e:
+                last_error = e
+                if self._is_connection_error(e) and attempt < max_retries:
+                    self.log(
+                        logging.WARNING,
+                        f"Connection error on attempt {attempt + 1}/{max_retries + 1}: {str(e)}"
+                    )
+                    if await self._reconnect():
+                        continue
+                    else:
+                        self.log(logging.ERROR, "Reconnection failed, aborting retry")
+                        break
+                else:
+                    break
+            except Exception as e:
+                self.log(logging.ERROR, f"Error executing query: {str(e)}")
+                await self._handle_error(e)
+                return None
+
+        if last_error:
+            await self._handle_error(last_error)
+
+        raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")
 
     async def execute_many(self, sql: str, params_list: List[Tuple]) -> Optional[QueryResult]:
         """Execute batch operations asynchronously."""

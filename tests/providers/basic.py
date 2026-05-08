@@ -263,7 +263,7 @@ class BasicProvider(IBasicProvider):
         temp_backend.disconnect()
         from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
         temp_dialect = MariaDBDialect(actual_version)
-        if not temp_dialect.supports_json_functions():
+        if not temp_dialect.supports_json_type():
             pytest.skip(f"JSON functions not supported by MariaDB version {actual_version}")
         model = self._setup_model(TypeTestModel, scenario_name, "type_tests")
         return model
@@ -279,7 +279,7 @@ class BasicProvider(IBasicProvider):
         await temp_backend.disconnect()
         from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
         temp_dialect = MariaDBDialect(actual_version)
-        if not temp_dialect.supports_json_functions():
+        if not temp_dialect.supports_json_type():
             pytest.skip(f"JSON functions not supported by MariaDB version {actual_version}")
         model = await self._setup_async_model(AsyncTypeTestModel, scenario_name, "type_tests")
         return model
