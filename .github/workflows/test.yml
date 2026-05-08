@@ -52,8 +52,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -109,8 +109,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -166,8 +166,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -223,8 +223,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -280,8 +280,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -337,8 +337,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -394,8 +394,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -451,8 +451,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -509,8 +509,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -577,8 +577,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |
@@ -634,8 +634,8 @@ jobs:
 
     - name: Install activerecord and testsuite from PyPI
       run: |
-        pip install git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26#egg=rhosocial-activerecord
-        pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13#egg=rhosocial-activerecord-testsuite
+        pip install "rhosocial-activerecord[test] @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev26"
+        pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev13"
 
     - name: Create MariaDB scenario config
       run: |

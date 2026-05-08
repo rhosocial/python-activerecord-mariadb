@@ -1,5 +1,6 @@
 rhosocial-activerecord[test]
 rhosocial-activerecord-testsuite
+pydantic[email]
 pytest>=7.0.0
 pytest-asyncio
 pytest-cov>=4.0.0
