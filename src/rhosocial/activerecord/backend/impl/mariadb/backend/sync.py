@@ -30,7 +30,7 @@ from rhosocial.activerecord.backend.errors import (
     QueryError,
     DeadlockError,
 )
-from rhosocial.activerecord.backend.options import DeleteOptions, InsertOptions, UpdateOptions
+from rhosocial.activerecord.backend.options import DeleteOptions, ExecutionOptions, InsertOptions, StatementType, UpdateOptions
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.introspection.executor import SyncIntrospectorExecutor
@@ -39,7 +39,7 @@ from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
 from ..transaction import MariaDBTransactionManager
-from ..mixins import MariaDBBackendMixin
+from ..mixins import MariaDBBackendMixin, MariaDBConcurrencyMixin
 
 # MariaDB connection error codes that indicate connection loss
 # Reference: https://mariadb.com/kb/en/mariadb-error-codes/
@@ -53,7 +53,7 @@ CONNECTION_ERROR_CODES = {
 }
 
 
-class MariaDBBackend(MariaDBBackendMixin, SyncExplainBackendMixin, IntrospectorBackendMixin, StorageBackend):
+class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBackendMixin, IntrospectorBackendMixin, StorageBackend):
     """Synchronous MariaDB backend implementation.
 
     Provides:
@@ -184,6 +184,8 @@ class MariaDBBackend(MariaDBBackendMixin, SyncExplainBackendMixin, IntrospectorB
             if hasattr(self.config, "ssl_disabled"):
                 if not self.config.ssl_disabled:
                     conn_params["ssl"] = True
+                if hasattr(self.config, "tls_version") and self.config.tls_version:
+                    conn_params["tls_version"] = self.config.tls_version
                 if hasattr(self.config, "ssl_verify_cert") and self.config.ssl_verify_cert:
                     conn_params["ssl_verify_cert"] = self.config.ssl_verify_cert
                 if hasattr(self.config, "ssl_verify_identity") and self.config.ssl_verify_identity:
@@ -191,6 +193,7 @@ class MariaDBBackend(MariaDBBackendMixin, SyncExplainBackendMixin, IntrospectorB
 
             self._connection = mariadb.connect(**conn_params)
             self.log(logging.INFO, "Connected to MariaDB database successfully")
+            self._fetch_concurrency_hint()
         except mariadb.Error as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect: {str(e)}") from e
@@ -423,11 +426,35 @@ class MariaDBBackend(MariaDBBackendMixin, SyncExplainBackendMixin, IntrospectorB
         Returns:
             QueryResult or None if execution failed.
         """
+        if options is None:
+            sql_upper = sql.strip().upper()
+            if sql_upper.startswith(('SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'PRAGMA', 'EXPLAIN')):
+                stmt_type = StatementType.DQL
+            elif sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE', 'REPLACE')):
+                stmt_type = StatementType.DML
+            else:
+                stmt_type = StatementType.DDL
+
+            column_mapping = kwargs.get('column_mapping')
+            column_adapters = kwargs.get('column_adapters')
+
+            options = ExecutionOptions(
+                stmt_type=stmt_type,
+                process_result_set=None,
+                column_adapters=column_adapters,
+                column_mapping=column_mapping
+            )
+        else:
+            if 'column_mapping' in kwargs:
+                options.column_mapping = kwargs['column_mapping']
+            if 'column_adapters' in kwargs:
+                options.column_adapters = kwargs['column_adapters']
+
         last_error = None
 
         for attempt in range(max_retries + 1):
             try:
-                return self._execute_internal(sql, params)
+                return self._execute_internal(sql, params, options)
             except (mariadb.OperationalError, mariadb.Error) as e:
                 last_error = e
 
@@ -450,54 +477,94 @@ class MariaDBBackend(MariaDBBackendMixin, SyncExplainBackendMixin, IntrospectorB
         raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")
 
     def _execute_internal(
-        self,
+            self,
         sql: str,
-        params: Optional[Union[Tuple, Dict, List]] = None
+        params: Optional[Union[Tuple, Dict, List]] = None,
+        options: Optional[ExecutionOptions] = None
     ) -> Optional[QueryResult]:
         """Internal execute without retry logic.
 
         Args:
-            sql: The SQL statement to execute.
+            sql: SQL statement.
             params: Parameters for the statement.
+            options: Execution options for result processing.
 
         Returns:
-            QueryResult or None.
+            QueryResult or None if execution produced no results.
         """
-        self.log(logging.DEBUG, f"Executing: {sql}")
-        start_time = time.perf_counter()
-
-        if not self._connection:
-            self.log(logging.DEBUG, "No active connection, establishing new connection")
-            self.connect()
-
-        cursor = self._cursor or self._get_cursor()
-        sql, final_params = self._prepare_sql_and_params(sql, params)
-
-        cursor.execute(sql, final_params)
-        duration = time.perf_counter() - start_time
+        cursor = self._get_cursor()
+        sql, params = self._prepare_sql_and_params(sql, params)
+        cursor.execute(sql, params)
 
         if cursor.description:
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
-            data = [dict(zip(columns, row)) for row in rows] if rows else []
+            row_data = [dict(zip(columns, row)) for row in rows] if rows else []
             result = QueryResult(
-                data=data,
+                data=row_data,
                 affected_rows=cursor.rowcount,
-                last_insert_id=cursor.lastrowid,
-                duration=duration,
+                last_insert_id=cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
             )
         else:
+            self._connection.commit()
             result = QueryResult(
                 data=None,
                 affected_rows=cursor.rowcount,
-                last_insert_id=cursor.lastrowid,
-                duration=duration,
+                last_insert_id=cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
             )
 
-        self.log(
-            logging.DEBUG,
-            f"Query executed successfully, affected_rows={result.affected_rows}, duration={duration:.3f}s"
-        )
+        if options and (options.column_mapping or options.column_adapters):
+            result = self._apply_result_mapping(result, options)
+
+        return result
+
+    def _apply_result_mapping(
+        self,
+        result: QueryResult,
+        options: ExecutionOptions
+    ) -> QueryResult:
+        """Apply column mapping and adapters to a query result.
+
+        Args:
+            result: The raw query result.
+            options: Execution options with mapping/adapters.
+
+        Returns:
+            Transformed QueryResult.
+        """
+        column_mapping = options.column_mapping or {}
+        column_adapters = options.column_adapters or {}
+
+        if not result.data:
+            return result
+
+        data = result.data
+        if isinstance(data, list) and len(data) > 0:
+            first_row = data[0]
+            if isinstance(first_row, dict):
+                # Apply adapters first (using original column names)
+                if column_adapters:
+                    adapted_data = []
+                    for row in data:
+                        adapted_row = dict(row)
+                        for col_name, (adapter, target_type) in column_adapters.items():
+                            if col_name in adapted_row:
+                                adapted_row[col_name] = adapter.from_database(
+                                    row[col_name], target_type
+                                )
+                        adapted_data.append(adapted_row)
+                    data = adapted_data
+
+                # Then apply column name mapping
+                if column_mapping:
+                    mapped_data = []
+                    for row in data:
+                        mapped_row = {column_mapping.get(k, k): v for k, v in row.items()}
+                        mapped_data.append(mapped_row)
+                    data = mapped_data
+
+                result.data = data
+
         return result
 
     def execute_many(self, sql: str, params_list: List[Tuple]) -> Optional[QueryResult]:
@@ -574,7 +641,7 @@ class MariaDBBackend(MariaDBBackendMixin, SyncExplainBackendMixin, IntrospectorB
                 self.log(logging.DEBUG, "Initializing connection for transaction manager")
                 self.connect()
             self.log(logging.DEBUG, "Creating new transaction manager")
-            self._transaction_manager = MariaDBTransactionManager(self._connection, self.logger)
+            self._transaction_manager = MariaDBTransactionManager(self, self.logger)
         return self._transaction_manager
 
     def get_server_version(self) -> Tuple[int, int, int]:

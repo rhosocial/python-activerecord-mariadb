@@ -4,9 +4,12 @@
 MariaDB 10.2.3+ supports JSON functions, and 10.2.7+ supports
 JSON arrow operators (-> and ->>).
 """
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.query_sources import JSONTableExpression
 
 
 class MariaDBJSONMixin:
@@ -111,6 +114,32 @@ class MariaDBJSONMixin:
             False.
         """
         return False
+
+    def format_json_table_expression(
+        self, expr: "JSONTableExpression"
+    ) -> Tuple[str, Tuple]:
+        path = expr.path.replace("'", "''")
+        parts = ["JSON_TABLE(", expr.json_doc, ",", f"'{path}'", " COLUMNS ("]
+        col_parts_list = []
+        for col in expr.columns:
+            col_parts = []
+            if col.ordinality:
+                col_parts.append(f"{col.name} FOR ORDINALITY")
+            elif col.exists:
+                col_path = col.path.replace("'", "''") if col.path else ""
+                col_parts.append(f"{col.name} INT EXISTS (PATH '{col_path}')")
+            else:
+                col_parts.append(f"{col.name} {col.type}")
+                if col.path:
+                    col_path = col.path.replace("'", "''")
+                    col_parts.append(f"PATH '{col_path}'")
+            col_parts_list.append(' '.join(col_parts))
+        parts.append(', '.join(col_parts_list))
+        parts.append("))")
+        result = ''.join(parts)
+        if expr.alias:
+            result += f" AS {self.format_identifier(expr.alias)}"
+        return result, ()
 
     def format_json_extract(
         self,

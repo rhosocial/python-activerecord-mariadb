@@ -33,6 +33,7 @@ class MariaDBConnectionConfig(
 
     autocommit: bool = False
     ssl_disabled: bool = False
+    tls_version: Optional[str] = None
     options: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -40,6 +41,8 @@ class MariaDBConnectionConfig(
         result = super().to_dict()
         result["autocommit"] = self.autocommit
         result["ssl_disabled"] = self.ssl_disabled
+        if self.tls_version:
+            result["tls_version"] = self.tls_version
         return result
 
     @classmethod
@@ -68,6 +71,7 @@ class MariaDBConnectionConfig(
             "POOL_TIMEOUT": "pool_timeout",
             "AUTOCOMMIT": "autocommit",
             "SSL_DISABLED": "ssl_disabled",
+            "TLS_VERSION": "tls_version",
         }
 
         for env_key, config_key in mapping.items():

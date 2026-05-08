@@ -16,6 +16,7 @@ from rhosocial.activerecord.backend.impl.mariadb import (
     AsyncMariaDBBackend,
     MariaDBConnectionConfig,
 )
+from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
 # --- Scenario Loading Logic ---
 
@@ -178,6 +179,36 @@ async def async_mariadb_backend(request):
     await provider.async_cleanup()
 
 
+@pytest.fixture(scope="function")
+def mariadb_control_backend():
+    """Control backend fixture (separate connection for KILL operations)."""
+    scenario_names = get_scenario_names()
+    if not scenario_names:
+        pytest.skip("No MariaDB scenarios configured")
+    scenario_name = scenario_names[0]
+    _, config = get_scenario(scenario_name)
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    backend.introspect_and_adapt()
+    yield backend
+    backend.disconnect()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_mariadb_control_backend():
+    """Async control backend fixture (separate connection for KILL operations)."""
+    scenario_names = get_scenario_names()
+    if not scenario_names:
+        pytest.skip("No MariaDB scenarios configured")
+    scenario_name = scenario_names[0]
+    _, config = get_scenario(scenario_name)
+    backend = AsyncMariaDBBackend(connection_config=config)
+    await backend.connect()
+    await backend.introspect_and_adapt()
+    yield backend
+    await backend.disconnect()
+
+
 @pytest_asyncio.fixture(scope="function")
 async def async_mariadb_backend_single():
     """Non-parameterized async fixture using the first available scenario."""
@@ -189,3 +220,9 @@ async def async_mariadb_backend_single():
     backend = await provider.setup_async_backend(scenario_name)
     yield backend
     await provider.async_cleanup()
+
+
+@pytest.fixture(scope="function")
+def mariadb_dialect():
+    """Fixture providing a MariaDBDialect instance for unit tests."""
+    return MariaDBDialect()

@@ -34,6 +34,11 @@ from .spatial import MariaDBSpatialMixin
 from .locking import MariaDBLockingMixin
 from .trigger import MariaDBTriggerMixin
 from .json import MariaDBJSONMixin
+from .fulltext_search import MariaDBFullTextSearchMixin
+from .table import MariaDBTableMixin
+from .set_type import MariaDBSetTypeMixin
+from .modify_column import MariaDBModifyColumnMixin
+from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -48,4 +53,10 @@ __all__ = [
     'MariaDBLockingMixin',
     'MariaDBTriggerMixin',
     'MariaDBJSONMixin',
+    'MariaDBFullTextSearchMixin',
+    'MariaDBTableMixin',
+    'MariaDBSetTypeMixin',
+    'MariaDBModifyColumnMixin',
+    'MariaDBConcurrencyMixin',
+    'AsyncMariaDBConcurrencyMixin',
 ]

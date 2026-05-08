@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospec
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
-from ..mixins import MariaDBBackendMixin
+from ..mixins import MariaDBBackendMixin, AsyncMariaDBConcurrencyMixin
 
 try:
     import mariadb
@@ -37,7 +37,7 @@ except ImportError:
     )
 
 
-class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
+class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
     """Async MariaDB backend implementation.
 
     Provides introspection support via the `introspector` property.
@@ -106,6 +106,8 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncSt
             if hasattr(self.config, "ssl_disabled"):
                 if not self.config.ssl_disabled:
                     conn_params["ssl"] = True
+                    if hasattr(self.config, "tls_version") and self.config.tls_version:
+                        conn_params["tls_version"] = self.config.tls_version
                     if hasattr(self.config, "ssl_verify_cert") and self.config.ssl_verify_cert:
                         conn_params["ssl_verify_cert"] = self.config.ssl_verify_cert
                     if hasattr(self.config, "ssl_verify_identity") and self.config.ssl_verify_identity:

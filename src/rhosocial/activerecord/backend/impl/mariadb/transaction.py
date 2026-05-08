@@ -73,16 +73,21 @@ class MariaDBTransactionMixin:
 class MariaDBTransactionManager(MariaDBTransactionMixin, TransactionManager):
     """MariaDB transaction manager implementation."""
 
-    def __init__(self, connection, logger=None):
+    def __init__(self, backend, logger=None):
         """Initialize MariaDB transaction manager.
 
         Args:
-            connection: MariaDB database connection
+            backend: MariaDB backend instance
             logger: Optional logger instance
         """
-        super().__init__(connection, logger)
+        super().__init__(backend, logger)
         self._isolation_level = IsolationLevel.REPEATABLE_READ
         self._state = TransactionState.INACTIVE
+
+    @property
+    def connection(self):
+        """Get the raw database connection from the backend."""
+        return self._backend._connection
 
     @property
     def isolation_level(self) -> Optional[IsolationLevel]:
