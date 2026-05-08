@@ -233,12 +233,8 @@ class TestAsyncErrorClassValidation:
 
         # mariadb's async connect provides the same error classes
         if hasattr(mariadb, 'asyncConnect'):
-            async_conn = getattr(mariadb, 'asyncConnect')
-            # async variant uses the same error classes
-            async def_name = getattr(async_conn, '__name__', None)
-            assert async_def_name is not None or True  # asyncConnect exists
-
-        # The important thing is that we use MariaDBError from mariadb
+            mariadb_async_conn = getattr(mariadb, 'asyncConnect')
+            # The important thing is that we use MariaDBError from mariadb
 
 
 class TestAsyncConnectionErrorHandling:
