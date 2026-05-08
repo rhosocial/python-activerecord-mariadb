@@ -157,9 +157,9 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
         """Get the async MariaDB transaction manager."""
         if self._transaction_manager is None:
             from ..async_transaction import AsyncMariaDBTransactionManager
-            self._transaction_manager = AsyncMariaDBTransactionManager(self._connection, self.logger)
+            self._transaction_manager = AsyncMariaDBTransactionManager(self, self.logger)
         else:
-            self._transaction_manager._connection = self._connection
+            self._transaction_manager._backend = self
         return self._transaction_manager
 
     async def ping(self, reconnect: bool = True) -> bool:

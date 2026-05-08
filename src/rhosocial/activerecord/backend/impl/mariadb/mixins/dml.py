@@ -305,13 +305,13 @@ class MariaDBDMLOperationMixin:
         if expr.options.ignore_lines:
             parts.append(f"IGNORE {expr.options.ignore_lines} LINES")
 
-        if expr.column_list:
-            cols = ", ".join(self.format_identifier(c) for c in expr.column_list)
+        if expr.options.column_list:
+            cols = ", ".join(self.format_identifier(c) for c in expr.options.column_list)
             parts.append(f"({cols})")
 
-        if expr.set_clause:
+        if expr.options.set_assignments:
             set_parts = []
-            for col, val in expr.set_clause.items():
+            for col, val in expr.options.set_assignments.items():
                 set_parts.append(f"{self.format_identifier(col)} = {val}")
             parts.append("SET " + ", ".join(set_parts))
 
