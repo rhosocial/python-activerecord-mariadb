@@ -22,6 +22,7 @@ from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospec
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
+from ..async_transaction import AsyncMariaDBTransactionManager
 from ..mixins import MariaDBBackendMixin, AsyncMariaDBConcurrencyMixin
 
 # MariaDB connection error codes that indicate connection loss
@@ -150,6 +151,16 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
         except Exception as e:
             self.log(logging.ERROR, f"Error during disconnect: {str(e)}")
             raise ConnectionError(f"Failed to disconnect: {str(e)}") from e
+
+    @property
+    def transaction_manager(self):
+        """Get the async MariaDB transaction manager."""
+        if self._transaction_manager is None:
+            from ..async_transaction import AsyncMariaDBTransactionManager
+            self._transaction_manager = AsyncMariaDBTransactionManager(self._connection, self.logger)
+        else:
+            self._transaction_manager._connection = self._connection
+        return self._transaction_manager
 
     async def ping(self, reconnect: bool = True) -> bool:
         """Test the database connection and optionally reconnect asynchronously."""

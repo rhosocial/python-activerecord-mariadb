@@ -269,6 +269,22 @@ class MariaDBDialect(
         self.version = version
         super().__init__()
 
+    def format_insert_statement(self, expr):
+        """Delegate INSERT formatting to MariaDBDMLOperationMixin."""
+        # Explicit override to ensure MariaDB's INSERT IGNORE / REPLACE INTO logic is used
+        from .mixins.dml import MariaDBDMLOperationMixin
+        return MariaDBDMLOperationMixin.format_insert_statement(self, expr)
+
+    def format_replace_statement(self, expr):
+        """Delegate REPLACE formatting to MariaDBDMLOperationMixin."""
+        from .mixins.dml import MariaDBDMLOperationMixin
+        return MariaDBDMLOperationMixin.format_replace_statement(self, expr)
+
+    def format_load_data_statement(self, expr):
+        """Delegate LOAD DATA formatting to MariaDBDMLOperationMixin."""
+        from .mixins.dml import MariaDBDMLOperationMixin
+        return MariaDBDMLOperationMixin.format_load_data_statement(self, expr)
+
     def get_parameter_placeholder(self, position: int = 0) -> str:
         """MariaDB uses positional placeholders like :0, :1 or %s."""
         return "%s"

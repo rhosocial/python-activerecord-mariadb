@@ -302,8 +302,8 @@ class MariaDBDMLOperationMixin:
         if line_parts:
             parts.append("LINES " + " ".join(line_parts))
 
-        if expr.options.skip:
-            parts.append(f"IGNORE {expr.options.skip} LINES")
+        if expr.options.ignore_lines:
+            parts.append(f"IGNORE {expr.options.ignore_lines} LINES")
 
         if expr.column_list:
             cols = ", ".join(self.format_identifier(c) for c in expr.column_list)
