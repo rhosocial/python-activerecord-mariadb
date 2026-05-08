@@ -91,6 +91,7 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
 
         super().__init__(connection_config=connection_config)
         self._dialect = MariaDBDialect()
+        self._register_mariadb_adapters()
 
     @property
     def dialect(self) -> MariaDBDialect:
@@ -328,12 +329,16 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Int
                         duration=duration,
                     )
                 else:
+                    await self._connection.commit()
                     result = QueryResult(
                         data=None,
                         affected_rows=cursor.rowcount,
                         last_insert_id=cursor.lastrowid,
                         duration=duration,
                     )
+
+                if options and (options.column_mapping or options.column_adapters):
+                    result = self._apply_result_mapping(result, options)
 
                 await cursor.close()
                 self.log(logging.INFO, f"Query executed successfully, affected_rows={result.affected_rows}, duration={duration:.3f}s")
