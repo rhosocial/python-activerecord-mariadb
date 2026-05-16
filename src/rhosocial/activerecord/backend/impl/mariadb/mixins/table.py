@@ -40,6 +40,16 @@ class MariaDBTableMixin:
         """MariaDB supports CHARSET/COLLATE at table level."""
         return True
 
+    def supports_create_or_replace_table(self) -> bool:
+        """Whether CREATE OR REPLACE TABLE is supported.
+
+        MariaDB 10.1+ supports CREATE OR REPLACE TABLE.
+
+        Returns:
+            True if MariaDB version >= 10.1.0.
+        """
+        return self.version >= (10, 1, 0)
+
     def format_create_table_statement(self, expr) -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for MariaDB.
 

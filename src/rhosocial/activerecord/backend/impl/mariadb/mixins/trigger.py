@@ -113,6 +113,16 @@ class MariaDBTriggerMixin:
         """
         return False
 
+    def supports_trigger_order(self) -> bool:
+        """Whether trigger ordering (FOLLOWS/PRECEDES) is supported.
+
+        MariaDB 10.2.3+ supports FOLLOWS/PRECEDES for trigger ordering.
+
+        Returns:
+            True if MariaDB version >= 10.2.3.
+        """
+        return self.version >= (10, 2, 3)
+
     def supports_trigger_if_not_exists(self) -> bool:
         """Whether CREATE TRIGGER IF NOT EXISTS is supported.
 

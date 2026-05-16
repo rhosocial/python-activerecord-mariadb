@@ -92,6 +92,62 @@ class MariaDBDMLOperationSupport(Protocol):
         """
         ...
 
+    def supports_returning_for_insert(self) -> bool:
+        """Whether RETURNING is supported for INSERT (MariaDB 10.5+)."""
+        ...
+
+    def supports_returning_for_delete(self) -> bool:
+        """Whether RETURNING is supported for DELETE (MariaDB 10.5+)."""
+        ...
+
+    def supports_returning_for_replace(self) -> bool:
+        """Whether RETURNING is supported for REPLACE (MariaDB 10.5+)."""
+        ...
+
+    def supports_returning_for_update(self) -> bool:
+        """Whether RETURNING is supported for UPDATE.
+
+        MariaDB does NOT support RETURNING for UPDATE.
+        """
+        ...
+
+    def format_insert_statement(self, expr: Any) -> Tuple[str, tuple]:
+        """Format INSERT statement with MariaDB-specific options.
+
+        Supports INSERT IGNORE, REPLACE INTO, and RETURNING clause.
+
+        Args:
+            expr: InsertExpression instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_delete_statement(self, expr: Any) -> Tuple[str, tuple]:
+        """Format DELETE statement with MariaDB-specific options.
+
+        Supports RETURNING clause.
+
+        Args:
+            expr: DeleteExpression instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_replace_statement(self, expr: Any) -> Tuple[str, tuple]:
+        """Format REPLACE INTO statement.
+
+        Args:
+            expr: ReplaceExpression instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
 
 @runtime_checkable
 class MariaDBTriggerSupport(Protocol):
@@ -160,6 +216,22 @@ class MariaDBTriggerSupport(Protocol):
 
     def supports_trigger_order(self) -> bool:
         """Whether trigger ordering (FOLLOWS/PRECEDES) is supported (MariaDB 10.2.3+)."""
+        ...
+
+    def supports_create_trigger(self) -> bool:
+        """Whether CREATE TRIGGER is supported."""
+        ...
+
+    def supports_drop_trigger(self) -> bool:
+        """Whether DROP TRIGGER is supported."""
+        ...
+
+    def supports_or_replace_trigger(self) -> bool:
+        """Whether CREATE OR REPLACE TRIGGER is supported (MariaDB 10.1.4+)."""
+        ...
+
+    def supports_multiple_triggers_per_timing(self) -> bool:
+        """Whether multiple triggers per timing/event are supported (MariaDB 10.2.3+)."""
         ...
 
     def format_create_trigger_statement(self, expr: Any) -> Tuple[str, tuple]:
@@ -646,6 +718,76 @@ class MariaDBJSONFunctionSupport(Protocol):
         """
         ...
 
+    def get_json_access_operator(self) -> str:
+        """Get the JSON access operator for MariaDB.
+
+        MariaDB uses -> and ->> operators (10.2.7+).
+
+        Returns:
+            The JSON access operator string.
+        """
+        ...
+
+    def format_json_table_expression(
+        self,
+        expr: Any
+    ) -> Tuple[str, tuple]:
+        """Format JSON_TABLE expression.
+
+        MariaDB does NOT support JSON_TABLE (unlike MySQL 8.0.4+).
+
+        Args:
+            expr: JsonTableExpression instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_json_keys(
+        self,
+        json_doc: str,
+        path: Optional[str] = None
+    ) -> Tuple[str, tuple]:
+        """Format JSON_KEYS function call.
+
+        Args:
+            json_doc: JSON document or column
+            path: Optional path within the document
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_json_merge(
+        self,
+        json_docs: List[str]
+    ) -> Tuple[str, tuple]:
+        """Format JSON_MERGE function call.
+
+        Args:
+            json_docs: List of JSON documents to merge
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_json_merge_patch(
+        self,
+        json_docs: List[str]
+    ) -> Tuple[str, tuple]:
+        """Format JSON_MERGE_PATCH function call.
+
+        Args:
+            json_docs: List of JSON documents to merge
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
 
 @runtime_checkable
 class MariaDBSpatialSupport(Protocol):
@@ -842,6 +984,38 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
+    def format_st_distance_sphere(
+        self,
+        geom1: str,
+        geom2: str
+    ) -> Tuple[str, tuple]:
+        """Format ST_Distance_Sphere function call.
+
+        Args:
+            geom1: First geometry (point)
+            geom2: Second geometry (point)
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_st_intersects(
+        self,
+        geom1: str,
+        geom2: str
+    ) -> Tuple[str, tuple]:
+        """Format ST_Intersects function call.
+
+        Args:
+            geom1: First geometry
+            geom2: Second geometry
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
 
 @runtime_checkable
 class MariaDBFullTextSearchSupport(Protocol):
@@ -961,6 +1135,31 @@ class MariaDBLockingSupport(Protocol):
 
         Args:
             clause: MariaDBForUpdateClause instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def supports_for_update(self) -> bool:
+        """Whether FOR UPDATE clause is supported.
+
+        MariaDB supports FOR UPDATE in all versions.
+        """
+        ...
+
+    def supports_lock_strength(self) -> bool:
+        """Whether different lock strengths (FOR NO KEY UPDATE, FOR KEY SHARE) are supported.
+
+        MariaDB does NOT support different lock strengths (PostgreSQL feature).
+        """
+        ...
+
+    def format_lock_in_share_mode(self, clause: Any) -> Tuple[str, tuple]:
+        """Format LOCK IN SHARE MODE clause (legacy MariaDB syntax).
+
+        Args:
+            clause: LockInShareModeClause instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

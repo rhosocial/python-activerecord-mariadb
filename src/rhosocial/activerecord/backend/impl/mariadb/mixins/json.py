@@ -118,28 +118,20 @@ class MariaDBJSONMixin:
     def format_json_table_expression(
         self, expr: "JSONTableExpression"
     ) -> Tuple[str, Tuple]:
-        path = expr.path.replace("'", "''")
-        parts = ["JSON_TABLE(", expr.json_doc, ",", f"'{path}'", " COLUMNS ("]
-        col_parts_list = []
-        for col in expr.columns:
-            col_parts = []
-            if col.ordinality:
-                col_parts.append(f"{col.name} FOR ORDINALITY")
-            elif col.exists:
-                col_path = col.path.replace("'", "''") if col.path else ""
-                col_parts.append(f"{col.name} INT EXISTS (PATH '{col_path}')")
-            else:
-                col_parts.append(f"{col.name} {col.type}")
-                if col.path:
-                    col_path = col.path.replace("'", "''")
-                    col_parts.append(f"PATH '{col_path}'")
-            col_parts_list.append(' '.join(col_parts))
-        parts.append(', '.join(col_parts_list))
-        parts.append("))")
-        result = ''.join(parts)
-        if expr.alias:
-            result += f" AS {self.format_identifier(expr.alias)}"
-        return result, ()
+        """Format JSON_TABLE expression.
+
+        MariaDB does NOT support JSON_TABLE function.
+        Always raises UnsupportedFeatureError.
+
+        Raises:
+            UnsupportedFeatureError: MariaDB does not support JSON_TABLE.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        raise UnsupportedFeatureError(
+            "MariaDB",
+            "JSON_TABLE",
+            "MariaDB does not support JSON_TABLE. Use json_table() stored procedure or other alternatives."
+        )
 
     def format_json_extract(
         self,
@@ -418,6 +410,68 @@ class MariaDBJSONMixin:
         if len(json_docs) < 2:
             raise ValueError("JSON_MERGE_PATCH requires at least 2 JSON documents")
         return f"JSON_MERGE_PATCH({', '.join(json_docs)})", ()
+
+    def format_json_query(
+        self,
+        json_doc: str,
+        path: str
+    ) -> Tuple[str, tuple]:
+        """Format JSON_QUERY function call (MariaDB 10.2.3+).
+
+        Args:
+            json_doc: JSON document or column.
+            path: JSON path expression.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        return f"JSON_QUERY({json_doc}, '{path}')", ()
+
+    def format_json_value(
+        self,
+        json_doc: str,
+        path: str,
+        returning_type: Optional[str] = None
+    ) -> Tuple[str, tuple]:
+        """Format JSON_VALUE function call (MariaDB 10.2.3+).
+
+        Args:
+            json_doc: JSON document or column.
+            path: JSON path expression.
+            returning_type: Optional RETURNING data type.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        if returning_type:
+            return f"JSON_VALUE({json_doc}, '{path}' RETURNING {returning_type})", ()
+        return f"JSON_VALUE({json_doc}, '{path}')", ()
+
+    def format_json_exists(
+        self,
+        json_doc: str,
+        path: str
+    ) -> Tuple[str, tuple]:
+        """Format JSON_EXISTS function call (MariaDB 10.2.3+).
+
+        Args:
+            json_doc: JSON document or column.
+            path: JSON path expression.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        return f"JSON_EXISTS({json_doc}, '{path}')", ()
+
+    def supports_json_merge_patch(self) -> bool:
+        """Whether JSON_MERGE_PATCH is supported.
+
+        MariaDB 10.2.3+ supports JSON_MERGE_PATCH.
+
+        Returns:
+            True if MariaDB version supports JSON_MERGE_PATCH.
+        """
+        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']
 
 
 __all__ = ['MariaDBJSONMixin']

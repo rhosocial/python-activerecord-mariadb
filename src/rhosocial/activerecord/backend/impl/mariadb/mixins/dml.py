@@ -252,6 +252,17 @@ class MariaDBDMLOperationMixin:
 
         return sql, tuple(all_params)
 
+    def format_on_conflict_clause(self, expr: Any) -> Tuple[str, tuple]:
+        """Format ON DUPLICATE KEY UPDATE clause (MariaDB upsert).
+
+        Args:
+            expr: OnConflictExpression or equivalent instance.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        return expr.to_sql()
+
     def format_load_data_statement(self, expr) -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
 
