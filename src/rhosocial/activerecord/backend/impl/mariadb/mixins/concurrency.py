@@ -72,7 +72,7 @@ class AsyncMariaDBConcurrencyMixin:
     async def _fetch_concurrency_hint(self) -> None:
         """Fetch max_connections from MariaDB server and compute concurrency hint."""
         try:
-            cursor = await self._connection.cursor(dictionary=True)
+            cursor = self._connection.cursor(dictionary=True)
             await cursor.execute("SHOW VARIABLES LIKE 'max_connections'")
             row = await cursor.fetchone()
             await cursor.close()
