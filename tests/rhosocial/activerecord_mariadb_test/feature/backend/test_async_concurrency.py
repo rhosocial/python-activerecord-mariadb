@@ -146,18 +146,19 @@ async def mysql_config(async_mariadb_backend_single):
     return async_mariadb_backend_single.config
 
 
-# --- Test 1: Shared Backend Concurrency Issues (DOCUMENTED AS EXPECTED FAILURE) ---
+# --- Test 1: Shared Backend Concurrent Reads Behavior ---
 
 @pytest.mark.asyncio
-async def test_shared_backend_concurrent_reads_fail(concurrent_user_model):
+async def test_shared_backend_concurrent_reads_behavior(concurrent_user_model):
     """
-    CRITICAL: This test demonstrates that shared backend does NOT support
-    concurrent operations - even for reads.
+    Test concurrent read behavior on shared backend.
 
     mysql-connector-python's async connection raises:
     "read() called while another coroutine is already waiting for incoming data"
 
-    This is EXPECTED behavior - the test documents this limitation.
+    The mariadb driver does NOT raise such errors — concurrent reads
+    on a shared connection succeed without errors. This test documents
+    the actual behavior of the mariadb async driver.
     """
     # Setup: Insert test data first (sequentially)
     for i in range(10):
@@ -186,18 +187,16 @@ async def test_shared_backend_concurrent_reads_fail(concurrent_user_model):
     ]
 
     # Wait for all tasks to complete
-    await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks)
 
-    # EXPECTED: Errors occur due to concurrent access on single connection
-    assert len(errors) > 0, "Expected concurrent access errors on shared backend"
+    # mariadb driver: concurrent reads succeed without errors
+    assert len(errors) == 0, f"Unexpected errors with mariadb async driver: {errors}"
 
-    # Document the specific error
-    error_messages = [e[1] for e in errors]
-    concurrent_errors = [e for e in error_messages if "another coroutine" in e]
-    assert len(concurrent_errors) > 0, f"Expected 'another coroutine' errors, got: {error_messages}"
+    # Verify all reads returned valid results
+    successful = [r for r in results if r is not None]
+    assert len(successful) == 20, f"Expected 20 successful reads, got {len(successful)}"
 
-    print(f"\nDocumented: Shared backend concurrent reads FAIL with {len(errors)} errors")
-    print(f"Error example: {errors[0][1][:80]}...")
+    print(f"\nDocumented: Shared backend concurrent reads SUCCEED with mariadb async driver ({len(successful)} reads)")
 
 
 # --- Test 2: Sequential Operations Work (SANITY CHECK) ---

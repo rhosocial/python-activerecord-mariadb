@@ -393,16 +393,24 @@ class TestAsyncTransactionCombination:
         assert async_mariadb_backend.transaction_manager._isolation_level is None, \
             "Initial isolation level should be None (use database default)"
 
-        # Track SQL statements executed
+        # Track SQL statements executed at cursor level
+        # (transaction manager uses cursor directly, not backend.execute)
         executed_statements = []
-        original_execute = async_mariadb_backend.execute
+        real_cursor = async_mariadb_backend._connection.cursor
 
-        async def track_execute(sql, params=None, **kwargs):
-            executed_statements.append(sql)
-            return await original_execute(sql, params, **kwargs)
+        def tracking_cursor(*args, **kwargs):
+            cursor = real_cursor(*args, **kwargs)
+            real_execute = cursor.execute
 
-        # Patch execute to track statements
-        with patch.object(async_mariadb_backend, 'execute', side_effect=track_execute):
+            async def tracking_execute(sql, params=None):
+                executed_statements.append(sql)
+                return await real_execute(sql, params)
+
+            cursor.execute = tracking_execute
+            return cursor
+
+        # Patch connection.cursor to track statements
+        with patch.object(async_mariadb_backend._connection, 'cursor', side_effect=tracking_cursor):
             async with async_mariadb_backend.transaction():
                 # Execute a simple query inside the transaction
                 await async_mariadb_backend.fetch_all("SELECT 1 as test")
@@ -439,16 +447,24 @@ class TestAsyncTransactionCombination:
         assert async_mariadb_backend.transaction_manager._isolation_level == IsolationLevel.READ_COMMITTED, \
             "Isolation level should be READ_COMMITTED after explicit setting"
 
-        # Track SQL statements executed
+        # Track SQL statements executed at cursor level
+        # (transaction manager uses cursor directly, not backend.execute)
         executed_statements = []
-        original_execute = async_mariadb_backend.execute
+        real_cursor = async_mariadb_backend._connection.cursor
 
-        async def track_execute(sql, params=None, **kwargs):
-            executed_statements.append(sql)
-            return await original_execute(sql, params, **kwargs)
+        def tracking_cursor(*args, **kwargs):
+            cursor = real_cursor(*args, **kwargs)
+            real_execute = cursor.execute
 
-        # Patch execute to track statements
-        with patch.object(async_mariadb_backend, 'execute', side_effect=track_execute):
+            async def tracking_execute(sql, params=None):
+                executed_statements.append(sql)
+                return await real_execute(sql, params)
+
+            cursor.execute = tracking_execute
+            return cursor
+
+        # Patch connection.cursor to track statements
+        with patch.object(async_mariadb_backend._connection, 'cursor', side_effect=tracking_cursor):
             async with async_mariadb_backend.transaction():
                 await async_mariadb_backend.fetch_all("SELECT 1 as test")
 

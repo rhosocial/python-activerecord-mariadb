@@ -626,7 +626,7 @@ class TestAsyncIsConnectedMethod:
     async def test_is_connected_when_connected(self, async_mariadb_backend_single: AsyncMariaDBBackend):
         """Verify is_connected() returns True for active connection."""
         assert async_mariadb_backend_single._connection is not None
-        assert await async_mariadb_backend_single._connection.is_connected() is True
+        assert await async_safe_is_connected(async_mariadb_backend_single._connection) is True
 
     @pytest.mark.asyncio
     async def test_is_connected_after_disconnect(self, async_mariadb_backend_single: AsyncMariaDBBackend):

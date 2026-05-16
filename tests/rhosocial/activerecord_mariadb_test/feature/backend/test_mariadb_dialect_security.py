@@ -93,7 +93,8 @@ def test_mysql_format_column_definition_data_type_rejects_injection(dialect):
 
 
 def test_mysql_json_table_path_escaping(dialect):
-    """Test JSON_TABLE path is escaped."""
+    """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB (path escaping)."""
+    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
     expr = MariaDBJSONTableExpression(
         dialect=dialect,
         json_doc='{"key": "value"}',
@@ -107,14 +108,13 @@ def test_mysql_json_table_path_escaping(dialect):
         ],
     )
 
-    sql, params = dialect.format_json_table_expression(expr)
-
-    assert "key''s" in sql
-    assert "'; DROP" not in sql
+    with pytest.raises(UnsupportedFeatureError):
+        dialect.format_json_table_expression(expr)
 
 
 def test_mysql_json_table_column_path_escaping(dialect):
-    """Test JSON_TABLE column path is escaped."""
+    """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB (column path escaping)."""
+    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
     expr = MariaDBJSONTableExpression(
         dialect=dialect,
         json_doc='{"data": "test"}',
@@ -128,13 +128,13 @@ def test_mysql_json_table_column_path_escaping(dialect):
         ],
     )
 
-    sql, params = dialect.format_json_table_expression(expr)
-
-    assert "field''s" in sql
+    with pytest.raises(UnsupportedFeatureError):
+        dialect.format_json_table_expression(expr)
 
 
 def test_mysql_json_table_alias_quoted(dialect):
-    """Test JSON_TABLE alias uses format_identifier (backticks for MySQL)."""
+    """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB (alias quoting)."""
+    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
     expr = MariaDBJSONTableExpression(
         dialect=dialect,
         json_doc='{"data": "test"}',
@@ -149,10 +149,8 @@ def test_mysql_json_table_alias_quoted(dialect):
         alias="test_alias",
     )
 
-    sql, params = dialect.format_json_table_expression(expr)
-
-    # MySQL uses backticks for identifier quotes
-    assert "`test_alias`" in sql
+    with pytest.raises(UnsupportedFeatureError):
+        dialect.format_json_table_expression(expr)
 
 
 def test_mysql_format_cast_expression_valid(dialect):
@@ -188,10 +186,15 @@ class TestMySQLEscapeSqlStringBackslash:
 
 
 class TestMySQLJSONTableTypeValidation:
-    """Tests for JSON_TABLE col.type validation."""
+    """Tests for JSON_TABLE col.type validation.
 
-    def test_json_table_valid_data_type(self, dialect):
-        """Test valid data type in JSON_TABLE column."""
+    MariaDB does NOT support JSON_TABLE, so format_json_table_expression
+    always raises UnsupportedFeatureError.
+    """
+
+    def test_json_table_raises_unsupported_feature(self, dialect):
+        """Test format_json_table_expression raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -205,11 +208,12 @@ class TestMySQLJSONTableTypeValidation:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "VARCHAR(255)" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_invalid_data_type_rejected(self, dialect):
-        """Test invalid data type in JSON_TABLE column is rejected."""
+        """Test invalid data type in JSON_TABLE column raises UnsupportedFeatureError."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -223,15 +227,20 @@ class TestMySQLJSONTableTypeValidation:
             ],
         )
 
-        with pytest.raises(ValueError, match="Invalid data type"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
 
 class TestMySQLJSONTableErrorHandling:
-    """Tests for JSON_TABLE col.error_handling validation."""
+    """Tests for JSON_TABLE col.error_handling validation.
+
+    MariaDB does NOT support JSON_TABLE, so format_json_table_expression
+    always raises UnsupportedFeatureError.
+    """
 
     def test_json_table_valid_error_handling_null(self, dialect):
-        """Test valid error_handling: NULL."""
+        """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -246,11 +255,12 @@ class TestMySQLJSONTableErrorHandling:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "NULL ON ERROR" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_valid_error_handling_error(self, dialect):
-        """Test valid error_handling: ERROR."""
+        """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -265,11 +275,12 @@ class TestMySQLJSONTableErrorHandling:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "ERROR ON ERROR" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_valid_error_handling_default(self, dialect):
-        """Test valid error_handling: DEFAULT with default_value."""
+        """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -285,12 +296,12 @@ class TestMySQLJSONTableErrorHandling:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "DEFAULT" in sql
-        assert "fallback" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_invalid_error_handling_rejected(self, dialect):
-        """Test invalid error_handling is rejected."""
+        """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -305,15 +316,20 @@ class TestMySQLJSONTableErrorHandling:
             ],
         )
 
-        with pytest.raises(ValueError, match="Invalid error_handling"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
 
 class TestMySQLJSONTableDefaultValueEscaping:
-    """Tests for JSON_TABLE col.default_value escaping."""
+    """Tests for JSON_TABLE col.default_value escaping.
+
+    MariaDB does NOT support JSON_TABLE, so format_json_table_expression
+    always raises UnsupportedFeatureError.
+    """
 
     def test_json_table_default_value_escaped(self, dialect):
-        """Test default_value with single quotes is escaped."""
+        """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -329,16 +345,20 @@ class TestMySQLJSONTableDefaultValueEscaping:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "it''s broken" in sql
-        assert "'; DROP" not in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
 
 class TestMySQLJSONTableJsonDocSecurity:
-    """Tests for JSON_TABLE json_doc type validation."""
+    """Tests for JSON_TABLE json_doc type validation.
+
+    MariaDB does NOT support JSON_TABLE, so format_json_table_expression
+    always raises UnsupportedFeatureError.
+    """
 
     def test_json_table_json_doc_string(self, dialect):
-        """Test json_doc as string is properly escaped."""
+        """Test JSON_TABLE raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc='{"key": "value"}',
@@ -352,16 +372,12 @@ class TestMySQLJSONTableJsonDocSecurity:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "key" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_json_doc_to_sql_protocol_rejected_by_validate(self, dialect):
-        """Test json_doc as ToSQLProtocol is rejected by validate in strict mode.
-
-        Note: This test demonstrates the current limitation - the dialect code at
-        lines 1614-1616 supports ToSQLProtocol, but validate() at line 1605 rejects
-        it in strict mode. To enable ToSQLProtocol support, validate() needs modification.
-        """
+        """Test json_doc as ToSQLProtocol raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
         class MockExpression(BaseExpression):
@@ -385,11 +401,12 @@ class TestMySQLJSONTableJsonDocSecurity:
             ],
         )
 
-        with pytest.raises(TypeError, match="json_doc must be str"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
     def test_json_table_json_doc_invalid_type_rejected(self, dialect):
-        """Test json_doc with invalid type is rejected (raises before our check)."""
+        """Test json_doc with invalid type raises UnsupportedFeatureError on MariaDB."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
             json_doc={"key": "value"},
@@ -403,7 +420,7 @@ class TestMySQLJSONTableJsonDocSecurity:
             ],
         )
 
-        with pytest.raises(TypeError, match="json_doc must be str"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
 

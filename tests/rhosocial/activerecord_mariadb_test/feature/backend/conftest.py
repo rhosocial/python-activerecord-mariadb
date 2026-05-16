@@ -82,8 +82,33 @@ def _load_scenarios_from_config():
             # Use the entire config as a single scenario
             register_scenario('default', config_data)
 
+        _apply_scenario_filter()
+
     except ImportError:
         raise ImportError("PyYAML is required to load MariaDB scenario configuration files")
+
+
+def _apply_scenario_filter():
+    """Filter SCENARIO_MAP based on MARIADB_ACTIVE_SCENARIOS env var.
+
+    The env var is set by the --scenarios pytest option in the root conftest.
+    It contains comma-separated full scenario names (e.g., "mariadb_102,mariadb_122").
+    """
+    filter_str = os.getenv("MARIADB_ACTIVE_SCENARIOS")
+    if not filter_str:
+        return
+
+    allowed = set(s.strip() for s in filter_str.split(',') if s.strip())
+    if not allowed:
+        return
+
+    to_remove = [name for name in SCENARIO_MAP if name not in allowed]
+    for name in to_remove:
+        del SCENARIO_MAP[name]
+
+    if to_remove:
+        print(f"Filtered scenarios: kept {list(SCENARIO_MAP.keys())}, "
+              f"removed {to_remove} (--scenarios={filter_str})")
 
 
 _load_scenarios_from_config()
@@ -158,7 +183,12 @@ def mariadb_backend(request):
 
 @pytest.fixture(scope="function")
 def mariadb_backend_single():
-    """Non-parameterized fixture using the first available scenario."""
+    """Non-parameterized fixture using the first available scenario.
+
+    Use this for tests whose results do not vary across database versions.
+    In --scenario-parallel mode, tests using this fixture are automatically
+    pinned to the first scenario's worker to avoid table conflicts.
+    """
     scenario_names = get_scenario_names()
     if not scenario_names:
         pytest.skip("No MariaDB scenarios configured")
@@ -180,14 +210,18 @@ async def async_mariadb_backend(request):
 
 
 @pytest.fixture(scope="function")
-def mariadb_control_backend():
-    """Control backend fixture (separate connection for KILL operations)."""
-    scenario_names = get_scenario_names()
-    if not scenario_names:
-        pytest.skip("No MariaDB scenarios configured")
-    scenario_name = scenario_names[0]
-    _, config = get_scenario(scenario_name)
-    backend = MariaDBBackend(connection_config=config)
+def mariadb_control_backend(mariadb_backend):
+    """Dedicated control backend sharing the same connection config as mariadb_backend.
+
+    This fixture provides an independent backend instance for operations that
+    need to control or interfere with the main test backend, such as:
+    - KILL CONNECTION statements
+    - Setting global variables
+    - Monitoring other connections
+
+    Automatically follows the same scenario parametrization as mariadb_backend.
+    """
+    backend = MariaDBBackend(connection_config=mariadb_backend.config)
     backend.connect()
     backend.introspect_and_adapt()
     yield backend
@@ -195,14 +229,18 @@ def mariadb_control_backend():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_mariadb_control_backend():
-    """Async control backend fixture (separate connection for KILL operations)."""
-    scenario_names = get_scenario_names()
-    if not scenario_names:
-        pytest.skip("No MariaDB scenarios configured")
-    scenario_name = scenario_names[0]
-    _, config = get_scenario(scenario_name)
-    backend = AsyncMariaDBBackend(connection_config=config)
+async def async_mariadb_control_backend(async_mariadb_backend):
+    """Dedicated async control backend that connects to the same scenario as async_mariadb_backend.
+
+    This fixture provides an independent async backend instance for operations that
+    need to control or interfere with the main test backend, such as:
+    - KILL CONNECTION statements
+    - Setting global variables
+    - Monitoring other connections
+
+    Automatically follows the same scenario parametrization as async_mariadb_backend.
+    """
+    backend = AsyncMariaDBBackend(connection_config=async_mariadb_backend.config)
     await backend.connect()
     await backend.introspect_and_adapt()
     yield backend
@@ -211,7 +249,12 @@ async def async_mariadb_control_backend():
 
 @pytest_asyncio.fixture(scope="function")
 async def async_mariadb_backend_single():
-    """Non-parameterized async fixture using the first available scenario."""
+    """Non-parameterized async fixture using the first available scenario.
+
+    Use this for tests whose results do not vary across database versions.
+    In --scenario-parallel mode, tests using this fixture are automatically
+    pinned to the first scenario's worker to avoid table conflicts.
+    """
     scenario_names = get_scenario_names()
     if not scenario_names:
         pytest.skip("No MariaDB scenarios configured")

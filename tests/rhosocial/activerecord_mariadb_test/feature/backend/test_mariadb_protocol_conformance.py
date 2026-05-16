@@ -292,6 +292,17 @@ class TestProtocolMethodSignatureConformance:
         ('ArraySupport', 'format_array_expression'),
         # ExplainSupport: MySQL uses **kwargs for explain options
         ('ExplainSupport', 'format_explain_statement'),
+        # QualifyClauseSupport: MariaDB doesn't support QUALIFY, param name differs
+        ('QualifyClauseSupport', 'format_qualify_clause'),
+        # SequenceSupport: MariaDB uses named params instead of expr object
+        ('SequenceSupport', 'format_create_sequence_statement'),
+        ('SequenceSupport', 'format_drop_sequence_statement'),
+        ('SequenceSupport', 'format_alter_sequence_statement'),
+        ('MariaDBSequenceSupport', 'format_create_sequence_statement'),
+        ('MariaDBSequenceSupport', 'format_drop_sequence_statement'),
+        ('MariaDBSequenceSupport', 'format_alter_sequence_statement'),
+        # MariaDBLockingSupport: format_lock_in_share_mode uses different param name
+        ('MariaDBLockingSupport', 'format_lock_in_share_mode'),
     }
 
     @pytest.mark.parametrize("protocol", MYSQL_PROTOCOLS)

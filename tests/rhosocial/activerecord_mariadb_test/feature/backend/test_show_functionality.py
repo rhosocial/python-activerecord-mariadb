@@ -16,9 +16,9 @@ class TestMariaDBShowFunctionalityInit:
         """Test initialization with explicit version."""
         from rhosocial.activerecord.backend.impl.mariadb.show.functionality import MariaDBShowFunctionality
 
-        func = MariaDBShowFunctionality(mariadb_backend_single, version=(8, 0, 0))
+        func = MariaDBShowFunctionality(mariadb_backend_single, version=(10, 3, 0))
 
-        assert func._version == (8, 0, 0)
+        assert func._version == (10, 3, 0)
         assert func._supports_invisible_columns is True
 
     def test_init_with_mysql57_version(self, mariadb_backend_single):

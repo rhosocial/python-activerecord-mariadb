@@ -437,24 +437,31 @@ class TestIsolationModeCombination:
         This tests that:
         1. The initial isolation_level is None (not REPEATABLE_READ)
         2. No SET TRANSACTION statement is sent when user doesn't specify isolation
-        3. MySQL uses its default isolation level (REPEATABLE READ)
+        3. MariaDB uses its default isolation level (REPEATABLE READ)
         """
-        from unittest.mock import patch
+        from unittest.mock import patch, MagicMock
 
         # Verify initial state is None
         assert mariadb_backend.transaction_manager._isolation_level is None, \
             "Initial isolation level should be None (use database default)"
 
-        # Track SQL statements executed
+        # Track SQL statements executed through the connection cursor
         executed_statements = []
-        original_execute = mariadb_backend.execute
+        real_cursor = mariadb_backend._connection.cursor
 
-        def track_execute(sql, params=None, **kwargs):
-            executed_statements.append(sql)
-            return original_execute(sql, params, **kwargs)
+        def tracking_cursor(*args, **kwargs):
+            cursor = real_cursor(*args, **kwargs)
+            real_execute = cursor.execute
 
-        # Patch execute to track statements
-        with patch.object(mariadb_backend, 'execute', side_effect=track_execute):
+            def tracking_execute(sql, params=None):
+                executed_statements.append(sql)
+                return real_execute(sql, params)
+
+            cursor.execute = tracking_execute
+            return cursor
+
+        # Patch cursor to track statements
+        with patch.object(mariadb_backend._connection, 'cursor', side_effect=tracking_cursor):
             with mariadb_backend.transaction():
                 # Execute a simple query inside the transaction
                 mariadb_backend.fetch_all("SELECT 1 as test")
@@ -490,16 +497,23 @@ class TestIsolationModeCombination:
         assert mariadb_backend.transaction_manager._isolation_level == IsolationLevel.READ_COMMITTED, \
             "Isolation level should be READ_COMMITTED after explicit setting"
 
-        # Track SQL statements executed
+        # Track SQL statements executed through the connection cursor
         executed_statements = []
-        original_execute = mariadb_backend.execute
+        real_cursor = mariadb_backend._connection.cursor
 
-        def track_execute(sql, params=None, **kwargs):
-            executed_statements.append(sql)
-            return original_execute(sql, params, **kwargs)
+        def tracking_cursor(*args, **kwargs):
+            cursor = real_cursor(*args, **kwargs)
+            real_execute = cursor.execute
 
-        # Patch execute to track statements
-        with patch.object(mariadb_backend, 'execute', side_effect=track_execute):
+            def tracking_execute(sql, params=None):
+                executed_statements.append(sql)
+                return real_execute(sql, params)
+
+            cursor.execute = tracking_execute
+            return cursor
+
+        # Patch cursor to track statements
+        with patch.object(mariadb_backend._connection, 'cursor', side_effect=tracking_cursor):
             with mariadb_backend.transaction():
                 mariadb_backend.fetch_all("SELECT 1 as test")
 

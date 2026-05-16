@@ -79,8 +79,33 @@ def _load_scenarios_from_config():
             if config:
                 register_scenario(scenario_name, config)
 
+        _apply_scenario_filter()
+
     except ImportError:
         raise ImportError("PyYAML is required to load scenario configuration files")
+
+
+def _apply_scenario_filter():
+    """Filter SCENARIO_MAP based on MARIADB_ACTIVE_SCENARIOS env var.
+
+    The env var is set by the --scenarios pytest option in the root conftest.
+    It contains comma-separated full scenario names (e.g., "mariadb_102,mariadb_122").
+    """
+    filter_str = os.getenv("MARIADB_ACTIVE_SCENARIOS")
+    if not filter_str:
+        return
+
+    allowed = set(s.strip() for s in filter_str.split(',') if s.strip())
+    if not allowed:
+        return
+
+    to_remove = [name for name in SCENARIO_MAP if name not in allowed]
+    for name in to_remove:
+        del SCENARIO_MAP[name]
+
+    if to_remove:
+        print(f"Filtered scenarios: kept {list(SCENARIO_MAP.keys())}, "
+              f"removed {to_remove} (--scenarios={filter_str})")
 
 
 _load_scenarios_from_config()
@@ -128,14 +153,11 @@ def create_async_mariadb_backend_factory(config_dict: Dict[str, Any]):
     return factory
 
 
-@pytest.fixture(scope="function")
-def mariadb_pool() -> Generator[BackendPool, None, None]:
+@pytest.fixture(scope="function", params=get_scenario_names())
+def mariadb_pool(request) -> Generator[BackendPool, None, None]:
     """Create a BackendPool with MariaDB backends for testing."""
-    scenario_names = get_scenario_names()
-    if not scenario_names:
-        pytest.skip("No MariaDB scenarios configured")
-
-    config_dict = get_scenario_config(scenario_names[0]).copy()
+    scenario_name = request.param
+    config_dict = get_scenario_config(scenario_name).copy()
 
     pool_config = PoolConfig(
         min_size=1,
@@ -151,14 +173,11 @@ def mariadb_pool() -> Generator[BackendPool, None, None]:
     pool.close(timeout=5.0, force=True)
 
 
-@pytest_asyncio.fixture(scope="function")
-async def async_mariadb_pool() -> AsyncBackendPool:
+@pytest_asyncio.fixture(scope="function", params=get_scenario_names())
+async def async_mariadb_pool(request) -> AsyncBackendPool:
     """Create an AsyncBackendPool with MariaDB backends for testing."""
-    scenario_names = get_scenario_names()
-    if not scenario_names:
-        pytest.skip("No MariaDB scenarios configured")
-
-    config_dict = get_scenario_config(scenario_names[0]).copy()
+    scenario_name = request.param
+    config_dict = get_scenario_config(scenario_name).copy()
 
     pool_config = PoolConfig(
         min_size=1,
@@ -174,14 +193,11 @@ async def async_mariadb_pool() -> AsyncBackendPool:
     await pool.close(timeout=5.0, force=True)
 
 
-@pytest.fixture(scope="function")
-def mariadb_pool_large() -> Generator[BackendPool, None, None]:
+@pytest.fixture(scope="function", params=get_scenario_names())
+def mariadb_pool_large(request) -> Generator[BackendPool, None, None]:
     """Create a larger BackendPool for stress testing."""
-    scenario_names = get_scenario_names()
-    if not scenario_names:
-        pytest.skip("No MariaDB scenarios configured")
-
-    config_dict = get_scenario_config(scenario_names[0]).copy()
+    scenario_name = request.param
+    config_dict = get_scenario_config(scenario_name).copy()
 
     pool_config = PoolConfig(
         min_size=1,
@@ -196,14 +212,11 @@ def mariadb_pool_large() -> Generator[BackendPool, None, None]:
     pool.close(timeout=5.0, force=True)
 
 
-@pytest_asyncio.fixture(scope="function")
-async def async_mariadb_pool_large() -> AsyncBackendPool:
+@pytest_asyncio.fixture(scope="function", params=get_scenario_names())
+async def async_mariadb_pool_large(request) -> AsyncBackendPool:
     """Create a larger AsyncBackendPool for stress testing."""
-    scenario_names = get_scenario_names()
-    if not scenario_names:
-        pytest.skip("No MariaDB scenarios configured")
-
-    config_dict = get_scenario_config(scenario_names[0]).copy()
+    scenario_name = request.param
+    config_dict = get_scenario_config(scenario_name).copy()
 
     pool_config = PoolConfig(
         min_size=1,
