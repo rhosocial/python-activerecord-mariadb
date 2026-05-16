@@ -326,8 +326,16 @@ class MariaDBDialect(
         """Window frame clauses are supported since MariaDB 10.2."""
         return self.version >= MARIADB_VERSION_BOUNDARIES['WINDOW_FUNCTIONS']
 
-    def supports_returning_clause(self) -> bool:
-        """RETURNING clause is supported since MariaDB 10.5."""
+    def supports_returning_insert(self) -> bool:
+        """RETURNING clause for INSERT is supported since MariaDB 10.5."""
+        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+
+    def supports_returning_update(self) -> bool:
+        """RETURNING clause for UPDATE is NOT supported by MariaDB."""
+        return False
+
+    def supports_returning_delete(self) -> bool:
+        """RETURNING clause for DELETE is supported since MariaDB 10.5."""
         return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
 
     def supports_json_type(self) -> bool:
@@ -385,9 +393,13 @@ class MariaDBDialect(
         return self.version >= MARIADB_VERSION_BOUNDARIES['EXPLAIN_FORMAT']
 
     def supports_explain_format(self, format_type: str) -> bool:
-        """Check if specific EXPLAIN format is supported since MariaDB 10.6."""
+        """Check if specific EXPLAIN format is supported since MariaDB 10.6.
+
+        MariaDB supports FORMAT=JSON and FORMAT=TRADITIONAL.
+        FORMAT=TREE is MySQL 8.0+ only and not supported by MariaDB.
+        """
         if self.version >= MARIADB_VERSION_BOUNDARIES['EXPLAIN_FORMAT']:
-            return format_type.upper() in ["JSON", "TREE", "TRADITIONAL"]
+            return format_type.upper() in ["JSON", "TRADITIONAL"]
         return False
 
     # endregion
@@ -454,12 +466,6 @@ class MariaDBDialect(
     # region Custom implementations
     def format_returning_clause(self, clause: "ReturningClause") -> Tuple[str, tuple]:
         """Format RETURNING clause for MariaDB."""
-        if not self.supports_returning_clause():
-            raise UnsupportedFeatureError(
-                self.name, "RETURNING clause",
-                "RETURNING clause requires MariaDB 10.5 or later. Use a separate SELECT statement."
-            )
-
         all_params = []
         expr_parts = []
         for expr in clause.expressions:
@@ -482,7 +488,7 @@ class MariaDBDialect(
         """Format ordered-set aggregation - not supported."""
         raise UnsupportedFeatureError(self.name, "ordered-set aggregate functions", _SUGGESTION_ORDERED_SET_AGG)
 
-    def format_qualify_clause(self, _clause) -> Tuple[str, tuple]:
+    def format_qualify_clause(self, clause) -> Tuple[str, tuple]:
         """Format QUALIFY clause - not supported."""
         raise UnsupportedFeatureError(self.name, "QUALIFY clause", _SUGGESTION_QUALIFY)
 
@@ -1028,6 +1034,66 @@ class MariaDBDialect(
 
     def supports_savepoint(self) -> bool:
         return True
+
+    def format_begin_transaction(self, expr) -> Tuple[str, tuple]:
+        """Format BEGIN TRANSACTION statement for MariaDB.
+
+        MariaDB does not support isolation level within START TRANSACTION.
+        When isolation level is set, generates SET TRANSACTION ISOLATION LEVEL
+        followed by START TRANSACTION (with optional READ ONLY/READ WRITE).
+        """
+        from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
+
+        # Build SET TRANSACTION ISOLATION LEVEL if needed
+        set_isolation = ""
+        if expr._isolation_level is not None:
+            level_map = {
+                IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
+                IsolationLevel.READ_COMMITTED: "READ COMMITTED",
+                IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",
+                IsolationLevel.SERIALIZABLE: "SERIALIZABLE",
+            }
+            level_name = level_map.get(expr._isolation_level)
+            if level_name:
+                set_isolation = f"SET TRANSACTION ISOLATION LEVEL {level_name}; "
+
+        # Build START TRANSACTION with optional mode
+        if expr._mode == TransactionMode.READ_ONLY:
+            begin_sql = "START TRANSACTION READ ONLY"
+        elif expr._mode == TransactionMode.READ_WRITE:
+            begin_sql = "START TRANSACTION READ WRITE"
+        else:
+            begin_sql = "START TRANSACTION"
+
+        return f"{set_isolation}{begin_sql}", ()
+
+    # endregion
+
+    # region Explain
+
+    def format_explain_statement(self, expr) -> Tuple[str, tuple]:
+        """Format EXPLAIN statement for MariaDB.
+
+        MariaDB uses FORMAT=JSON (with equals sign), not FORMAT JSON.
+        """
+        statement_sql, statement_params = expr.statement.to_sql()
+        options = expr.options
+        if options is None:
+            return f"EXPLAIN {statement_sql}", statement_params
+
+        parts = ["EXPLAIN"]
+        from rhosocial.activerecord.backend.expression.statements import ExplainType
+
+        if (hasattr(options, "type") and options.type == ExplainType.ANALYZE) or options.analyze:
+            parts.append("ANALYZE")
+        if options.format:
+            parts.append(f"FORMAT={options.format.value.upper()}")
+        if not options.costs:
+            parts.append("COSTS OFF")
+        if options.verbose:
+            parts.append("VERBOSE")
+
+        return f"{' '.join(parts)} {statement_sql}", statement_params
 
     # endregion
 

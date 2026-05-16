@@ -4,8 +4,15 @@
 import logging
 from typing import Optional
 
-from rhosocial.activerecord.backend.transaction import AsyncTransactionManager, IsolationLevel, TransactionState
+from rhosocial.activerecord.backend.transaction import AsyncTransactionManager, IsolationLevel, TransactionState, TransactionMode
 from rhosocial.activerecord.backend.errors import TransactionError
+
+_ISOLATION_LEVELS = {
+    IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
+    IsolationLevel.READ_COMMITTED: "READ COMMITTED",
+    IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",
+    IsolationLevel.SERIALIZABLE: "SERIALIZABLE",
+}
 
 
 class AsyncMariaDBTransactionManager(AsyncTransactionManager):
@@ -13,7 +20,8 @@ class AsyncMariaDBTransactionManager(AsyncTransactionManager):
 
     def __init__(self, backend, logger=None):
         super().__init__(backend, logger)
-        self._isolation_level = IsolationLevel.REPEATABLE_READ
+        self._isolation_level = None
+        self._transaction_mode = None
         self._state = TransactionState.INACTIVE
 
     @property
@@ -36,3 +44,34 @@ class AsyncMariaDBTransactionManager(AsyncTransactionManager):
 
     def supports_savepoint(self) -> bool:
         return True
+
+    async def _do_begin(self) -> None:
+        """Begin MariaDB transaction.
+
+        If an isolation level is explicitly set, sends SET TRANSACTION ISOLATION LEVEL
+        before START TRANSACTION. If transaction mode is set (READ ONLY/READ WRITE),
+        includes it in the START TRANSACTION statement.
+
+        Uses cursor directly to avoid auto-commit logic in backend.execute().
+        """
+        cursor = self._backend._connection.cursor()
+        # Set isolation level if explicitly configured
+        if self._isolation_level is not None:
+            level_name = _ISOLATION_LEVELS.get(self._isolation_level)
+            if level_name:
+                set_sql = f"SET TRANSACTION ISOLATION LEVEL {level_name}"
+                self.log(logging.DEBUG, f"Executing: {set_sql}")
+                await cursor.execute(set_sql)
+
+        # Build START TRANSACTION with optional mode
+        if self._transaction_mode == TransactionMode.READ_ONLY:
+            begin_sql = "START TRANSACTION READ ONLY"
+        elif self._transaction_mode == TransactionMode.READ_WRITE:
+            begin_sql = "START TRANSACTION READ WRITE"
+        else:
+            begin_sql = "START TRANSACTION"
+
+        self.log(logging.DEBUG, f"Executing: {begin_sql}")
+        await cursor.execute(begin_sql)
+        await cursor.close()
+        self._state = TransactionState.ACTIVE
