@@ -272,9 +272,8 @@ class MariaDBDatetimeAdapter(SQLTypeAdapter):
         if value is None:
             return None
         if value.tzinfo is not None:
-            utc_dt = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-            return utc_dt.isoformat()
-        return value
+            value = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return value.strftime('%Y-%m-%d %H:%M:%S.%f')
 
     def from_database(
         self,
