@@ -258,6 +258,9 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
         elif "foreign key constraint" in error_msg.lower():
             self.log(logging.ERROR, f"Foreign key constraint violation: {error_msg}")
             raise IntegrityError(f"Foreign key constraint violation: {error_msg}") from error
+        elif "cannot be null" in error_msg.lower() or isinstance(error, mariadb.IntegrityError):
+            self.log(logging.ERROR, f"Integrity constraint violation: {error_msg}")
+            raise IntegrityError(error_msg) from error
         elif "syntax" in error_msg.lower():
             self.log(logging.ERROR, f"SQL syntax error: {error_msg}")
             raise QueryError(error_msg) from error
@@ -270,13 +273,28 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
         self._handle_mariadb_error(error)
 
     async def _prepare_sql_and_params(self, sql: str, params: Optional[Union[Tuple, dict, List]]) -> Tuple[str, Tuple]:
-        """Prepare SQL and parameters."""
+        """Prepare SQL and parameters.
+
+        Applies type adapter conversions via prepare_parameters() before
+        passing values to the MariaDB driver.
+        """
         if isinstance(params, dict):
             final_params = tuple(params.values()) if params else ()
         elif isinstance(params, (tuple, list)):
             final_params = tuple(params) if params else ()
         else:
             final_params = params or ()
+
+        # Apply type adapters for driver-incompatible types (datetime, dict, list, etc.)
+        if final_params:
+            all_suggestions = self.get_default_adapter_suggestions()
+            param_adapters = []
+            for param_value in final_params:
+                py_type = type(param_value)
+                suggestion = all_suggestions.get(py_type)
+                param_adapters.append(suggestion if suggestion else None)
+            final_params = self.prepare_parameters(final_params, param_adapters)
+
         return sql, final_params
 
     async def execute(
@@ -341,7 +359,8 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
                         duration=duration,
                     )
                 else:
-                    await self._connection.commit()
+                    if not self.in_transaction:
+                        await self._connection.commit()
                     result = QueryResult(
                         data=None,
                         affected_rows=cursor.rowcount,
@@ -392,11 +411,12 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
 
             cursor = await self._get_cursor()
             await cursor.executemany(sql, params_list)
+            rowcount = cursor.rowcount
             duration = time.perf_counter() - start_time
 
             await cursor.close()
-            self.log(logging.INFO, f"Batch operation completed, affected {cursor.rowcount} rows, duration={duration:.3f}s")
-            return QueryResult(affected_rows=cursor.rowcount, duration=duration)
+            self.log(logging.INFO, f"Batch operation completed, affected {rowcount} rows, duration={duration:.3f}s")
+            return QueryResult(affected_rows=rowcount, duration=duration)
         except Exception as e:
             self.log(logging.ERROR, f"Error in batch operation: {str(e)}")
             await self._handle_error(e)
@@ -524,3 +544,9 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
         ):
             result.affected_rows = len(result.data)
         return result
+
+    def _parse_explain_result(self, raw_rows, sql, duration):
+        """Parse EXPLAIN result for MariaDB."""
+        from ..explain import MariaDBExplainResult, MariaDBExplainRow
+        rows = [MariaDBExplainRow(**r) for r in raw_rows]
+        return MariaDBExplainResult(raw_rows=raw_rows, sql=sql, duration=duration, rows=rows)

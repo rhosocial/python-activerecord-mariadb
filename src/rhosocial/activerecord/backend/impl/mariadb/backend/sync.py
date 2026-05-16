@@ -387,6 +387,9 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
     ) -> Tuple[str, Tuple]:
         """Prepare SQL and parameters for MariaDB.
 
+        Applies type adapter conversions via prepare_parameters() before
+        passing values to the MariaDB driver.
+
         Args:
             sql: SQL statement.
             params: Parameters for the statement.
@@ -400,6 +403,17 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             final_params = tuple(params) if params else ()
         else:
             final_params = params or ()
+
+        # Apply type adapters for driver-incompatible types (datetime, dict, list, etc.)
+        if final_params:
+            all_suggestions = self.get_default_adapter_suggestions()
+            param_adapters = []
+            for param_value in final_params:
+                py_type = type(param_value)
+                suggestion = all_suggestions.get(py_type)
+                param_adapters.append(suggestion if suggestion else None)
+            final_params = self.prepare_parameters(final_params, param_adapters)
+
         return sql, final_params
 
     def execute(
@@ -506,7 +520,8 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
                 last_insert_id=cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
             )
         else:
-            self._connection.commit()
+            if not self.in_transaction:
+                self._connection.commit()
             result = QueryResult(
                 data=None,
                 affected_rows=cursor.rowcount,
@@ -587,13 +602,14 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
             cursor = self._cursor or self._get_cursor()
             cursor.executemany(sql, params_list)
+            rowcount = cursor.rowcount
             duration = time.perf_counter() - start_time
 
             self.log(
                 logging.DEBUG,
-                f"Batch operation completed, affected {cursor.rowcount} rows, duration={duration:.3f}s"
+                f"Batch operation completed, affected {rowcount} rows, duration={duration:.3f}s"
             )
-            return QueryResult(affected_rows=cursor.rowcount, duration=duration)
+            return QueryResult(affected_rows=rowcount, duration=duration)
         except Exception as e:
             self.log(logging.ERROR, f"Error in batch operation: {str(e)}")
             self._handle_error(e)
