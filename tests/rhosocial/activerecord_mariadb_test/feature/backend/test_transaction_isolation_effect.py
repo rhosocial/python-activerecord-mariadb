@@ -418,10 +418,9 @@ class TestIsolationModeCombination:
     def test_default_isolation_is_repeatable_read(self, mariadb_backend):
         """Verify MySQL default isolation level is REPEATABLE READ."""
         # Check the default isolation level
-        # MySQL 5.6 uses @@tx_isolation, MySQL 5.7+ uses @@transaction_isolation
-        # Detect version and use appropriate variable
+        # MariaDB uses @@tx_isolation before 11.0, @@transaction_isolation from 11.0+
         version = mariadb_backend.dialect.get_server_version()
-        isolation_var = "@@transaction_isolation" if version >= (5, 7, 0) else "@@tx_isolation"
+        isolation_var = "@@transaction_isolation" if version >= (11, 0, 0) else "@@tx_isolation"
 
         with mariadb_backend.transaction():
             rows = mariadb_backend.fetch_all(

@@ -131,6 +131,7 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
             self._connection = await mariadb.asyncConnect(**conn_params)
             self.log(logging.INFO, "Connected to MariaDB database successfully")
             await self._fetch_concurrency_hint()
+            await self.introspect_and_adapt()
         except Exception as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect: {str(e)}") from e

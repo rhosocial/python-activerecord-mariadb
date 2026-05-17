@@ -364,11 +364,10 @@ class TestAsyncTransactionCombination:
 
     @pytest.mark.asyncio
     async def test_default_isolation_is_repeatable_read(self, async_mariadb_backend):
-        """Verify MySQL default isolation level is REPEATABLE READ (async)."""
-        # MySQL 5.6 uses @@tx_isolation, MySQL 5.7+ uses @@transaction_isolation
-        # Detect version and use appropriate variable
+        """Verify MariaDB default isolation level is REPEATABLE READ (async)."""
+        # MariaDB uses @@tx_isolation before 11.0, @@transaction_isolation from 11.0+
         version = async_mariadb_backend.dialect.get_server_version()
-        isolation_var = "@@transaction_isolation" if version >= (5, 7, 0) else "@@tx_isolation"
+        isolation_var = "@@transaction_isolation" if version >= (11, 0, 0) else "@@tx_isolation"
 
         async with async_mariadb_backend.transaction():
             rows = await async_mariadb_backend.fetch_all(

@@ -194,6 +194,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             self._connection = mariadb.connect(**conn_params)
             self.log(logging.INFO, "Connected to MariaDB database successfully")
             self._fetch_concurrency_hint()
+            self.introspect_and_adapt()
         except mariadb.Error as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect: {str(e)}") from e
