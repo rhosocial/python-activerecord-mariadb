@@ -115,7 +115,7 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
             # Use init_command to set charset if needed
             if hasattr(self.config, "charset") and self.config.charset:
                 conn_params["init_command"] = f"SET NAMES {self.config.charset}"
-            conn_params["autocommit"] = False
+            conn_params["autocommit"] = getattr(self.config, "autocommit", False)
 
             # SSL configuration
             if hasattr(self.config, "ssl_disabled"):
@@ -358,6 +358,9 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
                         last_insert_id=cursor.lastrowid,
                         duration=duration,
                     )
+                    # DML with RETURNING produces a result set but still needs commit
+                    if not self.in_transaction and options and options.stmt_type == StatementType.DML:
+                        await self._connection.commit()
                 else:
                     if not self.in_transaction:
                         await self._connection.commit()

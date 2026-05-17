@@ -519,6 +519,9 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
                 affected_rows=cursor.rowcount,
                 last_insert_id=cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
             )
+            # DML with RETURNING produces a result set but still needs commit
+            if not self.in_transaction and options and options.stmt_type == StatementType.DML:
+                self._connection.commit()
         else:
             if not self.in_transaction:
                 self._connection.commit()
