@@ -266,8 +266,8 @@ class MariaDBDialect(
         Args:
             version: MariaDB version tuple (major, minor, patch)
         """
-        self.version = version
         super().__init__()
+        self.version = version
 
     def format_insert_statement(self, expr):
         """Delegate INSERT formatting to MariaDBDMLOperationMixin."""
