@@ -40,7 +40,7 @@ config = MariaDBConnectionConfig(
     port=int(os.getenv('MYSQL_PORT', '3306')),
     database=os.getenv('MYSQL_DATABASE', 'test_db'),
     username=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', 'password'),
+    password=os.getenv('MYSQL_PASSWORD', ''),
 )
 
 # Create backend instance and connect

@@ -49,6 +49,8 @@ pip install rhosocial-activerecord-mariadb[dev]
 ## Usage
 
 ```python
+import os
+
 from rhosocial.activerecord import ActiveRecord
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.typing import ConnectionConfig
@@ -67,11 +69,11 @@ class User(ActiveRecord):
 # Configure with MariaDB backend
 User.configure(
     ConnectionConfig(
-        host='localhost',
-        port=3306,
-        database='myapp',
-        user='dbuser',
-        password='dbpassword'
+        host=os.getenv('MARIADB_HOST', 'localhost'),
+        port=int(os.getenv('MARIADB_PORT', '3306')),
+        database=os.getenv('MARIADB_DATABASE', 'myapp'),
+        user=os.getenv('MARIADB_USER', 'dbuser'),
+        password=os.getenv('MARIADB_PASSWORD', ''),
     ),
     backend_class=MariaDBBackend
 )
