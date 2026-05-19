@@ -268,4 +268,24 @@ async def async_mariadb_backend_single():
 @pytest.fixture(scope="function")
 def mariadb_dialect():
     """Fixture providing a MariaDBDialect instance for unit tests."""
-    return MariaDBDialect()
+    return MariaDBDialect(version=(10, 6, 0))
+
+
+# --- Type Adapters ---
+
+@pytest.fixture(scope="module")
+def json_column_adapter():
+    """
+    Module-scoped fixture providing MariaDBJSONAdapter instance.
+
+    This adapter can be used with column_adapters parameter to automatically
+    parse JSON columns returned as strings by mariadb connector.
+
+    Usage:
+        result = mariadb_backend.execute(
+            "SELECT data FROM table",
+            column_adapters={'data': (json_column_adapter, dict)}
+        )
+    """
+    from rhosocial.activerecord.backend.impl.mariadb.adapters import MariaDBJSONAdapter
+    return MariaDBJSONAdapter()

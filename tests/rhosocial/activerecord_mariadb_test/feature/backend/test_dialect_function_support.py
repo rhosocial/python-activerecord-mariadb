@@ -14,21 +14,21 @@ class TestMySQLFunctionSupportBasic:
 
     def test_supports_functions_returns_dict(self):
         """Test that supports_functions returns a dictionary."""
-        dialect = MariaDBDialect()
+        dialect = MariaDBDialect(version=(10, 11, 0))
         result = dialect.supports_functions()
         assert isinstance(result, dict)
         assert len(result) > 0
 
     def test_supports_functions_all_values_are_bool(self):
         """Test that all values in the returned dict are booleans."""
-        dialect = MariaDBDialect()
+        dialect = MariaDBDialect(version=(10, 11, 0))
         result = dialect.supports_functions()
         for func_name, supported in result.items():
             assert isinstance(supported, bool), f"Value for {func_name} is not bool"
 
     def test_core_functions_always_supported(self):
         """Test that core functions are marked as supported."""
-        dialect = MariaDBDialect()
+        dialect = MariaDBDialect(version=(10, 11, 0))
         result = dialect.supports_functions()
         core_functions = ["count", "sum_", "avg", "min_", "max_", "coalesce", "nullif"]
         for func in core_functions:
@@ -82,7 +82,7 @@ class TestMySQLFunctionSupportVersionDependent:
 
     def test_always_available_functions(self):
         """Test functions that are available in all MariaDB versions."""
-        dialect = MariaDBDialect()
+        dialect = MariaDBDialect(version=(10, 11, 0))
         result = dialect.supports_functions()
 
         always_available = [
@@ -137,7 +137,7 @@ class TestMySQLFunctionSupportIntegration:
 
     def test_function_dict_contains_both_core_and_backend_functions(self):
         """Test that the result contains both core and MariaDB-specific functions."""
-        dialect = MariaDBDialect()
+        dialect = MariaDBDialect(version=(10, 11, 0))
         result = dialect.supports_functions()
 
         assert any(func in result for func in ["count", "sum_", "avg"])

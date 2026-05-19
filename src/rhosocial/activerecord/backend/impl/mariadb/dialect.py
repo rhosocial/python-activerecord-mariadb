@@ -260,14 +260,18 @@ class MariaDBDialect(
     - RETURNING clause (since 10.5)
     """
 
-    def __init__(self, version: Tuple[int, int, int] = (10, 11, 0)):
+    def __init__(self, version: Optional[Tuple[int, int, int]] = None):
         """Initialize MariaDB dialect with specific version.
 
         Args:
-            version: MariaDB version tuple (major, minor, patch)
+            version: MariaDB version tuple (major, minor, patch).
+                If None, the dialect must be adapted via
+                backend.introspect_and_adapt() before version-dependent
+                features can be used.
         """
         super().__init__()
-        self.version = version
+        if version is not None:
+            self.version = version
 
     def format_insert_statement(self, expr):
         """Delegate INSERT formatting to MariaDBDMLOperationMixin."""
@@ -568,7 +572,7 @@ class MariaDBDialect(
         return True
 
     def supports_fulltext_query_expansion(self) -> bool:
-        return False
+        return True
 
     def supports_index_include(self) -> bool:
         return False
@@ -1066,6 +1070,43 @@ class MariaDBDialect(
             begin_sql = "START TRANSACTION"
 
         return f"{set_isolation}{begin_sql}", ()
+
+    def format_set_transaction(self, expr) -> Tuple[str, tuple]:
+        """Format SET TRANSACTION statement for MariaDB.
+
+        MariaDB supports SET TRANSACTION for isolation level and
+        access mode (READ ONLY / READ WRITE).
+
+        Args:
+            expr: SetTransactionExpression with isolation level and/or mode.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
+
+        parts = ["SET TRANSACTION"]
+
+        # Add isolation level if set
+        if expr._isolation_level is not None:
+            level_map = {
+                IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
+                IsolationLevel.READ_COMMITTED: "READ COMMITTED",
+                IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",
+                IsolationLevel.SERIALIZABLE: "SERIALIZABLE",
+            }
+            level_name = level_map.get(expr._isolation_level)
+            if level_name:
+                parts.append(f"ISOLATION LEVEL {level_name}")
+
+        # Add access mode if set
+        if expr._mode is not None:
+            if expr._mode == TransactionMode.READ_ONLY:
+                parts.append("READ ONLY")
+            elif expr._mode == TransactionMode.READ_WRITE:
+                parts.append("READ WRITE")
+
+        return " ".join(parts), ()
 
     # endregion
 
