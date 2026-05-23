@@ -43,7 +43,7 @@ class TestMySQLStorageOptions:
             storage_options={'ENGINE': 'InnoDB'}
         )
         sql, params = expr.to_sql()
-        assert 'ENGINE=InnoDB' in sql
+        assert "ENGINE='InnoDB'" in sql
 
     def test_charset_option(self):
         """Test DEFAULT CHARSET storage option."""
@@ -60,7 +60,7 @@ class TestMySQLStorageOptions:
             storage_options={'DEFAULT CHARSET': 'utf8mb4'}
         )
         sql, params = expr.to_sql()
-        assert 'DEFAULT CHARSET=utf8mb4' in sql
+        assert "DEFAULT CHARSET='utf8mb4'" in sql
 
     def test_collate_option(self):
         """Test COLLATE storage option."""
@@ -77,7 +77,7 @@ class TestMySQLStorageOptions:
             storage_options={'COLLATE': 'utf8mb4_unicode_ci'}
         )
         sql, params = expr.to_sql()
-        assert 'COLLATE=utf8mb4_unicode_ci' in sql
+        assert "COLLATE='utf8mb4_unicode_ci'" in sql
 
     def test_multiple_storage_options(self):
         """Test multiple storage options combined."""
@@ -98,9 +98,9 @@ class TestMySQLStorageOptions:
             }
         )
         sql, params = expr.to_sql()
-        assert 'ENGINE=InnoDB' in sql
-        assert 'DEFAULT CHARSET=utf8mb4' in sql
-        assert 'COLLATE=utf8mb4_unicode_ci' in sql
+        assert "ENGINE='InnoDB'" in sql
+        assert "DEFAULT CHARSET='utf8mb4'" in sql
+        assert "COLLATE='utf8mb4_unicode_ci'" in sql
 
     def test_storage_options_with_if_not_exists(self):
         """Test storage options with IF NOT EXISTS."""
@@ -119,7 +119,7 @@ class TestMySQLStorageOptions:
         )
         sql, params = expr.to_sql()
         assert 'IF NOT EXISTS' in sql
-        assert 'ENGINE=InnoDB' in sql
+        assert "ENGINE='InnoDB'" in sql
 
 
 class TestMySQLTableComment:
@@ -161,8 +161,8 @@ class TestMySQLTableComment:
             dialect_options={'comment': '用户信息表'}
         )
         sql, params = expr.to_sql()
-        assert 'ENGINE=InnoDB' in sql
-        assert 'DEFAULT CHARSET=utf8mb4' in sql
+        assert "ENGINE='InnoDB'" in sql
+        assert "DEFAULT CHARSET='utf8mb4'" in sql
         assert "COMMENT '用户信息表'" in sql
 
     def test_table_comment_special_characters(self):
@@ -693,9 +693,9 @@ class TestMySQLCompleteTableCreation:
         assert 'DATETIME' in sql
         assert 'UNIQUE INDEX `idx_email`' in sql
         assert 'INDEX `idx_status`' in sql
-        assert 'ENGINE=InnoDB' in sql
-        assert 'DEFAULT CHARSET=utf8mb4' in sql
-        assert 'COLLATE=utf8mb4_unicode_ci' in sql
+        assert "ENGINE='InnoDB'" in sql
+        assert "DEFAULT CHARSET='utf8mb4'" in sql
+        assert "COLLATE='utf8mb4_unicode_ci'" in sql
         assert "COMMENT 'User information table'" in sql
         # Column comments
         assert "COMMENT 'Primary key'" in sql
