@@ -812,71 +812,71 @@ class TestCLIQueryArgParsing:
                 assert args.output == output_format
 
 
-class TestCLINamedQueryArgs:
-    """Tests for named-query subcommand argument parsing."""
+class TestCLINamedExpressionArgs:
+    """Tests for named-expression subcommand argument parsing."""
 
-    def test_parse_args_named_query_basic(self):
-        """Test basic named-query parsing."""
+    def test_parse_args_named_expression_basic(self):
+        """Test basic named-expression parsing."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'named-query', 'myapp.queries.users.active_users']):
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.users.active_users']):
             args = parse_args()
 
-            assert args.command == 'named-query'
+            assert args.command == 'named-expression'
             assert args.qualified_name == 'myapp.queries.users.active_users'
 
-    def test_parse_args_named_query_with_params(self):
-        """Test named-query with parameters."""
+    def test_parse_args_named_expression_with_params(self):
+        """Test named-expression with parameters."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
         with patch.object(sys, 'argv', [
-            'mysql', 'named-query', 'myapp.queries.users.active_users',
+            'mysql', 'named-expression', 'myapp.queries.users.active_users',
             '--param', 'limit=50',
             '--param', 'status=active',
         ]):
             args = parse_args()
 
-            assert args.command == 'named-query'
+            assert args.command == 'named-expression'
             assert args.params == ['limit=50', 'status=active']
 
-    def test_parse_args_named_query_dry_run(self):
-        """Test named-query with --dry-run."""
+    def test_parse_args_named_expression_dry_run(self):
+        """Test named-expression with --dry-run."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'named-query', 'myapp.queries.test', '--dry-run']):
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.test', '--dry-run']):
             args = parse_args()
 
-            assert args.command == 'named-query'
+            assert args.command == 'named-expression'
             assert args.dry_run is True
 
-    def test_parse_args_named_query_describe(self):
-        """Test named-query with --describe."""
+    def test_parse_args_named_expression_describe(self):
+        """Test named-expression with --describe."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'named-query', 'myapp.queries.test', '--describe']):
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.test', '--describe']):
             args = parse_args()
 
-            assert args.command == 'named-query'
+            assert args.command == 'named-expression'
             assert args.describe is True
 
-    def test_parse_args_named_query_list(self):
-        """Test named-query with --list."""
+    def test_parse_args_named_expression_list(self):
+        """Test named-expression with --list."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'named-query', 'myapp.queries', '--list']):
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries', '--list']):
             args = parse_args()
 
-            assert args.command == 'named-query'
+            assert args.command == 'named-expression'
             assert args.list_queries is True
 
-    def test_parse_args_named_query_async(self):
-        """Test named-query with --async."""
+    def test_parse_args_named_expression_async(self):
+        """Test named-expression with --async."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'named-query', 'myapp.queries.test', '--async']):
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.test', '--async']):
             args = parse_args()
 
-            assert args.command == 'named-query'
+            assert args.command == 'named-expression'
             assert args.is_async is True
 
 
