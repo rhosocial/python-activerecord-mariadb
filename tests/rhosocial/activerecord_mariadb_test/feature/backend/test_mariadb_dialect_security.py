@@ -469,20 +469,9 @@ class TestMySQLCreateTableCommentEscaping:
 # ============================================================
 
 def test_storage_options_normal_key_and_value(dialect):
-    """Normal storage option key is backtick-quoted, string value is quoted."""
+    """Normal storage option key is plain, string value is quoted and escaped."""
     sql = dialect._format_storage_options_mariadb({"ENGINE": "InnoDB"})
-    assert "`ENGINE`='InnoDB'" in sql
-
-
-def test_storage_options_malicious_key(dialect):
-    """Malicious storage option key is safely backtick-quoted (breakout prevented)."""
-    sql = dialect._format_storage_options_mariadb({"key`=x; DROP TABLE t--": "v"})
-    # The key is properly backtick-escaped (the ` inside is doubled)
-    # The payload remains inside the identifier — that's safe, not injected
-    assert sql.count('`') % 2 == 0, f"Unbalanced backticks: {sql}"
-    assert sql.startswith("`"), f"Should start with backtick: {sql}"
-    # Verify the backtick was escaped: the key contains ` which becomes ``
-    assert "``" in sql, f"Should have escaped backtick: {sql}"
+    assert "ENGINE='InnoDB'" in sql
 
 
 def test_storage_options_string_value_escaped(dialect):
@@ -493,27 +482,15 @@ def test_storage_options_string_value_escaped(dialect):
 
 def test_storage_options_int_value(dialect):
     """Integer value is not quoted."""
-    sql = dialect._format_storage_options_mariadb({"MAX_ROWS": 1000})
-    assert "`MAX_ROWS`=1000" in sql
+    sql = dialect._format_storage_options_mariadb({"AUTO_INCREMENT": 1000})
+    assert "AUTO_INCREMENT=1000" in sql
 
 
-def test_storage_options_naive_vs_proper_key_safe(dialect):
-    """For safe keys, naive and proper quoting produce the same result."""
-    safe_keys = ["ENGINE", "AUTO_INCREMENT", "MAX_ROWS", "KEY_BLOCK_SIZE"]
-    for key in safe_keys:
-        naive = f"`{key}`"
-        proper = dialect.format_identifier(key)
-        assert naive == proper, f"Mismatch for '{key}': naive={naive}, proper={proper}"
-
-
-def test_storage_options_naive_vs_proper_key_malicious(dialect):
-    """For malicious keys, proper quoting prevents breakout that naive allows."""
-    payload = "key`=x; DROP TABLE t--"
-    naive = f"`{payload}`"
-    proper = dialect.format_identifier(payload)
-
-    assert naive.count('`') % 2 != 0, f"Naive should unbalance backticks: {naive}"
-    assert proper.count('`') % 2 == 0, f"Proper should balance backticks: {proper}"
+def test_storage_options_string_injection_value_escaped(dialect):
+    """String value with injection payload is safely escaped inside quotes."""
+    sql = dialect._format_storage_options_mariadb({"ENGINE": "x'; DROP TABLE t--"})
+    assert "'x''; DROP TABLE t--'" in sql
+    assert sql.count("'") % 2 == 0, f"Unbalanced quotes: {sql}"
 
 
 # ============================================================

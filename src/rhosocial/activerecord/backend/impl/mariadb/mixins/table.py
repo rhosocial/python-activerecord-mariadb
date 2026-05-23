@@ -222,13 +222,10 @@ class MariaDBTableMixin:
     def _format_storage_options_mariadb(self, storage_options: Dict[str, Any]) -> str:
         parts = []
         for key, value in storage_options.items():
-            quoted_key = self.format_identifier(key)
             if isinstance(value, str):
-                parts.append(f"{quoted_key}='{self._escape_sql_string(value)}'")
-            elif isinstance(value, (int, float)):
-                parts.append(f"{quoted_key}={value}")
+                parts.append(f"{key}='{self._escape_sql_string(value)}'")
             else:
-                parts.append(f"{quoted_key}={value}")
+                parts.append(f"{key}={value}")
         return ' '.join(parts)
 
 
