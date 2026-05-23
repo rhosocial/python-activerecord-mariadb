@@ -462,3 +462,110 @@ class TestMySQLCreateTableCommentEscaping:
         sql, params = dialect.format_create_table_statement(expr)
 
         assert "\\\\" in sql
+
+
+# ============================================================
+# _format_storage_options_mariadb — key quoting and value escaping
+# ============================================================
+
+def test_storage_options_normal_key_and_value(dialect):
+    """Normal storage option key is backtick-quoted, string value is quoted."""
+    sql = dialect._format_storage_options_mariadb({"ENGINE": "InnoDB"})
+    assert "`ENGINE`='InnoDB'" in sql
+
+
+def test_storage_options_malicious_key(dialect):
+    """Malicious storage option key is safely backtick-quoted (breakout prevented)."""
+    sql = dialect._format_storage_options_mariadb({"key`=x; DROP TABLE t--": "v"})
+    # The key is properly backtick-escaped (the ` inside is doubled)
+    # The payload remains inside the identifier — that's safe, not injected
+    assert sql.count('`') % 2 == 0, f"Unbalanced backticks: {sql}"
+    assert sql.startswith("`"), f"Should start with backtick: {sql}"
+    # Verify the backtick was escaped: the key contains ` which becomes ``
+    assert "``" in sql, f"Should have escaped backtick: {sql}"
+
+
+def test_storage_options_string_value_escaped(dialect):
+    """String value with single quote is properly escaped."""
+    sql = dialect._format_storage_options_mariadb({"ENGINE": "It's"})
+    assert "It''s" in sql
+
+
+def test_storage_options_int_value(dialect):
+    """Integer value is not quoted."""
+    sql = dialect._format_storage_options_mariadb({"MAX_ROWS": 1000})
+    assert "`MAX_ROWS`=1000" in sql
+
+
+def test_storage_options_naive_vs_proper_key_safe(dialect):
+    """For safe keys, naive and proper quoting produce the same result."""
+    safe_keys = ["ENGINE", "AUTO_INCREMENT", "MAX_ROWS", "KEY_BLOCK_SIZE"]
+    for key in safe_keys:
+        naive = f"`{key}`"
+        proper = dialect.format_identifier(key)
+        assert naive == proper, f"Mismatch for '{key}': naive={naive}, proper={proper}"
+
+
+def test_storage_options_naive_vs_proper_key_malicious(dialect):
+    """For malicious keys, proper quoting prevents breakout that naive allows."""
+    payload = "key`=x; DROP TABLE t--"
+    naive = f"`{payload}`"
+    proper = dialect.format_identifier(payload)
+
+    assert naive.count('`') % 2 != 0, f"Naive should unbalance backticks: {naive}"
+    assert proper.count('`') % 2 == 0, f"Proper should balance backticks: {proper}"
+
+
+# ============================================================
+# format_identifier — identifier quoting equivalence and injection immunity
+# ============================================================
+
+def test_format_identifier_normal(dialect):
+    """Normal identifier is backtick-quoted."""
+    result = dialect.format_identifier("users")
+    assert result == "`users`"
+
+
+def test_format_identifier_with_backtick(dialect):
+    """Identifier with embedded backtick is properly escaped."""
+    result = dialect.format_identifier("table`name")
+    assert result == "`table``name`"
+
+
+def test_format_identifier_injection_payload(dialect):
+    """Identifier with injection payload is safely contained (balanced backticks)."""
+    payload = "users`; DROP TABLE users--"
+    result = dialect.format_identifier(payload)
+    assert result.count('`') % 2 == 0, f"Unbalanced backticks: {result}"
+    assert result == "`users``; DROP TABLE users--`"
+
+
+def test_format_identifier_naive_vs_proper_safe(dialect):
+    """For safe input, naive and proper quoting produce same structure."""
+    names = ["users", "orders", "products", "table_1", "camelCase"]
+    for name in names:
+        naive = f"`{name}`"
+        proper = dialect.format_identifier(name)
+        assert naive == proper, f"Mismatch for '{name}': naive={naive}, proper={proper}"
+
+
+def test_format_identifier_naive_vs_proper_malicious(dialect):
+    """For malicious input, proper quoting prevents breakout that naive allows."""
+    payloads = [
+        'x`; DROP TABLE users--',
+        'y`; DELETE FROM t--',
+        'z`; UPDATE t SET a=1--',
+    ]
+    for payload in payloads:
+        naive = f"`{payload}`"
+        proper = dialect.format_identifier(payload)
+
+        assert naive.count('`') % 2 != 0, \
+            f"Naive should unbalance backticks for '{payload}': {naive}"
+        assert proper.count('`') % 2 == 0, \
+            f"Proper should balance backticks for '{payload}': {proper}"
+
+
+def test_format_identifier_empty_string(dialect):
+    """Empty identifier produces empty backticks."""
+    assert dialect.format_identifier("") == "``"
