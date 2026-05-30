@@ -30,6 +30,9 @@ from rhosocial.activerecord.testsuite.feature.basic.fixtures.models import (
     AsyncMappedComment as AsyncMappedCommentBase,
     AsyncColumnMappingModel as AsyncColumnMappingModelBase, AsyncMixedAnnotationModel as AsyncMixedAnnotationModelBase
 )
+from rhosocial.activerecord.testsuite.feature.basic.fixtures.models import (
+    BulkUser as BulkUserBase, AsyncBulkUser as AsyncBulkUserBase
+)
 
 User310 = TypeCase310 = ValidatedFieldUser310 = TypeTestModel310 = ValidatedUser310 = None
 TypeAdapterTest310 = MappedUser310 = MappedPost310 = MappedComment310 = None
@@ -144,6 +147,8 @@ AsyncMappedPost = _select_model_class(AsyncMappedPostBase, AsyncMappedPost312, A
 AsyncMappedComment = _select_model_class(AsyncMappedCommentBase, AsyncMappedComment312, AsyncMappedComment311, AsyncMappedComment310, "AsyncMappedComment")
 AsyncColumnMappingModel = _select_model_class(AsyncColumnMappingModelBase, AsyncColumnMappingModel312, AsyncColumnMappingModel311, AsyncColumnMappingModel310, "AsyncColumnMappingModel")
 AsyncMixedAnnotationModel = _select_model_class(AsyncMixedAnnotationModelBase, AsyncMixedAnnotationModel312, AsyncMixedAnnotationModel311, AsyncMixedAnnotationModel310, "AsyncMixedAnnotationModel")
+BulkUser = BulkUserBase
+AsyncBulkUser = AsyncBulkUserBase
 
 from rhosocial.activerecord.testsuite.feature.basic.interfaces import IBasicProvider
 from .scenarios import get_enabled_scenarios, get_scenario
@@ -359,6 +364,14 @@ class BasicProvider(IBasicProvider):
             scenario_name = self.get_test_scenarios()[0] if self.get_test_scenarios() else "default"
         return await self._setup_async_model(AsyncTypeAdapterTest, scenario_name, "type_adapter_tests")
 
+    def setup_bulk_user_model(self, scenario_name: str) -> Type[ActiveRecord]:
+        """Sets up the database for the `BulkUser` model tests."""
+        return self._setup_model(BulkUser, scenario_name, "bulk_users")
+
+    async def setup_async_bulk_user_model(self, scenario_name: str) -> Type[ActiveRecord]:
+        """Sets up the database for the `AsyncBulkUser` model tests."""
+        return await self._setup_async_model(AsyncBulkUser, scenario_name, "bulk_users")
+
     def get_yes_no_adapter(self) -> 'BaseSQLTypeAdapter':
         """Returns an instance of the YesOrNoBooleanAdapter."""
         return YesOrNoBooleanAdapter()
@@ -376,7 +389,7 @@ class BasicProvider(IBasicProvider):
         tables_to_drop = [
             'users', 'type_cases', 'type_tests', 'validated_field_users',
             'validated_users', 'type_adapter_tests', 'posts', 'comments',
-            'column_mapping_items', 'mixed_annotation_items'
+            'column_mapping_items', 'mixed_annotation_items', 'bulk_users'
         ]
         for backend_instance in self._active_backends:
             try:
@@ -400,7 +413,7 @@ class BasicProvider(IBasicProvider):
         tables_to_drop = [
             'users', 'type_cases', 'type_tests', 'validated_field_users',
             'validated_users', 'type_adapter_tests', 'posts', 'comments',
-            'column_mapping_items', 'mixed_annotation_items'
+            'column_mapping_items', 'mixed_annotation_items', 'bulk_users'
         ]
         for backend_instance in self._active_async_backends:
             try:
