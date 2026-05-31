@@ -90,6 +90,8 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             version: Expected MariaDB server version tuple.
             **kwargs: Additional connection parameters.
         """
+        logging_config = kwargs.pop("logging_config", None)
+
         if connection_config is None:
             if database is None:
                 raise ValueError("Either connection_config or database must be provided")
@@ -113,7 +115,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
                 options=getattr(connection_config, "options", {}),
             )
 
-        super().__init__(connection_config=connection_config)
+        super().__init__(connection_config=connection_config, logging_config=logging_config)
         self._cursor = None
         self._version = version or (10, 11, 0)
         self._dialect = MariaDBDialect(self._version)

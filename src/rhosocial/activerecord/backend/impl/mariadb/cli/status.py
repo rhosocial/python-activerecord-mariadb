@@ -175,9 +175,7 @@ def _handle_status_sync(args, backend: MariaDBBackend, provider):
             data = _serialize_for_output(config_items)
             provider.display_results(data, title="Configuration")
         elif status_type == "performance":
-            perf_items = status_introspector.list_configuration(
-                StatusCategory.PERFORMANCE
-            )
+            perf_items = status_introspector.list_performance_metrics()
             data = _serialize_for_output(perf_items)
             provider.display_results(data, title="Performance")
         elif status_type == "connections":
@@ -239,9 +237,7 @@ async def _handle_status_async(args, backend: AsyncMariaDBBackend, provider):
             data = _serialize_for_output(config_items)
             provider.display_results(data, title="Configuration")
         elif status_type == "performance":
-            perf_items = await status_introspector.list_configuration(
-                StatusCategory.PERFORMANCE
-            )
+            perf_items = await status_introspector.list_performance_metrics()
             data = _serialize_for_output(perf_items)
             provider.display_results(data, title="Performance")
         elif status_type == "connections":

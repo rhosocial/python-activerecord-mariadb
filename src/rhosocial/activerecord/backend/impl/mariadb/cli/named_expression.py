@@ -12,7 +12,7 @@ from .output import create_provider
 
 
 def create_parser(subparsers):
-    """Create the named-query subcommand parser.
+    """Create the named-expression subcommand parser.
 
     Reuses the shared create_named_expression_parser, passing a parent parser
     containing only connection and output arguments.
@@ -42,16 +42,33 @@ def create_parser(subparsers):
 export MARIADB_HOST=localhost MARIADB_DATABASE=mydb MARIADB_USER=root MARIADB_PASSWORD=secret
 %(prog)s myapp.queries.orders --list
 """
-    return create_named_expression_parser(
+    parser = create_named_expression_parser(
         subparsers, local_parent, epilog=nq_epilog
     )
+    parser.add_argument(
+        "--dialect-version",
+        default=None,
+        help="MariaDB dialect version for capability probing (e.g., 11.4.0, 10.6.0).",
+    )
+    return parser
 
 
 def handle(args):
-    """Handle the named-query subcommand."""
+    """Handle the named-expression subcommand."""
     from rhosocial.activerecord.backend.named_expression.cli import handle_named_expression as handle_nq
 
     provider = create_provider(args.output, ascii_borders=args.rich_ascii)
+
+    from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+
+    def _get_requested_version():
+        ver = getattr(args, "dialect_version", None)
+        if ver:
+            return tuple(int(p) for p in ver.split("."))
+        return None
+
+    def create_dialect():
+        return MariaDBDialect(version=_get_requested_version())
 
     backend = None
 
@@ -61,6 +78,9 @@ def handle(args):
         backend = MariaDBBackend(connection_config=config)
         backend.connect()
         backend.introspect_and_adapt()
+        req_ver = _get_requested_version()
+        if req_ver:
+            backend._dialect.version = req_ver
         return backend
 
     def get_dialect(b):
@@ -109,6 +129,7 @@ def handle(args):
             get_dialect_async=get_dialect_async,
             execute_query_async=execute_query_async,
             disconnect_async=disconnect_async,
+            create_dialect=create_dialect,
         )
         return
 
@@ -119,4 +140,5 @@ def handle(args):
         get_dialect=get_dialect,
         execute_query=execute_query_by_name,
         disconnect=disconnect,
+        create_dialect=create_dialect,
     )

@@ -68,6 +68,8 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
         password: Optional[str] = None,
         **kwargs,
     ):
+        logging_config = kwargs.pop("logging_config", None)
+
         if connection_config is None:
             if database is None:
                 raise ValueError("Either connection_config or database must be provided")
@@ -91,7 +93,7 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
                 options=getattr(connection_config, "options", {}),
             )
 
-        super().__init__(connection_config=connection_config)
+        super().__init__(connection_config=connection_config, logging_config=logging_config)
         self._dialect = MariaDBDialect()
         self._register_mariadb_adapters()
 
