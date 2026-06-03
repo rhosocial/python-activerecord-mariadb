@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
+    CollationSupport,
     CTESupport,
     WindowFunctionSupport,
     JSONSupport,
@@ -56,6 +57,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     FunctionSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
+    CollationMixin,
     CTEMixin,
     WindowFunctionMixin,
     JSONMixin,
@@ -106,6 +108,7 @@ from .mixins import (
     MariaDBModifyColumnMixin,
     MARIADB_VERSION_BOUNDARIES,
 )
+from .collation import validate_mariadb_collation_name
 from .show.dialect import MariaDBShowDialectMixin
 
 # Import MariaDB-specific protocols
@@ -169,6 +172,7 @@ class MariaDBDialect(
     MariaDBTableMixin,
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
+    CollationMixin,
     CTEMixin,
     WindowFunctionMixin,
     JSONMixin,
@@ -199,6 +203,7 @@ class MariaDBDialect(
     FunctionMixin,
     IntrospectionMixin,
     # Protocol support markers
+    CollationSupport,
     CTESupport,
     WindowFunctionSupport,
     JSONSupport,
@@ -296,6 +301,16 @@ class MariaDBDialect(
     def get_server_version(self) -> Tuple[int, int, int]:
         """Return the MariaDB version this dialect is configured for."""
         return self.version
+
+    def supports_collate_expression(self) -> bool:
+        """MariaDB supports expression-level COLLATE."""
+        return True
+
+    def format_collation_name(self, collation) -> str:
+        """Format MariaDB collation names as validated bare tokens."""
+        if collation.schema is not None or collation.keyword is not None:
+            raise UnsupportedFeatureError(self.name, "schema-qualified or keyword COLLATE")
+        return validate_mariadb_collation_name(collation.name, getattr(self, "version", None))
 
     def format_identifier(self, identifier: str) -> str:
         """Format identifier using MariaDB's backtick quoting mechanism.

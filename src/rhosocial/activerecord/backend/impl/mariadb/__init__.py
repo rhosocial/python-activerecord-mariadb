@@ -21,6 +21,7 @@ from .dialect import MariaDBDialect, MARIADB_VERSION_BOUNDARIES
 from .transaction import MariaDBTransactionManager, MariaDBTransactionMixin
 from .async_transaction import AsyncMariaDBTransactionManager
 from .config import MariaDBConnectionConfig
+from .collation import MariaDBCollation
 from .types import MariaDBEnumType, MariaDBSetType
 from .explain import MariaDBExplainResult, MariaDBExplainRow, MariaDBExplainJsonResult, MariaDBExplainAnalyzeResult
 
@@ -128,6 +129,7 @@ __all__ = [
     # Dialect related
     'MariaDBDialect',
     'MARIADB_VERSION_BOUNDARIES',
+    'MariaDBCollation',
 
     # Transaction - Sync and Async
     'MariaDBTransactionManager',
