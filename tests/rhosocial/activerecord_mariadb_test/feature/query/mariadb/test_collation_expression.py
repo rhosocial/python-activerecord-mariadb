@@ -6,7 +6,6 @@ Tests for expression-level COLLATE support on MariaDB.
 import pytest
 
 from rhosocial.activerecord.backend.expression import Column, Literal
-from rhosocial.activerecord.backend.expression.collation import CollationName
 from rhosocial.activerecord.backend.impl.mariadb import MariaDBCollation, MariaDBDialect
 
 
@@ -50,9 +49,9 @@ class TestMariaDBCollationExpression:
         assert params == ("Alice",)
 
     def test_rejects_schema_qualified_collation(self, dialect):
-        expr = Column(dialect, "name").collate(CollationName("utf8mb4_bin", schema="public"))
+        expr = Column(dialect, "name").collate("utf8mb4_bin", schema="public")
 
-        with pytest.raises(Exception, match="schema-qualified or keyword COLLATE"):
+        with pytest.raises(Exception, match="COLLATE options: schema"):
             expr.to_sql()
 
     def test_rejects_unsupported_collation(self, dialect):
