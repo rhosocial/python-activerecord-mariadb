@@ -45,11 +45,11 @@ pooling = [
     "DBUtils>=3.0.0",
 ]
 test = [
-    "pytest>=7.0.0",
+    "pytest",
     "coverage>=7.0.0",
     "pytest-asyncio",
-    "pytest-cov>=4.0.0",
-    "pytest-xdist>=3.6.1",
+    "pytest-cov",
+    "pytest-xdist",
     "pytest-mock",
     "pyyaml>=6.0.2",
 ]
