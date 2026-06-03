@@ -132,6 +132,7 @@ from .protocols import (
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression import bases
+    from rhosocial.activerecord.backend.expression.collation import CollationName
     from rhosocial.activerecord.backend.expression.statements import ReturningClause
 
 MARIADB_VERSION_BOUNDARIES = {
@@ -306,7 +307,7 @@ class MariaDBDialect(
         """MariaDB supports expression-level COLLATE."""
         return True
 
-    def validate_collation_name(self, collation) -> str:
+    def validate_collation_name(self, collation: "CollationName") -> str:
         """Validate MariaDB collation names and return their SQL representation."""
         if collation.schema is not None or collation.keyword is not None:
             raise UnsupportedFeatureError(self.name, "schema-qualified or keyword COLLATE")
