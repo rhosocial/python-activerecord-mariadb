@@ -306,8 +306,8 @@ class MariaDBDialect(
         """MariaDB supports expression-level COLLATE."""
         return True
 
-    def format_collation_name(self, collation) -> str:
-        """Format MariaDB collation names as validated bare tokens."""
+    def validate_collation_name(self, collation) -> str:
+        """Validate MariaDB collation names and return their SQL representation."""
         if collation.schema is not None or collation.keyword is not None:
             raise UnsupportedFeatureError(self.name, "schema-qualified or keyword COLLATE")
         return validate_mariadb_collation_name(collation.name, getattr(self, "version", None))
