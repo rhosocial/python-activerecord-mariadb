@@ -758,9 +758,25 @@ class MariaDBDialect(
         )
         from rhosocial.activerecord.backend.impl.mariadb import functions as mariadb_functions
 
+        expression_constructors = {
+            "xmlagg",
+            "xmlattributes",
+            "xmlcomment",
+            "xmlconcat",
+            "xmlelement",
+            "xmlexists",
+            "xmlforest",
+            "xmlparse",
+            "xmlpi",
+            "xmlquery",
+            "xmlroot",
+            "xmlserialize",
+            "xmltable",
+        }
         result = {}
         for func_name in core_functions:
-            result[func_name] = True
+            if func_name not in expression_constructors:
+                result[func_name] = True
 
         mariadb_funcs = getattr(mariadb_functions, "__all__", [])
         for func_name in mariadb_funcs:
