@@ -1,2 +1,6 @@
+# requirements.txt
+# Core dependency
+rhosocial-activerecord>=1.0.0.dev0,<2.0.0
+
+# MariaDB driver
 mariadb>=2.0.0rc2
-rhosocial-activerecord>=0.9.0,<2.0.0
