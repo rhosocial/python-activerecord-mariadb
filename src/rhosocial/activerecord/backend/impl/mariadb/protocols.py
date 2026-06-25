@@ -14,7 +14,6 @@ MariaDB version mapping (relative to MySQL):
 from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 from rhosocial.activerecord.backend.dialect.protocols import (
-    FullTextSearchSupport,
     JSONSupport,
     LockingSupport,
     PartitionSupport,
@@ -1021,7 +1020,7 @@ class MariaDBSpatialSupport(Protocol):
 
 
 @runtime_checkable
-class MariaDBFullTextSearchSupport(FullTextSearchSupport, Protocol):
+class MariaDBFullTextSearchSupport(Protocol):
     """MariaDB full-text search protocol.
 
     Note: Most interfaces are defined in generic IndexSupport protocol.

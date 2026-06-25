@@ -7,7 +7,6 @@ import re
 from typing import Tuple
 
 from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
-from rhosocial.activerecord.backend.dialect.protocols import DDLTypeSupport
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
     BlobType,
@@ -62,7 +61,7 @@ from ..expression.types import (
 )
 
 
-class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
+class MariaDBTypeSupportMixin(DDLTypeMixin):
     """MariaDB DataType formatting and parsing.
 
     Implements ``DDLTypeSupport`` so the dialect can render ``DataType``
