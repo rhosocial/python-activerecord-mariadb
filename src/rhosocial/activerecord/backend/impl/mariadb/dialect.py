@@ -55,6 +55,10 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     GeneratedColumnSupport,
     ViewSupport,
     FunctionSupport,
+    # Additional Protocols
+    SQLFunctionSupport,
+    DDLTypeSupport,
+    PartitionSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
     CollationMixin,
@@ -88,6 +92,16 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     ViewMixin,
     FunctionMixin,
     IntrospectionMixin,
+    # Additional Mixins
+    IdentifierMixin,
+    PredicateMixin,
+    ExpressionMixin,
+    DateTimeMixin,
+    DQLMixin,
+    DMLMixin,
+    DDLColumnMixin,
+    TransactionControlMixin,
+    PartitionMixin,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -106,6 +120,8 @@ from .mixins import (
     MariaDBTableMixin,
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
+    MariaDBPartitionMixin,
+    MariaDBTypeSupportMixin,
     MARIADB_VERSION_BOUNDARIES,
 )
 from .collation import validate_mariadb_collation_name
@@ -128,6 +144,7 @@ from .protocols import (
     MariaDBSystemVersioningSupport,
     MariaDBWindowFunctionSupport,
     MariaDBCTESupport,
+    MariaDBPartitionSupport,
 )
 
 if TYPE_CHECKING:
@@ -173,6 +190,8 @@ class MariaDBDialect(
     MariaDBTableMixin,
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
+    MariaDBPartitionMixin,
+    MariaDBTypeSupportMixin,
     CollationMixin,
     CTEMixin,
     WindowFunctionMixin,
@@ -203,6 +222,15 @@ class MariaDBDialect(
     ViewMixin,
     FunctionMixin,
     IntrospectionMixin,
+    IdentifierMixin,
+    PredicateMixin,
+    ExpressionMixin,
+    DateTimeMixin,
+    DQLMixin,
+    DMLMixin,
+    DDLColumnMixin,
+    TransactionControlMixin,
+    PartitionMixin,
     # Protocol support markers
     CollationSupport,
     CTESupport,
@@ -237,6 +265,9 @@ class MariaDBDialect(
     GeneratedColumnSupport,
     ViewSupport,
     FunctionSupport,
+    SQLFunctionSupport,
+    DDLTypeSupport,
+    PartitionSupport,
     MariaDBDMLOperationSupport,
     MariaDBTriggerSupport,
     MariaDBTableSupport,
@@ -252,6 +283,7 @@ class MariaDBDialect(
     MariaDBSystemVersioningSupport,
     MariaDBWindowFunctionSupport,
     MariaDBCTESupport,
+    MariaDBPartitionSupport,
 ):
     """MariaDB dialect implementation that adapts to the MariaDB version.
 

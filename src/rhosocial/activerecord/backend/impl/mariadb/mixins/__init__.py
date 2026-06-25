@@ -39,6 +39,8 @@ from .table import MariaDBTableMixin
 from .set_type import MariaDBSetTypeMixin
 from .modify_column import MariaDBModifyColumnMixin
 from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
+from .partition import MariaDBPartitionMixin
+from .types import MariaDBTypeSupportMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -59,4 +61,6 @@ __all__ = [
     'MariaDBModifyColumnMixin',
     'MariaDBConcurrencyMixin',
     'AsyncMariaDBConcurrencyMixin',
+    'MariaDBPartitionMixin',
+    'MariaDBTypeSupportMixin',
 ]
