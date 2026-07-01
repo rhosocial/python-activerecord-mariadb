@@ -7,6 +7,7 @@ This module tests the MariaDB-specific LIKE syntax for CREATE TABLE statements.
 import pytest
 from rhosocial.activerecord.backend.expression import CreateTableExpression, ColumnDefinition
 from rhosocial.activerecord.backend.expression.statements import ColumnConstraint, ColumnConstraintType
+from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
 
@@ -75,10 +76,10 @@ class TestMySQLCreateTableLike:
         """Test that LIKE syntax ignores columns parameter."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition("id", "INTEGER", constraints=[
+            ColumnDefinition("id", IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition("name", "VARCHAR(255)")
+            ColumnDefinition("name", VarCharType(255))
         ]
         create_expr = CreateTableExpression(
             dialect=dialect,
@@ -112,10 +113,10 @@ class TestMySQLCreateTableLike:
         """Test that base implementation is used when LIKE is not specified."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition("id", "INTEGER", constraints=[
+            ColumnDefinition("id", IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition("name", "VARCHAR(255)", constraints=[
+            ColumnDefinition("name", VarCharType(255), constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL)
             ])
         ]

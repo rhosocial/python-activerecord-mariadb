@@ -21,6 +21,12 @@ from rhosocial.activerecord.backend.expression import (
     TableConstraint,
     TableConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    BigIntType,
+    DateTimeType,
+    IntegerType,
+    VarCharType,
+)
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.types import MariaDBEnumType, MariaDBSetType
 
@@ -32,7 +38,7 @@ class TestMySQLStorageOptions:
         """Test ENGINE storage option."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -49,7 +55,7 @@ class TestMySQLStorageOptions:
         """Test DEFAULT CHARSET storage option."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -66,7 +72,7 @@ class TestMySQLStorageOptions:
         """Test COLLATE storage option."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -83,7 +89,7 @@ class TestMySQLStorageOptions:
         """Test multiple storage options combined."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -106,7 +112,7 @@ class TestMySQLStorageOptions:
         """Test storage options with IF NOT EXISTS."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -129,7 +135,7 @@ class TestMySQLTableComment:
         """Test table-level COMMENT."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -146,7 +152,7 @@ class TestMySQLTableComment:
         """Test table COMMENT with storage options."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -169,7 +175,7 @@ class TestMySQLTableComment:
         """Test table COMMENT with special characters."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
@@ -190,10 +196,10 @@ class TestMySQLColumnComment:
         """Test column-level COMMENT."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ], comment='主键ID'),
-            ColumnDefinition('name', 'VARCHAR(100)', comment='用户名')
+            ColumnDefinition('name', VarCharType(100), comment='用户名')
         ]
         expr = CreateTableExpression(
             dialect=dialect,
@@ -208,10 +214,10 @@ class TestMySQLColumnComment:
         """Test column COMMENT with table COMMENT."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ], comment='主键'),
-            ColumnDefinition('name', 'VARCHAR(100)', comment='名称')
+            ColumnDefinition('name', VarCharType(100), comment='名称')
         ]
         expr = CreateTableExpression(
             dialect=dialect,
@@ -232,7 +238,7 @@ class TestMySQLAutoIncrement:
         """Test AUTO_INCREMENT with PRIMARY KEY."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'BIGINT', constraints=[
+            ColumnDefinition('id', BigIntType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
             ])
@@ -250,7 +256,7 @@ class TestMySQLAutoIncrement:
         """Test AUTO_INCREMENT with column COMMENT."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'BIGINT', constraints=[
+            ColumnDefinition('id', BigIntType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
             ], comment='自增主键')
@@ -268,7 +274,7 @@ class TestMySQLAutoIncrement:
         """Test that AUTO_INCREMENT requires NOT NULL."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'BIGINT', constraints=[
+            ColumnDefinition('id', BigIntType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
             ])
@@ -290,10 +296,10 @@ class TestMySQLInlineIndex:
         """Test simple INDEX definition."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('name', 'VARCHAR(100)')
+            ColumnDefinition('name', VarCharType(100))
         ]
         indexes = [
             IndexDefinition('idx_name', ['name'])
@@ -312,10 +318,10 @@ class TestMySQLInlineIndex:
         """Test UNIQUE INDEX definition."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('email', 'VARCHAR(100)')
+            ColumnDefinition('email', VarCharType(100))
         ]
         indexes = [
             IndexDefinition('idx_email', ['email'], unique=True)
@@ -334,11 +340,11 @@ class TestMySQLInlineIndex:
         """Test composite index on multiple columns."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('user_id', 'INT'),
-            ColumnDefinition('created_at', 'DATETIME')
+            ColumnDefinition('user_id', IntegerType()),
+            ColumnDefinition('created_at', DateTimeType())
         ]
         indexes = [
             IndexDefinition('idx_user_created', ['user_id', 'created_at'])
@@ -356,10 +362,10 @@ class TestMySQLInlineIndex:
         """Test INDEX with USING clause."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('name', 'VARCHAR(100)')
+            ColumnDefinition('name', VarCharType(100))
         ]
         indexes = [
             IndexDefinition('idx_name', ['name'], type='BTREE')
@@ -377,10 +383,10 @@ class TestMySQLInlineIndex:
         """Test HASH index type."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('key', 'VARCHAR(100)')
+            ColumnDefinition('key', VarCharType(100))
         ]
         indexes = [
             IndexDefinition('idx_key', ['key'], type='HASH')
@@ -398,11 +404,11 @@ class TestMySQLInlineIndex:
         """Test multiple inline indexes."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('email', 'VARCHAR(100)'),
-            ColumnDefinition('username', 'VARCHAR(50)')
+            ColumnDefinition('email', VarCharType(100)),
+            ColumnDefinition('username', VarCharType(50))
         ]
         indexes = [
             IndexDefinition('idx_email', ['email'], unique=True),
@@ -424,37 +430,43 @@ class TestMySQLEnumType:
 
     def test_simple_enum(self):
         """Test simple ENUM definition."""
+        dialect = MariaDBDialect()
         enum_type = MariaDBEnumType(['pending', 'processing', 'completed'])
-        sql = enum_type.to_sql()
+        sql, _ = enum_type.to_sql(dialect)
         assert sql == "ENUM('pending','processing','completed')"
 
     def test_enum_with_charset(self):
         """Test ENUM with CHARACTER SET."""
+        dialect = MariaDBDialect()
         enum_type = MariaDBEnumType(['active', 'inactive'], charset='utf8mb4')
-        sql = enum_type.to_sql()
+        sql, _ = enum_type.to_sql(dialect)
         assert 'CHARACTER SET utf8mb4' in sql
 
     def test_enum_with_collation(self):
         """Test ENUM with COLLATE."""
+        dialect = MariaDBDialect()
         enum_type = MariaDBEnumType(['a', 'b'], collation='utf8mb4_bin')
-        sql = enum_type.to_sql()
+        sql, _ = enum_type.to_sql(dialect)
         assert 'COLLATE utf8mb4_bin' in sql
 
     def test_enum_with_charset_and_collation(self):
         """Test ENUM with both CHARACTER SET and COLLATE."""
+        dialect = MariaDBDialect()
         enum_type = MariaDBEnumType(
             ['pending', 'done'],
             charset='utf8mb4',
             collation='utf8mb4_unicode_ci'
         )
-        sql = enum_type.to_sql()
+        sql, _ = enum_type.to_sql(dialect)
         assert 'CHARACTER SET utf8mb4' in sql
         assert 'COLLATE utf8mb4_unicode_ci' in sql
 
     def test_enum_str_representation(self):
-        """Test ENUM string representation."""
+        """Test ENUM string representation via to_sql()."""
+        dialect = MariaDBDialect()
         enum_type = MariaDBEnumType(['yes', 'no'])
-        assert str(enum_type) == "ENUM('yes','no')"
+        sql, _ = enum_type.to_sql(dialect)
+        assert sql == "ENUM('yes','no')"
 
     def test_enum_repr(self):
         """Test ENUM repr."""
@@ -473,10 +485,10 @@ class TestMySQLEnumType:
         dialect = MariaDBDialect()
         status_enum = MariaDBEnumType(['draft', 'published', 'archived'])
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('status', status_enum.to_sql(), constraints=[
+            ColumnDefinition('status', status_enum, constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL)
             ])
         ]
@@ -494,26 +506,31 @@ class TestMySQLSetType:
 
     def test_simple_set(self):
         """Test simple SET definition."""
+        dialect = MariaDBDialect()
         set_type = MariaDBSetType(['read', 'write', 'execute'])
-        sql = set_type.to_sql()
+        sql, _ = set_type.to_sql(dialect)
         assert sql == "SET('read','write','execute')"
 
     def test_set_with_charset(self):
         """Test SET with CHARACTER SET."""
+        dialect = MariaDBDialect()
         set_type = MariaDBSetType(['tag1', 'tag2'], charset='utf8mb4')
-        sql = set_type.to_sql()
+        sql, _ = set_type.to_sql(dialect)
         assert 'CHARACTER SET utf8mb4' in sql
 
     def test_set_with_collation(self):
         """Test SET with COLLATE."""
+        dialect = MariaDBDialect()
         set_type = MariaDBSetType(['a', 'b'], collation='utf8mb4_bin')
-        sql = set_type.to_sql()
+        sql, _ = set_type.to_sql(dialect)
         assert 'COLLATE utf8mb4_bin' in sql
 
     def test_set_str_representation(self):
-        """Test SET string representation."""
+        """Test SET string representation via to_sql()."""
+        dialect = MariaDBDialect()
         set_type = MariaDBSetType(['x', 'y'])
-        assert str(set_type) == "SET('x','y')"
+        sql, _ = set_type.to_sql(dialect)
+        assert sql == "SET('x','y')"
 
     def test_set_repr(self):
         """Test SET repr."""
@@ -534,8 +551,8 @@ class TestMySQLTableConstraints:
         """Test PRIMARY KEY table constraint."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT'),
-            ColumnDefinition('name', 'VARCHAR(100)')
+            ColumnDefinition('id', IntegerType()),
+            ColumnDefinition('name', VarCharType(100))
         ]
         table_constraints = [
             TableConstraint(TableConstraintType.PRIMARY_KEY, columns=['id'])
@@ -553,10 +570,10 @@ class TestMySQLTableConstraints:
         """Test UNIQUE table constraint."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('id', 'INT', constraints=[
+            ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('email', 'VARCHAR(100)')
+            ColumnDefinition('email', VarCharType(100))
         ]
         table_constraints = [
             TableConstraint(TableConstraintType.UNIQUE, columns=['email'])
@@ -574,8 +591,8 @@ class TestMySQLTableConstraints:
         """Test composite PRIMARY KEY."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition('user_id', 'INT'),
-            ColumnDefinition('role_id', 'INT')
+            ColumnDefinition('user_id', IntegerType()),
+            ColumnDefinition('role_id', IntegerType())
         ]
         table_constraints = [
             TableConstraint(TableConstraintType.PRIMARY_KEY, columns=['user_id', 'role_id'])
@@ -631,7 +648,7 @@ class TestMySQLCompleteTableCreation:
         columns = [
             ColumnDefinition(
                 'id',
-                'BIGINT',
+                BigIntType(),
                 constraints=[
                     ColumnConstraint(ColumnConstraintType.NOT_NULL),
                     ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
@@ -640,23 +657,23 @@ class TestMySQLCompleteTableCreation:
             ),
             ColumnDefinition(
                 'name',
-                'VARCHAR(100)',
+                VarCharType(100),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
                 comment='User name'
             ),
             ColumnDefinition(
                 'email',
-                'VARCHAR(255)',
+                VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
                 comment='Email address'
             ),
             ColumnDefinition(
                 'status',
-                status_enum.to_sql(),
+                status_enum,
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
                 comment='User status'
             ),
-            ColumnDefinition('created_at', 'DATETIME', comment='Creation timestamp')
+            ColumnDefinition('created_at', DateTimeType(), comment='Creation timestamp')
         ]
         
         indexes = [

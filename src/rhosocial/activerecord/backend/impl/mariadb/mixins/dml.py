@@ -4,14 +4,13 @@
 MariaDB-specific DML operations including INSERT IGNORE, REPLACE INTO,
 LOAD DATA INFILE, and RETURNING clause support.
 """
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
         InsertExpression,
-        DeleteExpression,
     )
 
 
@@ -188,63 +187,6 @@ class MariaDBDMLOperationMixin:
                     self.name,
                     "RETURNING clause",
                     "RETURNING clause for INSERT requires MariaDB 10.5 or later."
-                )
-            returning_sql, returning_params = self.format_returning_clause_from_obj(expr.returning)
-            sql += f" {returning_sql}"
-            all_params.extend(returning_params)
-
-        return sql, tuple(all_params)
-
-    def format_delete_statement(
-        self,
-        expr: "DeleteExpression"
-    ) -> Tuple[str, tuple]:
-        """Format DELETE statement with MariaDB-specific options.
-
-        Supports RETURNING clause (10.5+).
-
-        Args:
-            expr: DeleteExpression instance.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
-        if self.strict_validation:
-            expr.validate(strict=True)
-
-        all_params: List[Any] = []
-
-        parts = ["DELETE FROM"]
-        parts.append(self.format_identifier(expr.table_name))
-
-        if expr.from_clause:
-            from_sql, from_params = expr.from_clause.to_sql()
-            parts.append(f"USING {from_sql}")
-            all_params.extend(from_params)
-
-        if expr.where:
-            where_sql, where_params = expr.where.to_sql()
-            parts.append(f"WHERE {where_sql}")
-            all_params.extend(where_params)
-
-        if expr.order_by:
-            order_sql, order_params = expr.order_by.to_sql()
-            parts.append(order_sql)
-            all_params.extend(order_params)
-
-        if expr.limit is not None:
-            parts.append(f"LIMIT {self.get_parameter_placeholder()}")
-            all_params.append(expr.limit)
-
-        sql = ' '.join(parts)
-
-        if expr.returning:
-            if not self.supports_returning_for_delete():
-                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-                raise UnsupportedFeatureError(
-                    self.name,
-                    "RETURNING clause",
-                    "RETURNING clause for DELETE requires MariaDB 10.5 or later."
                 )
             returning_sql, returning_params = self.format_returning_clause_from_obj(expr.returning)
             sql += f" {returning_sql}"

@@ -15,6 +15,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import VarCharType
 from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
     MariaDBJSONTableExpression,
     JSONTableColumn,
@@ -36,7 +37,7 @@ def test_mysql_format_column_definition_default_string_escaping(dialect):
 
     col_def = ColumnDefinition(
         name="test_col",
-        data_type="VARCHAR(255)",
+        data_type=VarCharType(255),
         constraints=[constraint],
     )
 
@@ -48,7 +49,7 @@ def test_mysql_format_column_definition_comment_string_escaping(dialect):
     """Test COMMENT string is escaped in MySQL column definition."""
     col_def = ColumnDefinition(
         name="test_col",
-        data_type="VARCHAR(255)",
+        data_type=VarCharType(255),
         comment="Comment with 'single quote'",
     )
 
@@ -74,7 +75,7 @@ def test_mysql_format_column_definition_data_type_validation(dialect):
     """Test column definition validates data_type."""
     col_def = ColumnDefinition(
         name="test_col",
-        data_type="VARCHAR(255)",
+        data_type=VarCharType(255),
     )
 
     sql, params = dialect.format_column_definition(col_def)
@@ -82,14 +83,12 @@ def test_mysql_format_column_definition_data_type_validation(dialect):
 
 
 def test_mysql_format_column_definition_data_type_rejects_injection(dialect):
-    """Test that malicious data_type is rejected."""
-    col_def = ColumnDefinition(
-        name="test_col",
-        data_type="VARCHAR(255); DROP TABLE users--",
-    )
-
-    with pytest.raises(ValueError, match="Invalid data type"):
-        dialect.format_column_definition(col_def)
+    """Test that malicious data_type is rejected at construction time."""
+    with pytest.raises(TypeError, match="data_type must be a DataType instance"):
+        ColumnDefinition(
+            name="test_col",
+            data_type="VARCHAR(255); DROP TABLE users--",
+        )
 
 
 def test_mysql_json_table_path_escaping(dialect):

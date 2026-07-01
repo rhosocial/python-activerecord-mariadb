@@ -1,17 +1,16 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/protocols.py
+# src/rhosocial/activerecord/backend/impl/mariadb/protocols/__init__.py
 """MariaDB dialect-specific protocol definitions.
 
-This module is a backward-compatibility shim that re-exports all protocols
-from the modular protocols/ subdirectory.
+This module provides modular protocol classes for features specific to MariaDB,
+covering both features shared with MySQL and MariaDB-exclusive features.
 
-For new code, import directly from the protocols subdirectory:
-    from rhosocial.activerecord.backend.impl.mariadb.protocols import (
-        MariaDBPartitionSupport,
-        MariaDBJSONFunctionSupport,
-        ...
-    )
+MariaDB version mapping (relative to MySQL):
+  - MySQL 5.6+ → MariaDB 10.0+
+  - MySQL 5.7+ → MariaDB 10.2+
+  - MySQL 8.0+ → MariaDB 10.3+
+  - MySQL 8.4+ → MariaDB 11.0+
 
-The protocols are organized as follows:
+Protocol Organization:
 - dml.py: DML operations (INSERT IGNORE, REPLACE, LOAD DATA)
 - trigger.py: Trigger DDL protocol
 - table.py: Table DDL protocol
@@ -30,25 +29,22 @@ The protocols are organized as follows:
 - partition.py: Table partitioning support
 """
 
-# Import from modular protocols subdirectory
-from .protocols import (
-    MariaDBCTESupport,
-    MariaDBDMLOperationSupport,
-    MariaDBFullTextSearchSupport,
-    MariaDBIntersectExceptSupport,
-    MariaDBJSONFunctionSupport,
-    MariaDBLockingSupport,
-    MariaDBModifyColumnSupport,
-    MariaDBPartitionSupport,
-    MariaDBReturningSupport,
-    MariaDBSequenceSupport,
-    MariaDBSetTypeSupport,
-    MariaDBSpatialSupport,
-    MariaDBSystemVersioningSupport,
-    MariaDBTableSupport,
-    MariaDBTriggerSupport,
-    MariaDBWindowFunctionSupport,
-)
+from .cte import MariaDBCTESupport
+from .dml import MariaDBDMLOperationSupport
+from .fulltext_search import MariaDBFullTextSearchSupport
+from .json import MariaDBJSONFunctionSupport
+from .locking import MariaDBLockingSupport
+from .modify_column import MariaDBModifyColumnSupport
+from .partition import MariaDBPartitionSupport
+from .returning import MariaDBReturningSupport
+from .sequence import MariaDBSequenceSupport
+from .set_operation import MariaDBIntersectExceptSupport
+from .set_type import MariaDBSetTypeSupport
+from .spatial import MariaDBSpatialSupport
+from .system_versioning import MariaDBSystemVersioningSupport
+from .table import MariaDBTableSupport
+from .trigger import MariaDBTriggerSupport
+from .window_function import MariaDBWindowFunctionSupport
 
 __all__ = [
     'MariaDBDMLOperationSupport',

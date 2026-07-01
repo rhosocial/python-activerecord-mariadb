@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend, AsyncMariaDBBackend
 
 from .connection import create_connection_parent_parser, resolve_connection_config_from_args
 from .output import create_provider
@@ -29,6 +29,9 @@ def create_parser(subparsers):
 
   # Dry-run
   %(prog)s myapp.migrations.v001.CreateUsersTable --database mydb --direction up --dry-run
+
+  # Apply asynchronously
+  %(prog)s myapp.migrations.v001.CreateUsersTable --database mydb --direction up --async
 
   # List available migrations
   %(prog)s myapp.migrations --list
@@ -58,6 +61,33 @@ def handle(args):
     def disconnect():
         if backend and getattr(backend, "_connection", None):
             backend.disconnect()
+
+    is_async = getattr(args, "is_async", False)
+    if is_async:
+        async_backend = None
+
+        async def backend_async_factory():
+            nonlocal async_backend
+            config = resolve_connection_config_from_args(args)
+            async_backend = AsyncMariaDBBackend(connection_config=config)
+            await async_backend.connect()
+            await async_backend.introspect_and_adapt()
+            return async_backend
+
+        async def disconnect_async(backend=None):
+            target = backend if backend is not None else async_backend
+            if target and getattr(target, "_connection", None):
+                await target.disconnect()
+
+        handle_nm(
+            args,
+            provider,
+            backend_factory=backend_factory,
+            disconnect=disconnect,
+            backend_async_factory=backend_async_factory,
+            disconnect_async=disconnect_async,
+        )
+        return
 
     handle_nm(
         args,

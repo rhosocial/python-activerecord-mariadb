@@ -84,16 +84,11 @@ class TestMariaDBDialectSecurityIntegration:
         """Test that malicious data type is rejected at dialect level before DB execution."""
         from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
 
-        dialect = mariadb_backend.dialect
-
-        # This should raise ValueError before reaching the database
-        col_def = ColumnDefinition(
-            name="test_col",
-            data_type="VARCHAR(255); DROP TABLE users--",
-        )
-
-        with pytest.raises(ValueError, match="Invalid data type"):
-            dialect.format_column_definition(col_def)
+        with pytest.raises(TypeError, match="data_type must be a DataType instance"):
+            ColumnDefinition(
+                name="test_col",
+                data_type="VARCHAR(255); DROP TABLE users--",
+            )
 
 
 @requires_json_table()

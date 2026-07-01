@@ -970,8 +970,9 @@ class MariaDBDialect(
         col_def: "ColumnDefinition",
         ColumnConstraintType
     ) -> Tuple[str, List[Any]]:
-        parts = [self.format_identifier(col_def.name), col_def.data_type]
-        params: List[Any] = []
+        type_sql, type_params = col_def.data_type.to_sql(self)
+        parts = [self.format_identifier(col_def.name), type_sql]
+        params: List[Any] = list(type_params)
 
         constraint_parts = []
         for constraint in col_def.constraints:
