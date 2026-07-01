@@ -243,6 +243,14 @@ class QueryProvider(IQueryProvider):
             (MappedComment, "comments")
         ], scenario_name)
 
+    def setup_profile_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for User and Profile models."""
+        Profile = User.get_relation('profile').get_related_model(User)
+        return self._setup_multiple_models([
+            (User, "users"),
+            (Profile, "profiles"),
+        ], scenario_name)
+
     async def setup_async_order_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
         """Sets up the database for the async order-related models (AsyncUser, AsyncOrder, AsyncOrderItem) tests."""
         from rhosocial.activerecord.testsuite.feature.query.fixtures.async_models import AsyncUser, AsyncOrder, AsyncOrderItem
@@ -318,6 +326,14 @@ class QueryProvider(IQueryProvider):
             (AsyncMappedComment, "comments")
         ], scenario_name)
 
+    async def setup_async_profile_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord]]:
+        """Sets up the database for AsyncUser and AsyncProfile models."""
+        from rhosocial.activerecord.testsuite.feature.query.fixtures.async_models import AsyncUser, AsyncProfile
+        return await self._setup_multiple_models_async([
+            (AsyncUser, "users"),
+            (AsyncProfile, "profiles"),
+        ], scenario_name)
+
     async def cleanup_after_test_async(self, scenario_name: str) -> None:
         """Performs async cleanup after a test, dropping all tables and disconnecting async backends."""
         from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
@@ -360,7 +376,7 @@ class QueryProvider(IQueryProvider):
         for backend_instance in self._active_backends:
             try:
                 backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
-                for table_name in ['users', 'orders', 'order_items', 'posts', 'comments', 'json_users', 'nodes', 'extended_orders', 'extended_order_items', 'searchable_items']:
+                for table_name in ['users', 'orders', 'order_items', 'posts', 'comments', 'json_users', 'nodes', 'extended_orders', 'extended_order_items', 'searchable_items', 'profiles']:
                     try:
                         backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
                     except Exception:
