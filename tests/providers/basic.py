@@ -33,6 +33,10 @@ from rhosocial.activerecord.testsuite.feature.basic.fixtures.models import (
 from rhosocial.activerecord.testsuite.feature.basic.fixtures.models import (
     BulkUser as BulkUserBase, AsyncBulkUser as AsyncBulkUserBase
 )
+from rhosocial.activerecord.testsuite.feature.basic.fixtures.models import (
+    PydanticValidatedModel as PydanticValidatedModelBase,
+    AsyncPydanticValidatedModel as AsyncPydanticValidatedModelBase,
+)
 
 User310 = TypeCase310 = ValidatedFieldUser310 = TypeTestModel310 = ValidatedUser310 = None
 TypeAdapterTest310 = MappedUser310 = MappedPost310 = MappedComment310 = None
@@ -149,6 +153,9 @@ AsyncColumnMappingModel = _select_model_class(AsyncColumnMappingModelBase, Async
 AsyncMixedAnnotationModel = _select_model_class(AsyncMixedAnnotationModelBase, AsyncMixedAnnotationModel312, AsyncMixedAnnotationModel311, AsyncMixedAnnotationModel310, "AsyncMixedAnnotationModel")
 BulkUser = BulkUserBase
 AsyncBulkUser = AsyncBulkUserBase
+
+PydanticValidatedModel = PydanticValidatedModelBase
+AsyncPydanticValidatedModel = AsyncPydanticValidatedModelBase
 
 from rhosocial.activerecord.testsuite.feature.basic.interfaces import IBasicProvider
 from .scenarios import get_enabled_scenarios, get_scenario
@@ -305,6 +312,14 @@ class BasicProvider(IBasicProvider):
         """Sets up the database for async validated user model tests."""
         return await self._setup_async_model(AsyncValidatedUser, scenario_name, "validated_users")
 
+    def setup_pydantic_validated_model(self, scenario_name: str) -> Type[ActiveRecord]:
+        """Sets up the database for Pydantic validated model tests."""
+        return self._setup_model(PydanticValidatedModel, scenario_name, "pydantic_validated_models")
+
+    async def setup_async_pydantic_validated_model(self, scenario_name: str) -> Type[ActiveRecord]:
+        """Sets up the database for async Pydantic validated model tests."""
+        return await self._setup_async_model(AsyncPydanticValidatedModel, scenario_name, "pydantic_validated_models")
+
     def setup_mapped_models(self, scenario_name: str) -> Tuple[Type[ActiveRecord], Type[ActiveRecord], Type[ActiveRecord]]:
         """Sets up the database for MappedUser, MappedPost, and MappedComment models."""
         return self._setup_multiple_models([
@@ -389,7 +404,8 @@ class BasicProvider(IBasicProvider):
         tables_to_drop = [
             'users', 'type_cases', 'type_tests', 'validated_field_users',
             'validated_users', 'type_adapter_tests', 'posts', 'comments',
-            'column_mapping_items', 'mixed_annotation_items', 'bulk_users'
+            'column_mapping_items', 'mixed_annotation_items', 'bulk_users',
+            'pydantic_validated_models'
         ]
         for backend_instance in self._active_backends:
             try:
@@ -413,7 +429,8 @@ class BasicProvider(IBasicProvider):
         tables_to_drop = [
             'users', 'type_cases', 'type_tests', 'validated_field_users',
             'validated_users', 'type_adapter_tests', 'posts', 'comments',
-            'column_mapping_items', 'mixed_annotation_items', 'bulk_users'
+            'column_mapping_items', 'mixed_annotation_items', 'bulk_users',
+            'pydantic_validated_models'
         ]
         for backend_instance in self._active_async_backends:
             try:
