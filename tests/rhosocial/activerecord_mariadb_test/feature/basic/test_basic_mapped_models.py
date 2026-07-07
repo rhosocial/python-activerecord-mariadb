@@ -16,3 +16,5 @@ from rhosocial.activerecord.testsuite.feature.basic.conftest import mapped_model
 
 # Wildcard import all test cases from the testsuite's test file.
 from rhosocial.activerecord.testsuite.feature.basic.test_example_basic_fixtures import *
+from rhosocial.activerecord.testsuite.feature.basic.test_example_basic_fixtures_async import *  # noqa: F403
+

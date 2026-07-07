@@ -12,3 +12,4 @@ from rhosocial.activerecord.testsuite.feature.query.connection.conftest import (
 
 # Import shared tests from testsuite package
 from rhosocial.activerecord.testsuite.feature.query.connection.test_set_operation_context import *
+from rhosocial.activerecord.testsuite.feature.query.connection.test_set_operation_context_async import *  # noqa: F403

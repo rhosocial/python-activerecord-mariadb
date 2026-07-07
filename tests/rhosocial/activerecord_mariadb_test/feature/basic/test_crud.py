@@ -33,3 +33,5 @@ from rhosocial.activerecord.testsuite.feature.basic.conftest import (
 # from the generic testsuite file into this module's scope. `pytest` then
 # discovers and runs them as if they were defined directly in this file.
 from rhosocial.activerecord.testsuite.feature.basic.test_crud import *
+from rhosocial.activerecord.testsuite.feature.basic.test_crud_async import *  # noqa: F403
+
