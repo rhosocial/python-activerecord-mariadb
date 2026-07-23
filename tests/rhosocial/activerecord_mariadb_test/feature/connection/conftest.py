@@ -14,8 +14,8 @@ import pytest
 import pytest_asyncio
 import yaml
 
-from rhosocial.activerecord.backend.impl.mysql import MariaDBBackend, AsyncMariaDBBackend
-from rhosocial.activerecord.backend.impl.mysql.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend, AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.connection.pool import (
     PoolConfig,
     BackendPool,
@@ -46,22 +46,22 @@ def register_scenario(name: str, config: Dict[str, Any]):
 def _load_scenarios_from_config():
     """Load scenarios from a configuration file."""
     config_path = None
-    env_config_path = os.getenv("MYSQL_SCENARIOS_CONFIG_PATH")
+    env_config_path = os.getenv("MARIADB_SCENARIOS_CONFIG_PATH")
 
     if env_config_path and os.path.exists(env_config_path):
         config_path = env_config_path
     else:
-        default_path = os.path.join(os.path.dirname(__file__), "../../../../config", "mysql_scenarios.yaml")
+        default_path = os.path.join(os.path.dirname(__file__), "../../../../config", "mariadb_scenarios.yaml")
         if os.path.exists(default_path):
             config_path = default_path
         elif env_config_path:
-            print(f"Warning: Scenario file specified in MYSQL_SCENARIOS_CONFIG_PATH not found: {env_config_path}")
+            print(f"Warning: Scenario file specified in MARIADB_SCENARIOS_CONFIG_PATH not found: {env_config_path}")
             return
 
     if not config_path:
         raise FileNotFoundError(
             "No MariaDB scenarios configuration file found. "
-            "Set MYSQL_SCENARIOS_CONFIG_PATH or place mysql_scenarios.yaml in tests/config."
+            "Set MARIADB_SCENARIOS_CONFIG_PATH or place mariadb_scenarios.yaml in tests/config."
         )
 
     try:
@@ -131,7 +131,7 @@ def create_async_mysql_backend_factory(config_dict: Dict[str, Any]):
 
 
 @pytest.fixture(scope="function", params=get_scenario_names())
-def mysql_pool(request) -> Generator[BackendPool, None, None]:
+def mariadb_pool(request) -> Generator[BackendPool, None, None]:
     """Create a BackendPool with MariaDB backends for testing."""
     scenario_name = request.param
     config_dict = get_scenario_config(scenario_name).copy()
@@ -151,7 +151,7 @@ def mysql_pool(request) -> Generator[BackendPool, None, None]:
 
 
 @pytest_asyncio.fixture(scope="function", params=get_scenario_names())
-async def async_mysql_pool(request) -> AsyncBackendPool:
+async def async_mariadb_pool(request) -> AsyncBackendPool:
     """Create an AsyncBackendPool with MariaDB backends for testing."""
     scenario_name = request.param
     config_dict = get_scenario_config(scenario_name).copy()
@@ -171,7 +171,7 @@ async def async_mysql_pool(request) -> AsyncBackendPool:
 
 
 @pytest.fixture(scope="function", params=get_scenario_names())
-def mysql_pool_large(request) -> Generator[BackendPool, None, None]:
+def mariadb_pool_large(request) -> Generator[BackendPool, None, None]:
     """Create a larger BackendPool for stress testing."""
     scenario_name = request.param
     config_dict = get_scenario_config(scenario_name).copy()
@@ -190,7 +190,7 @@ def mysql_pool_large(request) -> Generator[BackendPool, None, None]:
 
 
 @pytest_asyncio.fixture(scope="function", params=get_scenario_names())
-async def async_mysql_pool_large(request) -> AsyncBackendPool:
+async def async_mariadb_pool_large(request) -> AsyncBackendPool:
     """Create a larger AsyncBackendPool for stress testing."""
     scenario_name = request.param
     config_dict = get_scenario_config(scenario_name).copy()
@@ -212,9 +212,9 @@ async def async_mysql_pool_large(request) -> AsyncBackendPool:
 
 
 @pytest.fixture(scope="function")
-def mysql_pool_with_tables(mysql_pool: BackendPool) -> Generator[BackendPool, None, None]:
+def mariadb_pool_with_tables(mariadb_pool: BackendPool) -> Generator[BackendPool, None, None]:
     """Create a pool with test tables initialized."""
-    with mysql_pool.connection() as backend:
+    with mariadb_pool.connection() as backend:
         backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
         backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
         backend.execute("""
@@ -235,17 +235,17 @@ def mysql_pool_with_tables(mysql_pool: BackendPool) -> Generator[BackendPool, No
             )
         """)
 
-    yield mysql_pool
+    yield mariadb_pool
 
-    with mysql_pool.connection() as backend:
+    with mariadb_pool.connection() as backend:
         backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
         backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_mysql_pool_with_tables(async_mysql_pool: AsyncBackendPool) -> AsyncBackendPool:
+async def async_mariadb_pool_with_tables(async_mariadb_pool: AsyncBackendPool) -> AsyncBackendPool:
     """Create an async pool with test tables initialized."""
-    async with async_mysql_pool.connection() as backend:
+    async with async_mariadb_pool.connection() as backend:
         await backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
         await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
         await backend.execute("""
@@ -266,8 +266,8 @@ async def async_mysql_pool_with_tables(async_mysql_pool: AsyncBackendPool) -> As
             )
         """)
 
-    yield async_mysql_pool
+    yield async_mariadb_pool
 
-    async with async_mysql_pool.connection() as backend:
+    async with async_mariadb_pool.connection() as backend:
         await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
         await backend.execute("DROP TABLE IF EXISTS concurrent_test_users")

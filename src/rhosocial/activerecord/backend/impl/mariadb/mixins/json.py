@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression import bases
+    from rhosocial.activerecord.backend.expression.advanced_functions import JSONExpression
     from rhosocial.activerecord.backend.expression.query_sources import JSONTableExpression
 
 
@@ -103,6 +105,41 @@ class MariaDBJSONMixin:
         if self.version >= MARIADB_VERSION_BOUNDARIES['JSON_ARROWS']:
             return "->"
         return ""
+
+    def format_json_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
+        """Format JSON expression for MariaDB.
+
+        MariaDB's -> and ->> operators require:
+        1. The JSON path as a string literal, not a parameter placeholder
+        2. No parentheses around the expression (unlike PostgreSQL)
+
+        Args:
+            expr: JSONExpression instance.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        if isinstance(expr.column, bases.BaseExpression):
+            col_sql, col_params = expr.column.to_sql()
+        else:
+            col_sql, col_params = self.format_identifier(str(expr.column)), ()
+
+        if expr.operation in ("->", "->>"):
+            escaped_path = self._escape_sql_string(expr.path)
+            sql = f"{col_sql}{expr.operation}'{escaped_path}'"
+            params = col_params
+        else:
+            sql = f"({col_sql} {expr.operation} {self.get_parameter_placeholder()})"
+            params = col_params + (expr.path,)
+
+        if expr.cast_types:
+            for target_type in expr.cast_types:
+                sql, params = self.format_cast_expression(sql, target_type, params, None)
+
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+
+        return sql, params
 
     def supports_json_table(self) -> bool:
         """Whether JSON_TABLE function is supported.

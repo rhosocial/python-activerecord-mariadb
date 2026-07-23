@@ -116,9 +116,9 @@ class MariaDBLockingMixin:
         else:
             parts.append("FOR UPDATE")
 
-        if clause.tables:
+        if clause.of_columns:
             tables_sql = ", ".join(
-                self.format_identifier(t) for t in clause.tables
+                self.format_identifier(t) for t in clause.of_columns
             )
             parts.append(f"OF {tables_sql}")
 

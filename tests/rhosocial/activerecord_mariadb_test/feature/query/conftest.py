@@ -6,14 +6,14 @@ This file imports fixtures from the corresponding testsuite, making them
 available to the tests in this directory.
 """
 
-# Keep these explicit backend fixture imports: query tests use mysql_backend
+# Keep these explicit backend fixture imports: query tests use mariadb_backend
 # fixtures from the sibling backend test tree, which pytest will not load by
 # directory ancestry. The imported names are consumed by pytest fixture lookup.
 from rhosocial.activerecord_mariadb_test.feature.backend.conftest import (  # noqa: F401
-    async_mysql_backend,
-    async_mysql_backend_single,
-    mysql_backend,
-    mysql_backend_single,
+    async_mariadb_backend,
+    async_mariadb_backend_single,
+    mariadb_backend,
+    mariadb_backend_single,
 )
 
 from rhosocial.activerecord.testsuite.feature.query.conftest import *  # noqa: F403
