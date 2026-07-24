@@ -83,10 +83,10 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def supports_json_arrows(self) -> bool:
+    def supports_json_arrow_operators(self) -> bool:
         """Whether JSON arrow operators (-> and ->>) are supported.
 
-        MariaDB 10.2.7+ supports JSON arrow operators.
+        MariaDB does NOT support JSON arrow operators.
         """
         ...
 

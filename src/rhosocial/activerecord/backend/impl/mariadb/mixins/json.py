@@ -7,9 +7,9 @@ JSON arrow operators (-> and ->>).
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
+from rhosocial.activerecord.backend.expression import bases
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression import bases
     from rhosocial.activerecord.backend.expression.advanced_functions import JSONExpression
     from rhosocial.activerecord.backend.expression.query_sources import JSONTableExpression
 
@@ -84,53 +84,49 @@ class MariaDBJSONMixin:
         }
         return function_name.lower() in json_functions
 
-    def supports_json_arrows(self) -> bool:
-        """Whether JSON arrow operators are supported.
+    def supports_json_arrow_operators(self) -> bool:
+        """Whether JSON arrow operators (-> and ->>) are supported.
 
-        MariaDB 10.2.7+ supports JSON arrow operators (-> and ->>).
-
-        Returns:
-            True if MariaDB version >= 10.2.7.
+        MariaDB does NOT support JSON arrow operators.
+        It uses JSON_EXTRACT/JSON_UNQUOTE/JSON_VALUE functions instead.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_ARROWS']
+        return False
+
+    def supports_json_arrows(self) -> bool:
+        """Deprecated alias for supports_json_arrow_operators."""
+        return self.supports_json_arrow_operators()
 
     def get_json_access_operator(self) -> str:
         """Get JSON access operator.
 
-        MariaDB 10.2.7+ uses -> for JSON access.
-
-        Returns:
-            '->' if supported, empty string otherwise.
+        MariaDB does not support arrow operators, so returns empty string.
         """
-        if self.version >= MARIADB_VERSION_BOUNDARIES['JSON_ARROWS']:
-            return "->"
         return ""
 
-    def format_json_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
-        """Format JSON expression for MariaDB.
+    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
+        """Format JSON expression using function-based equivalents.
 
-        MariaDB's -> and ->> operators require:
-        1. The JSON path as a string literal, not a parameter placeholder
-        2. No parentheses around the expression (unlike PostgreSQL)
-
-        Args:
-            expr: JSONExpression instance.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
+        MariaDB does NOT support -> and ->> operators.
+        Instead, it uses function-based alternatives:
+        - `->`  → JSON_EXTRACT(column, path)
+        - `->>` → JSON_UNQUOTE(JSON_EXTRACT(column, path))
         """
         if isinstance(expr.column, bases.BaseExpression):
             col_sql, col_params = expr.column.to_sql()
         else:
             col_sql, col_params = self.format_identifier(str(expr.column)), ()
 
-        if expr.operation in ("->", "->>"):
-            escaped_path = self._escape_sql_string(expr.path)
-            sql = f"{col_sql}{expr.operation}'{escaped_path}'"
+        escaped_path = self._escape_sql_string(expr.path)
+
+        if expr.operation == "->":
+            sql = f"JSON_EXTRACT({col_sql}, '{escaped_path}')"
+            params = col_params
+        elif expr.operation == "->>":
+            sql = f"JSON_UNQUOTE(JSON_EXTRACT({col_sql}, '{escaped_path}'))"
             params = col_params
         else:
-            sql = f"({col_sql} {expr.operation} {self.get_parameter_placeholder()})"
-            params = col_params + (expr.path,)
+            sql = f"{col_sql} {expr.operation} '{escaped_path}'"
+            params = col_params
 
         if expr.cast_types:
             for target_type in expr.cast_types:
@@ -392,29 +388,21 @@ class MariaDBJSONMixin:
     ) -> Tuple[str, tuple]:
         """Format JSON arrow operator (-> or ->>).
 
-        MariaDB 10.2.7+ supports this syntax.
+        MariaDB does NOT support arrow operators. Instead, use JSON_EXTRACT
+        and JSON_UNQUOTE functions to emulate the same behavior.
 
         Args:
             json_doc: JSON document or column name.
             path: JSON path expression.
-            unquote: If True, use ->> (unquoted result).
+            unquote: If True, emulate ->> (unquoted result).
 
         Returns:
             Tuple of (SQL string, parameters tuple).
-
-        Raises:
-            UnsupportedFeatureError: If arrow operators not supported.
         """
-        if not self.supports_json_arrows():
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-            raise UnsupportedFeatureError(
-                self.name,
-                "JSON arrow operators",
-                "JSON arrow operators (-> and ->>) require MariaDB 10.2.7 or later."
-            )
-
-        op = "->>" if unquote else "->"
-        return f"{json_doc}{op}'{path}'", ()
+        escaped_path = self._escape_sql_string(path)
+        if unquote:
+            return f"JSON_UNQUOTE(JSON_EXTRACT({json_doc}, '{escaped_path}'))", ()
+        return f"JSON_EXTRACT({json_doc}, '{escaped_path}')", ()
 
     def format_json_merge(
         self,
