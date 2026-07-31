@@ -475,6 +475,17 @@ class MariaDBDialect(
         """MariaDB uses ON DUPLICATE KEY UPDATE syntax."""
         return "ON DUPLICATE KEY"
 
+    def supports_on_conflict_clause(self) -> bool:
+        """Whether INSERT can carry an ON CONFLICT style clause.
+
+        MariaDB expresses upsert via the ON DUPLICATE KEY UPDATE clause.
+        """
+        return True
+
+    def supports_multiple_on_conflict_clauses(self) -> bool:
+        """MariaDB ON DUPLICATE KEY UPDATE allows only a single clause."""
+        return False
+
     def supports_explain_analyze(self) -> bool:
         """EXPLAIN ANALYZE is supported since MariaDB 10.6."""
         return self.version >= MARIADB_VERSION_BOUNDARIES['EXPLAIN_FORMAT']

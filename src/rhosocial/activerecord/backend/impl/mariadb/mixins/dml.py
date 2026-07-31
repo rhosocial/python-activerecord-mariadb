@@ -176,7 +176,7 @@ class MariaDBDMLOperationMixin:
         sql = ' '.join(parts)
 
         if expr.on_conflict:
-            conflict_sql, conflict_params = expr.on_conflict.to_sql()
+            conflict_sql, conflict_params = self.format_on_conflict_clauses(expr)
             sql += f" {conflict_sql}"
             all_params.extend(conflict_params)
 
@@ -198,12 +198,31 @@ class MariaDBDMLOperationMixin:
         """Format ON DUPLICATE KEY UPDATE clause (MariaDB upsert).
 
         Args:
-            expr: OnConflictExpression or equivalent instance.
+            expr: OnConflictClause instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        return expr.to_sql()
+        all_params = []
+        parts = ["ON DUPLICATE KEY UPDATE"]
+
+        update_parts = []
+        if expr.update_assignments:
+            for col_name, value_expr in expr.update_assignments.items():
+                col_sql = self.format_identifier(col_name)
+                if hasattr(value_expr, "to_sql"):
+                    val_sql, val_params = value_expr.to_sql()
+                    all_params.extend(val_params)
+                else:
+                    val_sql = str(value_expr)
+                update_parts.append(f"{col_sql} = {val_sql}")
+
+        if update_parts:
+            parts.append(" ".join(update_parts))
+        else:
+            parts.append(f"{self.format_identifier('id')} = {self.format_identifier('id')}")
+
+        return " ".join(parts), tuple(all_params)
 
     def format_load_data_statement(self, expr) -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
