@@ -90,6 +90,14 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
+    def supports_json_arrows(self) -> bool:
+        """Deprecated singular alias for :meth:`supports_json_arrow_operators`.
+
+        Kept for backwards compatibility with callers that predate the
+        pluralised rename. MariaDB does NOT support JSON arrow operators.
+        """
+        ...
+
     def format_json_extract(
         self,
         json_doc: str,
