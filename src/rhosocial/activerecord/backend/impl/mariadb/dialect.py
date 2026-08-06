@@ -117,6 +117,8 @@ from .mixins import (
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
     MariaDBTypeSupportMixin,
+    MariaDBAlterColumnModifierMixin,
+    MariaDBAlterConstraintModifierMixin,
     MARIADB_VERSION_BOUNDARIES,
 )
 from .collation import validate_mariadb_collation_name
@@ -187,6 +189,8 @@ class MariaDBDialect(
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
     MariaDBTypeSupportMixin,
+    MariaDBAlterColumnModifierMixin,
+    MariaDBAlterConstraintModifierMixin,
     CollationMixin,
     CTEMixin,
     WindowFunctionMixin,

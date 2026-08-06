@@ -41,6 +41,8 @@ from .modify_column import MariaDBModifyColumnMixin
 from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
 from .partition import MariaDBPartitionMixin
 from .types import MariaDBTypeSupportMixin
+from .ddl.column import MariaDBAlterColumnModifierMixin
+from .ddl.constraint import MariaDBAlterConstraintModifierMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -63,4 +65,6 @@ __all__ = [
     'AsyncMariaDBConcurrencyMixin',
     'MariaDBPartitionMixin',
     'MariaDBTypeSupportMixin',
+    'MariaDBAlterColumnModifierMixin',
+    'MariaDBAlterConstraintModifierMixin',
 ]
