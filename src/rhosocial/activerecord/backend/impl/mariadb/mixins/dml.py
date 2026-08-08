@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
         InsertExpression,
     )
+    from ..expression.load_data import MariaDBLoadDataExpression
 
 
 class MariaDBDMLOperationMixin:
@@ -224,7 +225,7 @@ class MariaDBDMLOperationMixin:
 
         return " ".join(parts), tuple(all_params)
 
-    def format_load_data_statement(self, expr) -> Tuple[str, tuple]:
+    def format_load_data_statement(self, expr: "MariaDBLoadDataExpression") -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
 
         Args:
@@ -289,7 +290,7 @@ class MariaDBDMLOperationMixin:
 
         return ' '.join(parts), ()
 
-    def format_replace_statement(self, expr) -> Tuple[str, tuple]:
+    def format_replace_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
         """Format REPLACE INTO statement.
 
         REPLACE INTO is a MariaDB/MySQL extension that either:
