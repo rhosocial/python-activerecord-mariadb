@@ -37,6 +37,8 @@ jobs:
           - { python-version: '3.14', mariadb-version: '11.8', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
           - { python-version: '3.14t', mariadb-version: '12.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
           - { python-version: '3.14t', mariadb-version: '12.2', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.15.0-rc.1', mariadb-version: '12.3', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.15.0-rc.1t', mariadb-version: '13.0-rc', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
 
     services:
       mariadb:
