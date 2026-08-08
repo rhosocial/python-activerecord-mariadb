@@ -41,8 +41,14 @@ from .modify_column import MariaDBModifyColumnMixin
 from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
 from .partition import MariaDBPartitionMixin
 from .types import MariaDBTypeSupportMixin
+from .rename_table import MariaDBRenameTableMixin
+from .truncate import MariaDBTruncateMixin
 from .ddl.column import MariaDBAlterColumnModifierMixin
 from .ddl.constraint import MariaDBAlterConstraintModifierMixin
+from .ddl.alter_table import MariaDBAlterTableMixin
+from .ddl.maintenance import MariaDBMaintenanceMixin
+from .ddl.routine import MariaDBRoutineMixin
+from .ddl.admin import MariaDBAdminMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -67,4 +73,10 @@ __all__ = [
     'MariaDBTypeSupportMixin',
     'MariaDBAlterColumnModifierMixin',
     'MariaDBAlterConstraintModifierMixin',
+    'MariaDBRenameTableMixin',
+    'MariaDBTruncateMixin',
+    'MariaDBAlterTableMixin',
+    'MariaDBMaintenanceMixin',
+    'MariaDBRoutineMixin',
+    'MariaDBAdminMixin',
 ]

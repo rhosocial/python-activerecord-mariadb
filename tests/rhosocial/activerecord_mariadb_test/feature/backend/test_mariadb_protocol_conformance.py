@@ -10,7 +10,6 @@ This test ensures:
 import inspect
 import sys
 from itertools import combinations
-from typing import Protocol
 
 if sys.version_info >= (3, 13):
     from typing import get_protocol_members
@@ -104,6 +103,11 @@ MYSQL_PROTOCOLS = [
     mysql_protocols.MariaDBFullTextSearchSupport,
     mysql_protocols.MariaDBLockingSupport,
     mysql_protocols.MariaDBModifyColumnSupport,
+    mysql_protocols.MariaDBRenameTableSupport,
+    mysql_protocols.MariaDBAlterTableSupport,
+    mysql_protocols.MariaDBMaintenanceSupport,
+    mysql_protocols.MariaDBRoutineSupport,
+    mysql_protocols.MariaDBAdminSupport,
 ]
 
 
@@ -151,6 +155,15 @@ class TestProtocolNonOverlap:
             # MySQL fulltext search includes index capabilities
             ('IndexSupport', 'MariaDBFullTextSearchSupport'),
             ('MariaDBFullTextSearchSupport', 'IndexSupport'),
+            # Rename table shares capability detection with generic TableSupport
+            ('TableSupport', 'MariaDBRenameTableSupport'),
+            ('MariaDBRenameTableSupport', 'TableSupport'),
+            # ... including the MariaDB-specific table protocol
+            ('MariaDBTableSupport', 'MariaDBRenameTableSupport'),
+            ('MariaDBRenameTableSupport', 'MariaDBTableSupport'),
+            # Rename index is an ALTER TABLE capability overlapping generic TableSupport
+            ('TableSupport', 'MariaDBAlterTableSupport'),
+            ('MariaDBAlterTableSupport', 'TableSupport'),
         }
 
         violations = []

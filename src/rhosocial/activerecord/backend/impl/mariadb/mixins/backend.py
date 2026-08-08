@@ -29,6 +29,14 @@ MARIADB_VERSION_BOUNDARIES = {
     'EXPLAIN_FORMAT': (10, 6, 0),
     'INSTEAD_OF_TRIGGER': (10, 4, 0),
     'SKIP_LOCKED': (10, 3, 0),
+    'RENAME_TABLE_IF_EXISTS': (10, 5, 0),
+    'RENAME_TABLE_WAIT': (10, 3, 0),
+    'TRUNCATE_WAIT': (10, 3, 0),
+    'ROUTINE_OR_REPLACE': (10, 1, 3),
+    'ROUTINE_IF_NOT_EXISTS': (10, 1, 3),
+    'GRANT_OR_REPLACE': (10, 1, 4),
+    'GRANT_IF_EXISTS': (10, 1, 4),
+    'DENY': (13, 1, 0),
 }
 
 

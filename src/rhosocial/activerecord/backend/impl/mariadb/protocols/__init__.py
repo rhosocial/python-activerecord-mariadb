@@ -45,6 +45,11 @@ from .system_versioning import MariaDBSystemVersioningSupport
 from .table import MariaDBTableSupport
 from .trigger import MariaDBTriggerSupport
 from .window_function import MariaDBWindowFunctionSupport
+from .rename_table import MariaDBRenameTableSupport
+from .alter_table import MariaDBAlterTableSupport
+from .maintenance import MariaDBMaintenanceSupport
+from .routine import MariaDBRoutineSupport
+from .admin import MariaDBAdminSupport
 
 __all__ = [
     'MariaDBDMLOperationSupport',
@@ -63,4 +68,9 @@ __all__ = [
     'MariaDBWindowFunctionSupport',
     'MariaDBCTESupport',
     'MariaDBPartitionSupport',
+    'MariaDBRenameTableSupport',
+    'MariaDBAlterTableSupport',
+    'MariaDBMaintenanceSupport',
+    'MariaDBRoutineSupport',
+    'MariaDBAdminSupport',
 ]

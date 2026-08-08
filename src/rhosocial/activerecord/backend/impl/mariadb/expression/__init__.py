@@ -31,6 +31,34 @@ from .spatial import (
 )
 from .match_against import MariaDBMatchAgainstExpression, MatchAgainstMode
 from .locking import MariaDBForUpdateClause, MariaDBLockStrength
+from .rename_table import MariaDBRenameTableExpression
+from .rename_index import MariaDBRenameIndexExpression
+from .routine import (
+    MariaDBCallExpression,
+    MariaDBCreateFunctionExpression,
+    MariaDBCreateProcedureExpression,
+    MariaDBDropFunctionExpression,
+    MariaDBDropProcedureExpression,
+)
+from .admin import (
+    AccountSpec,
+    GrantPrivilege,
+    MariaDBAlterUserExpression,
+    MariaDBCreateRoleExpression,
+    MariaDBCreateUserExpression,
+    MariaDBDenyExpression,
+    MariaDBDropRoleExpression,
+    MariaDBDropUserExpression,
+    MariaDBFlushExpression,
+    MariaDBGrantExpression,
+    MariaDBKillExpression,
+    MariaDBRevokeExpression,
+    MariaDBShutdownExpression,
+)
+from .maintenance import (
+    MariaDBTableMaintenanceExpression,
+    TableMaintenanceOperation,
+)
 
 # DataType subclasses for DDL
 from .types import (
@@ -80,6 +108,28 @@ __all__ = [
     "MatchAgainstMode",
     "MariaDBForUpdateClause",
     "MariaDBLockStrength",
+    "MariaDBRenameTableExpression",
+    "MariaDBRenameIndexExpression",
+    "MariaDBTableMaintenanceExpression",
+    "TableMaintenanceOperation",
+    "MariaDBCallExpression",
+    "MariaDBCreateFunctionExpression",
+    "MariaDBCreateProcedureExpression",
+    "MariaDBDropFunctionExpression",
+    "MariaDBDropProcedureExpression",
+    "AccountSpec",
+    "GrantPrivilege",
+    "MariaDBAlterUserExpression",
+    "MariaDBCreateRoleExpression",
+    "MariaDBCreateUserExpression",
+    "MariaDBDenyExpression",
+    "MariaDBDropRoleExpression",
+    "MariaDBDropUserExpression",
+    "MariaDBFlushExpression",
+    "MariaDBGrantExpression",
+    "MariaDBKillExpression",
+    "MariaDBRevokeExpression",
+    "MariaDBShutdownExpression",
     "MariaDBBigIntType",
     "MariaDBBinaryType",
     "MariaDBBitType",

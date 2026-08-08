@@ -119,6 +119,12 @@ from .mixins import (
     MariaDBTypeSupportMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
+    MariaDBRenameTableMixin,
+    MariaDBTruncateMixin,
+    MariaDBAlterTableMixin,
+    MariaDBMaintenanceMixin,
+    MariaDBRoutineMixin,
+    MariaDBAdminMixin,
     MARIADB_VERSION_BOUNDARIES,
 )
 from .collation import validate_mariadb_collation_name
@@ -142,12 +148,21 @@ from .protocols import (
     MariaDBWindowFunctionSupport,
     MariaDBCTESupport,
     MariaDBPartitionSupport,
+    MariaDBRenameTableSupport,
+    MariaDBAlterTableSupport,
+    MariaDBMaintenanceSupport,
+    MariaDBRoutineSupport,
+    MariaDBAdminSupport,
 )
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression import bases
     from rhosocial.activerecord.backend.expression.collation import CollateExpression
-    from rhosocial.activerecord.backend.expression.statements import ReturningClause
+    from rhosocial.activerecord.backend.expression.statements import (
+        InsertExpression,
+        ReturningClause,
+    )
+    from .expression.load_data import MariaDBLoadDataExpression
 
 MARIADB_VERSION_BOUNDARIES = {
     'WINDOW_FUNCTIONS': (10, 2, 0),
@@ -161,6 +176,14 @@ MARIADB_VERSION_BOUNDARIES = {
     'EXPLAIN_FORMAT': (10, 6, 0),
     'INSTEAD_OF_TRIGGER': (10, 4, 0),
     'SKIP_LOCKED': (10, 3, 0),
+    'RENAME_TABLE_IF_EXISTS': (10, 5, 0),
+    'RENAME_TABLE_WAIT': (10, 3, 0),
+    'TRUNCATE_WAIT': (10, 3, 0),
+    'ROUTINE_OR_REPLACE': (10, 1, 3),
+    'ROUTINE_IF_NOT_EXISTS': (10, 1, 3),
+    'GRANT_OR_REPLACE': (10, 1, 4),
+    'GRANT_IF_EXISTS': (10, 1, 4),
+    'DENY': (13, 1, 0),
 }
 
 _SUGGESTION_ARRAY = "MariaDB does not support native array types. Use JSON arrays instead."
@@ -191,6 +214,11 @@ class MariaDBDialect(
     MariaDBTypeSupportMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
+    MariaDBRenameTableMixin,
+    MariaDBAlterTableMixin,
+    MariaDBMaintenanceMixin,
+    MariaDBRoutineMixin,
+    MariaDBAdminMixin,
     CollationMixin,
     CTEMixin,
     WindowFunctionMixin,
@@ -213,6 +241,7 @@ class MariaDBDialect(
     OrderedSetAggregationMixin,
     GraphMixin,
     TableMixin,
+    MariaDBTruncateMixin,
     TruncateMixin,
     SchemaMixin,
     IndexMixin,
@@ -278,6 +307,11 @@ class MariaDBDialect(
     MariaDBWindowFunctionSupport,
     MariaDBCTESupport,
     MariaDBPartitionSupport,
+    MariaDBRenameTableSupport,
+    MariaDBAlterTableSupport,
+    MariaDBMaintenanceSupport,
+    MariaDBRoutineSupport,
+    MariaDBAdminSupport,
 ):
     """MariaDB dialect implementation that adapts to the MariaDB version.
 
@@ -305,18 +339,18 @@ class MariaDBDialect(
         if version is not None:
             self.version = version
 
-    def format_insert_statement(self, expr):
+    def format_insert_statement(self, expr: "InsertExpression"):
         """Delegate INSERT formatting to MariaDBDMLOperationMixin."""
         # Explicit override to ensure MariaDB's INSERT IGNORE / REPLACE INTO logic is used
         from .mixins.dml import MariaDBDMLOperationMixin
         return MariaDBDMLOperationMixin.format_insert_statement(self, expr)
 
-    def format_replace_statement(self, expr):
+    def format_replace_statement(self, expr: "InsertExpression"):
         """Delegate REPLACE formatting to MariaDBDMLOperationMixin."""
         from .mixins.dml import MariaDBDMLOperationMixin
         return MariaDBDMLOperationMixin.format_replace_statement(self, expr)
 
-    def format_load_data_statement(self, expr):
+    def format_load_data_statement(self, expr: "MariaDBLoadDataExpression"):
         """Delegate LOAD DATA formatting to MariaDBDMLOperationMixin."""
         from .mixins.dml import MariaDBDMLOperationMixin
         return MariaDBDMLOperationMixin.format_load_data_statement(self, expr)
