@@ -77,12 +77,14 @@ def _load_scenarios_from_config():
 
 
 def _apply_scenario_filter():
-    """Filter SCENARIO_MAP based on MARIADB_ACTIVE_SCENARIOS env var.
+    """Filter SCENARIO_MAP based on the active scenarios env var.
 
-    The env var is set by the --scenarios pytest option in the root conftest.
-    It contains comma-separated full scenario names (e.g., "mariadb_102,mariadb_122").
+    The env var is set either by the --scenarios pytest option in the
+    testsuite's root conftest (TESTSUITE_ACTIVE_SCENARIOS) or by a backend
+    local override (MARIADB_ACTIVE_SCENARIOS). It contains comma-separated
+    full scenario names (e.g., "mariadb_102,mariadb_122").
     """
-    filter_str = os.getenv("MARIADB_ACTIVE_SCENARIOS")
+    filter_str = os.getenv("MARIADB_ACTIVE_SCENARIOS") or os.getenv("TESTSUITE_ACTIVE_SCENARIOS")
     if not filter_str:
         return
 
