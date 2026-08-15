@@ -51,6 +51,8 @@ from .types import (
     ShowProcessListResult,
 )
 from .dialect import MariaDBShowDialectMixin
+from .functionality import MariaDBShowFunctionality, AsyncMariaDBShowFunctionality
+from .backend_mixin import MariaDBShowMixin, AsyncMariaDBShowMixin
 
 __all__ = [
     # Base expression
@@ -96,4 +98,10 @@ __all__ = [
     "ShowProcessListResult",
     # Dialect
     "MariaDBShowDialectMixin",
+    # Functionality classes
+    "MariaDBShowFunctionality",
+    "AsyncMariaDBShowFunctionality",
+    # Backend mixins
+    "MariaDBShowMixin",
+    "AsyncMariaDBShowMixin",
 ]

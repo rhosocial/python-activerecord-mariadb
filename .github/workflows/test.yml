@@ -1,17 +1,181 @@
-name: Python Test and Coverage
+# .github/workflows/test.yml
+name: Python Test and Coverage with MariaDB
 
 on:
   push:
     branches:
       - main
+      - "release/v**"
+      - "maint/**"
   pull_request:
     branches:
       - main
+      - "release/v**"
+      - "maint/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
 
 jobs:
-  test-py313:
-    name: Run tests with Python 3.13 and all databases
+  test:
+    name: Python ${{ matrix.python-version }} / MariaDB ${{ matrix.mariadb-version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python-version: '3.9', mariadb-version: '10.2', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.10', mariadb-version: '10.3', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.11', mariadb-version: '10.4', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.12', mariadb-version: '10.5', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.12', mariadb-version: '10.6', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.13', mariadb-version: '10.11', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.13', mariadb-version: '11.4', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.14', mariadb-version: '11.7', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.14', mariadb-version: '11.8', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.14t', mariadb-version: '12.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.14t', mariadb-version: '12.2', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+
+    services:
+      mariadb:
+        image: mariadb:${{ matrix.mariadb-version }}
+        env:
+          MARIADB_ROOT_PASSWORD: password
+          MARIADB_DATABASE: test_db
+        options: >-
+          --health-cmd="${{ matrix.health-cmd }}"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+        ports:
+          - 3306:3306
+
     steps:
-    - name: Dummy success step
-      run: echo "Skipping all tests for demo purpose" && exit 0
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[test]"
+          pip install -r requirements-dev.txt
+
+      - name: Install activerecord and testsuite
+        run: |
+          pip install rhosocial-activerecord==1.0.0.dev29
+          pip install rhosocial-activerecord-testsuite==1.0.0.dev16
+
+      - name: Create MariaDB scenario config
+        run: |
+          cat > mariadb_scenarios.yaml << EOF
+          scenarios:
+            mariadb_default:
+              host: 127.0.0.1
+              port: 3306
+              database: test_db
+              username: root
+              password: password
+              charset: utf8mb4
+              autocommit: true
+              ssl_disabled: true
+          EOF
+          echo "MARIADB_SCENARIOS_CONFIG_PATH=$(pwd)/mariadb_scenarios.yaml" >> $GITHUB_ENV
+
+      - name: Run tests (skip for coverage job)
+        if: matrix.mariadb-version != '11.8'
+        run: |
+          export PYTHONPATH=src
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short
+
+      - name: Run tests with coverage (only for MariaDB 11.8)
+        if: matrix.mariadb-version == '11.8'
+        run: |
+          export PYTHONPATH=src
+          pip install codecov
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=src --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.mariadb-version == '11.8'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests,python-${{ matrix.python-version }},mariadb-${{ matrix.mariadb-version }}
+          name: codecov-mariadb-${{ matrix.python-version }}-${{ matrix.mariadb-version }}
+          fail_ci_if_error: false
+
+  test-experimental-python-315:
+    name: Python ${{ matrix.python-version }}${{ matrix.freethreaded && 't' || '' }} / MariaDB ${{ matrix.mariadb-version }} (experimental)
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python-version: '3.15.0-rc.1', mariadb-version: '12.3', freethreaded: false }
+          - { python-version: '3.15.0-rc.1', mariadb-version: '13.0-rc', freethreaded: true }
+
+    services:
+      mariadb:
+        image: mariadb:${{ matrix.mariadb-version }}
+        env:
+          MARIADB_ROOT_PASSWORD: password
+          MARIADB_DATABASE: test_db
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -u root -ppassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}${{ matrix.freethreaded && ' free-threaded' || '' }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          freethreaded: ${{ matrix.freethreaded }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[test]"
+          pip install -r requirements-dev.txt
+
+      - name: Install activerecord and testsuite
+        run: |
+          pip install rhosocial-activerecord==1.0.0.dev29
+          pip install rhosocial-activerecord-testsuite==1.0.0.dev16
+
+      - name: Create MariaDB scenario config
+        run: |
+          cat > mariadb_scenarios.yaml << EOF
+          scenarios:
+            mariadb_default:
+              host: 127.0.0.1
+              port: 3306
+              database: test_db
+              username: root
+              password: password
+              charset: utf8mb4
+              autocommit: true
+              ssl_disabled: true
+          EOF
+          echo "MARIADB_SCENARIOS_CONFIG_PATH=$(pwd)/mariadb_scenarios.yaml" >> $GITHUB_ENV
+
+      - name: Run tests
+        run: |
+          export PYTHONPATH=src
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short

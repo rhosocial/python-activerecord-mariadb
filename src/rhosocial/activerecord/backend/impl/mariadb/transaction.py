@@ -4,7 +4,7 @@
 import logging
 from typing import Dict, Optional
 
-from rhosocial.activerecord.backend.transaction import TransactionManager, IsolationLevel, TransactionState
+from rhosocial.activerecord.backend.transaction import TransactionManager, IsolationLevel, TransactionState, TransactionMode
 from rhosocial.activerecord.backend.errors import TransactionError
 
 
@@ -73,16 +73,22 @@ class MariaDBTransactionMixin:
 class MariaDBTransactionManager(MariaDBTransactionMixin, TransactionManager):
     """MariaDB transaction manager implementation."""
 
-    def __init__(self, connection, logger=None):
+    def __init__(self, backend, logger=None):
         """Initialize MariaDB transaction manager.
 
         Args:
-            connection: MariaDB database connection
+            backend: MariaDB backend instance
             logger: Optional logger instance
         """
-        super().__init__(connection, logger)
-        self._isolation_level = IsolationLevel.REPEATABLE_READ
+        super().__init__(backend, logger)
+        self._isolation_level = None
+        self._transaction_mode = None
         self._state = TransactionState.INACTIVE
+
+    @property
+    def connection(self):
+        """Get the raw database connection from the backend."""
+        return self._backend._connection
 
     @property
     def isolation_level(self) -> Optional[IsolationLevel]:
@@ -98,10 +104,31 @@ class MariaDBTransactionManager(MariaDBTransactionMixin, TransactionManager):
         self._isolation_level = level
 
     def _do_begin(self) -> None:
-        """Begin MariaDB transaction."""
-        begin_sql = "BEGIN"
-        self.log(logging.DEBUG, f"Executing: {begin_sql}")
+        """Begin MariaDB transaction.
+
+        If an isolation level is explicitly set, sends SET TRANSACTION ISOLATION LEVEL
+        before START TRANSACTION. If transaction mode is set (READ ONLY/READ WRITE),
+        includes it in the START TRANSACTION statement.
+        MariaDB defaults to REPEATABLE READ when no level is set.
+        """
         cursor = self.connection.cursor()
+        # Set isolation level if explicitly configured
+        if self._isolation_level is not None:
+            level_name = self._ISOLATION_LEVELS.get(self._isolation_level)
+            if level_name:
+                set_sql = f"SET TRANSACTION ISOLATION LEVEL {level_name}"
+                self.log(logging.DEBUG, f"Executing: {set_sql}")
+                cursor.execute(set_sql)
+
+        # Build START TRANSACTION with optional READ ONLY/READ WRITE
+        if self._transaction_mode == TransactionMode.READ_ONLY:
+            begin_sql = "START TRANSACTION READ ONLY"
+        elif self._transaction_mode == TransactionMode.READ_WRITE:
+            begin_sql = "START TRANSACTION READ WRITE"
+        else:
+            begin_sql = "START TRANSACTION"
+
+        self.log(logging.DEBUG, f"Executing: {begin_sql}")
         cursor.execute(begin_sql)
         cursor.close()
         self._state = TransactionState.ACTIVE

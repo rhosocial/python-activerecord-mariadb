@@ -1,16 +1,9 @@
 # tests/providers/events.py
 """
-This file provides the concrete implementation of the `IEventsProvider` interface
-that is defined in the `rhosocial-activerecord-testsuite` package.
-
-Its main responsibilities are:
-1. Reporting which test scenarios (database configurations) are available.
-2. Setting up the database environment for a given test. This includes:
-   - Getting the correct database configuration for the scenario.
-   - Configuring the ActiveRecord model with a database connection.
-   - Dropping any old tables and creating the necessary table schema.
-3. Cleaning up any resources (like temporary database files) after a test runs.
+Concrete implementations of `IEventsSyncProvider` and `IEventsAsyncProvider`
+for the MariaDB backend.
 """
+
 import os
 import sys
 import logging
@@ -20,11 +13,12 @@ from rhosocial.activerecord.model import ActiveRecord
 
 logger = logging.getLogger(__name__)
 
-from rhosocial.activerecord.testsuite.utils import select_fixture
+from rhosocial.activerecord.testsuite.utils import select_fixture  # noqa: E402
 
-from rhosocial.activerecord.testsuite.feature.events.fixtures.models import (
+from rhosocial.activerecord.testsuite.feature.events.fixtures.models import (  # noqa: E402
     EventTestModel as EventTestModelBase,
-    EventTrackingModel as EventTrackingModelBase
+    EventTrackingModel as EventTrackingModelBase,
+    AsyncEventTestModel as AsyncEventTestModelBase,
 )
 
 EventTestModel310 = EventTrackingModel310 = None
@@ -33,7 +27,7 @@ if sys.version_info >= (3, 10):
     try:
         from rhosocial.activerecord.testsuite.feature.events.fixtures.models_py310 import (
             EventTestModel as EventTestModel310,
-            EventTrackingModel as EventTrackingModel310
+            EventTrackingModel as EventTrackingModel310,
         )
     except ImportError as e:
         logger.warning(f"Failed to import Python 3.10+ fixtures: {e}")
@@ -44,7 +38,7 @@ if sys.version_info >= (3, 11):
     try:
         from rhosocial.activerecord.testsuite.feature.events.fixtures.models_py311 import (
             EventTestModel as EventTestModel311,
-            EventTrackingModel as EventTrackingModel311
+            EventTrackingModel as EventTrackingModel311,
         )
     except ImportError as e:
         logger.warning(f"Failed to import Python 3.11+ fixtures: {e}")
@@ -55,7 +49,7 @@ if sys.version_info >= (3, 12):
     try:
         from rhosocial.activerecord.testsuite.feature.events.fixtures.models_py312 import (
             EventTestModel as EventTestModel312,
-            EventTrackingModel as EventTrackingModel312
+            EventTrackingModel as EventTrackingModel312,
         )
     except ImportError as e:
         logger.warning(f"Failed to import Python 3.12+ fixtures: {e}")
@@ -69,69 +63,98 @@ def _select_model_class(base_cls, py312_cls, py311_cls, py310_cls, model_name: s
     return selected
 
 
-EventTestModel = _select_model_class(EventTestModelBase, EventTestModel312, EventTestModel311, EventTestModel310, "EventTestModel")
-EventTrackingModel = _select_model_class(EventTrackingModelBase, EventTrackingModel312, EventTrackingModel311, EventTrackingModel310, "EventTrackingModel")
+EventTestModel = _select_model_class(
+    EventTestModelBase, EventTestModel312, EventTestModel311, EventTestModel310, "EventTestModel"
+)
+AsyncEventTestModel = AsyncEventTestModelBase
+EventTrackingModel = _select_model_class(
+    EventTrackingModelBase, EventTrackingModel312, EventTrackingModel311, EventTrackingModel310, "EventTrackingModel"
+)
 
-from rhosocial.activerecord.testsuite.feature.events.interfaces import IEventsProvider
-from .scenarios import get_enabled_scenarios, get_scenario
+from rhosocial.activerecord.testsuite.feature.events.interfaces import (  # noqa: E402
+    IEventsSyncProvider,
+    IEventsAsyncProvider,
+)
+
+from .scenarios import get_enabled_scenarios, get_scenario  # noqa: E402
 
 
-class EventsProvider(IEventsProvider):
-    """MariaDB backend implementation for the events features test group."""
-
+class EventsProviderBase:
     def __init__(self):
-        self._active_backends = []
+        self._scenario_db_files = {}
 
     def get_test_scenarios(self) -> List[str]:
-        """Returns a list of names for all enabled scenarios for this backend."""
         return list(get_enabled_scenarios().keys())
 
+    def _load_mariadb_schema(self, filename: str) -> str:
+        schema_dir = os.path.join(
+            os.path.dirname(__file__), "..", "rhosocial", "activerecord_mariadb_test", "feature", "events", "schema"
+        )
+        schema_path = os.path.join(schema_dir, filename)
+        with open(schema_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    _load_mysql_schema = _load_mariadb_schema
+
+
+class EventsSyncProvider(EventsProviderBase, IEventsSyncProvider):
+    def __init__(self):
+        super().__init__()
+        self._active_backends = []
+
     def _setup_model(self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str) -> Type[ActiveRecord]:
-        """A generic helper method to handle the setup for any given model."""
+        from rhosocial.activerecord.backend.options import ExecutionOptions
+        from rhosocial.activerecord.backend.schema import StatementType
+        from rhosocial.activerecord.backend.expression import DropTableExpression, TableExpression
+        from providers.fixtures.events import TABLE_EXPRESSIONS
+        from providers.fixtures._common import to_mariadb_ddl_sql
+
         backend_class, config = get_scenario(scenario_name)
         model_class.configure(config, backend_class)
-
         backend_instance = model_class.__backend__
         if backend_instance not in self._active_backends:
             self._active_backends.append(backend_instance)
-
+        options = ExecutionOptions(stmt_type=StatementType.DDL)
         try:
-            model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 0")
-            model_class.__backend__.execute(f"DROP TABLE IF EXISTS `{table_name}`")
-            model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 1")
+            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
+            try:
+                drop_expr = DropTableExpression(
+                    dialect=backend_instance.dialect,
+                    table=TableExpression(backend_instance.dialect, table_name),
+                    if_exists=True,
+                )
+                backend_instance.execute(*drop_expr.to_sql(), options=options)
+            except Exception:
+                backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
         except Exception:
             try:
-                model_class.__backend__.execute("SET FOREIGN_KEY_CHECKS = 1")
+                backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
             except Exception:
                 pass
-
-        schema_sql = self._load_mariadb_schema(f"{table_name}.sql")
-        model_class.__backend__.execute(schema_sql)
-
+        try:
+            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+        except Exception:
+            pass
+        if fn := TABLE_EXPRESSIONS.get(table_name):
+            create_expr = fn(backend_instance.dialect, table_name)
+            create_sql, params = to_mariadb_ddl_sql(create_expr)
+            backend_instance.execute(create_sql, params, options=options)
+        else:
+            schema_sql = self._load_mariadb_schema(f"{table_name}.sql")
+            backend_instance.execute(schema_sql, options=options)
         return model_class
 
     def setup_event_model(self, scenario_name: str) -> Type[ActiveRecord]:
-        """Sets up the database for the event model tests."""
         return self._setup_model(EventTestModel, scenario_name, "event_tests")
 
     def setup_event_tracking_model(self, scenario_name: str) -> Type[ActiveRecord]:
-        """Sets up the database for the event tracking model tests."""
         return self._setup_model(EventTrackingModel, scenario_name, "event_tracking_models")
 
-    def _load_mariadb_schema(self, filename: str) -> str:
-        """Helper to load a SQL schema file from this project's fixtures."""
-        schema_dir = os.path.join(os.path.dirname(__file__), "..", "rhosocial", "activerecord_mariadb_test", "feature", "events", "schema")
-        schema_path = os.path.join(schema_dir, filename)
-
-        with open(schema_path, 'r', encoding='utf-8') as f:
-            return f.read()
-
     def cleanup_after_test(self, scenario_name: str):
-        """Performs cleanup after a test, dropping all tables and disconnecting backends."""
         for backend_instance in self._active_backends:
             try:
                 backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
-                for table_name in ['event_tests', 'event_tracking_models']:
+                for table_name in ["event_tests", "event_tracking_models"]:
                     try:
                         backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
                     except Exception:
@@ -147,9 +170,84 @@ class EventsProvider(IEventsProvider):
                     backend_instance.disconnect()
                 except Exception:
                     pass
-
         self._active_backends.clear()
 
-    async def cleanup_after_test_async(self, scenario_name: str):
-        """Performs async cleanup after a test."""
-        pass
+
+class EventsAsyncProvider(EventsProviderBase, IEventsAsyncProvider):
+    def __init__(self):
+        super().__init__()
+        self._active_async_backends = []
+
+    async def _setup_async_model(
+        self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str
+    ) -> Type[ActiveRecord]:
+        from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+        from rhosocial.activerecord.backend.options import ExecutionOptions
+        from rhosocial.activerecord.backend.schema import StatementType
+        from rhosocial.activerecord.backend.expression import DropTableExpression, TableExpression
+        from providers.fixtures.events import TABLE_EXPRESSIONS
+        from providers.fixtures._common import to_mariadb_ddl_sql
+
+        _, config = get_scenario(scenario_name)
+        await model_class.configure(config, AsyncMariaDBBackend)
+        backend_instance = model_class.__backend__
+        if backend_instance not in self._active_async_backends:
+            self._active_async_backends.append(backend_instance)
+        options = ExecutionOptions(stmt_type=StatementType.DDL)
+        try:
+            await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
+            try:
+                drop_expr = DropTableExpression(
+                    dialect=backend_instance.dialect,
+                    table=TableExpression(backend_instance.dialect, table_name),
+                    if_exists=True,
+                )
+                await backend_instance.execute(*drop_expr.to_sql(), options=options)
+            except Exception:
+                await backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+        except Exception:
+            try:
+                await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+            except Exception:
+                pass
+        try:
+            await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+        except Exception:
+            pass
+        if fn := TABLE_EXPRESSIONS.get(table_name):
+            create_expr = fn(backend_instance.dialect, table_name)
+            create_sql, params = to_mariadb_ddl_sql(create_expr)
+            await backend_instance.execute(create_sql, params, options=options)
+        else:
+            schema_sql = self._load_mariadb_schema(f"{table_name}.sql")
+            await backend_instance.execute(schema_sql, options=options)
+        return model_class
+
+    async def setup_event_model(self, scenario_name: str) -> Type[ActiveRecord]:
+        return await self._setup_async_model(AsyncEventTestModel, scenario_name, "event_tests")
+
+    async def setup_event_tracking_model(self, scenario_name: str) -> Type[ActiveRecord]:
+        return await self._setup_async_model(EventTrackingModel, scenario_name, "event_tracking_models")
+
+    async def cleanup_after_test(self, scenario_name: str):
+        for backend_instance in self._active_async_backends:
+            try:
+                try:
+                    await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
+                    for table_name in ["event_tests", "event_tracking_models"]:
+                        try:
+                            await backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+                        except Exception:
+                            pass
+                    await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+                except Exception:
+                    try:
+                        await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+                    except Exception:
+                        pass
+            finally:
+                try:
+                    await backend_instance.disconnect()
+                except Exception:
+                    pass
+        self._active_async_backends.clear()

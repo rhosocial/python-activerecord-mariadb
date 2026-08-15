@@ -10,50 +10,211 @@ This module provides a MariaDB-specific implementation including:
 - Support for RETURNING clause (available since MariaDB 10.5)
 - Support for SEQUENCE (available since MariaDB 10.3)
 - Support for INTERSECT/EXCEPT (available since MariaDB 10.3)
+- MariaDB-specific SQL function factories (JSON, spatial, full-text, etc.)
 """
 
 __version__ = "1.0.0.dev1"
 
 from .backend import MariaDBBackend
+from .backend.async_backend import AsyncMariaDBBackend
 from .dialect import MariaDBDialect, MARIADB_VERSION_BOUNDARIES
 from .transaction import MariaDBTransactionManager, MariaDBTransactionMixin
+from .async_transaction import AsyncMariaDBTransactionManager
 from .config import MariaDBConnectionConfig
+from .collation import MariaDBCollation
 from .types import MariaDBEnumType, MariaDBSetType
+from .explain import MariaDBExplainResult, MariaDBExplainRow, MariaDBExplainJsonResult, MariaDBExplainAnalyzeResult
+
+# Import MariaDB-specific functions directly for convenience
+from .functions import (
+    # JSON functions
+    json_extract,
+    json_unquote,
+    json_object,
+    json_array,
+    json_contains,
+    json_set,
+    json_remove,
+    json_type,
+    json_valid,
+    json_search,
+    # Spatial functions
+    st_geom_from_text,
+    st_geom_from_wkb,
+    st_as_text,
+    st_as_geojson,
+    st_distance,
+    st_within,
+    st_contains,
+    st_intersects,
+    # Full-text search
+    match_against,
+    # SET type functions
+    find_in_set,
+    # Enum type functions
+    elt,
+    field,
+)
+
+# Import MariaDB SHOW command expressions
+from .show.expressions import (
+    ShowExpression,
+    ShowCreateTableExpression,
+    ShowColumnsExpression,
+    ShowTableStatusExpression,
+    ShowIndexExpression,
+    ShowTablesExpression,
+    ShowDatabasesExpression,
+    ShowTriggersExpression,
+    ShowCreateViewExpression,
+    ShowVariablesExpression,
+    ShowStatusExpression,
+    ShowWarningsExpression,
+    ShowErrorsExpression,
+    ShowCreateTriggerExpression,
+    ShowGrantsExpression,
+    ShowProcessListExpression,
+    ShowEnginesExpression,
+    ShowCharsetExpression,
+    ShowCollationExpression,
+    ShowPluginsExpression,
+)
+
+# Import MariaDB SHOW command result types
+from .show.types import (
+    # CREATE statement results
+    ShowCreateTableResult,
+    ShowCreateViewResult,
+    ShowCreateTriggerResult,
+    # Column information results
+    ShowColumnResult,
+    # Table status results
+    ShowTableStatusResult,
+    # Index information results
+    ShowIndexResult,
+    # Database and table list results
+    ShowTableResult,
+    ShowDatabaseResult,
+    # Trigger results
+    ShowTriggerResult,
+    # Variables and status results
+    ShowVariableResult,
+    ShowStatusResult,
+    # Warning and error results
+    ShowWarningResult,
+    # Grants results
+    ShowGrantResult,
+    # Process list results
+    ShowProcessListResult,
+    # Engine results
+    ShowEngineResult,
+    # Charset and collation results
+    ShowCharsetResult,
+    ShowCollationResult,
+    # Plugin results
+    ShowPluginResult,
+)
+
 
 __all__ = [
+    # Synchronous Backend
     'MariaDBBackend',
+
+    # Asynchronous Backend
+    'AsyncMariaDBBackend',
+
+    # Configuration
+    'MariaDBConnectionConfig',
+
+    # Dialect related
     'MariaDBDialect',
     'MARIADB_VERSION_BOUNDARIES',
+    'MariaDBCollation',
+
+    # Transaction - Sync and Async
     'MariaDBTransactionManager',
+    'AsyncMariaDBTransactionManager',
     'MariaDBTransactionMixin',
-    'MariaDBConnectionConfig',
+
+    # MariaDB-specific Type Helpers
     'MariaDBEnumType',
     'MariaDBSetType',
+
+    # MariaDB EXPLAIN Result Types
+    'MariaDBExplainResult',
+    'MariaDBExplainRow',
+    'MariaDBExplainJsonResult',
+    'MariaDBExplainAnalyzeResult',
+
+    # MariaDB-specific Functions - JSON
+    'json_extract',
+    'json_unquote',
+    'json_object',
+    'json_array',
+    'json_contains',
+    'json_set',
+    'json_remove',
+    'json_type',
+    'json_valid',
+    'json_search',
+
+    # MariaDB-specific Functions - Spatial
+    'st_geom_from_text',
+    'st_geom_from_wkb',
+    'st_as_text',
+    'st_as_geojson',
+    'st_distance',
+    'st_within',
+    'st_contains',
+    'st_intersects',
+
+    # MariaDB-specific Functions - Full-text Search
+    'match_against',
+
+    # MariaDB-specific Functions - SET/Enum
+    'find_in_set',
+    'elt',
+    'field',
+
+    # MariaDB SHOW Command Expressions
+    'ShowExpression',
+    'ShowCreateTableExpression',
+    'ShowColumnsExpression',
+    'ShowTableStatusExpression',
+    'ShowIndexExpression',
+    'ShowTablesExpression',
+    'ShowDatabasesExpression',
+    'ShowTriggersExpression',
+    'ShowCreateViewExpression',
+    'ShowVariablesExpression',
+    'ShowStatusExpression',
+    'ShowWarningsExpression',
+    'ShowErrorsExpression',
+    'ShowCreateTriggerExpression',
+    'ShowGrantsExpression',
+    'ShowProcessListExpression',
+    'ShowEnginesExpression',
+    'ShowCharsetExpression',
+    'ShowCollationExpression',
+    'ShowPluginsExpression',
+
+    # MariaDB SHOW Command Result Types
+    'ShowCreateTableResult',
+    'ShowCreateViewResult',
+    'ShowCreateTriggerResult',
+    'ShowColumnResult',
+    'ShowTableStatusResult',
+    'ShowIndexResult',
+    'ShowTableResult',
+    'ShowDatabaseResult',
+    'ShowTriggerResult',
+    'ShowVariableResult',
+    'ShowStatusResult',
+    'ShowWarningResult',
+    'ShowGrantResult',
+    'ShowProcessListResult',
+    'ShowEngineResult',
+    'ShowCharsetResult',
+    'ShowCollationResult',
+    'ShowPluginResult',
 ]
-
-
-def __getattr__(name: str):
-    """Lazily load async components.
-
-    Raises:
-        ImportError: If async dependencies are not installed.
-        AttributeError: If the requested attribute doesn't exist.
-    """
-    _lazy_imports = {
-        "AsyncMariaDBBackend": (".backend.async_backend", "AsyncMariaDBBackend"),
-        "AsyncMariaDBTransactionManager": (".async_transaction", "AsyncMariaDBTransactionManager"),
-    }
-
-    if name in _lazy_imports:
-        module_path, class_name = _lazy_imports[name]
-        try:
-            import importlib
-            module = importlib.import_module(module_path, __name__)
-            return getattr(module, class_name)
-        except ImportError as e:
-            raise ImportError(
-                f"{name} requires mariadb package version 2.0.0 or later. "
-                f"Install with: pip install mariadb>=2.0.0rc2 --pre"
-            ) from e
-
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

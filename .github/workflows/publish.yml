@@ -1,14 +1,6 @@
 name: Python Package Publish
 
 on:
-  # 当测试工作流成功完成时自动触发发布审批流程
-  workflow_run:
-    workflows: ["Python Test and Coverage"]
-    types:
-      - completed
-    branches:
-      - main
-
   # 手动触发发布工作流
   workflow_dispatch:
     inputs:
@@ -47,10 +39,10 @@ jobs:
 
     steps:
     - name: Check out the repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: "3.13"
 
@@ -82,10 +74,10 @@ jobs:
 
     steps:
     - name: Check out the repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: "3.13"
 

@@ -21,10 +21,16 @@ Design principle: Sync and Async are separate and cannot coexist.
 
 from .introspector import SyncMariaDBIntrospector, AsyncMariaDBIntrospector
 from .show_introspector import SyncShowIntrospector, AsyncShowIntrospector
+from .status_introspector import (
+    SyncMariaDBStatusIntrospector,
+    AsyncMariaDBStatusIntrospector,
+)
 
 __all__ = [
     "SyncMariaDBIntrospector",
     "AsyncMariaDBIntrospector",
     "SyncShowIntrospector",
     "AsyncShowIntrospector",
+    "SyncMariaDBStatusIntrospector",
+    "AsyncMariaDBStatusIntrospector",
 ]

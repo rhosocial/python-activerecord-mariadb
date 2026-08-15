@@ -1,9 +1,10 @@
 rhosocial-activerecord[test]
 rhosocial-activerecord-testsuite
-pytest>=7.0.0
+pydantic[email]
+pytest
 pytest-asyncio
-pytest-cov>=4.0.0
-pytest-xdist>=3.6.1
+pytest-cov
+pytest-xdist
 pytest-mock
 pyyaml>=6.0.2
 coverage>=7.0.0

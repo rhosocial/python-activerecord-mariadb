@@ -13,13 +13,29 @@ from typing import List, Optional, Tuple, Union
 from rhosocial.activerecord.backend.base import AsyncStorageBackend
 from rhosocial.activerecord.backend.config import ConnectionConfig
 from rhosocial.activerecord.backend.errors import ConnectionError, IntegrityError, OperationalError, QueryError, DatabaseError, DeadlockError
-from rhosocial.activerecord.backend.options import InsertOptions, UpdateOptions, DeleteOptions
+from rhosocial.activerecord.backend.options import (
+    DeleteOptions, ExecutionOptions, InsertOptions, StatementType, UpdateOptions
+)
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospectorExecutor
+from rhosocial.activerecord.backend.explain import AsyncExplainBackendMixin
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
+from ..async_transaction import AsyncMariaDBTransactionManager
+from ..mixins import MariaDBBackendMixin, AsyncMariaDBConcurrencyMixin
+
+# MariaDB connection error codes that indicate connection loss
+# Reference: https://mariadb.com/kb/en/mariadb-error-codes/
+CONNECTION_ERROR_CODES = {
+    2003,  # CR_CONN_HOST_ERROR - Can't connect to MariaDB server
+    2006,  # CR_SERVER_GONE_ERROR - MariaDB server has gone away
+    2013,  # CR_SERVER_LOST - Lost connection to MariaDB server during query
+    2048,  # CR_CONN_UNKNOW_PROTOCOL - Invalid connection protocol
+    2055,  # CR_SERVER_LOST_EXTENDED - Lost connection to MariaDB server
+    2502,  # CR_SERVER_GONE - The server has gone away
+}
 
 try:
     import mariadb
@@ -36,7 +52,7 @@ except ImportError:
     )
 
 
-class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
+class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, AsyncExplainBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
     """Async MariaDB backend implementation.
 
     Provides introspection support via the `introspector` property.
@@ -52,6 +68,8 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
         password: Optional[str] = None,
         **kwargs,
     ):
+        logging_config = kwargs.pop("logging_config", None)
+
         if connection_config is None:
             if database is None:
                 raise ValueError("Either connection_config or database must be provided")
@@ -75,8 +93,9 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
                 options=getattr(connection_config, "options", {}),
             )
 
-        super().__init__(connection_config=connection_config)
+        super().__init__(connection_config=connection_config, logging_config=logging_config)
         self._dialect = MariaDBDialect()
+        self._register_mariadb_adapters()
 
     @property
     def dialect(self) -> MariaDBDialect:
@@ -98,13 +117,14 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
             # Use init_command to set charset if needed
             if hasattr(self.config, "charset") and self.config.charset:
                 conn_params["init_command"] = f"SET NAMES {self.config.charset}"
-            if hasattr(self.config, "autocommit"):
-                conn_params["autocommit"] = self.config.autocommit
+            conn_params["autocommit"] = getattr(self.config, "autocommit", False)
 
             # SSL configuration
             if hasattr(self.config, "ssl_disabled"):
                 if not self.config.ssl_disabled:
                     conn_params["ssl"] = True
+                    if hasattr(self.config, "tls_version") and self.config.tls_version:
+                        conn_params["tls_version"] = self.config.tls_version
                     if hasattr(self.config, "ssl_verify_cert") and self.config.ssl_verify_cert:
                         conn_params["ssl_verify_cert"] = self.config.ssl_verify_cert
                     if hasattr(self.config, "ssl_verify_identity") and self.config.ssl_verify_identity:
@@ -112,6 +132,8 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
 
             self._connection = await mariadb.asyncConnect(**conn_params)
             self.log(logging.INFO, "Connected to MariaDB database successfully")
+            await self._fetch_concurrency_hint()
+            await self.introspect_and_adapt()
         except Exception as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect: {str(e)}") from e
@@ -134,6 +156,16 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
             self.log(logging.ERROR, f"Error during disconnect: {str(e)}")
             raise ConnectionError(f"Failed to disconnect: {str(e)}") from e
 
+    @property
+    def transaction_manager(self):
+        """Get the async MariaDB transaction manager."""
+        if self._transaction_manager is None:
+            from ..async_transaction import AsyncMariaDBTransactionManager
+            self._transaction_manager = AsyncMariaDBTransactionManager(self, self.logger)
+        else:
+            self._transaction_manager._backend = self
+        return self._transaction_manager
+
     async def ping(self, reconnect: bool = True) -> bool:
         """Test the database connection and optionally reconnect asynchronously."""
         if not self._connection:
@@ -145,7 +177,6 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
                     return True
                 except ConnectionError as e:
                     self.log(logging.WARNING, f"Reconnection failed during ping: {str(e)}")
-                    return False
             return False
 
         try:
@@ -163,7 +194,6 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
                     return True
                 except ConnectionError as e:
                     self.log(logging.WARNING, f"Reconnection failed after ping: {str(e)}")
-                    return False
             return False
 
     async def _get_cursor(self):
@@ -173,6 +203,47 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
         and AsyncIntrospectorExecutor, but the underlying cursor() call is not async.
         """
         return self._connection.cursor()
+
+    def _is_connection_error(self, error: Exception) -> bool:
+        """Check if an error indicates a connection loss.
+
+        Args:
+            error: The exception to check.
+
+        Returns:
+            True if the error indicates a connection problem.
+        """
+        if hasattr(error, 'errno'):
+            if error.errno in CONNECTION_ERROR_CODES:
+                return True
+
+        error_str = str(error).lower()
+        connection_error_patterns = [
+            'server has gone away',
+            'lost connection',
+            "can't connect",
+            'connection refused',
+            'broken pipe',
+            'connection reset',
+            'connection timed out',
+        ]
+        return any(pattern in error_str for pattern in connection_error_patterns)
+
+    async def _reconnect(self) -> bool:
+        """Attempt to reconnect to the MariaDB server.
+
+        Returns:
+            True if reconnection was successful, False otherwise.
+        """
+        try:
+            self.log(logging.INFO, "Attempting to reconnect...")
+            await self.disconnect()
+            await self.connect()
+            self.log(logging.INFO, "Reconnection successful")
+            return True
+        except Exception as e:
+            self.log(logging.ERROR, f"Reconnection failed: {str(e)}")
+            return False
 
     def _handle_mariadb_error(self, error: Exception) -> None:
         """Handle MariaDB-specific errors."""
@@ -190,6 +261,9 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
         elif "foreign key constraint" in error_msg.lower():
             self.log(logging.ERROR, f"Foreign key constraint violation: {error_msg}")
             raise IntegrityError(f"Foreign key constraint violation: {error_msg}") from error
+        elif "cannot be null" in error_msg.lower() or isinstance(error, mariadb.IntegrityError):
+            self.log(logging.ERROR, f"Integrity constraint violation: {error_msg}")
+            raise IntegrityError(error_msg) from error
         elif "syntax" in error_msg.lower():
             self.log(logging.ERROR, f"SQL syntax error: {error_msg}")
             raise QueryError(error_msg) from error
@@ -202,57 +276,134 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
         self._handle_mariadb_error(error)
 
     async def _prepare_sql_and_params(self, sql: str, params: Optional[Union[Tuple, dict, List]]) -> Tuple[str, Tuple]:
-        """Prepare SQL and parameters."""
+        """Prepare SQL and parameters.
+
+        Applies type adapter conversions via prepare_parameters() before
+        passing values to the MariaDB driver.
+        """
         if isinstance(params, dict):
             final_params = tuple(params.values()) if params else ()
         elif isinstance(params, (tuple, list)):
             final_params = tuple(params) if params else ()
         else:
             final_params = params or ()
+
+        # Apply type adapters for driver-incompatible types (datetime, dict, list, etc.)
+        if final_params:
+            all_suggestions = self.get_default_adapter_suggestions()
+            param_adapters = []
+            for param_value in final_params:
+                py_type = type(param_value)
+                suggestion = all_suggestions.get(py_type)
+                param_adapters.append(suggestion if suggestion else None)
+            final_params = self.prepare_parameters(final_params, param_adapters)
+
         return sql, final_params
 
-    async def execute(self, sql: str, params: Optional[Union[Tuple, dict, List]] = None) -> Optional[QueryResult]:
-        """Execute a SQL query and return results asynchronously."""
+    async def execute(
+        self,
+        sql: str,
+        params: Optional[Union[Tuple, dict, List]] = None,
+        *,
+        options=None,
+        max_retries: int = 2,
+        **kwargs
+    ) -> Optional[QueryResult]:
+        """Execute a SQL query with automatic reconnection on connection errors."""
         self.log(logging.INFO, f"Executing: {sql}")
         start_time = time.perf_counter()
 
-        try:
-            if not self._connection:
-                self.log(logging.DEBUG, "No active connection, establishing new connection")
-                await self.connect()
-
-            cursor = await self._get_cursor()
-            sql, final_params = self._prepare_sql_and_params(sql, params)
-
-            await cursor.execute(sql, final_params)
-            duration = time.perf_counter() - start_time
-
-            if cursor.description:
-                columns = [desc[0] for desc in cursor.description] if cursor.description else []
-                rows = await cursor.fetchall()
-                data = [dict(zip(columns, row)) for row in rows] if rows else []
-                result = QueryResult(
-                    data=data,
-                    affected_rows=cursor.rowcount,
-                    last_insert_id=cursor.lastrowid,
-                    duration=duration,
-                )
+        if options is None:
+            sql_upper = sql.strip().upper()
+            if sql_upper.startswith(('SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'PRAGMA', 'EXPLAIN')):
+                stmt_type = StatementType.DQL
+            elif sql_upper.startswith(('INSERT', 'UPDATE', 'DELETE', 'REPLACE')):
+                stmt_type = StatementType.DML
             else:
-                result = QueryResult(
-                    data=None,
-                    affected_rows=cursor.rowcount,
-                    last_insert_id=cursor.lastrowid,
-                    duration=duration,
-                )
+                stmt_type = StatementType.DDL
 
-            await cursor.close()
-            self.log(logging.INFO, f"Query executed successfully, affected_rows={result.affected_rows}, duration={duration:.3f}s")
-            return result
+            column_mapping = kwargs.get('column_mapping')
+            column_adapters = kwargs.get('column_adapters')
 
-        except Exception as e:
-            self.log(logging.ERROR, f"Error executing query: {str(e)}")
-            await self._handle_error(e)
-            return None
+            options = ExecutionOptions(
+                stmt_type=stmt_type,
+                process_result_set=None,
+                column_adapters=column_adapters,
+                column_mapping=column_mapping
+            )
+        else:
+            if 'column_mapping' in kwargs:
+                options.column_mapping = kwargs['column_mapping']
+            if 'column_adapters' in kwargs:
+                options.column_adapters = kwargs['column_adapters']
+
+        last_error = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                if not self._connection:
+                    self.log(logging.DEBUG, "No active connection, establishing new connection")
+                    await self.connect()
+
+                cursor = await self._get_cursor()
+                sql, final_params = await self._prepare_sql_and_params(sql, params)
+
+                await cursor.execute(sql, final_params)
+                duration = time.perf_counter() - start_time
+
+                if cursor.description:
+                    columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                    rows = await cursor.fetchall()
+                    data = [dict(zip(columns, row)) for row in rows] if rows else []
+                    result = QueryResult(
+                        data=data,
+                        affected_rows=cursor.rowcount,
+                        last_insert_id=cursor.lastrowid,
+                        duration=duration,
+                    )
+                    # DML with RETURNING produces a result set but still needs commit
+                    if not self.in_transaction and options and options.stmt_type == StatementType.DML:
+                        await self._connection.commit()
+                else:
+                    if not self.in_transaction:
+                        await self._connection.commit()
+                    result = QueryResult(
+                        data=None,
+                        affected_rows=cursor.rowcount,
+                        last_insert_id=cursor.lastrowid,
+                        duration=duration,
+                    )
+
+                if options and (options.column_mapping or options.column_adapters):
+                    result = self._apply_result_mapping(result, options)
+
+                await cursor.close()
+                self.log(logging.INFO, f"Query executed successfully, affected_rows={result.affected_rows}, duration={duration:.3f}s")
+                return result
+
+            except (mariadb.OperationalError, mariadb.Error) as e:
+                last_error = e
+                if self._is_connection_error(e) and attempt < max_retries:
+                    self.log(
+                        logging.WARNING,
+                        f"Connection error on attempt {attempt + 1}/{max_retries + 1}: {str(e)}"
+                    )
+                    if await self._reconnect():
+                        continue
+                    else:
+                        self.log(logging.ERROR, "Reconnection failed, aborting retry")
+                        break
+                else:
+                    break
+            except Exception as e:
+                self.log(logging.ERROR, f"Error executing query: {str(e)}")
+                await self._handle_error(e)
+                return None
+
+        if last_error:
+            await self._handle_error(last_error)
+
+        raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")
 
     async def execute_many(self, sql: str, params_list: List[Tuple]) -> Optional[QueryResult]:
         """Execute batch operations asynchronously."""
@@ -266,11 +417,12 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
 
             cursor = await self._get_cursor()
             await cursor.executemany(sql, params_list)
+            rowcount = cursor.rowcount
             duration = time.perf_counter() - start_time
 
             await cursor.close()
-            self.log(logging.INFO, f"Batch operation completed, affected {cursor.rowcount} rows, duration={duration:.3f}s")
-            return QueryResult(affected_rows=cursor.rowcount, duration=duration)
+            self.log(logging.INFO, f"Batch operation completed, affected {rowcount} rows, duration={duration:.3f}s")
+            return QueryResult(affected_rows=rowcount, duration=duration)
         except Exception as e:
             self.log(logging.ERROR, f"Error in batch operation: {str(e)}")
             await self._handle_error(e)
@@ -279,9 +431,12 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
     async def executescript(self, sql_script: str) -> None:
         """Execute a multi-statement SQL script asynchronously.
 
-        Note: This method splits SQL by semicolons and executes each statement
-        separately. It does NOT handle semicolons within BEGIN...END blocks
-        correctly - for such cases, use execute() with the full statement.
+        MariaDB supports multiple statements in a single execute() call.
+        This method executes the entire script without splitting, which
+        properly handles BEGIN...END blocks in triggers, procedures, and functions.
+
+        Args:
+            sql_script: SQL script with multiple statements separated by semicolons.
         """
         self.log(logging.INFO, "Executing SQL script")
         start_time = time.perf_counter()
@@ -293,10 +448,13 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
 
             cursor = await self._get_cursor()
 
-            for statement in sql_script.split(";"):
-                statement = statement.strip()
-                if statement:
-                    await cursor.execute(statement)
+            # MariaDB supports multi-statement execution directly
+            # Execute the entire script - this handles BEGIN...END blocks correctly
+            await cursor.execute(sql_script)
+
+            # Consume all result sets (for multi-statement queries)
+            while cursor.nextset():
+                pass
 
             await cursor.close()
             duration = time.perf_counter() - start_time
@@ -392,3 +550,9 @@ class AsyncMariaDBBackend(IntrospectorBackendMixin, AsyncStorageBackend):
         ):
             result.affected_rows = len(result.data)
         return result
+
+    def _parse_explain_result(self, raw_rows, sql, duration):
+        """Parse EXPLAIN result for MariaDB."""
+        from ..explain import MariaDBExplainResult, MariaDBExplainRow
+        rows = [MariaDBExplainRow(**r) for r in raw_rows]
+        return MariaDBExplainResult(raw_rows=raw_rows, sql=sql, duration=duration, rows=rows)
