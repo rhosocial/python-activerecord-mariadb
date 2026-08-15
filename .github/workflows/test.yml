@@ -68,7 +68,7 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install "rhosocial-activerecord[test]==1.0.0.dev29"
+          pip install rhosocial-activerecord==1.0.0.dev29
           pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev16#egg=rhosocial-activerecord-testsuite
 
       - name: Create MariaDB scenario config
@@ -154,7 +154,7 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install "rhosocial-activerecord[test]==1.0.0.dev29"
+          pip install rhosocial-activerecord==1.0.0.dev29
           pip install git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev16#egg=rhosocial-activerecord-testsuite
 
       - name: Create MariaDB scenario config
