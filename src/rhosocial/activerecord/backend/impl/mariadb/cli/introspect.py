@@ -108,7 +108,7 @@ def handle(args):
 
     config = resolve_connection_config_from_args(args)
 
-    if args.use_async:
+    if args.is_async:
         backend = AsyncMariaDBBackend(connection_config=config)
         asyncio.run(
             _handle_introspect_async(args, backend, provider)

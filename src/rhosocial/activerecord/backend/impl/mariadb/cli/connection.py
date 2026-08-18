@@ -43,8 +43,9 @@ def add_connection_args(parser):
         help="Connection charset (env: MARIADB_CHARSET, default: utf8mb4)",
     )
     parser.add_argument(
-        "--use-async",
+        "--async",
         action="store_true",
+        dest="is_async",
         help="Use asynchronous backend",
     )
     parser.add_argument(
