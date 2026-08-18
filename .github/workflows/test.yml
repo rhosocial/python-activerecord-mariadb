@@ -93,14 +93,14 @@ jobs:
         if: matrix.mariadb-version != '11.8'
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short -n 8 --dist=loadgroup -x
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short -n auto --dist=loadgroup -x
 
       - name: Run tests with coverage (only for MariaDB 11.8)
         if: matrix.mariadb-version == '11.8'
         run: |
           export PYTHONPATH=src:tests
           pip install codecov
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=src --cov-report=xml -n 8 --dist=loadgroup
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=src --cov-report=xml -n auto --dist=loadgroup
 
       - name: Upload coverage to Codecov
         if: matrix.mariadb-version == '11.8'
