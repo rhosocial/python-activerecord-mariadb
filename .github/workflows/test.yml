@@ -12,6 +12,7 @@ on:
       - main
       - "release/v**"
       - "maint/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -69,8 +70,8 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install rhosocial-activerecord==1.0.0.dev29
-          pip install rhosocial-activerecord-testsuite==1.0.0.dev16
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/parallel-testing"
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/parallel-testing"
 
       - name: Create MariaDB scenario config
         run: |
@@ -91,15 +92,15 @@ jobs:
       - name: Run tests (skip for coverage job)
         if: matrix.mariadb-version != '11.8'
         run: |
-          export PYTHONPATH=src
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short
+          export PYTHONPATH=src:tests
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short -n auto --dist=loadgroup -x
 
       - name: Run tests with coverage (only for MariaDB 11.8)
         if: matrix.mariadb-version == '11.8'
         run: |
-          export PYTHONPATH=src
+          export PYTHONPATH=src:tests
           pip install codecov
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=src --cov-report=xml
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=src --cov-report=xml -n auto --dist=loadgroup
 
       - name: Upload coverage to Codecov
         if: matrix.mariadb-version == '11.8'
@@ -156,8 +157,8 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install rhosocial-activerecord==1.0.0.dev29
-          pip install rhosocial-activerecord-testsuite==1.0.0.dev16
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/parallel-testing"
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/parallel-testing"
 
       - name: Create MariaDB scenario config
         run: |
