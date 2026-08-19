@@ -29,13 +29,16 @@ def conn_args():
         pytest.skip(f"Scenario server unreachable: {config.host}:{config.port}")
     finally:
         _s.close()
-    return [
+    args = [
         "--host", config.host,
         "--port", str(config.port),
         "--database", config.database,
         "--user", config.username,
         "--password", config.password,
     ]
+    if getattr(config, "ssl_disabled", False):
+        args += ["--ssl", "disabled"]
+    return args
 
 
 def run_cli(argv):
