@@ -71,6 +71,7 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
     ):
         super().__init__(dialect)
         self.data = data  # keep raw for get_params() introspection
+        self.kwargs: Dict[str, Any] = dict(kwargs)
         if data is not None and kwargs:
             pairs = self._convert_to_pairs(data) + self._convert_to_pairs(kwargs)
         elif data is not None:
