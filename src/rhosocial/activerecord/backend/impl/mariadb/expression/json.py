@@ -35,11 +35,13 @@ class MariaDBJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueExpr
         dialect: "SQLDialectBase",
         json_column: str,
         path: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.path = path
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_json_extract(self.json_column, self.path)
@@ -63,6 +65,8 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
         self,
         dialect: "SQLDialectBase",
         data: Any = None,
+        *,
+        alias: Optional[str] = None,
         **kwargs: Any,
     ):
         super().__init__(dialect)
@@ -75,7 +79,7 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
         else:
             pairs = []
         self.pairs = pairs
-        self.alias = None
+        self.alias = alias
 
     def _convert_to_pairs(self, data: Any) -> List[tuple]:
         """Convert dict or iterable to list of key-value tuples."""
@@ -106,6 +110,7 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
         dialect: "SQLDialectBase",
         values: Any = None,
         *args: Any,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         if values is not None and args:
@@ -116,7 +121,7 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
             self.values = list(args)
         else:
             self.values = []
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_json_array(self.values)
@@ -140,12 +145,14 @@ class MariaDBJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExp
         json_column: str,
         value: str,
         path: Optional[str] = None,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.value = value
         self.path = path
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_json_contains(
