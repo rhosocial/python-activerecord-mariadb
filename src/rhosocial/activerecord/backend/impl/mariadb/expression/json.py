@@ -9,7 +9,7 @@ This module provides expression classes for MariaDB JSON functions:
 - MariaDBJSONContainsExpression
 """
 
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
@@ -70,6 +70,7 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
         **kwargs: Any,
     ):
         super().__init__(dialect)
+        self.data = data  # keep raw for get_params() introspection
         if data is not None and kwargs:
             pairs = self._convert_to_pairs(data) + self._convert_to_pairs(kwargs)
         elif data is not None:
@@ -113,6 +114,8 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
         alias: Optional[str] = None,
     ):
         super().__init__(dialect)
+        self._raw_values = values  # keep raw for get_params() introspection
+        self.args = list(args)  # keep raw for get_params() introspection
         if values is not None and args:
             self.values = [values] + list(args)
         elif values is not None:
@@ -122,6 +125,15 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
         else:
             self.values = []
         self.alias = alias
+
+    def get_params(self) -> Dict[str, Any]:
+        """Return the raw constructor arguments.
+
+        The ``values`` parameter is normalized into ``self.values`` during
+        construction; returning the raw form keeps the round-trip
+        (serialize -> deserialize) from double-applying the positional args.
+        """
+        return {"values": self._raw_values, "args": self.args, "alias": self.alias}
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_json_array(self.values)
