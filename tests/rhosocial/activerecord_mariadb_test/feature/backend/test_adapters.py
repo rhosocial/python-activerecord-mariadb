@@ -80,8 +80,14 @@ class TestTime:
         assert time_a.from_database(s, datetime.time) == t
 
 class TestDatetime:
-    def test_naive_passthrough(self, dt_a):
+    def test_formats_string(self, dt_a):
         dt = datetime.datetime(2026, 8, 26, 14, 30, 0)
-        assert dt_a.to_database(dt, str) == dt
+        assert dt_a.to_database(dt, str) == "2026-08-26 14:30:00.000000"
+    def test_roundtrip(self, dt_a):
+        dt = datetime.datetime(2026, 8, 26, 14, 30, 0)
+        s = dt_a.to_database(dt, str)
+        result = dt_a.from_database(s, datetime.datetime)
+        # from_database returns a UTC-aware datetime.
+        assert result.replace(tzinfo=None) == dt
     def test_none(self, dt_a):
         assert dt_a.to_database(None, str) is None
