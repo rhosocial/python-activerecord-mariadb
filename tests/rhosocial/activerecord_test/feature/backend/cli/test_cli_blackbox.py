@@ -3,6 +3,7 @@
 
 import io
 import json
+import uuid
 from contextlib import redirect_stderr, redirect_stdout
 
 import pytest
@@ -107,16 +108,16 @@ class TestInfo:
 
 
 INTROSPECT_TABLE = "cli_introspect_types"
+INTROSPECT_MISSING_TABLE = "cli_introspect_does_not_exist"
 
 
 @pytest.fixture(scope="module")
 def introspect_table(conn_args):
-    run_cli(["query"] + conn_args + [f"DROP TABLE IF EXISTS {INTROSPECT_TABLE}"])
-    run_cli(["query"] + conn_args + [
-        f"CREATE TABLE {INTROSPECT_TABLE} (id INT, name VARCHAR(50))"
-    ])
-    yield INTROSPECT_TABLE
-    run_cli(["query"] + conn_args + [f"DROP TABLE IF EXISTS {INTROSPECT_TABLE}"])
+    table_name = f"{INTROSPECT_TABLE}_{uuid.uuid4().hex[:8]}"
+    run_cli(["query"] + conn_args + [f"DROP TABLE IF EXISTS {table_name}"])
+    run_cli(["query"] + conn_args + [f"CREATE TABLE {table_name} (id INT, name VARCHAR(50))"])
+    yield table_name
+    run_cli(["query"] + conn_args + [f"DROP TABLE IF EXISTS {table_name}"])
 
 
 class TestIntrospectTypes:
@@ -144,44 +145,44 @@ class TestIntrospectTypes:
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
 
-    def test_columns(self, conn_args, introspect_table):
+    def test_columns(self, conn_args):
         out, err, exc = run_cli(
-            ["introspect", "columns", introspect_table] + conn_args + ["-o", "json"]
+            ["introspect", "columns", INTROSPECT_MISSING_TABLE] + conn_args + ["-o", "json"]
         )
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
 
-    def test_columns_async(self, conn_args, introspect_table):
+    def test_columns_async(self, conn_args):
         out, err, exc = run_cli(
-            ["introspect", "columns", introspect_table] + conn_args + ["-o", "json", "--async"]
+            ["introspect", "columns", INTROSPECT_MISSING_TABLE] + conn_args + ["-o", "json", "--async"]
         )
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
 
-    def test_indexes(self, conn_args, introspect_table):
+    def test_indexes(self, conn_args):
         out, err, exc = run_cli(
-            ["introspect", "indexes", introspect_table] + conn_args + ["-o", "json"]
+            ["introspect", "indexes", INTROSPECT_MISSING_TABLE] + conn_args + ["-o", "json"]
         )
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
 
-    def test_indexes_async(self, conn_args, introspect_table):
+    def test_indexes_async(self, conn_args):
         out, err, exc = run_cli(
-            ["introspect", "indexes", introspect_table] + conn_args + ["-o", "json", "--async"]
+            ["introspect", "indexes", INTROSPECT_MISSING_TABLE] + conn_args + ["-o", "json", "--async"]
         )
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
 
-    def test_foreign_keys(self, conn_args, introspect_table):
+    def test_foreign_keys(self, conn_args):
         out, err, exc = run_cli(
-            ["introspect", "foreign-keys", introspect_table] + conn_args + ["-o", "json"]
+            ["introspect", "foreign-keys", INTROSPECT_MISSING_TABLE] + conn_args + ["-o", "json"]
         )
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
 
-    def test_foreign_keys_async(self, conn_args, introspect_table):
+    def test_foreign_keys_async(self, conn_args):
         out, err, exc = run_cli(
-            ["introspect", "foreign-keys", introspect_table] + conn_args + ["-o", "json", "--async"]
+            ["introspect", "foreign-keys", INTROSPECT_MISSING_TABLE] + conn_args + ["-o", "json", "--async"]
         )
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
