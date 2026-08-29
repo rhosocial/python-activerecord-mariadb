@@ -3,8 +3,6 @@
 
 import os
 
-from .output import RICH_AVAILABLE
-
 
 def add_connection_args(parser):
     """Add MariaDB connection arguments to a subcommand parser.
@@ -43,8 +41,15 @@ def add_connection_args(parser):
         help="Connection charset (env: MARIADB_CHARSET, default: utf8mb4)",
     )
     parser.add_argument(
-        "--use-async",
+        "--ssl",
+        choices=["auto", "require", "verify-ca", "verify-full", "disabled"],
+        default="auto",
+        help="SSL mode (env: MARIADB_SSL, default: auto)",
+    )
+    parser.add_argument(
+        "--async",
         action="store_true",
+        dest="is_async",
         help="Use asynchronous backend",
     )
     parser.add_argument(
@@ -124,6 +129,9 @@ def resolve_connection_config_from_args(args):
         return resolver.resolve({})
 
     # Fallback to explicit connection parameters
+    ssl_param = getattr(args, "ssl", None)
+    ssl_disabled = True if ssl_param == "disabled" else False
+
     return MariaDBConnectionConfig(
         host=args.host or "localhost",
         port=args.port or 3306,
@@ -131,6 +139,7 @@ def resolve_connection_config_from_args(args):
         username=args.user,
         password=args.password,
         charset=args.charset,
+        ssl_disabled=ssl_disabled,
     )
 
 

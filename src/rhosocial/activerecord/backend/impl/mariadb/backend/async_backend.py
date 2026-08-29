@@ -275,11 +275,28 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
         """Handle MariaDB-specific errors asynchronously."""
         self._handle_mariadb_error(error)
 
-    async def _prepare_sql_and_params(self, sql: str, params: Optional[Union[Tuple, dict, List]]) -> Tuple[str, Tuple]:
+    async def _handle_auto_commit(self) -> None:
+        """Handle auto commit based on connection and transaction state.
+
+        This hook is called by the base async execute pipeline via
+        _handle_auto_commit_if_needed() when not in an active transaction.
+        """
+        try:
+            if not self._connection:
+                return
+
+            if not getattr(self.config, 'autocommit', False):
+                await self._connection.commit()
+                self.log(logging.DEBUG, "Auto-committed operation")
+        except Exception as e:
+            self.log(logging.WARNING, f"Failed to auto-commit: {str(e)}")
+
+    def _prepare_sql_and_params(self, sql: str, params: Optional[Union[Tuple, dict, List]]) -> Tuple[str, Tuple]:
         """Prepare SQL and parameters.
 
-        Applies type adapter conversions via prepare_parameters() before
-        passing values to the MariaDB driver.
+        Only performs parameter normalization. Type adapter conversions
+        (datetime, dict, list, etc.) are handled centrally by the base
+        AsyncExecutionMixin.execute via prepare_parameters().
         """
         if isinstance(params, dict):
             final_params = tuple(params.values()) if params else ()
@@ -287,16 +304,6 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
             final_params = tuple(params) if params else ()
         else:
             final_params = params or ()
-
-        # Apply type adapters for driver-incompatible types (datetime, dict, list, etc.)
-        if final_params:
-            all_suggestions = self.get_default_adapter_suggestions()
-            param_adapters = []
-            for param_value in final_params:
-                py_type = type(param_value)
-                suggestion = all_suggestions.get(py_type)
-                param_adapters.append(suggestion if suggestion else None)
-            final_params = self.prepare_parameters(final_params, param_adapters)
 
         return sql, final_params
 
@@ -309,10 +316,13 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
         max_retries: int = 2,
         **kwargs
     ) -> Optional[QueryResult]:
-        """Execute a SQL query with automatic reconnection on connection errors."""
-        self.log(logging.INFO, f"Executing: {sql}")
-        start_time = time.perf_counter()
+        """Execute a SQL query with automatic reconnection on connection errors.
 
+        This method implements Plan B: Error retry mechanism for handling
+        connection loss that occurs mid-query. Actual execution is delegated
+        to the base AsyncExecutionMixin.execute which centralizes parameter
+        type conversion and result processing.
+        """
         if options is None:
             sql_upper = sql.strip().upper()
             if sql_upper.startswith(('SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'PRAGMA', 'EXPLAIN')):
@@ -341,47 +351,8 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
 
         for attempt in range(max_retries + 1):
             try:
-                if not self._connection:
-                    self.log(logging.DEBUG, "No active connection, establishing new connection")
-                    await self.connect()
-
-                cursor = await self._get_cursor()
-                sql, final_params = await self._prepare_sql_and_params(sql, params)
-
-                await cursor.execute(sql, final_params)
-                duration = time.perf_counter() - start_time
-
-                if cursor.description:
-                    columns = [desc[0] for desc in cursor.description] if cursor.description else []
-                    rows = await cursor.fetchall()
-                    data = [dict(zip(columns, row)) for row in rows] if rows else []
-                    result = QueryResult(
-                        data=data,
-                        affected_rows=cursor.rowcount,
-                        last_insert_id=cursor.lastrowid,
-                        duration=duration,
-                    )
-                    # DML with RETURNING produces a result set but still needs commit
-                    if not self.in_transaction and options and options.stmt_type == StatementType.DML:
-                        await self._connection.commit()
-                else:
-                    if not self.in_transaction:
-                        await self._connection.commit()
-                    result = QueryResult(
-                        data=None,
-                        affected_rows=cursor.rowcount,
-                        last_insert_id=cursor.lastrowid,
-                        duration=duration,
-                    )
-
-                if options and (options.column_mapping or options.column_adapters):
-                    result = self._apply_result_mapping(result, options)
-
-                await cursor.close()
-                self.log(logging.INFO, f"Query executed successfully, affected_rows={result.affected_rows}, duration={duration:.3f}s")
-                return result
-
-            except (mariadb.OperationalError, mariadb.Error) as e:
+                return await super().execute(sql, params, options=options)
+            except (ConnectionError, OperationalError) as e:
                 last_error = e
                 if self._is_connection_error(e) and attempt < max_retries:
                     self.log(
@@ -395,10 +366,6 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
                         break
                 else:
                     break
-            except Exception as e:
-                self.log(logging.ERROR, f"Error executing query: {str(e)}")
-                await self._handle_error(e)
-                return None
 
         if last_error:
             await self._handle_error(last_error)

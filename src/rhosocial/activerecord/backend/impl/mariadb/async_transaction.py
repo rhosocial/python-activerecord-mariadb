@@ -4,7 +4,12 @@
 import logging
 from typing import Optional
 
-from rhosocial.activerecord.backend.transaction import AsyncTransactionManager, IsolationLevel, TransactionState, TransactionMode
+from rhosocial.activerecord.backend.transaction import (
+    AsyncTransactionManager,
+    IsolationLevel,
+    TransactionState,
+    TransactionMode,
+)
 from rhosocial.activerecord.backend.errors import TransactionError
 
 from .transaction import MariaDBTransactionMixin
@@ -94,7 +99,8 @@ class AsyncMariaDBTransactionManager(MariaDBTransactionMixin, AsyncTransactionMa
     async def _do_create_savepoint(self, name: str) -> None:
         """Create MariaDB savepoint."""
         try:
-            sql = f"SAVEPOINT {name}"
+            escaped_name = self._backend.dialect.format_identifier(name)
+            sql = f"SAVEPOINT {escaped_name}"
             self.log(logging.DEBUG, f"Executing: {sql}")
             cursor = self._backend._connection.cursor()
             await cursor.execute(sql)
@@ -107,7 +113,8 @@ class AsyncMariaDBTransactionManager(MariaDBTransactionMixin, AsyncTransactionMa
     async def _do_release_savepoint(self, name: str) -> None:
         """Release MariaDB savepoint."""
         try:
-            sql = f"RELEASE SAVEPOINT {name}"
+            escaped_name = self._backend.dialect.format_identifier(name)
+            sql = f"RELEASE SAVEPOINT {escaped_name}"
             self.log(logging.DEBUG, f"Executing: {sql}")
             cursor = self._backend._connection.cursor()
             await cursor.execute(sql)
@@ -120,7 +127,8 @@ class AsyncMariaDBTransactionManager(MariaDBTransactionMixin, AsyncTransactionMa
     async def _do_rollback_savepoint(self, name: str) -> None:
         """Rollback to MariaDB savepoint."""
         try:
-            sql = f"ROLLBACK TO SAVEPOINT {name}"
+            escaped_name = self._backend.dialect.format_identifier(name)
+            sql = f"ROLLBACK TO SAVEPOINT {escaped_name}"
             self.log(logging.DEBUG, f"Executing: {sql}")
             cursor = self._backend._connection.cursor()
             await cursor.execute(sql)

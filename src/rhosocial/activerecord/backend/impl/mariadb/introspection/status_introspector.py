@@ -293,19 +293,19 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
     async def _execute_query(self, sql: str) -> List[tuple]:
         cursor = self._backend._connection.cursor()
         try:
-            cursor.execute(sql)
-            return cursor.fetchall()
+            await cursor.execute(sql)
+            return await cursor.fetchall()
         finally:
-            cursor.close()
+            await cursor.close()
 
     async def _execute_query_dict(self, sql: str) -> List[Dict[str, Any]]:
         cursor = self._backend._connection.cursor()
         try:
-            cursor.execute(sql)
+            await cursor.execute(sql)
             columns = [desc[0].lower() for desc in cursor.description]
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return [dict(zip(columns, row)) for row in await cursor.fetchall()]
         finally:
-            cursor.close()
+            await cursor.close()
 
     async def _show_variables(self, names: List[str]) -> Dict[str, str]:
         result: Dict[str, str] = {}

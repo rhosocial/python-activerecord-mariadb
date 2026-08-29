@@ -52,6 +52,6 @@ class TestAsyncMariaDBDialectBackend:
         sql = "SELECT * FROM users WHERE name = %s"
         params = ("John",)
 
-        result_sql, result_params = await async_mariadb_backend._prepare_sql_and_params(sql, params)
+        result_sql, result_params = async_mariadb_backend._prepare_sql_and_params(sql, params)
 
         assert "%s" in result_sql or "?" in result_sql

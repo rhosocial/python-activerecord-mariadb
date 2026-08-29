@@ -9,7 +9,7 @@ This module provides expression classes for MariaDB JSON functions:
 - MariaDBJSONContainsExpression
 """
 
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
@@ -35,11 +35,13 @@ class MariaDBJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueExpr
         dialect: "SQLDialectBase",
         json_column: str,
         path: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.path = path
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_json_extract(self.json_column, self.path)
@@ -63,9 +65,13 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
         self,
         dialect: "SQLDialectBase",
         data: Any = None,
+        *,
+        alias: Optional[str] = None,
         **kwargs: Any,
     ):
         super().__init__(dialect)
+        self.data = data  # keep raw for get_params() introspection
+        self.kwargs: Dict[str, Any] = dict(kwargs)
         if data is not None and kwargs:
             pairs = self._convert_to_pairs(data) + self._convert_to_pairs(kwargs)
         elif data is not None:
@@ -75,7 +81,7 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
         else:
             pairs = []
         self.pairs = pairs
-        self.alias = None
+        self.alias = alias
 
     def _convert_to_pairs(self, data: Any) -> List[tuple]:
         """Convert dict or iterable to list of key-value tuples."""
@@ -106,8 +112,11 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
         dialect: "SQLDialectBase",
         values: Any = None,
         *args: Any,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
+        self._raw_values = values  # keep raw for get_params() introspection
+        self.args = list(args)  # keep raw for get_params() introspection
         if values is not None and args:
             self.values = [values] + list(args)
         elif values is not None:
@@ -116,7 +125,16 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
             self.values = list(args)
         else:
             self.values = []
-        self.alias = None
+        self.alias = alias
+
+    def get_params(self) -> Dict[str, Any]:
+        """Return the raw constructor arguments.
+
+        The ``values`` parameter is normalized into ``self.values`` during
+        construction; returning the raw form keeps the round-trip
+        (serialize -> deserialize) from double-applying the positional args.
+        """
+        return {"values": self._raw_values, "args": self.args, "alias": self.alias}
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_json_array(self.values)
@@ -140,12 +158,14 @@ class MariaDBJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExp
         json_column: str,
         value: str,
         path: Optional[str] = None,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.value = value
         self.path = path
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_json_contains(

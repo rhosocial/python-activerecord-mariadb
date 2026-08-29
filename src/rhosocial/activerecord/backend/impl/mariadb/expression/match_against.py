@@ -55,6 +55,8 @@ class MariaDBMatchAgainstExpression(
         columns: List[str],
         search_string: str,
         mode: Optional[str] = None,
+        *,
+        alias: Optional[str] = None,
     ):
         """Initialize MATCH...AGAINST expression.
 
@@ -68,7 +70,7 @@ class MariaDBMatchAgainstExpression(
         self.columns = columns
         self.search_string = search_string
         self.mode = mode
-        self.alias = None  # Initialize alias attribute
+        self.alias = alias  # Initialize alias attribute
 
     def to_sql(self) -> "SQLQueryAndParams":
         """Generate MATCH...AGAINST SQL using dialect's format method."""

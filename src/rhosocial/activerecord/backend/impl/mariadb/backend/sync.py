@@ -383,6 +383,22 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
         """Handle MariaDB-specific errors."""
         self._handle_mariadb_error(error)
 
+    def _handle_auto_commit(self) -> None:
+        """Handle auto commit based on connection and transaction state.
+
+        This hook is called by the base execute pipeline via
+        _handle_auto_commit_if_needed() when not in an active transaction.
+        """
+        try:
+            if not self._connection:
+                return
+
+            if not getattr(self.config, 'autocommit', False):
+                self._connection.commit()
+                self.log(logging.DEBUG, "Auto-committed operation")
+        except Exception as e:
+            self.log(logging.WARNING, f"Failed to auto-commit: {str(e)}")
+
     def _prepare_sql_and_params(
         self,
         sql: str,
@@ -390,8 +406,9 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
     ) -> Tuple[str, Tuple]:
         """Prepare SQL and parameters for MariaDB.
 
-        Applies type adapter conversions via prepare_parameters() before
-        passing values to the MariaDB driver.
+        Only performs parameter normalization. Type adapter conversions
+        (datetime, dict, list, etc.) are handled centrally by the base
+        ExecutionMixin.execute via prepare_parameters().
 
         Args:
             sql: SQL statement.
@@ -406,16 +423,6 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             final_params = tuple(params) if params else ()
         else:
             final_params = params or ()
-
-        # Apply type adapters for driver-incompatible types (datetime, dict, list, etc.)
-        if final_params:
-            all_suggestions = self.get_default_adapter_suggestions()
-            param_adapters = []
-            for param_value in final_params:
-                py_type = type(param_value)
-                suggestion = all_suggestions.get(py_type)
-                param_adapters.append(suggestion if suggestion else None)
-            final_params = self.prepare_parameters(final_params, param_adapters)
 
         return sql, final_params
 
@@ -471,8 +478,8 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
         for attempt in range(max_retries + 1):
             try:
-                return self._execute_internal(sql, params, options)
-            except (mariadb.OperationalError, mariadb.Error) as e:
+                return super().execute(sql, params, options=options)
+            except (ConnectionError, OperationalError) as e:
                 last_error = e
 
                 if self._is_connection_error(e) and attempt < max_retries:
@@ -492,101 +499,6 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             self._handle_error(last_error)
 
         raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")
-
-    def _execute_internal(
-            self,
-        sql: str,
-        params: Optional[Union[Tuple, Dict, List]] = None,
-        options: Optional[ExecutionOptions] = None
-    ) -> Optional[QueryResult]:
-        """Internal execute without retry logic.
-
-        Args:
-            sql: SQL statement.
-            params: Parameters for the statement.
-            options: Execution options for result processing.
-
-        Returns:
-            QueryResult or None if execution produced no results.
-        """
-        cursor = self._get_cursor()
-        sql, params = self._prepare_sql_and_params(sql, params)
-        cursor.execute(sql, params)
-
-        if cursor.description:
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            row_data = [dict(zip(columns, row)) for row in rows] if rows else []
-            result = QueryResult(
-                data=row_data,
-                affected_rows=cursor.rowcount,
-                last_insert_id=cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
-            )
-            # DML with RETURNING produces a result set but still needs commit
-            if not self.in_transaction and options and options.stmt_type == StatementType.DML:
-                self._connection.commit()
-        else:
-            if not self.in_transaction:
-                self._connection.commit()
-            result = QueryResult(
-                data=None,
-                affected_rows=cursor.rowcount,
-                last_insert_id=cursor.lastrowid if hasattr(cursor, 'lastrowid') else None,
-            )
-
-        if options and (options.column_mapping or options.column_adapters):
-            result = self._apply_result_mapping(result, options)
-
-        return result
-
-    def _apply_result_mapping(
-        self,
-        result: QueryResult,
-        options: ExecutionOptions
-    ) -> QueryResult:
-        """Apply column mapping and adapters to a query result.
-
-        Args:
-            result: The raw query result.
-            options: Execution options with mapping/adapters.
-
-        Returns:
-            Transformed QueryResult.
-        """
-        column_mapping = options.column_mapping or {}
-        column_adapters = options.column_adapters or {}
-
-        if not result.data:
-            return result
-
-        data = result.data
-        if isinstance(data, list) and len(data) > 0:
-            first_row = data[0]
-            if isinstance(first_row, dict):
-                # Apply adapters first (using original column names)
-                if column_adapters:
-                    adapted_data = []
-                    for row in data:
-                        adapted_row = dict(row)
-                        for col_name, (adapter, target_type) in column_adapters.items():
-                            if col_name in adapted_row:
-                                adapted_row[col_name] = adapter.from_database(
-                                    row[col_name], target_type
-                                )
-                        adapted_data.append(adapted_row)
-                    data = adapted_data
-
-                # Then apply column name mapping
-                if column_mapping:
-                    mapped_data = []
-                    for row in data:
-                        mapped_row = {column_mapping.get(k, k): v for k, v in row.items()}
-                        mapped_data.append(mapped_row)
-                    data = mapped_data
-
-                result.data = data
-
-        return result
 
     def execute_many(self, sql: str, params_list: List[Tuple]) -> Optional[QueryResult]:
         """Execute batch operations with the same SQL statement and multiple parameter sets.
