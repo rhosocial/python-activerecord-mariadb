@@ -24,7 +24,7 @@ echo "=========================================="
 
 echo ""
 echo "--- List named procedures in examples module ---"
-$PYTHON_CMD named-procedure --list rhosocial.activerecord.backend.impl.mariadb.examples.named_procedures 2>/dev/null || echo "(No named procedures found)"
+$PYTHON_CMD named-procedure --list rhosocial.activerecord.backend.impl.mariadb.examples.named_procedures.order_workflow 2>/dev/null || echo "(No named procedures found)"
 
 echo ""
 echo "--- List named connections module for reference ---"

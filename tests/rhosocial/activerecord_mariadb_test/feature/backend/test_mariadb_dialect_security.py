@@ -545,3 +545,54 @@ def test_format_identifier_naive_vs_proper_malicious(dialect):
 def test_format_identifier_empty_string(dialect):
     """Empty identifier produces empty backticks."""
     assert dialect.format_identifier("") == "``"
+
+
+# ── Savepoint identifier escaping ─────────────────────────────────────
+
+
+def test_savepoint_name_escaped_via_format_identifier():
+    """savepoint name must be escaped via format_identifier to prevent injection.
+
+    Regression guard: MariaDB transaction.py's _do_create_savepoint /
+    _do_release_savepoint / _do_rollback_savepoint must use
+    format_identifier(name) instead of bare name concatenation.
+    """
+    from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+    d = MariaDBDialect()
+
+    # Normal savepoint name
+    assert d.format_identifier("sp1") == "`sp1`"
+
+    # Name with embedded backtick — must be escaped via double-backtick
+    escaped = d.format_identifier("sp`1")
+    assert escaped == "`sp``1`"
+    # In MariaDB backticks are escaped by doubling
+    assert escaped.count("`") % 2 == 0, "balanced backticks"
+
+    # Name with spaces
+    assert d.format_identifier("my savepoint") == "`my savepoint`"
+
+    # Name with SQL keyword — format_identifier must quote it
+    assert d.format_identifier("DROP TABLE") == "`DROP TABLE`"
+
+    # Empty string
+    assert d.format_identifier("") == "``"
+
+
+def test_savepoint_direct_concat_rejected():
+    """Verify that naive backtick concatenation is unsafe.
+
+    This is a negative test: format_identifier must NOT produce unbalanced
+    backticks.  A naive ``f"`{name}`"`` would be vulnerable.
+    """
+    from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+    d = MariaDBDialect()
+
+    payloads = [
+        "sp`; DROP TABLE users--",
+        "sp`; DELETE FROM t--",
+    ]
+    for payload in payloads:
+        proper = d.format_identifier(payload)
+        assert proper.count("`") % 2 == 0, \
+            f"format_identifier must produce balanced backticks for '{payload}': {proper}"

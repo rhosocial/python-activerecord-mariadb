@@ -786,6 +786,10 @@ class MariaDBDialect(
     def supports_trigger_if_not_exists(self) -> bool:
         return False
 
+    def supports_schema(self) -> bool:
+        """MariaDB has no schema layer distinct from its databases."""
+        return False
+
     def supports_create_schema(self) -> bool:
         return False
 

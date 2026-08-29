@@ -94,11 +94,10 @@ def pytest_addoption(parser):
         default=False,
         help='Scenario parallel mode: distribute scenarios across workers, keep each scenario on one worker.',
     )
-    parser.addoption(
-        '--scenarios',
-        default=None,
-        help='Comma-separated list of scenario names to run (e.g., --scenarios=mariadb_102,mariadb_122). ',
-    )
+    # NOTE: --scenarios is registered by the testsuite conftest
+    # (rhosocial.activerecord.testsuite.conftest, loaded via pyproject addopts
+    # -p). Registering it again here raises "option names {'--scenarios'}
+    # already added", so it must NOT be declared locally.
 
 
 def pytest_configure(config):

@@ -9,7 +9,7 @@ This module provides expression classes for MariaDB spatial functions:
 - MariaDBSTContainsExpression
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
@@ -34,10 +34,12 @@ class MariaDBSTGeomFromTextExpression(AliasableMixin, SQLValueExpression):
         self,
         dialect: "SQLDialectBase",
         wkt: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.wkt = wkt
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_st_geom_from_text(self.wkt)
@@ -60,11 +62,13 @@ class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueExpre
         dialect: "SQLDialectBase",
         geom1: str,
         geom2: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.geom1 = geom1
         self.geom2 = geom2
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_st_distance(self.geom1, self.geom2)
@@ -87,11 +91,13 @@ class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpress
         dialect: "SQLDialectBase",
         geom1: str,
         geom2: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.geom1 = geom1
         self.geom2 = geom2
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_st_within(self.geom1, self.geom2)
@@ -114,11 +120,13 @@ class MariaDBSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpre
         dialect: "SQLDialectBase",
         geom1: str,
         geom2: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.geom1 = geom1
         self.geom2 = geom2
-        self.alias = None
+        self.alias = alias
 
     def to_sql(self) -> "SQLQueryAndParams":
         sql, params = self.dialect.format_st_contains(self.geom1, self.geom2)

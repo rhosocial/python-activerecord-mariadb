@@ -55,6 +55,10 @@ from .show_introspector import (
     SyncShowIntrospector,
     AsyncShowIntrospector,
 )
+from .status_introspector import (
+    SyncMariaDBStatusIntrospector,
+    AsyncMariaDBStatusIntrospector,
+)
 
 
 class MariaDBIntrospectorMixin(IntrospectorMixin):
@@ -300,6 +304,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
     def __init__(self, backend: Any, executor: SyncIntrospectorExecutor) -> None:
         super().__init__(backend, executor)
         self._show_instance: Optional[SyncShowIntrospector] = None
+        self._status_instance: Optional[SyncMariaDBStatusIntrospector] = None
 
     @property
     def show(self) -> SyncShowIntrospector:
@@ -307,6 +312,13 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         if self._show_instance is None:
             self._show_instance = SyncShowIntrospector(self._backend, self._executor)
         return self._show_instance
+
+    @property
+    def status(self) -> SyncMariaDBStatusIntrospector:
+        """MariaDB server status introspector (lazily created)."""
+        if self._status_instance is None:
+            self._status_instance = SyncMariaDBStatusIntrospector(self._backend)
+        return self._status_instance
 
     # ------------------------------------------------------------------ #
     # get_table_info override
@@ -352,6 +364,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
     def __init__(self, backend: Any, executor: AsyncIntrospectorExecutor) -> None:
         super().__init__(backend, executor)
         self._show_instance: Optional[AsyncShowIntrospector] = None
+        self._status_instance: Optional[AsyncMariaDBStatusIntrospector] = None
 
     @property
     def show(self) -> AsyncShowIntrospector:
@@ -359,6 +372,13 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         if self._show_instance is None:
             self._show_instance = AsyncShowIntrospector(self._backend, self._executor)
         return self._show_instance
+
+    @property
+    def status(self) -> AsyncMariaDBStatusIntrospector:
+        """MariaDB server status introspector (lazily created)."""
+        if self._status_instance is None:
+            self._status_instance = AsyncMariaDBStatusIntrospector(self._backend)
+        return self._status_instance
 
     # ------------------------------------------------------------------ #
     # get_table_info override
