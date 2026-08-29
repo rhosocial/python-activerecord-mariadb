@@ -40,7 +40,7 @@ from .set_type import MariaDBSetTypeMixin
 from .modify_column import MariaDBModifyColumnMixin
 from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
 from .partition import MariaDBPartitionMixin
-from .types import MariaDBTypeSupportMixin
+from .types import MariaDBTypeSupportMixin, MariaDBTypeSuggestionMixin
 from .rename_table import MariaDBRenameTableMixin
 from .truncate import MariaDBTruncateMixin
 from .ddl.column import MariaDBAlterColumnModifierMixin
@@ -71,6 +71,7 @@ __all__ = [
     'AsyncMariaDBConcurrencyMixin',
     'MariaDBPartitionMixin',
     'MariaDBTypeSupportMixin',
+    'MariaDBTypeSuggestionMixin',
     'MariaDBAlterColumnModifierMixin',
     'MariaDBAlterConstraintModifierMixin',
     'MariaDBRenameTableMixin',

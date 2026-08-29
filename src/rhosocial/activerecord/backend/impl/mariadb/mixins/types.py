@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import re
-from typing import Tuple
+from typing import Optional, Tuple
 
-from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
+from rhosocial.activerecord.backend.dialect.mixins.ddl_type import (
+    DDLTypeMixin,
+    DDLTypeSuggestionMixin,
+)
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
     BlobType,
@@ -560,3 +563,54 @@ class MariaDBTypeSupportMixin(DDLTypeMixin):
 
         from rhosocial.activerecord.backend.expression.types import CustomType
         return CustomType(stripped)
+
+class MariaDBTypeSuggestionMixin(DDLTypeSuggestionMixin):
+    """MariaDB-native ``suggest_column_type()``.
+
+    Mirrors the MySQL integration: MariaDB has no native UUID type, so UUIDs
+    default to ``MariaDBBinaryType(16)`` (binary storage) matching the
+    ``MariaDBUUIDAdapter``'s bytes path. ``dict``/``list`` are version-gated
+    (JSON is supported since MariaDB 10.2.7; earlier versions use
+    ``MariaDBLongTextType``). Version-unknown returns ``None`` (no guessing).
+    """
+
+    def suggest_column_type(
+        self, python_type: type, version: "Optional[Tuple[int, int, int]]" = None
+    ) -> "Optional[DataType]":
+        import datetime as _dt
+        import decimal as _dec
+        import enum as _enum
+        import uuid as _uuid
+
+        if version is None:
+            version = getattr(self, "_version", None)
+
+        mapping = {
+            str: MariaDBTextType,
+            int: MariaDBIntType,
+            bool: MariaDBTinyIntType,
+            float: DoubleType,
+            bytes: MariaDBBlobType,
+            _dt.datetime: DateTimeType,
+            _dt.date: DateType,
+            _dt.time: TimeType,
+            _dec.Decimal: DecimalType,
+            _uuid.UUID: MariaDBBinaryType,
+            _enum.Enum: VarCharType,
+        }
+        factory = mapping.get(python_type)
+        if factory is not None:
+            if python_type is _uuid.UUID:
+                return MariaDBBinaryType(16)
+            if python_type is _enum.Enum:
+                return VarCharType(64)
+            return factory()
+
+        if python_type in (dict, list):
+            if version is None:
+                return None
+            if version >= (10, 2, 7):
+                return JsonType()
+            return MariaDBLongTextType()
+
+        return super().suggest_column_type(python_type, version)

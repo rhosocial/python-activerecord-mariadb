@@ -117,6 +117,7 @@ from .mixins import (
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
     MariaDBTypeSupportMixin,
+    MariaDBTypeSuggestionMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
     MariaDBRenameTableMixin,
@@ -212,6 +213,7 @@ class MariaDBDialect(
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
     MariaDBTypeSupportMixin,
+    MariaDBTypeSuggestionMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
     MariaDBRenameTableMixin,
@@ -989,16 +991,46 @@ class MariaDBDialect(
 
         parts.append(f"({', '.join(column_parts)})")
 
-        if expr.storage_options:
-            storage_sql = self._format_storage_options_mariadb(expr.storage_options)
-            if storage_sql:
-                parts.append(storage_sql)
+        # Structured TableOptions take precedence over the raw storage_options
+        # dict, then the legacy dialect_options["comment"].
+        table_opts_sql = self._format_table_options(expr)
+        if table_opts_sql:
+            parts.append(table_opts_sql)
 
-        if 'comment' in expr.dialect_options:
+        if 'comment' in expr.dialect_options and not (
+            expr.table_options is not None and expr.table_options.comment
+        ):
             escaped_comment = self._escape_sql_string(expr.dialect_options['comment'])
             parts.append(f"COMMENT '{escaped_comment}'")
 
         return ' '.join(parts), tuple(all_params)
+
+    def _format_table_options(self, expr) -> str:
+        """Render MariaDB table options from ``expr.table_options``.
+
+        The structured ``TableOptions`` (charset/collation/engine/comment)
+        fully owns the tail options when present; otherwise the raw
+        ``expr.storage_options`` dict is used as a legacy fallback.
+        """
+        opts = getattr(expr, "table_options", None)
+        if opts is not None and getattr(opts, "has_options", lambda: False)():
+            parts = []
+            if opts.engine:
+                parts.append(f"ENGINE={opts.engine}")
+            if opts.charset:
+                parts.append(f"DEFAULT CHARACTER SET={opts.charset}")
+            if opts.collation:
+                parts.append(f"COLLATE={opts.collation}")
+            if opts.tablespace:
+                parts.append(f"TABLESPACE={opts.tablespace}")
+            if opts.comment:
+                escaped = self._escape_sql_string(opts.comment)
+                parts.append(f"COMMENT='{escaped}'")
+            return ' '.join(parts)
+
+        if expr.storage_options:
+            return self._format_storage_options_mariadb(expr.storage_options)
+        return ""
 
     def _format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
         """Format CREATE TABLE ... LIKE statement."""
