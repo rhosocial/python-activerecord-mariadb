@@ -124,7 +124,7 @@ class MariaDBBackendMixin:
             (date, str),
             (time, str),
             (Decimal, float),
-            (UUID, bytes),
+            (UUID, str),
             (dict, str),
             (list, str),
             (Enum, str),
