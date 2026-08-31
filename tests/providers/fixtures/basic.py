@@ -149,7 +149,7 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
 
 
 def create_validated_field_users_table(dialect, table_name: str = "validated_field_users") -> CreateTableExpression:
-    status_enum = MariaDBEnumType(['active', 'inactive', 'banned', 'pending', 'suspended'])
+    status_enum = MariaDBEnumType(values=['active', 'inactive', 'banned', 'pending', 'suspended'])
     return CreateTableExpression(
         dialect=dialect,
         table=table_name,

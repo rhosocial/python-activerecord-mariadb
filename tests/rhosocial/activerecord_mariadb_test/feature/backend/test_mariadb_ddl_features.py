@@ -431,29 +431,28 @@ class TestMySQLEnumType:
     def test_simple_enum(self):
         """Test simple ENUM definition."""
         dialect = MariaDBDialect()
-        enum_type = MariaDBEnumType(['pending', 'processing', 'completed'])
+        enum_type = MariaDBEnumType(values=['pending', 'processing', 'completed'])
         sql, _ = enum_type.to_sql(dialect)
         assert sql == "ENUM('pending','processing','completed')"
 
     def test_enum_with_charset(self):
         """Test ENUM with CHARACTER SET."""
         dialect = MariaDBDialect()
-        enum_type = MariaDBEnumType(['active', 'inactive'], charset='utf8mb4')
+        enum_type = MariaDBEnumType(values=['active', 'inactive'], charset='utf8mb4')
         sql, _ = enum_type.to_sql(dialect)
         assert 'CHARACTER SET utf8mb4' in sql
 
     def test_enum_with_collation(self):
         """Test ENUM with COLLATE."""
         dialect = MariaDBDialect()
-        enum_type = MariaDBEnumType(['a', 'b'], collation='utf8mb4_bin')
+        enum_type = MariaDBEnumType(values=['a', 'b'], collation='utf8mb4_bin')
         sql, _ = enum_type.to_sql(dialect)
         assert 'COLLATE utf8mb4_bin' in sql
 
     def test_enum_with_charset_and_collation(self):
         """Test ENUM with both CHARACTER SET and COLLATE."""
         dialect = MariaDBDialect()
-        enum_type = MariaDBEnumType(
-            ['pending', 'done'],
+        enum_type = MariaDBEnumType(values=['pending', 'done'],
             charset='utf8mb4',
             collation='utf8mb4_unicode_ci'
         )
@@ -464,13 +463,13 @@ class TestMySQLEnumType:
     def test_enum_str_representation(self):
         """Test ENUM string representation via to_sql()."""
         dialect = MariaDBDialect()
-        enum_type = MariaDBEnumType(['yes', 'no'])
+        enum_type = MariaDBEnumType(values=['yes', 'no'])
         sql, _ = enum_type.to_sql(dialect)
         assert sql == "ENUM('yes','no')"
 
     def test_enum_repr(self):
         """Test ENUM repr."""
-        enum_type = MariaDBEnumType(['a', 'b'])
+        enum_type = MariaDBEnumType(values=['a', 'b'])
         repr_str = repr(enum_type)
         assert 'MariaDBEnumType' in repr_str
         assert 'a' in repr_str
@@ -478,12 +477,12 @@ class TestMySQLEnumType:
     def test_enum_empty_values_raises_error(self):
         """Test that empty values list raises ValueError."""
         with pytest.raises(ValueError, match="ENUM must have at least one value"):
-            MariaDBEnumType([])
+            MariaDBEnumType(values=[])
 
     def test_enum_in_column_definition(self):
         """Test ENUM type used in column definition."""
         dialect = MariaDBDialect()
-        status_enum = MariaDBEnumType(['draft', 'published', 'archived'])
+        status_enum = MariaDBEnumType(values=['draft', 'published', 'archived'])
         columns = [
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
@@ -507,41 +506,41 @@ class TestMySQLSetType:
     def test_simple_set(self):
         """Test simple SET definition."""
         dialect = MariaDBDialect()
-        set_type = MariaDBSetType(['read', 'write', 'execute'])
+        set_type = MariaDBSetType(values=['read', 'write', 'execute'])
         sql, _ = set_type.to_sql(dialect)
         assert sql == "SET('read','write','execute')"
 
     def test_set_with_charset(self):
         """Test SET with CHARACTER SET."""
         dialect = MariaDBDialect()
-        set_type = MariaDBSetType(['tag1', 'tag2'], charset='utf8mb4')
+        set_type = MariaDBSetType(values=['tag1', 'tag2'], charset='utf8mb4')
         sql, _ = set_type.to_sql(dialect)
         assert 'CHARACTER SET utf8mb4' in sql
 
     def test_set_with_collation(self):
         """Test SET with COLLATE."""
         dialect = MariaDBDialect()
-        set_type = MariaDBSetType(['a', 'b'], collation='utf8mb4_bin')
+        set_type = MariaDBSetType(values=['a', 'b'], collation='utf8mb4_bin')
         sql, _ = set_type.to_sql(dialect)
         assert 'COLLATE utf8mb4_bin' in sql
 
     def test_set_str_representation(self):
         """Test SET string representation via to_sql()."""
         dialect = MariaDBDialect()
-        set_type = MariaDBSetType(['x', 'y'])
+        set_type = MariaDBSetType(values=['x', 'y'])
         sql, _ = set_type.to_sql(dialect)
         assert sql == "SET('x','y')"
 
     def test_set_repr(self):
         """Test SET repr."""
-        set_type = MariaDBSetType(['a', 'b'])
+        set_type = MariaDBSetType(values=['a', 'b'])
         repr_str = repr(set_type)
         assert 'MariaDBSetType' in repr_str
 
     def test_set_empty_values_raises_error(self):
         """Test that empty values list raises ValueError."""
         with pytest.raises(ValueError, match="SET must have at least one value"):
-            MariaDBSetType([])
+            MariaDBSetType(values=[])
 
 
 class TestMySQLTableConstraints:
@@ -643,7 +642,7 @@ class TestMySQLCompleteTableCreation:
     def test_complete_table_creation(self):
         """Test complete table creation with all MySQL features."""
         dialect = MariaDBDialect()
-        status_enum = MariaDBEnumType(['active', 'inactive', 'deleted'])
+        status_enum = MariaDBEnumType(values=['active', 'inactive', 'deleted'])
         
         columns = [
             ColumnDefinition(
