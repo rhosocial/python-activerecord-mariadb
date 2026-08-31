@@ -37,7 +37,7 @@ def test_mysql_format_column_definition_default_string_escaping(dialect):
 
     col_def = ColumnDefinition(
         name="test_col",
-        data_type=VarCharType(255),
+        data_type=VarCharType(length=255),
         constraints=[constraint],
     )
 
@@ -49,7 +49,7 @@ def test_mysql_format_column_definition_comment_string_escaping(dialect):
     """Test COMMENT string is escaped in MySQL column definition."""
     col_def = ColumnDefinition(
         name="test_col",
-        data_type=VarCharType(255),
+        data_type=VarCharType(length=255),
         comment="Comment with 'single quote'",
     )
 
@@ -75,7 +75,7 @@ def test_mysql_format_column_definition_data_type_validation(dialect):
     """Test column definition validates data_type."""
     col_def = ColumnDefinition(
         name="test_col",
-        data_type=VarCharType(255),
+        data_type=VarCharType(length=255),
     )
 
     sql, params = dialect.format_column_definition(col_def)

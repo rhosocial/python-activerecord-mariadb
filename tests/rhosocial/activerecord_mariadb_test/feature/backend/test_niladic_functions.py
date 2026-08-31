@@ -205,7 +205,7 @@ class TestMySQLNiladicDDLContext:
                     ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
                     ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
                 ]),
-                ColumnDefinition('ts', TimestampType(6), constraints=[
+                ColumnDefinition('ts', TimestampType(precision=6), constraints=[
                     ColumnConstraint(ColumnConstraintType.DEFAULT,
                                      default_value=current_timestamp(dialect, 6)),
                 ]),

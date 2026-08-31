@@ -50,7 +50,7 @@ expr = CreateTableExpression(
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
             ]),
-        ColumnDefinition("email", VarCharType(255)),
+        ColumnDefinition("email", VarCharType(length=255)),
     ],
     indexes=[IndexDefinition("idx_email", ["email"])],
 )

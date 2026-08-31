@@ -34,7 +34,7 @@ from rhosocial.activerecord.backend.expression.types import (
 # Integer variants with UNSIGNED / ZEROFILL
 # ---------------------------------------------------------------------------
 
-class MariaDBIntType(IntegerType, backend="mariadb"):
+class MariaDBIntType(IntegerType):
     """MariaDB ``INTEGER`` / ``INT`` with optional UNSIGNED / ZEROFILL."""
 
     unsigned: bool = False
@@ -54,7 +54,7 @@ class MariaDBIntType(IntegerType, backend="mariadb"):
         return {'IntegerType'}
 
 
-class MariaDBTinyIntType(TinyIntType, backend="mariadb"):
+class MariaDBTinyIntType(TinyIntType):
     """MariaDB ``TINYINT`` with optional UNSIGNED / ZEROFILL."""
 
     unsigned: bool = False
@@ -74,7 +74,7 @@ class MariaDBTinyIntType(TinyIntType, backend="mariadb"):
         return {'TinyIntType'}
 
 
-class MariaDBSmallIntType(SmallIntType, backend="mariadb"):
+class MariaDBSmallIntType(SmallIntType):
     """MariaDB ``SMALLINT`` with optional UNSIGNED / ZEROFILL."""
 
     unsigned: bool = False
@@ -94,7 +94,7 @@ class MariaDBSmallIntType(SmallIntType, backend="mariadb"):
         return {'SmallIntType'}
 
 
-class MariaDBBigIntType(BigIntType, backend="mariadb"):
+class MariaDBBigIntType(BigIntType):
     """MariaDB ``BIGINT`` with optional UNSIGNED / ZEROFILL."""
 
     unsigned: bool = False
@@ -118,19 +118,19 @@ class MariaDBBigIntType(BigIntType, backend="mariadb"):
 # BLOB size variants
 # ---------------------------------------------------------------------------
 
-class MariaDBTinyBlobType(BlobType, backend="mariadb"):
+class MariaDBTinyBlobType(BlobType):
     """MariaDB ``TINYBLOB`` — maximum 255 bytes."""
 
 
-class MariaDBBlobType(BlobType, backend="mariadb"):
+class MariaDBBlobType(BlobType):
     """MariaDB ``BLOB`` — maximum 65,535 bytes."""
 
 
-class MariaDBMediumBlobType(BlobType, backend="mariadb"):
+class MariaDBMediumBlobType(BlobType):
     """MariaDB ``MEDIUMBLOB`` — maximum 16,777,215 bytes."""
 
 
-class MariaDBLongBlobType(BlobType, backend="mariadb"):
+class MariaDBLongBlobType(BlobType):
     """MariaDB ``LONGBLOB`` — maximum 4,294,967,295 bytes."""
 
 
@@ -138,19 +138,19 @@ class MariaDBLongBlobType(BlobType, backend="mariadb"):
 # TEXT size variants
 # ---------------------------------------------------------------------------
 
-class MariaDBTinyTextType(TextType, backend="mariadb"):
+class MariaDBTinyTextType(TextType):
     """MariaDB ``TINYTEXT`` — maximum 255 bytes."""
 
 
-class MariaDBTextType(TextType, backend="mariadb"):
+class MariaDBTextType(TextType):
     """MariaDB ``TEXT`` — maximum 65,535 bytes."""
 
 
-class MariaDBMediumTextType(TextType, backend="mariadb"):
+class MariaDBMediumTextType(TextType):
     """MariaDB ``MEDIUMTEXT`` — maximum 16,777,215 bytes."""
 
 
-class MariaDBLongTextType(TextType, backend="mariadb"):
+class MariaDBLongTextType(TextType):
     """MariaDB ``LONGTEXT`` — maximum 4,294,967,295 bytes."""
 
 
@@ -158,13 +158,13 @@ class MariaDBLongTextType(TextType, backend="mariadb"):
 # Bit type
 # ---------------------------------------------------------------------------
 
-class MariaDBBitType(DataType, backend="mariadb"):
+class MariaDBBitType(DataType):
     """MariaDB ``BIT[(n)]`` — bit-field type."""
 
     n: Optional[int] = None
 
-    def __init__(self, n: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, n: Optional[int] = None):
+        super().__init__(dialect)
         self.n = n
 
     def __eq__(self, other: object) -> bool:
@@ -180,13 +180,13 @@ class MariaDBBitType(DataType, backend="mariadb"):
 # Year type
 # ---------------------------------------------------------------------------
 
-class MariaDBYearType(DataType, backend="mariadb"):
+class MariaDBYearType(DataType):
     """MariaDB ``YEAR[(4)]`` — year type."""
 
     display_width: Optional[int] = None
 
-    def __init__(self, display_width: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, display_width: Optional[int] = None):
+        super().__init__(dialect)
         self.display_width = display_width
 
     def __eq__(self, other: object) -> bool:
@@ -202,13 +202,13 @@ class MariaDBYearType(DataType, backend="mariadb"):
 # Binary / VarBinary
 # ---------------------------------------------------------------------------
 
-class MariaDBBinaryType(DataType, backend="mariadb"):
+class MariaDBBinaryType(DataType):
     """MariaDB ``BINARY[(n)]`` — fixed-length binary."""
 
     length: Optional[int] = None
 
-    def __init__(self, length: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, length: Optional[int] = None):
+        super().__init__(dialect)
         self.length = length
 
     def __eq__(self, other: object) -> bool:
@@ -220,13 +220,13 @@ class MariaDBBinaryType(DataType, backend="mariadb"):
         return hash((type(self), self.length))
 
 
-class MariaDBVarBinaryType(DataType, backend="mariadb"):
+class MariaDBVarBinaryType(DataType):
     """MariaDB ``VARBINARY(n)`` — variable-length binary."""
 
     length: Optional[int] = None
 
-    def __init__(self, length: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, length: Optional[int] = None):
+        super().__init__(dialect)
         self.length = length
 
     def __eq__(self, other: object) -> bool:
@@ -242,16 +242,16 @@ class MariaDBVarBinaryType(DataType, backend="mariadb"):
 # ENUM
 # ---------------------------------------------------------------------------
 
-class MariaDBEnumType(DataType, backend="mariadb"):
+class MariaDBEnumType(DataType):
     """MariaDB ``ENUM('val', ...)`` with optional CHARACTER SET / COLLATE."""
 
     values: List[str]
     charset: Optional[str] = None
     collation: Optional[str] = None
 
-    def __init__(self, values: List[str], charset: Optional[str] = None,
-                 collation: Optional[str] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, values: List[str],
+                 charset: Optional[str] = None, collation: Optional[str] = None):
+        super().__init__(dialect)
         if not values:
             raise ValueError("ENUM must have at least one value")
         self.values = list(values)
@@ -277,16 +277,16 @@ class MariaDBEnumType(DataType, backend="mariadb"):
 # SET
 # ---------------------------------------------------------------------------
 
-class MariaDBSetType(DataType, backend="mariadb"):
+class MariaDBSetType(DataType):
     """MariaDB ``SET('val', ...)`` with optional CHARACTER SET / COLLATE."""
 
     values: List[str]
     charset: Optional[str] = None
     collation: Optional[str] = None
 
-    def __init__(self, values: List[str], charset: Optional[str] = None,
-                 collation: Optional[str] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, values: List[str],
+                 charset: Optional[str] = None, collation: Optional[str] = None):
+        super().__init__(dialect)
         if not values:
             raise ValueError("SET must have at least one value")
         self.values = list(values)
@@ -312,13 +312,13 @@ class MariaDBSetType(DataType, backend="mariadb"):
 # Spatial / Geometry types
 # ---------------------------------------------------------------------------
 
-class MariaDBGeometryType(DataType, backend="mariadb"):
+class MariaDBGeometryType(DataType):
     """MariaDB ``GEOMETRY`` with optional SRID."""
 
     srid: Optional[int] = None
 
-    def __init__(self, srid: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, srid: Optional[int] = None):
+        super().__init__(dialect)
         self.srid = srid
 
     def __eq__(self, other: object) -> bool:
@@ -330,29 +330,29 @@ class MariaDBGeometryType(DataType, backend="mariadb"):
         return hash((type(self), self.srid))
 
 
-class MariaDBPointType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBPointType(MariaDBGeometryType):
     """MariaDB ``POINT`` with optional SRID."""
 
 
-class MariaDBLineStringType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBLineStringType(MariaDBGeometryType):
     """MariaDB ``LINESTRING`` with optional SRID."""
 
 
-class MariaDBPolygonType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBPolygonType(MariaDBGeometryType):
     """MariaDB ``POLYGON`` with optional SRID."""
 
 
-class MariaDBMultiPointType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBMultiPointType(MariaDBGeometryType):
     """MariaDB ``MULTIPOINT`` with optional SRID."""
 
 
-class MariaDBMultiLineStringType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBMultiLineStringType(MariaDBGeometryType):
     """MariaDB ``MULTILINESTRING`` with optional SRID."""
 
 
-class MariaDBMultiPolygonType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBMultiPolygonType(MariaDBGeometryType):
     """MariaDB ``MULTIPOLYGON`` with optional SRID."""
 
 
-class MariaDBGeometryCollectionType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBGeometryCollectionType(MariaDBGeometryType):
     """MariaDB ``GEOMETRYCOLLECTION`` with optional SRID."""

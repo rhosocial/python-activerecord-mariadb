@@ -379,7 +379,7 @@ class MariaDBTypeSupportMixin(DDLTypeMixin):
             nums = re.findall(r"\d+", stripped)
             n = int(nums[0]) if nums else None
             from ..expression.types import MariaDBBitType
-            return MariaDBBitType(n)
+            return MariaDBBitType(dialect=self, n=n)
 
         if self._MARIA_INTEGER_TYPES.match(upper):
             unsigned = "UNSIGNED" in upper
@@ -388,66 +388,66 @@ class MariaDBTypeSupportMixin(DDLTypeMixin):
                 nums = re.findall(r"\d+", stripped)
                 display_width = int(nums[0]) if nums else None
                 from ..expression.types import MariaDBTinyIntType
-                t = MariaDBTinyIntType()
+                t = MariaDBTinyIntType(dialect=self)
                 t.unsigned = unsigned
                 t.zerofill = zerofill
                 if display_width == 1 and not unsigned and not zerofill:
-                    return BooleanType()
+                    return BooleanType(dialect=self)
                 return t
             if upper.startswith("SMALLINT"):
                 from ..expression.types import MariaDBSmallIntType
-                t = MariaDBSmallIntType()
+                t = MariaDBSmallIntType(dialect=self)
                 t.unsigned = unsigned
                 t.zerofill = zerofill
                 return t
             if upper.startswith("MEDIUMINT"):
                 from ..expression.types import MariaDBIntType
-                t = MariaDBIntType()
+                t = MariaDBIntType(dialect=self)
                 t.unsigned = unsigned
                 t.zerofill = zerofill
                 return t
             if upper.startswith("BIGINT"):
                 from ..expression.types import MariaDBBigIntType
-                t = MariaDBBigIntType()
+                t = MariaDBBigIntType(dialect=self)
                 t.unsigned = unsigned
                 t.zerofill = zerofill
                 return t
             from ..expression.types import MariaDBIntType
-            t = MariaDBIntType()
+            t = MariaDBIntType(dialect=self)
             t.unsigned = unsigned
             t.zerofill = zerofill
             return t
 
         if self._MARIA_FLOAT_TYPES.match(upper):
             if upper.startswith("DOUBLE"):
-                return DoubleType()
+                return DoubleType(dialect=self)
             if upper.startswith("REAL"):
-                return RealType()
+                return RealType(dialect=self)
             nums = re.findall(r"\d+", stripped)
             precision = int(nums[0]) if nums else None
-            return FloatType(precision)
+            return FloatType(dialect=self, precision=precision)
 
         if self._MARIA_DECIMAL_TYPES.match(upper):
             nums = re.findall(r"\d+", stripped)
             if len(nums) >= 2:
-                return DecimalType(int(nums[0]), int(nums[1]))
+                return DecimalType(dialect=self, precision=int(nums[0]), scale=int(nums[1]))
             if len(nums) == 1:
-                return DecimalType(int(nums[0]))
-            return DecimalType()
+                return DecimalType(dialect=self, precision=int(nums[0]))
+            return DecimalType(dialect=self)
 
         if self._MARIA_STRING_TYPES.match(upper):
             if upper.startswith("TINYTEXT"):
                 from ..expression.types import MariaDBTinyTextType
-                return MariaDBTinyTextType()
+                return MariaDBTinyTextType(dialect=self)
             if upper.startswith("MEDIUMTEXT"):
                 from ..expression.types import MariaDBMediumTextType
-                return MariaDBMediumTextType()
+                return MariaDBMediumTextType(dialect=self)
             if upper.startswith("LONGTEXT"):
                 from ..expression.types import MariaDBLongTextType
-                return MariaDBLongTextType()
+                return MariaDBLongTextType(dialect=self)
             if upper.startswith("TEXT"):
                 from ..expression.types import MariaDBTextType
-                return MariaDBTextType()
+                return MariaDBTextType(dialect=self)
             if upper.startswith("ENUM"):
                 from ..expression.types import MariaDBEnumType
                 values = re.findall(r"'([^']*)'", stripped)
@@ -459,7 +459,7 @@ class MariaDBTypeSupportMixin(DDLTypeMixin):
                 col_match = re.search(r"COLLATE\s+(\w+)", upper)
                 if col_match:
                     collation = col_match.group(1)
-                return MariaDBEnumType(values, charset=charset, collation=collation)
+                return MariaDBEnumType(dialect=self, values=values, charset=charset, collation=collation)
             if upper.startswith("SET"):
                 from ..expression.types import MariaDBSetType
                 values = re.findall(r"'([^']*)'", stripped)
@@ -471,65 +471,65 @@ class MariaDBTypeSupportMixin(DDLTypeMixin):
                 col_match = re.search(r"COLLATE\s+(\w+)", upper)
                 if col_match:
                     collation = col_match.group(1)
-                return MariaDBSetType(values, charset=charset, collation=collation)
+                return MariaDBSetType(dialect=self, values=values, charset=charset, collation=collation)
             if upper.startswith("BINARY"):
                 nums = re.findall(r"\d+", stripped)
                 length = int(nums[0]) if nums else None
                 from ..expression.types import MariaDBBinaryType
-                return MariaDBBinaryType(length)
+                return MariaDBBinaryType(dialect=self, length=length)
             if upper.startswith("VARBINARY"):
                 nums = re.findall(r"\d+", stripped)
                 length = int(nums[0]) if nums else None
                 from ..expression.types import MariaDBVarBinaryType
-                return MariaDBVarBinaryType(length)
+                return MariaDBVarBinaryType(dialect=self, length=length)
             length_match = re.search(r"\((\d+)\)", stripped)
             length = int(length_match.group(1)) if length_match else None
             if upper.startswith("VARCHAR"):
-                return VarCharType(length)
-            return CharType(length)
+                return VarCharType(dialect=self, length=length)
+            return CharType(dialect=self, length=length)
 
         if self._MARIA_BLOB_TYPES.match(upper):
             if upper.startswith("TINYBLOB"):
                 from ..expression.types import MariaDBTinyBlobType
-                return MariaDBTinyBlobType()
+                return MariaDBTinyBlobType(dialect=self)
             if upper.startswith("MEDIUMBLOB"):
                 from ..expression.types import MariaDBMediumBlobType
-                return MariaDBMediumBlobType()
+                return MariaDBMediumBlobType(dialect=self)
             if upper.startswith("LONGBLOB"):
                 from ..expression.types import MariaDBLongBlobType
-                return MariaDBLongBlobType()
+                return MariaDBLongBlobType(dialect=self)
             from ..expression.types import MariaDBBlobType
-            return MariaDBBlobType()
+            return MariaDBBlobType(dialect=self)
 
         if self._MARIA_DATE_TYPES.match(upper):
             if upper.startswith("YEAR"):
                 nums = re.findall(r"\d+", stripped)
                 display_width = int(nums[0]) if nums else None
                 from ..expression.types import MariaDBYearType
-                return MariaDBYearType(display_width)
+                return MariaDBYearType(dialect=self, display_width=display_width)
             if upper.startswith("DATE"):
                 if upper.strip() == "DATE":
-                    return DateType()
-                return DateTimeType()
+                    return DateType(dialect=self)
+                return DateTimeType(dialect=self)
             if upper.startswith("DATETIME"):
                 nums = re.findall(r"\d+", stripped)
                 precision = int(nums[0]) if nums else None
-                return DateTimeType(precision)
+                return DateTimeType(dialect=self, precision=precision)
             if upper.startswith("TIMESTAMP"):
                 nums = re.findall(r"\d+", stripped)
                 precision = int(nums[0]) if nums else None
                 if "WITH TIME ZONE" in upper:
-                    return TimestampTzType(precision)
-                return TimestampType(precision)
+                    return TimestampTzType(dialect=self, precision=precision)
+                return TimestampType(dialect=self, precision=precision)
             if upper.startswith("TIME"):
                 nums = re.findall(r"\d+", stripped)
                 precision = int(nums[0]) if nums else None
                 if "WITH TIME ZONE" in upper:
-                    return TimeTzType(precision)
-                return TimeType(precision)
+                    return TimeTzType(dialect=self, precision=precision)
+                return TimeType(dialect=self, precision=precision)
 
         if self._MARIA_JSON_TYPES.match(upper):
-            return JsonType()
+            return JsonType(dialect=self)
 
         if self._MARIA_SPATIAL_TYPES.match(upper):
             srid = None
@@ -558,11 +558,11 @@ class MariaDBTypeSupportMixin(DDLTypeMixin):
             }
             for name, cls in spatial_map.items():
                 if upper.startswith(name):
-                    return cls(srid)
-            return MariaDBGeometryType(srid)
+                    return cls(dialect=self, srid=srid)
+            return MariaDBGeometryType(dialect=self, srid=srid)
 
         from rhosocial.activerecord.backend.expression.types import CustomType
-        return CustomType(stripped)
+        return CustomType(dialect=self, raw=stripped)
 
 class MariaDBTypeSuggestionMixin(DDLTypeSuggestionMixin):
     """MariaDB-native ``suggest_column_type()``.
@@ -601,16 +601,16 @@ class MariaDBTypeSuggestionMixin(DDLTypeSuggestionMixin):
         factory = mapping.get(python_type)
         if factory is not None:
             if python_type is _uuid.UUID:
-                return MariaDBBinaryType(16)
+                return MariaDBBinaryType(dialect=self, length=16)
             if python_type is _enum.Enum:
-                return VarCharType(64)
+                return VarCharType(dialect=self, length=64)
             return factory()
 
         if python_type in (dict, list):
             if version is None:
                 return None
             if version >= (10, 2, 7):
-                return JsonType()
-            return MariaDBLongTextType()
+                return JsonType(dialect=self)
+            return MariaDBLongTextType(dialect=self)
 
         return super().suggest_column_type(python_type, version)

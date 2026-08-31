@@ -51,7 +51,7 @@ expr = CreateTableExpression(
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
             ]),
-        ColumnDefinition("name", VarCharType(100)),
+        ColumnDefinition("name", VarCharType(length=100)),
     ]
 )
 sql, params = expr.to_sql()

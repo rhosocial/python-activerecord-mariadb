@@ -199,7 +199,7 @@ class TestMySQLColumnComment:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ], comment='主键ID'),
-            ColumnDefinition('name', VarCharType(100), comment='用户名')
+            ColumnDefinition('name', VarCharType(length=100), comment='用户名')
         ]
         expr = CreateTableExpression(
             dialect=dialect,
@@ -217,7 +217,7 @@ class TestMySQLColumnComment:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ], comment='主键'),
-            ColumnDefinition('name', VarCharType(100), comment='名称')
+            ColumnDefinition('name', VarCharType(length=100), comment='名称')
         ]
         expr = CreateTableExpression(
             dialect=dialect,
@@ -299,7 +299,7 @@ class TestMySQLInlineIndex:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('name', VarCharType(100))
+            ColumnDefinition('name', VarCharType(length=100))
         ]
         indexes = [
             IndexDefinition('idx_name', ['name'])
@@ -321,7 +321,7 @@ class TestMySQLInlineIndex:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('email', VarCharType(100))
+            ColumnDefinition('email', VarCharType(length=100))
         ]
         indexes = [
             IndexDefinition('idx_email', ['email'], unique=True)
@@ -365,7 +365,7 @@ class TestMySQLInlineIndex:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('name', VarCharType(100))
+            ColumnDefinition('name', VarCharType(length=100))
         ]
         indexes = [
             IndexDefinition('idx_name', ['name'], type='BTREE')
@@ -386,7 +386,7 @@ class TestMySQLInlineIndex:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('key', VarCharType(100))
+            ColumnDefinition('key', VarCharType(length=100))
         ]
         indexes = [
             IndexDefinition('idx_key', ['key'], type='HASH')
@@ -407,8 +407,8 @@ class TestMySQLInlineIndex:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('email', VarCharType(100)),
-            ColumnDefinition('username', VarCharType(50))
+            ColumnDefinition('email', VarCharType(length=100)),
+            ColumnDefinition('username', VarCharType(length=50))
         ]
         indexes = [
             IndexDefinition('idx_email', ['email'], unique=True),
@@ -552,7 +552,7 @@ class TestMySQLTableConstraints:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition('id', IntegerType()),
-            ColumnDefinition('name', VarCharType(100))
+            ColumnDefinition('name', VarCharType(length=100))
         ]
         table_constraints = [
             TableConstraint(TableConstraintType.PRIMARY_KEY, columns=['id'])
@@ -573,7 +573,7 @@ class TestMySQLTableConstraints:
             ColumnDefinition('id', IntegerType(), constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition('email', VarCharType(100))
+            ColumnDefinition('email', VarCharType(length=100))
         ]
         table_constraints = [
             TableConstraint(TableConstraintType.UNIQUE, columns=['email'])
@@ -657,13 +657,13 @@ class TestMySQLCompleteTableCreation:
             ),
             ColumnDefinition(
                 'name',
-                VarCharType(100),
+                VarCharType(length=100),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
                 comment='User name'
             ),
             ColumnDefinition(
                 'email',
-                VarCharType(255),
+                VarCharType(length=255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
                 comment='Email address'
             ),
