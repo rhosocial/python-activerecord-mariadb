@@ -313,12 +313,12 @@ class TestCLIUtilityFunctions:
         assert '[X]' in symbol
 
     def test_format_method_display(self):
-        """Test _format_method_display function."""
-        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _format_method_display
+        """Test format_method_display function."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import format_method_display
 
-        assert _format_method_display('supports_window_function') == 'window function'
-        assert _format_method_display('is_cte_available') == 'is cte available'
-        assert _format_method_display('supports_explain_format') == 'explain format'
+        assert format_method_display('supports_window_function') == 'window function'
+        assert format_method_display('is_cte_available') == 'is cte available'
+        assert format_method_display('supports_explain_format') == 'explain format'
 
     def test_calculate_protocol_stats(self):
         """Test _calculate_protocol_stats function."""
