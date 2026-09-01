@@ -14,6 +14,7 @@ the SQL/PSM standard:
 from typing import TYPE_CHECKING, Tuple
 
 from ..backend import MARIADB_VERSION_BOUNDARIES
+from rhosocial.activerecord.backend.dialect.mixins.routine import RoutineSupportMixin
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,24 +27,9 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 
-def _format_param(dialect, param) -> str:
-    """Format a stored-routine parameter definition.
-
-    A param may be a plain string (``IN name TYPE``), a tuple
-    ``(mode, name, type)``, or ``(name, type)``.
-    """
-    if isinstance(param, tuple):
-        if len(param) == 3:
-            mode, name, type_sql = param
-            return f"{mode} {dialect.format_identifier(name)} {type_sql}"
-        if len(param) == 2:
-            name, type_sql = param
-            return f"{dialect.format_identifier(name)} {type_sql}"
-        raise ValueError(f"Invalid parameter definition: {param!r}")
-    return str(param)
 
 
-class MariaDBRoutineMixin:
+class MariaDBRoutineMixin(RoutineSupportMixin):
     """MariaDB stored routine (procedure / function / CALL) support."""
 
     def supports_procedure(self) -> bool:
@@ -100,7 +86,7 @@ class MariaDBRoutineMixin:
         parts.append("PROCEDURE")
         parts.append(expr._format_name())
 
-        params = ", ".join(_format_param(self, p) for p in expr.params)
+        params = ", ".join(self.format_param(p) for p in expr.params)
         parts.append(f"({params})")
         if expr.body:
             parts.append(expr.body)
@@ -173,7 +159,7 @@ class MariaDBRoutineMixin:
         parts.append(name_sql)
 
         if hasattr(expr, "_format_name"):
-            param_strs = [_format_param(self, p) for p in params]
+            param_strs = [self.format_param(p) for p in params]
         else:
             param_strs = []
             for p in params:

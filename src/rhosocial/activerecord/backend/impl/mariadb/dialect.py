@@ -958,7 +958,7 @@ class MariaDBDialect(
         """
         # Check for LIKE syntax in dialect_options (highest priority)
         if 'like_table' in expr.dialect_options:
-            return self._format_create_table_like(expr)
+            return self.format_create_table_like(expr)
 
         # Build standard CREATE TABLE statement
         from rhosocial.activerecord.backend.expression.statements import (
@@ -976,24 +976,24 @@ class MariaDBDialect(
 
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self._format_column_definition_mariadb(col_def, ColumnConstraintType)
+            col_sql, col_params = self.format_column_definition_mariadb(col_def, ColumnConstraintType)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            const_sql, const_params = self._format_table_constraint_mariadb(t_const, TableConstraintType)
+            const_sql, const_params = self.format_table_constraint_mariadb(t_const, TableConstraintType)
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self._format_inline_index_mariadb(idx_def)
+            idx_sql = self.format_inline_index_mariadb(idx_def)
             column_parts.append(idx_sql)
 
         parts.append(f"({', '.join(column_parts)})")
 
         # Structured TableOptions take precedence over the raw storage_options
         # dict, then the legacy dialect_options["comment"].
-        table_opts_sql = self._format_table_options(expr)
+        table_opts_sql = self.format_table_options(expr)
         if table_opts_sql:
             parts.append(table_opts_sql)
 
@@ -1005,7 +1005,7 @@ class MariaDBDialect(
 
         return ' '.join(parts), tuple(all_params)
 
-    def _format_table_options(self, expr) -> str:
+    def format_table_options(self, expr) -> str:
         """Render MariaDB table options from ``expr.table_options``.
 
         The structured ``TableOptions`` (charset/collation/engine/comment)
@@ -1029,10 +1029,10 @@ class MariaDBDialect(
             return ' '.join(parts)
 
         if expr.storage_options:
-            return self._format_storage_options_mariadb(expr.storage_options)
+            return self.format_storage_options_mariadb(expr.storage_options)
         return ""
 
-    def _format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
+    def format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
         """Format CREATE TABLE ... LIKE statement."""
         like_table = expr.dialect_options['like_table']
 
@@ -1058,7 +1058,7 @@ class MariaDBDialect(
         value = value.replace("'", "''")
         return value
 
-    def _format_column_definition_mariadb(
+    def format_column_definition_mariadb(
         self,
         col_def: "ColumnDefinition",
         ColumnConstraintType
@@ -1102,7 +1102,7 @@ class MariaDBDialect(
 
         return ' '.join(parts), params
 
-    def _format_table_constraint_mariadb(
+    def format_table_constraint_mariadb(
         self,
         t_const: "TableConstraint",
         TableConstraintType
@@ -1152,7 +1152,7 @@ class MariaDBDialect(
 
         return ' '.join(parts), params
 
-    def _format_inline_index_mariadb(self, idx_def: "IndexDefinition") -> str:
+    def format_inline_index_mariadb(self, idx_def: "IndexDefinition") -> str:
         parts = []
 
         if idx_def.unique:
@@ -1169,7 +1169,7 @@ class MariaDBDialect(
 
         return ' '.join(parts)
 
-    def _format_storage_options_mariadb(self, storage_options: Dict[str, Any]) -> str:
+    def format_storage_options_mariadb(self, storage_options: Dict[str, Any]) -> str:
         parts = []
         for key, value in storage_options.items():
             if isinstance(value, str):

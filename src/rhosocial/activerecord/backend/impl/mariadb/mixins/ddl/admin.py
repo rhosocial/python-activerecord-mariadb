@@ -98,7 +98,7 @@ class MariaDBAdminMixin:
         parts = ["CREATE USER"]
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(format_accounts(self, expr.accounts))
         if expr.identified_by:
             parts.append(f"IDENTIFIED BY '{expr.identified_by}'")
         return " ".join(parts), ()
@@ -114,7 +114,7 @@ class MariaDBAdminMixin:
         parts = ["ALTER USER"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(format_accounts(self, expr.accounts))
         if expr.identified_by:
             parts.append(f"IDENTIFIED BY '{expr.identified_by}'")
         return " ".join(parts), ()
@@ -130,7 +130,7 @@ class MariaDBAdminMixin:
         parts = ["DROP USER"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(format_accounts(self, expr.accounts))
         return " ".join(parts), ()
 
     def supports_create_role(self) -> bool:
@@ -208,11 +208,11 @@ class MariaDBAdminMixin:
                     "GRANT IF EXISTS requires MariaDB 10.1.4 or later."
                 )
             parts.append("IF EXISTS")
-        parts.append(_format_privileges(self, expr.privileges))
+        parts.append(format_privileges(self, expr.privileges))
         parts.append("ON")
         parts.append(expr.on_object or "*.*")
         parts.append("TO")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(format_accounts(self, expr.accounts))
         if expr.with_grant_option:
             parts.append("WITH GRANT OPTION")
         return " ".join(parts), ()
@@ -234,11 +234,11 @@ class MariaDBAdminMixin:
                     "REVOKE IF EXISTS requires MariaDB 10.1.4 or later."
                 )
             parts.append("IF EXISTS")
-        parts.append(_format_privileges(self, expr.privileges))
+        parts.append(format_privileges(self, expr.privileges))
         parts.append("ON")
         parts.append(expr.on_object or "*.*")
         parts.append("FROM")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(format_accounts(self, expr.accounts))
         return " ".join(parts), ()
 
     def format_deny_statement(
@@ -253,15 +253,15 @@ class MariaDBAdminMixin:
                 "DENY requires MariaDB 13.1 or later."
             )
         parts = ["DENY"]
-        parts.append(_format_privileges(self, expr.privileges))
+        parts.append(format_privileges(self, expr.privileges))
         parts.append("ON")
         parts.append(expr.on_object or "*.*")
         parts.append("TO")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(format_accounts(self, expr.accounts))
         return " ".join(parts), ()
 
 
-def _format_accounts(dialect, accounts) -> str:
+def format_accounts(dialect, accounts) -> str:
     """Format account specifications as ``'user'@'host'``."""
     parts = []
     for acct in accounts:
@@ -270,7 +270,7 @@ def _format_accounts(dialect, accounts) -> str:
     return ", ".join(parts)
 
 
-def _format_privileges(dialect, privileges) -> str:
+def format_privileges(dialect, privileges) -> str:
     """Format a privilege list, optionally with column lists."""
     priv_parts = []
     for p in privileges:
