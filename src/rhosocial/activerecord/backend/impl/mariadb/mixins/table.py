@@ -50,6 +50,72 @@ class MariaDBTableMixin:
         """
         return self.version >= (10, 1, 0)
 
+    def format_create_table_statement(
+        self, expr: "CreateTableExpression"
+    ) -> Tuple[str, tuple]:
+        """
+        Format CREATE TABLE statement for MariaDB.
+
+        This method handles MariaDB-specific syntax including:
+        - LIKE syntax (copying table structure)
+        - Storage options (ENGINE, CHARSET, COLLATE)
+        - Table-level comments
+
+        Args:
+            expr: CreateTableExpression instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        # Check for LIKE syntax in dialect_options (highest priority)
+        if 'like_table' in expr.dialect_options:
+            return self.format_create_table_like(expr)
+
+        # Build standard CREATE TABLE statement
+        from rhosocial.activerecord.backend.expression.statements import (
+            ColumnConstraintType, TableConstraintType
+        )
+
+        all_params: List[Any] = []
+
+        parts = ["CREATE TABLE"]
+        if expr.temporary:
+            parts.append("TEMPORARY")
+        if expr.if_not_exists:
+            parts.append("IF NOT EXISTS")
+        parts.append(self.format_identifier(expr.table_name))
+
+        column_parts = []
+        for col_def in expr.columns:
+            col_sql, col_params = self.format_column_definition_mariadb(col_def, ColumnConstraintType)
+            column_parts.append(col_sql)
+            all_params.extend(col_params)
+
+        for t_const in expr.table_constraints:
+            const_sql, const_params = self.format_table_constraint_mariadb(t_const, TableConstraintType)
+            column_parts.append(const_sql)
+            all_params.extend(const_params)
+
+        for idx_def in expr.indexes:
+            idx_sql = self.format_inline_index_mariadb(idx_def)
+            column_parts.append(idx_sql)
+
+        parts.append(f"({', '.join(column_parts)})")
+
+        # Structured TableOptions take precedence over the raw storage_options
+        # dict, then the legacy dialect_options["comment"].
+        table_opts_sql = self.format_table_options(expr)
+        if table_opts_sql:
+            parts.append(table_opts_sql)
+
+        if 'comment' in expr.dialect_options and not (
+            expr.table_options is not None and expr.table_options.comment
+        ):
+            escaped_comment = self._escape_sql_string(expr.dialect_options['comment'])
+            parts.append(f"COMMENT '{escaped_comment}'")
+
+        return ' '.join(parts), tuple(all_params)
+
 
 
 

@@ -314,7 +314,7 @@ class TestCLIUtilityFunctions:
 
     def test_format_method_display(self):
         """Test format_method_display function."""
-        from rhosocial.activerecord.backend.impl.mariadb.cli.info import format_method_display
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _format_method_display as format_method_display
 
         assert format_method_display('supports_window_function') == 'window function'
         assert format_method_display('is_cte_available') == 'is cte available'
