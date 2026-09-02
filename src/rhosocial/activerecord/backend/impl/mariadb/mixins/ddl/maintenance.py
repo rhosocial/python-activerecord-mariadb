@@ -62,7 +62,7 @@ class MariaDBMaintenanceMixin:
 
         options = expr.dialect_options
         operation = expr.operation.value
-        tables = ", ".join(self.format_identifier(t) for t in expr.table_names)
+        tables = ", ".join(self.format_identifier(t) for t in expr.tables)
 
         parts = [operation]
 

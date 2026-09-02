@@ -41,7 +41,7 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
 
     Attributes:
         operation: The maintenance operation to run.
-        table_names: Tables the operation targets.
+        tables: Tables the operation targets.
         dialect_options: MariaDB-specific options:
             - 'no_write_to_binlog': Suppress binary logging (ANALYZE, OPTIMIZE,
               REPAIR). When True renders NO_WRITE_TO_BINLOG.
@@ -58,13 +58,13 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         operation: "TableMaintenanceOperation",
-        table_names: List[str],
+        tables: List[str],
         *,
         dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.operation = operation
-        self.table_names: List[str] = list(table_names)
+        self.tables: List[str] = list(tables)
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
@@ -73,9 +73,9 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
             return
         if not isinstance(self.operation, TableMaintenanceOperation):
             raise TypeError("operation must be a TableMaintenanceOperation")
-        if not self.table_names:
+        if not self.tables:
             raise ValueError("Table maintenance requires at least one table name")
-        for name in self.table_names:
+        for name in self.tables:
             if not isinstance(name, str):
                 raise TypeError("Table names must be strings")
 
