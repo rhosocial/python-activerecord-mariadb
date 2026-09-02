@@ -41,7 +41,7 @@ def test_mysql_format_column_definition_default_string_escaping(dialect):
         constraints=[constraint],
     )
 
-    sql, params = dialect.format_column_definition_mariadb(col_def, ColumnConstraintType)
+    sql, params = dialect.format_column_definition(col_def, ColumnConstraintType)
     assert "test''s value" in sql
 
 
@@ -53,7 +53,7 @@ def test_mysql_format_column_definition_comment_string_escaping(dialect):
         comment="Comment with 'single quote'",
     )
 
-    sql, params = dialect.format_column_definition_mariadb(col_def, ColumnConstraintType)
+    sql, params = dialect.format_column_definition(col_def, ColumnConstraintType)
     assert "Comment with ''single quote''" in sql
 
 
@@ -464,30 +464,30 @@ class TestMySQLCreateTableCommentEscaping:
 
 
 # ============================================================
-# format_storage_options_mariadb — key quoting and value escaping
+# format_storage_options — key quoting and value escaping
 # ============================================================
 
 def test_storage_options_normal_key_and_value(dialect):
     """Normal storage option key is plain, string value is quoted and escaped."""
-    sql = dialect.format_storage_options_mariadb({"ENGINE": "InnoDB"})
+    sql = dialect.format_storage_options({"ENGINE": "InnoDB"})
     assert "ENGINE='InnoDB'" in sql
 
 
 def test_storage_options_string_value_escaped(dialect):
     """String value with single quote is properly escaped."""
-    sql = dialect.format_storage_options_mariadb({"ENGINE": "It's"})
+    sql = dialect.format_storage_options({"ENGINE": "It's"})
     assert "It''s" in sql
 
 
 def test_storage_options_int_value(dialect):
     """Integer value is not quoted."""
-    sql = dialect.format_storage_options_mariadb({"AUTO_INCREMENT": 1000})
+    sql = dialect.format_storage_options({"AUTO_INCREMENT": 1000})
     assert "AUTO_INCREMENT=1000" in sql
 
 
 def test_storage_options_string_injection_value_escaped(dialect):
     """String value with injection payload is safely escaped inside quotes."""
-    sql = dialect.format_storage_options_mariadb({"ENGINE": "x'; DROP TABLE t--"})
+    sql = dialect.format_storage_options({"ENGINE": "x'; DROP TABLE t--"})
     assert "'x''; DROP TABLE t--'" in sql
     assert sql.count("'") % 2 == 0, f"Unbalanced quotes: {sql}"
 

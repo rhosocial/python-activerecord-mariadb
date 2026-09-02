@@ -87,17 +87,17 @@ class MariaDBTableMixin:
 
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self.format_column_definition_mariadb(col_def, ColumnConstraintType)
+            col_sql, col_params = self.format_column_definition(col_def, ColumnConstraintType)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            const_sql, const_params = self.format_table_constraint_mariadb(t_const, TableConstraintType)
+            const_sql, const_params = self.format_table_constraint(t_const, TableConstraintType)
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self.format_inline_index_mariadb(idx_def)
+            idx_sql = self.format_inline_index(idx_def)
             column_parts.append(idx_sql)
 
         parts.append(f"({', '.join(column_parts)})")

@@ -964,7 +964,7 @@ class MariaDBDialect(
             return ' '.join(parts)
 
         if expr.storage_options:
-            return self.format_storage_options_mariadb(expr.storage_options)
+            return self.format_storage_options(expr.storage_options)
         return ""
 
     def format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
@@ -993,11 +993,16 @@ class MariaDBDialect(
         value = value.replace("'", "''")
         return value
 
-    def format_column_definition_mariadb(
+    def format_column_definition(
         self,
         col_def: "ColumnDefinition",
-        ColumnConstraintType
+        constraint_type=None,
     ) -> Tuple[str, List[Any]]:
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            ColumnConstraintType,
+        )
+        if constraint_type is None:
+            constraint_type = ColumnConstraintType
         type_sql, type_params = col_def.data_type.to_sql(self)
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
@@ -1035,9 +1040,9 @@ class MariaDBDialect(
             escaped_comment = self._escape_sql_string(col_def.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
-    def format_table_constraint_mariadb(
+    def format_table_constraint(
         self,
         t_const: "TableConstraint",
         TableConstraintType
@@ -1085,9 +1090,9 @@ class MariaDBDialect(
             if t_const.dialect_options and t_const.dialect_options.get('enforced') is False:
                 parts.append("NOT ENFORCED")
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
-    def format_inline_index_mariadb(self, idx_def: "IndexDefinition") -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
         parts = []
 
         if idx_def.unique:
@@ -1104,7 +1109,7 @@ class MariaDBDialect(
 
         return ' '.join(parts)
 
-    def format_storage_options_mariadb(self, storage_options: Dict[str, Any]) -> str:
+    def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
         parts = []
         for key, value in storage_options.items():
             if isinstance(value, str):
