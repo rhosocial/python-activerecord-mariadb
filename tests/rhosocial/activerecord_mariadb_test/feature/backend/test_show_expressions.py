@@ -50,7 +50,7 @@ class TestShowColumnsExpression:
     def test_keyword_params(self, dialect):
         expr = ShowColumnsExpression(dialect, "users", full=True, like_pattern="%a%")
         assert expr.get_params() == {
-            "table_name": "users",
+            "table": "users",
             "full": True,
             "like_pattern": "%a%",
         }
@@ -59,7 +59,7 @@ class TestShowColumnsExpression:
     def test_default_params(self, dialect):
         expr = ShowColumnsExpression(dialect, "users")
         assert expr.get_params() == {
-            "table_name": "users", "full": False, "like_pattern": None
+            "table": "users", "full": False, "like_pattern": None
         }
         assert expr.to_sql() == ("SHOW COLUMNS FROM `users`", ())
 
@@ -98,8 +98,8 @@ class TestShowTableStatusExpression:
 
 class TestShowTriggersExpression:
     def test_keyword_param(self, dialect):
-        expr = ShowTriggersExpression(dialect, table_name="orders")
-        assert expr.get_params() == {"table_name": "orders"}
+        expr = ShowTriggersExpression(dialect, table="orders")
+        assert expr.get_params() == {"table": "orders"}
         assert expr.to_sql() == ("SHOW TRIGGERS LIKE %s", ("orders",))
 
     def test_no_table(self, dialect):

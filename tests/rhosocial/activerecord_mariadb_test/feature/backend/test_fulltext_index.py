@@ -140,8 +140,8 @@ class TestFullTextProtocol:
 
         expr = CreateFulltextIndexExpression(
             dialect=dialect,
-            index_name='idx_content',
-            table_name='articles',
+            index='idx_content',
+            table='articles',
             columns=['title', 'content']
         )
         sql, params = expr.to_sql()
@@ -158,8 +158,8 @@ class TestFullTextProtocol:
 
         expr = CreateFulltextIndexExpression(
             dialect=dialect,
-            index_name='idx_content',
-            table_name='articles',
+            index='idx_content',
+            table='articles',
             columns=['content'],
             parser='ngram'
         )
