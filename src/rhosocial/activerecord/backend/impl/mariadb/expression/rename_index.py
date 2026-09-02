@@ -21,7 +21,7 @@ class MariaDBRenameIndexExpression(BaseExpression):
     """Represent a MariaDB ``ALTER TABLE ... RENAME INDEX`` statement.
 
     Attributes:
-        table_name: Name of the table holding the index.
+        table: Name of the table holding the index.
         old_index_name: Current index name.
         new_index_name: New index name.
     """
@@ -29,14 +29,14 @@ class MariaDBRenameIndexExpression(BaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        table_name: str,
+        table: str,
         old_index_name: str,
         new_index_name: str,
         *,
         dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
-        self.table_name = table_name
+        self.table = table
         self.old_index_name = old_index_name
         self.new_index_name = new_index_name
         self.dialect_options: Dict[str, Any] = dialect_options or {}
@@ -49,7 +49,7 @@ class MariaDBRenameIndexExpression(BaseExpression):
         """
         if not strict:
             return
-        for name in (self.table_name, self.old_index_name, self.new_index_name):
+        for name in (self.table, self.old_index_name, self.new_index_name):
             if not isinstance(name, str):
                 raise TypeError("Table and index names must be strings")
 

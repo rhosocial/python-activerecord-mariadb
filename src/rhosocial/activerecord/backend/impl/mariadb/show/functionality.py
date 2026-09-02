@@ -64,7 +64,7 @@ class MariaDBShowFunctionality:
 
     # ========== Parsing Helper Methods ==========
 
-    def _parse_create_table_result(self, result, table_name: str):
+    def _parse_create_table_result(self, result, table: str):
         """Parse SHOW CREATE TABLE result."""
         from .types import ShowCreateTableResult
 
@@ -73,7 +73,7 @@ class MariaDBShowFunctionality:
 
         row = result.data[0]
         return ShowCreateTableResult(
-            table_name=row.get("Table", row.get("TABLE", table_name)),
+            table_name=row.get("Table", row.get("TABLE", table)),
             create_statement=row.get("Create Table", row.get("CREATE TABLE", "")),
         )
 
@@ -121,7 +121,7 @@ class MariaDBShowFunctionality:
         for row in result.data:
             indexes.append(
                 ShowIndexResult(
-                    table=row.get("Table", row.get("TABLE_NAME")),
+                    table_name=row.get("Table", row.get("TABLE_NAME")),
                     non_unique=row.get("Non_unique", row.get("NON_UNIQUE")),
                     key_name=row.get("Key_name", row.get("INDEX_NAME")),
                     seq_in_index=row.get("Seq_in_index", row.get("SEQ_IN_INDEX")),
@@ -198,9 +198,9 @@ class MariaDBShowFunctionality:
         for row in result.data:
             triggers.append(
                 ShowTriggerResult(
-                    trigger=row.get("Trigger", row.get("TRIGGER_NAME")),
+                    trigger_name=row.get("Trigger", row.get("TRIGGER_NAME")),
                     event=row.get("Event", row.get("EVENT_MANIPULATION")),
-                    table=row.get("Table", row.get("EVENT_OBJECT_TABLE")),
+                    table_name=row.get("Table", row.get("EVENT_OBJECT_TABLE")),
                     statement=row.get("Statement", row.get("ACTION_STATEMENT")),
                     timing=row.get("Timing", row.get("ACTION_TIMING")),
                     created=row.get("Created"),
@@ -213,7 +213,7 @@ class MariaDBShowFunctionality:
             )
         return triggers
 
-    def _parse_create_trigger_result(self, result, trigger_name: str):
+    def _parse_create_trigger_result(self, result, trigger: str):
         """Parse SHOW CREATE TRIGGER result."""
         from .types import ShowCreateTriggerResult
 
@@ -222,7 +222,7 @@ class MariaDBShowFunctionality:
 
         row = result.data[0]
         return ShowCreateTriggerResult(
-            trigger_name=row.get("Trigger", row.get("TRIGGER", trigger_name)),
+            trigger_name=row.get("Trigger", row.get("TRIGGER", trigger)),
             create_statement=row.get("SQL Original Statement", row.get("CREATE TRIGGER", "")),
             character_set_client=row.get("character_set_client"),
             collation_connection=row.get("collation_connection"),
@@ -372,24 +372,24 @@ class MariaDBShowFunctionality:
     # ========== SHOW CREATE TABLE ==========
 
     def create_table(
-        self, table_name: str, schema: Optional[str] = None
+        self, table: str, schema: Optional[str] = None
     ):
         """Get CREATE TABLE statement for a table.
 
         Args:
-            table_name: Name of the table.
+            table: Name of the table.
             schema: Database/schema name (optional).
 
         Returns:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = ShowCreateTableExpression(self.dialect, table_name)
+        expr = ShowCreateTableExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
-        return self._parse_create_table_result(result, table_name)
+        return self._parse_create_table_result(result, table)
 
     # ========== SHOW CREATE VIEW ==========
 
@@ -416,7 +416,7 @@ class MariaDBShowFunctionality:
 
     def columns(
         self,
-        table_name: str,
+        table: str,
         schema: Optional[str] = None,
         full: bool = False,
         like: Optional[str] = None,
@@ -424,7 +424,7 @@ class MariaDBShowFunctionality:
         """Get column information for a table.
 
         Args:
-            table_name: Name of the table.
+            table: Name of the table.
             schema: Database/schema name (optional).
             full: Include privileges and comments.
             like: Filter columns by name pattern.
@@ -432,7 +432,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowColumnResult objects.
         """
-        expr = ShowColumnsExpression(self.dialect, table_name)
+        expr = ShowColumnsExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         if full:
@@ -447,18 +447,18 @@ class MariaDBShowFunctionality:
     # ========== SHOW INDEX ==========
 
     def indexes(
-        self, table_name: str, schema: Optional[str] = None
+        self, table: str, schema: Optional[str] = None
     ):
         """Get index information for a table.
 
         Args:
-            table_name: Name of the table.
+            table: Name of the table.
             schema: Database/schema name (optional).
 
         Returns:
             List of ShowIndexResult objects.
         """
-        expr = ShowIndexExpression(self.dialect, table_name)
+        expr = ShowIndexExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
@@ -541,13 +541,13 @@ class MariaDBShowFunctionality:
     # ========== SHOW TRIGGERS ==========
 
     def triggers(
-        self, schema: Optional[str] = None, table_name: Optional[str] = None
+        self, schema: Optional[str] = None, table: Optional[str] = None
     ):
         """List triggers.
 
         Args:
             schema: Database/schema name (optional).
-            table_name: Filter triggers for a specific table.
+            table: Filter triggers for a specific table.
 
         Returns:
             List of ShowTriggerResult objects.
@@ -555,32 +555,32 @@ class MariaDBShowFunctionality:
         expr = ShowTriggersExpression(self.dialect)
         if schema:
             expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        if table:
+            expr.for_table(table)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_triggers_result(result)
 
     def create_trigger(
-        self, trigger_name: str, schema: Optional[str] = None
+        self, trigger: str, schema: Optional[str] = None
     ):
         """Get CREATE TRIGGER statement.
 
         Args:
-            trigger_name: Name of the trigger.
+            trigger: Name of the trigger.
             schema: Database/schema name (optional).
 
         Returns:
             ShowCreateTriggerResult or None if not found.
         """
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
+        expr = ShowCreateTriggerExpression(self.dialect, trigger)
         if schema:
             expr.schema(schema)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
-        return self._parse_create_trigger_result(result, trigger_name)
+        return self._parse_create_trigger_result(result, trigger)
 
     # ========== SHOW VARIABLES ==========
 
@@ -797,15 +797,15 @@ class AsyncMariaDBShowFunctionality:
     # ========== SHOW CREATE TABLE ==========
 
     async def create_table(
-        self, table_name: str, schema: Optional[str] = None
+        self, table: str, schema: Optional[str] = None
     ):
         """Async version of create_table."""
-        expr = ShowCreateTableExpression(self.dialect, table_name)
+        expr = ShowCreateTableExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_create_table_result(result, table_name)
+        return self._sync_impl._parse_create_table_result(result, table)
 
     # ========== SHOW CREATE VIEW ==========
 
@@ -824,13 +824,13 @@ class AsyncMariaDBShowFunctionality:
 
     async def columns(
         self,
-        table_name: str,
+        table: str,
         schema: Optional[str] = None,
         full: bool = False,
         like: Optional[str] = None,
     ):
         """Async version of columns."""
-        expr = ShowColumnsExpression(self.dialect, table_name)
+        expr = ShowColumnsExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         if full:
@@ -844,10 +844,10 @@ class AsyncMariaDBShowFunctionality:
     # ========== SHOW INDEX ==========
 
     async def indexes(
-        self, table_name: str, schema: Optional[str] = None
+        self, table: str, schema: Optional[str] = None
     ):
         """Async version of indexes."""
-        expr = ShowIndexExpression(self.dialect, table_name)
+        expr = ShowIndexExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
@@ -903,28 +903,28 @@ class AsyncMariaDBShowFunctionality:
     # ========== SHOW TRIGGERS ==========
 
     async def triggers(
-        self, schema: Optional[str] = None, table_name: Optional[str] = None
+        self, schema: Optional[str] = None, table: Optional[str] = None
     ):
         """Async version of triggers."""
         expr = ShowTriggersExpression(self.dialect)
         if schema:
             expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        if table:
+            expr.for_table(table)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_triggers_result(result)
 
     async def create_trigger(
-        self, trigger_name: str, schema: Optional[str] = None
+        self, trigger: str, schema: Optional[str] = None
     ):
         """Async version of create_trigger."""
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
+        expr = ShowCreateTriggerExpression(self.dialect, trigger)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_create_trigger_result(result, trigger_name)
+        return self._sync_impl._parse_create_trigger_result(result, trigger)
 
     # ========== SHOW VARIABLES ==========
 

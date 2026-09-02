@@ -57,7 +57,7 @@ class ShowColumnResult:
 class ShowIndexResult:
     """Result row from SHOW INDEX command."""
 
-    table: str
+    table_name: str
     non_unique: int
     key_name: str
     seq_in_index: int
@@ -117,9 +117,9 @@ class ShowTableStatusResult:
 class ShowTriggerResult:
     """Result row from SHOW TRIGGERS command."""
 
-    trigger: str
+    trigger_name: str
     event: str
-    table: str
+    table_name: str
     statement: str
     timing: str
     created: Optional[str] = None

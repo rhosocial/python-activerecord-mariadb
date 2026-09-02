@@ -62,7 +62,7 @@ class MariaDBFullTextSearchSupport(Protocol):
 
     def format_fulltext_index_options(
         self,
-        index_name: str,
+        index: str,
         columns: List[str],
         index_type: Optional[str] = None,
         parser_name: Optional[str] = None
@@ -70,7 +70,7 @@ class MariaDBFullTextSearchSupport(Protocol):
         """Format FULLTEXT index options.
 
         Args:
-            index_name: Index name (usually 'FULLTEXT')
+            index: Index name (usually 'FULLTEXT')
             columns: Indexed columns
             index_type: Index type (BTREE, HASH - ignored for FULLTEXT)
             parser_name: Parser name for full-text search

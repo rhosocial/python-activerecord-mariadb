@@ -257,23 +257,23 @@ class MariaDBSpatialMixin:
 
     def format_create_spatial_index(
         self,
-        index_name: str,
-        table_name: str,
+        index: str,
+        table: str,
         column: str
     ) -> Tuple[str, tuple]:
         """Format CREATE SPATIAL INDEX statement.
 
         Args:
-            index_name: Name of the index.
-            table_name: Name of the table.
+            index: Name of the index.
+            table: Name of the table.
             column: Geometry column name.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
         return (
-            f"CREATE SPATIAL INDEX {self.format_identifier(index_name)} "
-            f"ON {self.format_identifier(table_name)} "
+            f"CREATE SPATIAL INDEX {self.format_identifier(index)} "
+            f"ON {self.format_identifier(table)} "
             f"({self.format_identifier(column)})",
             ()
         )

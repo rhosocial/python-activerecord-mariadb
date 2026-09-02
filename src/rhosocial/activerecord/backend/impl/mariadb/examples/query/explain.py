@@ -44,13 +44,13 @@ backend = MariaDBBackend(connection_config=config)
 backend.connect()
 dialect = backend.dialect
 
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table='users', if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='users',
+    table='users',
     columns=[
         ColumnDefinition('id', 'INT', constraints=[
             ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
@@ -68,8 +68,8 @@ backend.execute(sql, params)
 
 create_index = CreateIndexExpression(
     dialect=dialect,
-    index_name='idx_users_email',
-    table_name='users',
+    index='idx_users_email',
+    table='users',
     columns=['email'],
     if_not_exists=True,
 )
@@ -153,7 +153,7 @@ for row in result.data:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table='users', if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

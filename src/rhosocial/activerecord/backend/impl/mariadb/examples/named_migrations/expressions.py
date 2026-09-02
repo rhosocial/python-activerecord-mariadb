@@ -73,15 +73,15 @@ def drop_posts_table(dialect):
     return DropTableExpression(dialect, table="posts", if_exists=True)
 
 
-def create_custom_table(dialect, table_name: str = "custom_table"):
-    """CREATE TABLE <table_name> (id INT PRIMARY KEY AUTO_INCREMENT, value TEXT).
+def create_custom_table(dialect, table: str = "custom_table"):
+    """CREATE TABLE <table> (id INT PRIMARY KEY AUTO_INCREMENT, value TEXT).
 
-    This expression accepts an extra ``table_name`` parameter, allowing
+    This expression accepts an extra ``table`` parameter, allowing
     the migration to control the target table name at runtime.
     """
     return CreateTableExpression(
         dialect,
-        table=table_name,
+        table=table,
         columns=[
             ColumnDefinition(
                 "id",
@@ -98,6 +98,6 @@ def create_custom_table(dialect, table_name: str = "custom_table"):
     )
 
 
-def drop_custom_table(dialect, table_name: str = "custom_table"):
-    """DROP TABLE IF EXISTS <table_name>."""
-    return DropTableExpression(dialect, table=table_name, if_exists=True)
+def drop_custom_table(dialect, table: str = "custom_table"):
+    """DROP TABLE IF EXISTS <table>."""
+    return DropTableExpression(dialect, table=table, if_exists=True)

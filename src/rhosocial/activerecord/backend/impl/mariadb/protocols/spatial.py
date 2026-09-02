@@ -183,15 +183,15 @@ class MariaDBSpatialSupport(Protocol):
 
     def format_create_spatial_index(
         self,
-        index_name: str,
-        table_name: str,
+        index: str,
+        table: str,
         column: str
     ) -> Tuple[str, tuple]:
         """Format CREATE SPATIAL INDEX statement.
 
         Args:
-            index_name: Index name
-            table_name: Table name
+            index: Index name
+            table: Table name
             column: Column name
 
         Returns:

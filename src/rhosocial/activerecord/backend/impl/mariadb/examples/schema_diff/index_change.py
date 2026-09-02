@@ -76,10 +76,10 @@ snapshot_before = builder.build()
 # Drop the non-unique `idx_email` and add a unique `idx_email_unique`
 # via standalone DROP INDEX / CREATE INDEX statements.
 backend.execute(*DropIndexExpression(
-    dialect, index_name="idx_email", table_name="users"
+    dialect, index="idx_email", table="users"
 ).to_sql())
 backend.execute(*CreateIndexExpression(
-    dialect, index_name="idx_email_unique", table_name="users",
+    dialect, index="idx_email_unique", table="users",
     columns=["email"], unique=True,
 ).to_sql())
 

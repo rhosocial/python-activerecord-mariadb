@@ -160,13 +160,13 @@ class MariaDBIntrospectionMixin:
         Query information_schema.COLUMNS for column metadata.
 
         Args:
-            expr: Column info expression with table_name and schema.
+            expr: Column info expression with table and schema.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
         params = expr.get_params()
-        table_name = params.get("table_name", "")
+        table = params.get("table", "")
         schema = params.get("schema", "")
 
         sql = (
@@ -178,7 +178,7 @@ class MariaDBIntrospectionMixin:
             "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s "
             "ORDER BY ORDINAL_POSITION"
         )
-        return (sql, (schema, table_name))
+        return (sql, (schema, table))
 
     def format_index_info_query(
         self, expr: "IndexInfoExpression"
@@ -188,13 +188,13 @@ class MariaDBIntrospectionMixin:
         Query information_schema.STATISTICS for index metadata.
 
         Args:
-            expr: Index info expression with table_name and schema.
+            expr: Index info expression with table and schema.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
         params = expr.get_params()
-        table_name = params.get("table_name", "")
+        table = params.get("table", "")
         schema = params.get("schema", "")
 
         sql = (
@@ -204,7 +204,7 @@ class MariaDBIntrospectionMixin:
             "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s "
             "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
         )
-        return (sql, (schema, table_name))
+        return (sql, (schema, table))
 
     def format_foreign_key_query(
         self, expr: "ForeignKeyExpression"
@@ -215,13 +215,13 @@ class MariaDBIntrospectionMixin:
         for foreign key metadata.
 
         Args:
-            expr: Foreign key expression with table_name and schema.
+            expr: Foreign key expression with table and schema.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
         params = expr.get_params()
-        table_name = params.get("table_name", "")
+        table = params.get("table", "")
         schema = params.get("schema", "")
 
         sql = (
@@ -236,7 +236,7 @@ class MariaDBIntrospectionMixin:
             " AND kcu.REFERENCED_TABLE_NAME IS NOT NULL "
             "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
         )
-        return (sql, (schema, table_name))
+        return (sql, (schema, table))
 
     def format_view_list_query(
         self, expr: "ViewListExpression"
@@ -303,21 +303,21 @@ class MariaDBIntrospectionMixin:
         Query information_schema.TRIGGERS for trigger metadata.
 
         Args:
-            expr: Trigger list expression with schema and table_name.
+            expr: Trigger list expression with schema and table.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
         params = expr.get_params()
         schema = params.get("schema", "")
-        table_name = params.get("table_name")
+        table = params.get("table")
 
         conditions = ["TRIGGER_SCHEMA = %s"]
         sql_params: list = [schema]
 
-        if table_name:
+        if table:
             conditions.append("EVENT_OBJECT_TABLE = %s")
-            sql_params.append(table_name)
+            sql_params.append(table)
 
         where = " AND ".join(conditions)
         sql = (

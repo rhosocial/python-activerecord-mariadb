@@ -62,13 +62,13 @@ class ShowMixin:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _parse_create_table(rows: List[Dict], table_name: str):
+    def _parse_create_table(rows: List[Dict], table: str):
         from ..show.types import ShowCreateTableResult
         if not rows:
             return None
         row = rows[0]
         return ShowCreateTableResult(
-            table_name=row.get("Table", row.get("TABLE", table_name)),
+            table_name=row.get("Table", row.get("TABLE", table)),
             create_statement=row.get("Create Table", row.get("CREATE TABLE", "")),
         )
 
@@ -109,7 +109,7 @@ class ShowMixin:
         from ..show.types import ShowIndexResult
         return [
             ShowIndexResult(
-                table=row.get("Table", row.get("TABLE_NAME")),
+                table_name=row.get("Table", row.get("TABLE_NAME")),
                 non_unique=row.get("Non_unique", row.get("NON_UNIQUE")),
                 key_name=row.get("Key_name", row.get("INDEX_NAME")),
                 seq_in_index=row.get("Seq_in_index", row.get("SEQ_IN_INDEX")),
@@ -178,9 +178,9 @@ class ShowMixin:
         from ..show.types import ShowTriggerResult
         return [
             ShowTriggerResult(
-                trigger=row.get("Trigger", row.get("TRIGGER_NAME")),
+                trigger_name=row.get("Trigger", row.get("TRIGGER_NAME")),
                 event=row.get("Event", row.get("EVENT_MANIPULATION")),
-                table=row.get("Table", row.get("EVENT_OBJECT_TABLE")),
+                table_name=row.get("Table", row.get("EVENT_OBJECT_TABLE")),
                 statement=row.get("Statement", row.get("ACTION_STATEMENT")),
                 timing=row.get("Timing", row.get("ACTION_TIMING")),
                 created=row.get("Created"),
@@ -194,13 +194,13 @@ class ShowMixin:
         ]
 
     @staticmethod
-    def _parse_create_trigger(rows: List[Dict], trigger_name: str):
+    def _parse_create_trigger(rows: List[Dict], trigger: str):
         from ..show.types import ShowCreateTriggerResult
         if not rows:
             return None
         row = rows[0]
         return ShowCreateTriggerResult(
-            trigger_name=row.get("Trigger", row.get("TRIGGER", trigger_name)),
+            trigger_name=row.get("Trigger", row.get("TRIGGER", trigger)),
             create_statement=row.get("SQL Original Statement", row.get("CREATE TRIGGER", "")),
             character_set_client=row.get("character_set_client"),
             collation_connection=row.get("collation_connection"),
@@ -334,13 +334,13 @@ class SyncShowIntrospector(ShowMixin):
     # Public synchronous API
     # ------------------------------------------------------------------ #
 
-    def create_table(self, table_name: str, schema: Optional[str] = None):
+    def create_table(self, table: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = ShowCreateTableExpression(self.dialect, table_name)
+        expr = ShowCreateTableExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
-        return self._parse_create_table(self._exec(sql, params), table_name)
+        return self._parse_create_table(self._exec(sql, params), table)
 
     def create_view(self, view_name: str, schema: Optional[str] = None):
         """Get CREATE VIEW statement for a view."""
@@ -352,13 +352,13 @@ class SyncShowIntrospector(ShowMixin):
 
     def columns(
         self,
-        table_name: str,
+        table: str,
         schema: Optional[str] = None,
         full: bool = False,
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = ShowColumnsExpression(self.dialect, table_name)
+        expr = ShowColumnsExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         if full:
@@ -368,9 +368,9 @@ class SyncShowIntrospector(ShowMixin):
         sql, params = expr.to_sql()
         return self._parse_columns(self._exec(sql, params))
 
-    def indexes(self, table_name: str, schema: Optional[str] = None):
+    def indexes(self, table: str, schema: Optional[str] = None):
         """Get index information for a table."""
-        expr = ShowIndexExpression(self.dialect, table_name)
+        expr = ShowIndexExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
@@ -411,23 +411,23 @@ class SyncShowIntrospector(ShowMixin):
         sql, params = expr.to_sql()
         return self._parse_table_status(self._exec(sql, params))
 
-    def triggers(self, schema: Optional[str] = None, table_name: Optional[str] = None):
+    def triggers(self, schema: Optional[str] = None, table: Optional[str] = None):
         """List triggers."""
         expr = ShowTriggersExpression(self.dialect)
         if schema:
             expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        if table:
+            expr.for_table(table)
         sql, params = expr.to_sql()
         return self._parse_triggers(self._exec(sql, params))
 
-    def create_trigger(self, trigger_name: str, schema: Optional[str] = None):
+    def create_trigger(self, trigger: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement."""
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
+        expr = ShowCreateTriggerExpression(self.dialect, trigger)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
-        return self._parse_create_trigger(self._exec(sql, params), trigger_name)
+        return self._parse_create_trigger(self._exec(sql, params), trigger)
 
     def variables(self, like: Optional[str] = None, session: bool = True):
         """Show server variables."""
@@ -535,13 +535,13 @@ class AsyncShowIntrospector(ShowMixin):
     # Method names match the sync version (no _async suffix).
     # ------------------------------------------------------------------ #
 
-    async def create_table(self, table_name: str, schema: Optional[str] = None):
+    async def create_table(self, table: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = ShowCreateTableExpression(self.dialect, table_name)
+        expr = ShowCreateTableExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
-        return self._parse_create_table(await self._exec(sql, params), table_name)
+        return self._parse_create_table(await self._exec(sql, params), table)
 
     async def create_view(self, view_name: str, schema: Optional[str] = None):
         """Get CREATE VIEW statement for a view."""
@@ -553,13 +553,13 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def columns(
         self,
-        table_name: str,
+        table: str,
         schema: Optional[str] = None,
         full: bool = False,
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = ShowColumnsExpression(self.dialect, table_name)
+        expr = ShowColumnsExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         if full:
@@ -569,9 +569,9 @@ class AsyncShowIntrospector(ShowMixin):
         sql, params = expr.to_sql()
         return self._parse_columns(await self._exec(sql, params))
 
-    async def indexes(self, table_name: str, schema: Optional[str] = None):
+    async def indexes(self, table: str, schema: Optional[str] = None):
         """Get index information for a table."""
-        expr = ShowIndexExpression(self.dialect, table_name)
+        expr = ShowIndexExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
@@ -612,23 +612,23 @@ class AsyncShowIntrospector(ShowMixin):
         sql, params = expr.to_sql()
         return self._parse_table_status(await self._exec(sql, params))
 
-    async def triggers(self, schema: Optional[str] = None, table_name: Optional[str] = None):
+    async def triggers(self, schema: Optional[str] = None, table: Optional[str] = None):
         """List triggers."""
         expr = ShowTriggersExpression(self.dialect)
         if schema:
             expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        if table:
+            expr.for_table(table)
         sql, params = expr.to_sql()
         return self._parse_triggers(await self._exec(sql, params))
 
-    async def create_trigger(self, trigger_name: str, schema: Optional[str] = None):
+    async def create_trigger(self, trigger: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement."""
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
+        expr = ShowCreateTriggerExpression(self.dialect, trigger)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
-        return self._parse_create_trigger(await self._exec(sql, params), trigger_name)
+        return self._parse_create_trigger(await self._exec(sql, params), trigger)
 
     async def variables(self, like: Optional[str] = None, session: bool = True):
         """Show server variables."""

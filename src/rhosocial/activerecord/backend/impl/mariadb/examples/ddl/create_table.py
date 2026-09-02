@@ -41,7 +41,7 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop if exists for clean setup
-drop = DropTableExpression(dialect=dialect, table_name='products', if_exists=True)
+drop = DropTableExpression(dialect=dialect, table='products', if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
@@ -102,7 +102,7 @@ indexes = [
 # Create table with MariaDB-specific ENGINE and CHARSET options
 create_expr = CreateTableExpression(
     dialect=dialect,
-    table_name='products',
+    table='products',
     columns=columns,
     indexes=indexes,
     if_not_exists=True,
@@ -131,7 +131,7 @@ for col in columns_info:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table_name='products', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table='products', if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

@@ -34,7 +34,7 @@ class MariaDBFullTextSearchMixin:
 
     def format_fulltext_index_options(
         self,
-        index_name: str,
+        index: str,
         columns: List[str],
         index_type: Optional[str] = None,
         parser_name: Optional[str] = None
@@ -42,7 +42,7 @@ class MariaDBFullTextSearchMixin:
         """Format FULLTEXT index options for CREATE TABLE / ALTER TABLE.
 
         Args:
-            index_name: Index name
+            index: Index name
             columns: Indexed columns
             index_type: Index type (ignored for FULLTEXT)
             parser_name: Parser name for full-text search
@@ -51,7 +51,7 @@ class MariaDBFullTextSearchMixin:
             Tuple of (SQL string, parameters tuple)
         """
         col_parts = [self.format_identifier(c) for c in columns]
-        sql = f"FULLTEXT {self.format_identifier(index_name)} ({', '.join(col_parts)})"
+        sql = f"FULLTEXT {self.format_identifier(index)} ({', '.join(col_parts)})"
         if parser_name:
             sql += f" WITH PARSER {self.format_identifier(parser_name)}"
         return sql, ()

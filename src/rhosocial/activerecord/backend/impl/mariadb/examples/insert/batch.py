@@ -34,13 +34,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table_name='logs', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table='logs', if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='logs',
+    table='logs',
     columns=[
         ColumnDefinition(
             'id',

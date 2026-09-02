@@ -37,17 +37,17 @@ backend = MariaDBBackend(connection_config=config)
 backend.connect()
 dialect = backend.dialect
 
-drop_orders = DropTableExpression(dialect=dialect, table_name='orders', if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table='orders', if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table='users', if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='users',
+    table='users',
     columns=[
         ColumnDefinition(
             'id',
@@ -103,7 +103,7 @@ add_col_action = AddColumn(
 
 add_col_expr = AlterTableExpression(
     dialect=dialect,
-    table_name='users',
+    table='users',
     actions=[add_col_action],
 )
 
@@ -129,7 +129,7 @@ add_age_action = AddColumn(
 
 add_age_expr = AlterTableExpression(
     dialect=dialect,
-    table_name='users',
+    table='users',
     actions=[add_age_action],
 )
 

@@ -12,7 +12,7 @@ Expression classes inherit from BaseExpression and implement to_sql(),
 following the expression-dialect pattern used throughout the codebase.
 
 Key design:
-- Expressions collect parameters (table_name, schema, options)
+- Expressions collect parameters (table, schema, options)
 - Expressions hold a dialect reference
 - to_sql() delegates to dialect.format_show_* methods
 - Dialect handles actual SQL generation
@@ -57,9 +57,9 @@ class ShowExpression(BaseExpression):
 class ShowCreateTableExpression(ShowExpression):
     """Expression for SHOW CREATE TABLE command."""
 
-    def __init__(self, dialect: "MariaDBDialect", table_name: str):
+    def __init__(self, dialect: "MariaDBDialect", table: str):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._table = table
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_create_table(self)
@@ -79,10 +79,10 @@ class ShowCreateViewExpression(ShowExpression):
 class ShowColumnsExpression(ShowExpression):
     """Expression for SHOW [FULL] COLUMNS command."""
 
-    def __init__(self, dialect: "MariaDBDialect", table_name: str,
+    def __init__(self, dialect: "MariaDBDialect", table: str,
                  *, full: bool = False, like_pattern: Optional[str] = None):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._table = table
         self._full = full
         self._like_pattern = like_pattern
 
@@ -103,9 +103,9 @@ class ShowColumnsExpression(ShowExpression):
 class ShowIndexExpression(ShowExpression):
     """Expression for SHOW INDEX command."""
 
-    def __init__(self, dialect: "MariaDBDialect", table_name: str):
+    def __init__(self, dialect: "MariaDBDialect", table: str):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._table = table
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_index(self)
@@ -172,13 +172,13 @@ class ShowTriggersExpression(ShowExpression):
     """Expression for SHOW TRIGGERS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
-                 *, table_name: Optional[str] = None):
+                 *, table: Optional[str] = None):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._table = table
 
-    def for_table(self, table_name: str) -> "ShowTriggersExpression":
+    def for_table(self, table: str) -> "ShowTriggersExpression":
         """Filter triggers for a specific table."""
-        self._table_name = table_name
+        self._table = table
         return self
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -188,9 +188,9 @@ class ShowTriggersExpression(ShowExpression):
 class ShowCreateTriggerExpression(ShowExpression):
     """Expression for SHOW CREATE TRIGGER command."""
 
-    def __init__(self, dialect: "MariaDBDialect", trigger_name: str):
+    def __init__(self, dialect: "MariaDBDialect", trigger: str):
         super().__init__(dialect)
-        self._trigger_name = trigger_name
+        self._trigger = trigger
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_create_trigger(self)

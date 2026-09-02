@@ -161,10 +161,10 @@ class MariaDBTriggerMixin:
         """Format CREATE TRIGGER statement for MariaDB.
 
         Syntax:
-            CREATE [OR REPLACE] TRIGGER [IF NOT EXISTS] trigger_name
+            CREATE [OR REPLACE] TRIGGER [IF NOT EXISTS] trigger
             {BEFORE | AFTER | INSTEAD OF}
             {INSERT | UPDATE | UPDATE OF column_list | DELETE}
-            ON table_name
+            ON table
             FOR EACH ROW
             [{FOLLOWS | PRECEDES} other_trigger_name]
             trigger_body
@@ -224,14 +224,14 @@ class MariaDBTriggerMixin:
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
 
-        parts.append(self.format_identifier(expr.trigger_name))
+        parts.append(self.format_identifier(expr.trigger))
         parts.append(timing)
 
         if expr.events:
             parts.append(expr.events[0].value if hasattr(expr.events[0], 'value') else str(expr.events[0]))
 
         parts.append("ON")
-        parts.append(self.format_identifier(expr.table_name))
+        parts.append(self.format_identifier(expr.table))
         parts.append("FOR EACH ROW")
 
         all_params = []
@@ -274,7 +274,7 @@ class MariaDBTriggerMixin:
         if expr.if_exists:
             parts.append("IF EXISTS")
 
-        parts.append(self.format_identifier(expr.trigger_name))
+        parts.append(self.format_identifier(expr.trigger))
 
         return " ".join(parts), ()
 

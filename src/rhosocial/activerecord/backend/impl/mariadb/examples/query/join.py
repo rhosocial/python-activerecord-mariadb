@@ -36,17 +36,17 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
 )
 
-drop_customers = DropTableExpression(dialect=dialect, table_name='customers', if_exists=True)
+drop_customers = DropTableExpression(dialect=dialect, table='customers', if_exists=True)
 sql, params = drop_customers.to_sql()
 backend.execute(sql, params)
 
-drop_orders = DropTableExpression(dialect=dialect, table_name='orders', if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table='orders', if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
 create_customers = CreateTableExpression(
     dialect=dialect,
-    table_name='customers',
+    table='customers',
     columns=[
         ColumnDefinition(
             'id',
@@ -70,7 +70,7 @@ backend.execute(sql, params)
 
 create_orders = CreateTableExpression(
     dialect=dialect,
-    table_name='orders',
+    table='orders',
     columns=[
         ColumnDefinition(
             'id',

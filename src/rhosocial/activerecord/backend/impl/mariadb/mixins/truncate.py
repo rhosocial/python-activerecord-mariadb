@@ -60,7 +60,7 @@ class MariaDBTruncateMixin:
                 suggestion="MariaDB does not support CASCADE on TRUNCATE.",
             )
 
-        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table_name)}"
+        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table)}"
 
         options = expr.dialect_options
         wait = None

@@ -46,13 +46,13 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table_name='sales_data', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table='sales_data', if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='sales_data',
+    table='sales_data',
     columns=[
         ColumnDefinition(
             'id',

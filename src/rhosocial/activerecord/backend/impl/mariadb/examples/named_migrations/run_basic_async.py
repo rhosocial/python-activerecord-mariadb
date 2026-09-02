@@ -39,10 +39,10 @@ _EXPRESSIONS_FQN = (
 )
 
 
-async def _table_exists(backend: AsyncMariaDBBackend, table_name: str) -> bool:
-    """Return True if ``table_name`` exists in the current database."""
+async def _table_exists(backend: AsyncMariaDBBackend, table: str) -> bool:
+    """Return True if ``table`` exists in the current database."""
     tables = await backend.introspector.list_tables()
-    return any(getattr(t, "name", t) == table_name for t in tables)
+    return any(getattr(t, "name", t) == table for t in tables)
 
 
 async def main() -> None:

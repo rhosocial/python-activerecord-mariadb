@@ -85,7 +85,7 @@ class MariaDBAlterTableMixin:
                 )
             head += " IF EXISTS"
 
-        table_part = f"{head} {self.format_identifier(expr.table_name)}"
+        table_part = f"{head} {self.format_identifier(expr.table)}"
 
         if options.get("nowait"):
             wait = "NOWAIT"
@@ -129,7 +129,7 @@ class MariaDBAlterTableMixin:
 
         return (
             "ALTER TABLE "
-            f"{self.format_identifier(expr.table_name)} RENAME INDEX "
+            f"{self.format_identifier(expr.table)} RENAME INDEX "
             f"{self.format_identifier(expr.old_index_name)} TO "
             f"{self.format_identifier(expr.new_index_name)}",
             ()

@@ -134,7 +134,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     def _parse_columns(
         self,
         rows: List[Dict[str, Any]],
-        table_name: str,
+        table: str,
         schema: str,
     ) -> List[ColumnInfo]:
         columns = []
@@ -148,7 +148,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             columns.append(
                 ColumnInfo(
                     name=row["COLUMN_NAME"],
-                    table_name=table_name,
+                    table_name=table,
                     schema=schema,
                     ordinal_position=row["ORDINAL_POSITION"],
                     data_type=col_type.split("(")[0].lower(),
@@ -171,7 +171,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     def _parse_indexes(
         self,
         rows: List[Dict[str, Any]],
-        table_name: str,
+        table: str,
         schema: str,
     ) -> List[IndexInfo]:
         index_type_map = {
@@ -188,7 +188,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
                 idx_type_str = (row.get("INDEX_TYPE") or "BTREE").upper()
                 index_map[idx_name] = IndexInfo(
                     name=idx_name,
-                    table_name=table_name,
+                    table_name=table,
                     schema=schema,
                     is_unique=int(row.get("NON_UNIQUE", row.get("Non_unique", 1))) == 0,
                     is_primary=idx_name == "PRIMARY",
@@ -207,7 +207,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     def _parse_foreign_keys(
         self,
         rows: List[Dict[str, Any]],
-        table_name: str,
+        table: str,
         schema: str,
     ) -> List[ForeignKeyInfo]:
         action_map = {
@@ -228,7 +228,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
                 on_delete_raw = (row.get("DELETE_RULE") or "NO ACTION").upper()
                 fk_map[fk_name] = ForeignKeyInfo(
                     name=fk_name,
-                    table_name=table_name,
+                    table_name=table,
                     schema=schema,
                     referenced_table=row.get("REFERENCED_TABLE_NAME", ""),
                     on_update=action_map.get(on_update_raw, ReferentialAction.NO_ACTION),
@@ -325,26 +325,26 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
     # ------------------------------------------------------------------ #
 
     def get_table_info(
-        self, table_name: str, schema: Optional[str] = None
+        self, table: str, schema: Optional[str] = None
     ) -> Optional[TableInfo]:
         key = self._make_cache_key(
-            IntrospectionScope.TABLE, table_name, schema=schema
+            IntrospectionScope.TABLE, table, schema=schema
         )
         cached = self._get_cached(key)
         if cached is not None:
             return cached
 
         tables = self.list_tables(schema)
-        table = next((t for t in tables if t.name == table_name), None)
-        if table is None:
+        found = next((t for t in tables if t.name == table), None)
+        if found is None:
             return None
 
-        table = copy.copy(table)
-        table.columns = self.list_columns(table_name, schema)
-        table.indexes = self.list_indexes(table_name, schema)
-        table.foreign_keys = self.list_foreign_keys(table_name, schema)
-        self._set_cached(key, table)
-        return table
+        info = copy.copy(found)
+        info.columns = self.list_columns(table, schema)
+        info.indexes = self.list_indexes(table, schema)
+        info.foreign_keys = self.list_foreign_keys(table, schema)
+        self._set_cached(key, info)
+        return info
 
 
 class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospector):
@@ -385,23 +385,23 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
     # ------------------------------------------------------------------ #
 
     async def get_table_info(
-        self, table_name: str, schema: Optional[str] = None
+        self, table: str, schema: Optional[str] = None
     ) -> Optional[TableInfo]:
         key = self._make_cache_key(
-            IntrospectionScope.TABLE, table_name, schema=schema
+            IntrospectionScope.TABLE, table, schema=schema
         )
         cached = self._get_cached(key)
         if cached is not None:
             return cached
 
         tables = await self.list_tables(schema)
-        table = next((t for t in tables if t.name == table_name), None)
-        if table is None:
+        found = next((t for t in tables if t.name == table), None)
+        if found is None:
             return None
 
-        table = copy.copy(table)
-        table.columns = await self.list_columns(table_name, schema)
-        table.indexes = await self.list_indexes(table_name, schema)
-        table.foreign_keys = await self.list_foreign_keys(table_name, schema)
-        self._set_cached(key, table)
-        return table
+        info = copy.copy(found)
+        info.columns = await self.list_columns(table, schema)
+        info.indexes = await self.list_indexes(table, schema)
+        info.foreign_keys = await self.list_foreign_keys(table, schema)
+        self._set_cached(key, info)
+        return info

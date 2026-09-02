@@ -976,7 +976,7 @@ class MariaDBDialect(
             parts.append("TEMPORARY")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
+        parts.append(self.format_identifier(expr.table))
 
         if isinstance(like_table, tuple):
             schema, table = like_table

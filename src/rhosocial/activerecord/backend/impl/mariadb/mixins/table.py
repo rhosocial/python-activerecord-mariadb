@@ -83,7 +83,7 @@ class MariaDBTableMixin:
             parts.append("TEMPORARY")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
+        parts.append(self.format_identifier(expr.table))
 
         column_parts = []
         for col_def in expr.columns:
