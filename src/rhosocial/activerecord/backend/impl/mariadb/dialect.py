@@ -160,9 +160,11 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression import bases
     from rhosocial.activerecord.backend.expression.collation import CollateExpression
     from rhosocial.activerecord.backend.expression.statements import (
+        CreateTableExpression,
         InsertExpression,
         ReturningClause,
     )
+    from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
     from .expression.load_data import MariaDBLoadDataExpression
 
 MARIADB_VERSION_BOUNDARIES = {
@@ -1243,6 +1245,19 @@ class MariaDBDialect(
                 parts.append("READ WRITE")
 
         return " ".join(parts), ()
+
+    # endregion
+
+    # region CreateTableExpression diff support
+
+    def _supports_alter_column_type(self) -> bool:
+        """MariaDB changes column types in place via MODIFY COLUMN."""
+        return True
+
+    def alter_column_type_action(self, old_col, new_col) -> "ModifyColumn":
+        """Build the in-place type-change action (MODIFY COLUMN <new def>)."""
+        from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
+        return ModifyColumn(self, column=new_col)
 
     # endregion
 

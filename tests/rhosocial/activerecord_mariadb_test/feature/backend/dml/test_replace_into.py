@@ -1,4 +1,4 @@
-# tests/rhosocial/activerecord_mariadb_test/feature/dml/test_replace_into.py
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/dml/test_replace_into.py
 """
 MySQL REPLACE INTO tests.
 

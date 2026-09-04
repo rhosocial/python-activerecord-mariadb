@@ -1,0 +1,67 @@
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/transactions/test_transaction_backend_async.py
+import pytest
+import pytest_asyncio
+
+
+@pytest_asyncio.fixture
+async def setup_test_table(async_mariadb_backend):
+    await async_mariadb_backend.execute("DROP TABLE IF EXISTS test_table")
+    await async_mariadb_backend.execute("""
+        CREATE TABLE test_table (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255),
+            age INT
+        )
+    """)
+    yield
+    await async_mariadb_backend.execute("DROP TABLE IF EXISTS test_table")
+
+
+@pytest.mark.asyncio
+async def test_transaction_commit(async_mariadb_backend, setup_test_table):
+    """Test transaction commit"""
+    async with async_mariadb_backend.transaction():
+        sql = "INSERT INTO test_table (name, age) VALUES (%s, %s)"
+        params = ("test", 20)
+        await async_mariadb_backend.execute(sql, params)
+    row = await async_mariadb_backend.fetch_one("SELECT * FROM test_table WHERE name = %s", ("test",))
+    assert row is not None
+
+
+@pytest.mark.asyncio
+async def test_transaction_rollback(async_mariadb_backend, setup_test_table):
+    """Test transaction rollback"""
+    try:
+        async with async_mariadb_backend.transaction():
+            sql = "INSERT INTO test_table (name, age) VALUES (%s, %s)"
+            params = ("test", 20)
+            await async_mariadb_backend.execute(sql, params)
+            raise Exception("Force rollback")
+    except Exception:
+        pass
+    row = await async_mariadb_backend.fetch_one("SELECT * FROM test_table WHERE name = %s", ("test",))
+    assert row is None
+
+
+@pytest.mark.asyncio
+async def test_nested_transaction(async_mariadb_backend, setup_test_table):
+    """Test nested transactions"""
+    async with async_mariadb_backend.transaction():
+        sql_outer = "INSERT INTO test_table (name, age) VALUES (%s, %s)"
+        params_outer = ("outer", 20)
+        await async_mariadb_backend.execute(sql_outer, params_outer)
+        async with async_mariadb_backend.transaction():
+            sql_inner = "INSERT INTO test_table (name, age) VALUES (%s, %s)"
+            params_inner = ("inner", 30)
+            await async_mariadb_backend.execute(sql_inner, params_inner)
+    rows = await async_mariadb_backend.fetch_all("SELECT * FROM test_table ORDER BY age")
+    assert len(rows) == 2
+
+
+@pytest.mark.asyncio
+async def test_transaction_get_cursor(async_mariadb_backend):
+    """Test that _get_cursor can be called within a transaction context."""
+    async with async_mariadb_backend.transaction():
+        cursor = await async_mariadb_backend._get_cursor()
+        assert cursor is not None
+        await cursor.close()
