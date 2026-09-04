@@ -22,7 +22,6 @@ from rhosocial.activerecord.backend.expression.types import (
     DoubleType,
     FloatType,
     IntegerType,
-    JsonBType,
     JsonType,
     RealType,
     SmallIntType,
@@ -245,18 +244,6 @@ class MariaDBTypeSupportMixin(DDLTypeMixin):
     @DDLTypeMixin.handles(BooleanType)
     def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
         return "TINYINT(1)", ()
-
-    @DDLTypeMixin.handles(TimeTzType)
-    def format_data_type_timetz(self, data_type: TimeTzType) -> Tuple[str, tuple]:
-        return (f"TIME({data_type.precision})" if data_type.precision is not None else "TIME"), ()
-
-    @DDLTypeMixin.handles(TimestampTzType)
-    def format_data_type_timestamptz(self, data_type: TimestampTzType) -> Tuple[str, tuple]:
-        return (f"TIMESTAMP({data_type.precision})" if data_type.precision is not None else "TIMESTAMP"), ()
-
-    @DDLTypeMixin.handles(JsonBType)
-    def format_data_type_jsonb(self, data_type: JsonBType) -> Tuple[str, tuple]:
-        return "JSON", ()
 
     # --- Core type handlers ---
 
