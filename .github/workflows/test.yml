@@ -100,7 +100,7 @@ jobs:
         run: |
           export PYTHONPATH=src:tests
           pip install codecov
-          python -m pytest tests/ --tb=short --cov=src --cov-report=xml -n auto --dist=loadgroup
+          python -m pytest tests/ --tb=short --cov=src --cov-report=xml --cov-report=term-missing:skip-covered -n auto --dist=loadgroup
 
       - name: Upload coverage to Codecov
         if: matrix.mariadb-version == '11.8'
