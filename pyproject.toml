@@ -40,6 +40,9 @@ dependencies = [
     "mariadb>=2.0.0rc2"
 ]
 
+[project.scripts]
+rhosocial-activerecord-mariadb = "rhosocial.activerecord.backend.impl.mariadb.__main__:main"
+
 [project.optional-dependencies]
 pooling = [
     "DBUtils>=3.0.0",
