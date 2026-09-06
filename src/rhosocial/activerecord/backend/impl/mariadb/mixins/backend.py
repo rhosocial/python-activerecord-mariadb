@@ -124,6 +124,9 @@ class MariaDBBackendMixin:
             (date, str),
             (time, str),
             (Decimal, float),
+            # UUID uses the string adapter, matching the default VARCHAR(36)
+            # storage. (Binary storage via UseSqlType(BinaryType(16), ...)
+            # requires UseAdapter(MariaDBUUIDBinaryAdapter, bytes).)
             (UUID, str),
             (dict, str),
             (list, str),

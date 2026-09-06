@@ -119,7 +119,7 @@ class ShowMixin:
                 sub_part=row.get("Sub_part", row.get("SUB_PART")),
                 packed=row.get("Packed", row.get("PACKED")),
                 null=row.get("Null", row.get("NULLABLE")),
-                index_type=row.get("Index_type", row.get("INDEX_TYPE"), "BTREE"),
+                index_type=row.get("Index_type", row.get("INDEX_TYPE", "BTREE")),
                 comment=row.get("Comment", row.get("INDEX_COMMENT")),
                 index_comment=row.get("Index_comment", row.get("INDEX_COMMENT")),
                 visible=row.get("Visible", row.get("IS_VISIBLE")),
