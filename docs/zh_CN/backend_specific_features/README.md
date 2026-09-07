@@ -12,6 +12,7 @@
 - [EXPLAIN](explain.md)：查询执行计划分析（MariaDB 特定语法）
 - [自省](introspection.md)：数据库元数据查询和模式检查
 - [分区](partition.md)：表分区（MariaDB 特定）
+- [DDL 特征 Spec](ddl_spec.md)：声明式 DDL Spec（经核心继承）
 
 ## 功能亮点
 

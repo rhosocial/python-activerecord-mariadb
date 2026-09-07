@@ -12,6 +12,7 @@ When you encounter a feature in this section, check whether it is a backend-spec
 - [EXPLAIN](explain.md): Query execution plan analysis (MariaDB-specific syntax)
 - [Introspection](introspection.md): Database metadata queries and schema inspection
 - [Partitioning](partition.md): Table partitioning (MariaDB-specific)
+- [DDL Feature Specs](ddl_spec.md): declarative DDL Specs (generic Specs via the core)
 
 ## Feature Highlights
 
