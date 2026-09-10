@@ -78,23 +78,23 @@ class MariaDBTableMixin:
 
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self._format_column_definition_mariadb(col_def, ColumnConstraintType)
+            col_sql, col_params = self._format_column_definition(col_def, ColumnConstraintType)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            const_sql, const_params = self._format_table_constraint_mariadb(t_const, TableConstraintType)
+            const_sql, const_params = self._format_table_constraint(t_const, TableConstraintType)
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self._format_inline_index_mariadb(idx_def)
+            idx_sql = self._format_inline_index(idx_def)
             column_parts.append(idx_sql)
 
         parts.append(f"({', '.join(column_parts)})")
 
         if expr.storage_options:
-            storage_sql = self._format_storage_options_mariadb(expr.storage_options)
+            storage_sql = self._format_storage_options(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
 
@@ -124,7 +124,7 @@ class MariaDBTableMixin:
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
 
-    def _format_column_definition_mariadb(
+    def _format_column_definition(
         self,
         col_def,
         ColumnConstraintType
@@ -168,7 +168,7 @@ class MariaDBTableMixin:
 
         return ' '.join(parts), params
 
-    def _format_table_constraint_mariadb(
+    def _format_table_constraint(
         self,
         t_const,
         TableConstraintType
@@ -201,7 +201,7 @@ class MariaDBTableMixin:
 
         return ' '.join(parts), params
 
-    def _format_inline_index_mariadb(self, idx_def) -> str:
+    def _format_inline_index(self, idx_def) -> str:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 
@@ -219,7 +219,7 @@ class MariaDBTableMixin:
 
         return ' '.join(parts)
 
-    def _format_storage_options_mariadb(self, storage_options: Dict[str, Any]) -> str:
+    def _format_storage_options(self, storage_options: Dict[str, Any]) -> str:
         parts = []
         for key, value in storage_options.items():
             if isinstance(value, str):

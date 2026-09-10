@@ -86,6 +86,7 @@ class TestMariaDBDialectSecurityIntegration:
 
         with pytest.raises(TypeError, match="data_type must be a DataType instance"):
             ColumnDefinition(
+                mariadb_backend.dialect,
                 name="test_col",
                 data_type="VARCHAR(255); DROP TABLE users--",
             )

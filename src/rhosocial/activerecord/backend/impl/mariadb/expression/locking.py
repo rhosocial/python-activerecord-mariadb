@@ -109,16 +109,7 @@ class MariaDBForUpdateClause(ForUpdateClause):
         # Default to UPDATE for backward compatibility
         self.strength = strength if strength is not None else MariaDBLockStrength.UPDATE
 
-    def to_sql(self) -> "bases.SQLQueryAndParams":
-        """
-        Generate the SQL representation of the MariaDB FOR UPDATE clause.
-
-        Delegates to the dialect's format_for_update_clause method
-        to follow the Expression-Dialect separation pattern.
-
-        Returns:
-            Tuple containing:
-            - SQL string fragment for the FOR UPDATE clause
-            - Tuple of parameter values for prepared statements
-        """
-        return self.dialect.format_for_update_clause(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_for_update_clause"

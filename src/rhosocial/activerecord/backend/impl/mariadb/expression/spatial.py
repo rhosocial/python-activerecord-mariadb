@@ -11,7 +11,7 @@ This module provides expression classes for MariaDB spatial functions:
 
 from typing import TYPE_CHECKING, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -41,11 +41,10 @@ class MariaDBSTGeomFromTextExpression(AliasableMixin, SQLValueExpression):
         self.wkt = wkt
         self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_geom_from_text(self.wkt)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_geom_from_text"
 
 
 class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
@@ -70,11 +69,10 @@ class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueExpre
         self.geom2 = geom2
         self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_distance(self.geom1, self.geom2)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_distance"
 
 
 class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
@@ -99,11 +97,10 @@ class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpress
         self.geom2 = geom2
         self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_within(self.geom1, self.geom2)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_within"
 
 
 class MariaDBSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
@@ -128,11 +125,10 @@ class MariaDBSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpre
         self.geom2 = geom2
         self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_contains(self.geom1, self.geom2)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_contains"
 
 
 __all__ = [

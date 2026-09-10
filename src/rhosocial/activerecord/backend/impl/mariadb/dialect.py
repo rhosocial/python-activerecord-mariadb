@@ -385,35 +385,29 @@ class MariaDBDialect(
         if field not in formats:
             raise UnsupportedFeatureError(self.name, f"date_trunc({expr.field.value})")
         sql = f"CAST(DATE_FORMAT({source_sql}, %s) AS DATETIME)"
-        return self._apply_value_expression_modifiers(
-            sql, source_params + (formats[field],), expr
-        )
+        return self.apply_alias(sql, source_params + (formats[field],), expr)
 
     def format_interval_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         sql = f"INTERVAL %s {expr.unit.value.upper()}"
-        return self._apply_value_expression_modifiers(sql, (expr.value,), expr)
+        return self.apply_alias(sql, (expr.value,), expr)
 
     def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"DATE_ADD({source_sql}, {interval_sql})"
-        return self._apply_value_expression_modifiers(
-            sql, source_params + interval_params, expr
-        )
+        return self.apply_alias(sql, source_params + interval_params, expr)
 
     def format_datetime_subtract_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"DATE_SUB({source_sql}, {interval_sql})"
-        return self._apply_value_expression_modifiers(
-            sql, source_params + interval_params, expr
-        )
+        return self.apply_alias(sql, source_params + interval_params, expr)
 
     def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         start_sql, start_params = expr.start.to_sql()
         end_sql, end_params = expr.end.to_sql()
         sql = f"TIMESTAMPDIFF({expr.unit.value.upper()}, {start_sql}, {end_sql})"
-        return self._apply_value_expression_modifiers(sql, start_params + end_params, expr)
+        return self.apply_alias(sql, start_params + end_params, expr)
 
     def supports_collate_expression(self) -> bool:
         """MariaDB supports expression-level COLLATE."""
@@ -974,23 +968,23 @@ class MariaDBDialect(
 
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self._format_column_definition_mariadb(col_def, ColumnConstraintType)
+            col_sql, col_params = self._format_column_definition(col_def, ColumnConstraintType)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            const_sql, const_params = self._format_table_constraint_mariadb(t_const, TableConstraintType)
+            const_sql, const_params = self._format_table_constraint(t_const, TableConstraintType)
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self._format_inline_index_mariadb(idx_def)
+            idx_sql = self._format_inline_index(idx_def)
             column_parts.append(idx_sql)
 
         parts.append(f"({', '.join(column_parts)})")
 
         if expr.storage_options:
-            storage_sql = self._format_storage_options_mariadb(expr.storage_options)
+            storage_sql = self._format_storage_options(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
 
@@ -1026,12 +1020,12 @@ class MariaDBDialect(
         value = value.replace("'", "''")
         return value
 
-    def _format_column_definition_mariadb(
+    def _format_column_definition(
         self,
         col_def: "ColumnDefinition",
         ColumnConstraintType
     ) -> Tuple[str, List[Any]]:
-        type_sql, type_params = col_def.data_type.to_sql(self)
+        type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
 
@@ -1070,7 +1064,7 @@ class MariaDBDialect(
 
         return ' '.join(parts), params
 
-    def _format_table_constraint_mariadb(
+    def _format_table_constraint(
         self,
         t_const: "TableConstraint",
         TableConstraintType
@@ -1120,7 +1114,7 @@ class MariaDBDialect(
 
         return ' '.join(parts), params
 
-    def _format_inline_index_mariadb(self, idx_def: "IndexDefinition") -> str:
+    def _format_inline_index(self, idx_def: "IndexDefinition") -> str:
         parts = []
 
         if idx_def.unique:
@@ -1137,7 +1131,7 @@ class MariaDBDialect(
 
         return ' '.join(parts)
 
-    def _format_storage_options_mariadb(self, storage_options: Dict[str, Any]) -> str:
+    def _format_storage_options(self, storage_options: Dict[str, Any]) -> str:
         parts = []
         for key, value in storage_options.items():
             if isinstance(value, str):
