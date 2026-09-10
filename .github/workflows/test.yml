@@ -122,8 +122,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { python-version: '3.15.0-rc.1', mariadb-version: '12.3', freethreaded: false }
-          - { python-version: '3.15.0-rc.1', mariadb-version: '13.0-rc', freethreaded: true }
+          - { python-version: '3.15.0-rc.2', mariadb-version: '12.3', freethreaded: false }
+          - { python-version: '3.15.0-rc.2', mariadb-version: '13.0-rc', freethreaded: true }
 
     services:
       mariadb:
