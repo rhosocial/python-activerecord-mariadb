@@ -76,10 +76,10 @@ class TestMySQLCreateTableLike:
         """Test that LIKE syntax ignores columns parameter."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition("id", IntegerType(), constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
+            ColumnDefinition(dialect, "id", IntegerType(dialect), constraints=[
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition("name", VarCharType(255))
+            ColumnDefinition(dialect, "name", VarCharType(255, dialect=dialect))
         ]
         create_expr = CreateTableExpression(
             dialect=dialect,
@@ -113,11 +113,11 @@ class TestMySQLCreateTableLike:
         """Test that base implementation is used when LIKE is not specified."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition("id", IntegerType(), constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)
+            ColumnDefinition(dialect, "id", IntegerType(dialect), constraints=[
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition("name", VarCharType(255), constraints=[
-                ColumnConstraint(ColumnConstraintType.NOT_NULL)
+            ColumnDefinition(dialect, "name", VarCharType(255, dialect=dialect), constraints=[
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)
             ])
         ]
         create_expr = CreateTableExpression(

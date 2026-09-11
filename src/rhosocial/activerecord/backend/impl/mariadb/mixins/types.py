@@ -384,10 +384,10 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         if self._MARIA_DECIMAL_TYPES.match(upper):
             nums = re.findall(r"\d+", stripped)
             if len(nums) >= 2:
-                return DecimalType(int(nums[0]), int(nums[1]), self)
+                return DecimalType(int(nums[0]), int(nums[1]), dialect=self)
             if len(nums) == 1:
-                return DecimalType(int(nums[0]), self)
-            return DecimalType(self)
+                return DecimalType(int(nums[0]), dialect=self)
+            return DecimalType(dialect=self)
 
         if self._MARIA_STRING_TYPES.match(upper):
             if upper.startswith("TINYTEXT"):

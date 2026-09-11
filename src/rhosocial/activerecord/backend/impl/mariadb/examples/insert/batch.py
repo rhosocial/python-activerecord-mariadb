@@ -18,6 +18,12 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+    TextType,
+    TimestampType,
+)
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
@@ -43,20 +49,23 @@ create_table = CreateTableExpression(
     table_name='logs',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition('level', 'VARCHAR(20)'),
-        ColumnDefinition('message', 'TEXT'),
+        ColumnDefinition(dialect, 'level', VarCharType(20, dialect=dialect)),
+        ColumnDefinition(dialect, 'message', TextType(dialect)),
         ColumnDefinition(
+            dialect,
             'created_at',
-            'TIMESTAMP',
+            TimestampType(dialect),
             constraints=[
                 ColumnConstraint(
+                    dialect,
                     ColumnConstraintType.DEFAULT,
                     default_value=current_timestamp(dialect),
                 ),

@@ -186,7 +186,7 @@ class TestMariaDBAlterTableStatement:
 
     def _add_column_action(self, dialect):
         return AddColumn(
-            dialect, column=ColumnDefinition('email', TextType())
+            dialect, column=ColumnDefinition(dialect, 'email', TextType(dialect))
         )
 
     def test_basic_alter(self):

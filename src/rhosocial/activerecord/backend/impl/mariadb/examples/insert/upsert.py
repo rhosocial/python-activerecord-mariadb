@@ -42,6 +42,10 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
     OnConflictClause,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
@@ -60,19 +64,19 @@ create_table = CreateTableExpression(
     dialect=dialect,
     table_name='users',
     columns=[
-        ColumnDefinition('id', 'INT', constraints=[
-            ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+        ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
         ]),
-        ColumnDefinition('username', 'VARCHAR(100)', constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
-            ColumnConstraint(ColumnConstraintType.UNIQUE),
+        ColumnDefinition(dialect, 'username', VarCharType(100, dialect=dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, ColumnConstraintType.UNIQUE),
         ]),
-        ColumnDefinition('email', 'VARCHAR(100)', constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+        ColumnDefinition(dialect, 'email', VarCharType(100, dialect=dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ]),
-        ColumnDefinition('login_count', 'INT', constraints=[
-            ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=0),
+        ColumnDefinition(dialect, 'login_count', IntegerType(dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0),
         ]),
     ],
     if_not_exists=True,

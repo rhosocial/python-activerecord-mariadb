@@ -31,6 +31,10 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
 )
 from rhosocial.activerecord.backend.expression.statements.explain import ExplainOptions
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 
 config = MariaDBConnectionConfig(
@@ -52,14 +56,14 @@ create_table = CreateTableExpression(
     dialect=dialect,
     table_name='users',
     columns=[
-        ColumnDefinition('id', 'INT', constraints=[
-            ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+        ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
         ]),
-        ColumnDefinition('name', 'VARCHAR(100)', constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ]),
-        ColumnDefinition('email', 'VARCHAR(200)'),
+        ColumnDefinition(dialect, 'email', VarCharType(200, dialect=dialect)),
     ],
     if_not_exists=True,
 )

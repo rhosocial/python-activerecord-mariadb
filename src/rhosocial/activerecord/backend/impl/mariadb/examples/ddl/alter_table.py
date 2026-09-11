@@ -24,6 +24,10 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -50,14 +54,15 @@ create_table = CreateTableExpression(
     table_name='users',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition('name', 'VARCHAR(100)'),
+        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
     ],
     if_not_exists=True,
 )
@@ -96,8 +101,9 @@ from rhosocial.activerecord.backend.expression.statements.ddl_alter import AddCo
 
 add_col_action = AddColumn(
     column=ColumnDefinition(
+        dialect,
         name='email',
-        data_type='VARCHAR(100)',
+        data_type=VarCharType(100, dialect=dialect),
     ),
 )
 
@@ -116,10 +122,12 @@ print("Column email added successfully")
 
 add_age_action = AddColumn(
     column=ColumnDefinition(
+        dialect,
         'age',
-        'INT',
+        IntegerType(dialect),
         constraints=[
             ColumnConstraint(
+                dialect,
                 ColumnConstraintType.DEFAULT,
                 default_value=Literal(dialect, 0),
             ),

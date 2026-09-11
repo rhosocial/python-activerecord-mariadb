@@ -28,6 +28,13 @@ from rhosocial.activerecord.backend.expression.statements import (
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     IndexDefinition,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+    DecimalType,
+    TinyIntType,
+    TimestampType,
+)
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -51,49 +58,56 @@ backend.execute(sql, params)
 
 columns = [
     ColumnDefinition(
+        dialect,
         name='id',
-        data_type='INT',
+        data_type=IntegerType(dialect),
         constraints=[
-            ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
         ],
     ),
     ColumnDefinition(
+        dialect,
         name='name',
-        data_type='VARCHAR(200)',
+        data_type=VarCharType(200, dialect=dialect),
         constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ],
     ),
     ColumnDefinition(
+        dialect,
         name='price',
-        data_type='DECIMAL(10,2)',
+        data_type=DecimalType(10, 2, dialect=dialect),
         constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ],
     ),
     ColumnDefinition(
+        dialect,
         name='category',
-        data_type='VARCHAR(100)',
+        data_type=VarCharType(100, dialect=dialect),
     ),
     ColumnDefinition(
+        dialect,
         name='is_active',
-        data_type='TINYINT(1)',
+        data_type=TinyIntType(dialect),
         constraints=[
-            ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=1),
+            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=1),
         ],
     ),
     ColumnDefinition(
+        dialect,
         name='created_at',
-        data_type='TIMESTAMP',
+        data_type=TimestampType(dialect),
         constraints=[
-            ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=current_timestamp(dialect)),
+            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=current_timestamp(dialect)),
         ],
     ),
 ]
 
 indexes = [
     IndexDefinition(
+        dialect,
         name='idx_products_category',
         columns=['category'],
     ),

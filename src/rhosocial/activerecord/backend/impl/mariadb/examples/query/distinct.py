@@ -36,6 +36,10 @@ from rhosocial.activerecord.backend.expression.core import Literal, Column
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 
 # Drop dependent tables first for clean setup
 drop_orders = DropTableExpression(dialect=dialect, table_name='orders', if_exists=True)
@@ -50,8 +54,8 @@ create_table = CreateTableExpression(
     dialect=dialect,
     table_name='users',
     columns=[
-        ColumnDefinition('id', 'INT'),
-        ColumnDefinition('name', 'VARCHAR(100)'),
+        ColumnDefinition(dialect, 'id', IntegerType(dialect)),
+        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
     ],
     if_not_exists=True,
 )

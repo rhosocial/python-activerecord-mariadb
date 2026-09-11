@@ -35,6 +35,11 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+    DecimalType,
+)
 
 drop_departments = DropTableExpression(dialect=dialect, table_name='departments', if_exists=True)
 sql, params = drop_departments.to_sql()
@@ -49,15 +54,16 @@ create_departments = CreateTableExpression(
     table_name='departments',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition('name', 'VARCHAR(100)'),
-        ColumnDefinition('budget', 'DECIMAL(15,2)'),
+        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'budget', DecimalType(15, 2, dialect=dialect)),
     ],
     if_not_exists=True,
 )
@@ -69,16 +75,17 @@ create_employees = CreateTableExpression(
     table_name='employees',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition('name', 'VARCHAR(100)'),
-        ColumnDefinition('salary', 'DECIMAL(10,2)'),
-        ColumnDefinition('department_id', 'INT'),
+        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'salary', DecimalType(10, 2, dialect=dialect)),
+        ColumnDefinition(dialect, 'department_id', IntegerType(dialect)),
     ],
     if_not_exists=True,
 )

@@ -35,6 +35,11 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+    DecimalType,
+)
 
 drop_customers = DropTableExpression(dialect=dialect, table_name='customers', if_exists=True)
 sql, params = drop_customers.to_sql()
@@ -49,19 +54,21 @@ create_customers = CreateTableExpression(
     table_name='customers',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
         ColumnDefinition(
+            dialect,
             'name',
-            'VARCHAR(100)',
-            constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
+            VarCharType(100, dialect=dialect),
+            constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
         ),
-        ColumnDefinition('email', 'VARCHAR(100)'),
+        ColumnDefinition(dialect, 'email', VarCharType(100, dialect=dialect)),
     ],
     if_not_exists=True,
 )
@@ -73,16 +80,17 @@ create_orders = CreateTableExpression(
     table_name='orders',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition('customer_id', 'INT'),
-        ColumnDefinition('total', 'DECIMAL(10,2)'),
-        ColumnDefinition('status', 'VARCHAR(20)'),
+        ColumnDefinition(dialect, 'customer_id', IntegerType(dialect)),
+        ColumnDefinition(dialect, 'total', DecimalType(10, 2, dialect=dialect)),
+        ColumnDefinition(dialect, 'status', VarCharType(20, dialect=dialect)),
     ],
     if_not_exists=True,
 )

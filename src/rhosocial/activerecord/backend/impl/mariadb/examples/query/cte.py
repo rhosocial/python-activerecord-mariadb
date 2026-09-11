@@ -42,6 +42,10 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
@@ -56,11 +60,11 @@ create_table = CreateTableExpression(
     dialect=dialect,
     table_name='employees',
     columns=[
-        ColumnDefinition('id', 'INT', constraints=[
-            ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
+        ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
         ]),
-        ColumnDefinition('name', 'VARCHAR(100)'),
-        ColumnDefinition('manager_id', 'INT'),
+        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'manager_id', IntegerType(dialect)),
     ],
     if_not_exists=True,
 )

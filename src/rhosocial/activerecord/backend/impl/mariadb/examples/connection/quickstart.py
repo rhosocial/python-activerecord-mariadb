@@ -29,6 +29,10 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
     ColumnDefinition,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
@@ -65,19 +69,21 @@ def create_demo_tables():
         table_name='quickstart_users',
         columns=[
             ColumnDefinition(
+                dialect,
                 'id',
-                'INT',
+                IntegerType(dialect),
                 constraints=[
-                    ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
                 ],
             ),
             ColumnDefinition(
+                dialect,
                 'name',
-                'VARCHAR(100)',
-                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
+                VarCharType(100, dialect=dialect),
+                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
             ),
-            ColumnDefinition('status', 'VARCHAR(20)'),
+            ColumnDefinition(dialect, 'status', VarCharType(20, dialect=dialect)),
         ],
         if_not_exists=True,
     )
@@ -88,17 +94,19 @@ def create_demo_tables():
         table_name='quickstart_logs',
         columns=[
             ColumnDefinition(
+                dialect,
                 'id',
-                'INT',
+                IntegerType(dialect),
                 constraints=[
-                    ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
                 ],
             ),
             ColumnDefinition(
+                dialect,
                 'message',
-                'VARCHAR(255)',
-                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
+                VarCharType(255, dialect=dialect),
+                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
             ),
         ],
         if_not_exists=True,

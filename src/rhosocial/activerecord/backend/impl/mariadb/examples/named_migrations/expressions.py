@@ -26,17 +26,19 @@ def create_users_table(dialect):
         table="users",
         columns=[
             ColumnDefinition(
+                dialect,
                 "id",
-                MariaDBIntType(),
+                MariaDBIntType(dialect=dialect),
                 constraints=[
                     ColumnConstraint(
+                        dialect,
                         ColumnConstraintType.PRIMARY_KEY,
                         is_auto_increment=True,
                     ),
                 ],
             ),
-            ColumnDefinition("name", MariaDBTextType()),
-            ColumnDefinition("email", MariaDBTextType()),
+            ColumnDefinition(dialect, "name", MariaDBTextType(dialect)),
+            ColumnDefinition(dialect, "email", MariaDBTextType(dialect)),
         ],
     )
 
@@ -53,17 +55,19 @@ def create_posts_table(dialect):
         table="posts",
         columns=[
             ColumnDefinition(
+                dialect,
                 "id",
-                MariaDBIntType(),
+                MariaDBIntType(dialect=dialect),
                 constraints=[
                     ColumnConstraint(
+                        dialect,
                         ColumnConstraintType.PRIMARY_KEY,
                         is_auto_increment=True,
                     ),
                 ],
             ),
-            ColumnDefinition("title", MariaDBTextType()),
-            ColumnDefinition("user_id", MariaDBIntType()),
+            ColumnDefinition(dialect, "title", MariaDBTextType(dialect)),
+            ColumnDefinition(dialect, "user_id", MariaDBIntType(dialect=dialect)),
         ],
     )
 
@@ -84,16 +88,18 @@ def create_custom_table(dialect, table_name: str = "custom_table"):
         table=table_name,
         columns=[
             ColumnDefinition(
+                dialect,
                 "id",
-                MariaDBIntType(),
+                MariaDBIntType(dialect=dialect),
                 constraints=[
                     ColumnConstraint(
+                        dialect,
                         ColumnConstraintType.PRIMARY_KEY,
                         is_auto_increment=True,
                     ),
                 ],
             ),
-            ColumnDefinition("value", MariaDBTextType()),
+            ColumnDefinition(dialect, "value", MariaDBTextType(dialect)),
         ],
     )
 

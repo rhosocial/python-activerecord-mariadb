@@ -28,6 +28,10 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
@@ -59,17 +63,18 @@ create_table = CreateTableExpression(
     table_name='users',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition('name', 'VARCHAR(100)', constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect), constraints=[
+            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ]),
-        ColumnDefinition('email', 'VARCHAR(200)'),
+        ColumnDefinition(dialect, 'email', VarCharType(200, dialect=dialect)),
     ],
     if_not_exists=True,
 )

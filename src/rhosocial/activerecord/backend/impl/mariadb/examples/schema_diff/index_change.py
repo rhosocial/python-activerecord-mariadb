@@ -45,14 +45,14 @@ backend.execute(sql, params)
 # Baseline table with a non-unique index on `email`
 expr = CreateTableExpression(
     dialect=dialect, table="users", columns=[
-        ColumnDefinition("id", IntegerType(),
+        ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
-                ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
             ]),
-        ColumnDefinition("email", VarCharType(255)),
+        ColumnDefinition(dialect, "email", VarCharType(255, dialect=dialect)),
     ],
-    indexes=[IndexDefinition("idx_email", ["email"])],
+    indexes=[IndexDefinition(dialect, "idx_email", ["email"])],
 )
 sql, params = expr.to_sql()
 backend.execute(sql, params)

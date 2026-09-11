@@ -44,13 +44,13 @@ backend.execute(sql, params)
 # Baseline table: id, name, email
 expr = CreateTableExpression(
     dialect=dialect, table="users", columns=[
-        ColumnDefinition("id", IntegerType(),
+        ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
-                ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
             ]),
-        ColumnDefinition("name", VarCharType(100)),
-        ColumnDefinition("email", VarCharType(255)),
+        ColumnDefinition(dialect, "name", VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, "email", VarCharType(255, dialect=dialect)),
     ]
 )
 sql, params = expr.to_sql()
@@ -73,7 +73,7 @@ builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column between `name` and `email` — shifts email to position 4
-add_col = AddColumn(dialect, ColumnDefinition("age", IntegerType()),
+add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)),
                     dialect_options={"after": "name"})
 alter_expr = AlterTableExpression(dialect, "users", [add_col])
 sql, params = alter_expr.to_sql()

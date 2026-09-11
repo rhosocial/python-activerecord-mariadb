@@ -35,6 +35,11 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+    DecimalType,
+)
 
 drop_table = DropTableExpression(dialect=dialect, table_name='employees', if_exists=True)
 sql, params = drop_table.to_sql()
@@ -45,21 +50,23 @@ create_table = CreateTableExpression(
     table_name='employees',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
         ColumnDefinition(
+            dialect,
             'name',
-            'VARCHAR(100)',
-            constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
+            VarCharType(100, dialect=dialect),
+            constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
         ),
-        ColumnDefinition('department', 'VARCHAR(50)'),
-        ColumnDefinition('salary', 'DECIMAL(10,2)'),
-        ColumnDefinition('manager_id', 'INT'),
+        ColumnDefinition(dialect, 'department', VarCharType(50, dialect=dialect)),
+        ColumnDefinition(dialect, 'salary', DecimalType(10, 2, dialect=dialect)),
+        ColumnDefinition(dialect, 'manager_id', IntegerType(dialect)),
     ],
     if_not_exists=True,
 )

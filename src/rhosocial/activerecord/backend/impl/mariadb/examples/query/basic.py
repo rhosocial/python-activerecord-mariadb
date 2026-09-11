@@ -35,6 +35,10 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+)
 
 drop_orders = DropTableExpression(dialect=dialect, table_name='orders', if_exists=True)
 sql, params = drop_orders.to_sql()
@@ -49,20 +53,22 @@ create_table = CreateTableExpression(
     table_name='users',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
         ColumnDefinition(
+            dialect,
             'name',
-            'VARCHAR(100)',
-            constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
+            VarCharType(100, dialect=dialect),
+            constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
         ),
-        ColumnDefinition('age', 'INT'),
-        ColumnDefinition('status', 'VARCHAR(20)'),
+        ColumnDefinition(dialect, 'age', IntegerType(dialect)),
+        ColumnDefinition(dialect, 'status', VarCharType(20, dialect=dialect)),
     ],
     if_not_exists=True,
 )
