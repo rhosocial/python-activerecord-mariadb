@@ -759,6 +759,9 @@ class MariaDBDialect(
     def supports_virtual_generated_columns(self) -> bool:
         return True
 
+    def supports_auto_increment(self) -> bool:
+        return True
+
     def supports_truncate(self) -> bool:
         return True
 

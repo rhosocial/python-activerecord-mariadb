@@ -94,6 +94,7 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.TransactionControlSupport,
     dialect_protocols.SQLFunctionSupport,
     # Generic protocols MariaDB also satisfies (previously omitted from this list).
+    dialect_protocols.AutoIncrementSupport,
     dialect_protocols.AlterTableModifierSupport,
     dialect_protocols.CollationSupport,
     dialect_protocols.DDLTypeSupport,
@@ -158,10 +159,6 @@ MARIADB_NOT_IMPLEMENTED = [
     dialect_protocols.SQLXMLQueryingSupport,
     # MariaDB has no SQL/PGQ property-graph tables.
     dialect_protocols.GraphTableSupport,
-    # --- Known gaps (feature exists, generic protocol not yet declared) ---
-    # TODO: MariaDB supports AUTO_INCREMENT; compose AutoIncrementMixin and move
-    # this to MYSQL_PROTOCOLS.
-    dialect_protocols.AutoIncrementSupport,
 ]
 
 
