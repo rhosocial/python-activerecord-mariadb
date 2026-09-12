@@ -62,7 +62,7 @@ create_table = CreateTableExpression(
                 ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
     ],
     if_not_exists=True,
 )
@@ -103,7 +103,7 @@ add_col_action = AddColumn(
     column=ColumnDefinition(
         dialect,
         name='email',
-        data_type=VarCharType(100, dialect=dialect),
+        data_type=VarCharType(dialect, 100),
     ),
 )
 

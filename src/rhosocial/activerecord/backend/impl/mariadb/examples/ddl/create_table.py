@@ -69,7 +69,7 @@ columns = [
     ColumnDefinition(
         dialect,
         name='name',
-        data_type=VarCharType(200, dialect=dialect),
+        data_type=VarCharType(dialect, 200),
         constraints=[
             ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ],
@@ -77,7 +77,7 @@ columns = [
     ColumnDefinition(
         dialect,
         name='price',
-        data_type=DecimalType(10, 2, dialect=dialect),
+        data_type=DecimalType(dialect, 10, 2),
         constraints=[
             ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ],
@@ -85,7 +85,7 @@ columns = [
     ColumnDefinition(
         dialect,
         name='category',
-        data_type=VarCharType(100, dialect=dialect),
+        data_type=VarCharType(dialect, 100),
     ),
     ColumnDefinition(
         dialect,

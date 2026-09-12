@@ -80,10 +80,10 @@ def create_demo_tables():
             ColumnDefinition(
                 dialect,
                 'name',
-                VarCharType(100, dialect=dialect),
+                VarCharType(dialect, 100),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
             ),
-            ColumnDefinition(dialect, 'status', VarCharType(20, dialect=dialect)),
+            ColumnDefinition(dialect, 'status', VarCharType(dialect, 20)),
         ],
         if_not_exists=True,
     )
@@ -105,7 +105,7 @@ def create_demo_tables():
             ColumnDefinition(
                 dialect,
                 'message',
-                VarCharType(255, dialect=dialect),
+                VarCharType(dialect, 255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
             ),
         ],

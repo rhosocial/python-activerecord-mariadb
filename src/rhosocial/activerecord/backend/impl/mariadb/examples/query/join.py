@@ -65,10 +65,10 @@ create_customers = CreateTableExpression(
         ColumnDefinition(
             dialect,
             'name',
-            VarCharType(100, dialect=dialect),
+            VarCharType(dialect, 100),
             constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
         ),
-        ColumnDefinition(dialect, 'email', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'email', VarCharType(dialect, 100)),
     ],
     if_not_exists=True,
 )
@@ -89,8 +89,8 @@ create_orders = CreateTableExpression(
             ],
         ),
         ColumnDefinition(dialect, 'customer_id', IntegerType(dialect)),
-        ColumnDefinition(dialect, 'total', DecimalType(10, 2, dialect=dialect)),
-        ColumnDefinition(dialect, 'status', VarCharType(20, dialect=dialect)),
+        ColumnDefinition(dialect, 'total', DecimalType(dialect, 10, 2)),
+        ColumnDefinition(dialect, 'status', VarCharType(dialect, 20)),
     ],
     if_not_exists=True,
 )

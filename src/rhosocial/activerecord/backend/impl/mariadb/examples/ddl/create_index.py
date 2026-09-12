@@ -50,9 +50,9 @@ create_table = CreateTableExpression(
                 ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
-        ColumnDefinition(dialect, 'category', VarCharType(50, dialect=dialect)),
-        ColumnDefinition(dialect, 'price', DecimalType(10, 2, dialect=dialect)),
+        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
+        ColumnDefinition(dialect, 'category', VarCharType(dialect, 50)),
+        ColumnDefinition(dialect, 'price', DecimalType(dialect, 10, 2)),
     ],
     if_not_exists=True,
 )

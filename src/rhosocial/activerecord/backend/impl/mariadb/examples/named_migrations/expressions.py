@@ -28,7 +28,7 @@ def create_users_table(dialect):
             ColumnDefinition(
                 dialect,
                 "id",
-                MariaDBIntType(dialect=dialect),
+                MariaDBIntType(dialect),
                 constraints=[
                     ColumnConstraint(
                         dialect,
@@ -57,7 +57,7 @@ def create_posts_table(dialect):
             ColumnDefinition(
                 dialect,
                 "id",
-                MariaDBIntType(dialect=dialect),
+                MariaDBIntType(dialect),
                 constraints=[
                     ColumnConstraint(
                         dialect,
@@ -67,7 +67,7 @@ def create_posts_table(dialect):
                 ],
             ),
             ColumnDefinition(dialect, "title", MariaDBTextType(dialect)),
-            ColumnDefinition(dialect, "user_id", MariaDBIntType(dialect=dialect)),
+            ColumnDefinition(dialect, "user_id", MariaDBIntType(dialect)),
         ],
     )
 
@@ -90,7 +90,7 @@ def create_custom_table(dialect, table_name: str = "custom_table"):
             ColumnDefinition(
                 dialect,
                 "id",
-                MariaDBIntType(dialect=dialect),
+                MariaDBIntType(dialect),
                 constraints=[
                     ColumnConstraint(
                         dialect,

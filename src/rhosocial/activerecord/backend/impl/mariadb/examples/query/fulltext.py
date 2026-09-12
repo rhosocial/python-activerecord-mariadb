@@ -56,7 +56,7 @@ create_table = CreateTableExpression(
                 ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition(dialect, 'title', VarCharType(200, dialect=dialect)),
+        ColumnDefinition(dialect, 'title', VarCharType(dialect, 200)),
         ColumnDefinition(dialect, 'content', TextType(dialect)),
     ],
     if_not_exists=True,

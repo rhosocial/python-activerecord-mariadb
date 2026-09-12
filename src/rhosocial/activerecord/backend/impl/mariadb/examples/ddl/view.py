@@ -56,7 +56,7 @@ create_table = CreateTableExpression(
     table_name='users',
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect)),
-        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
     ],
     if_not_exists=True,
 )

@@ -63,7 +63,7 @@ create_table = CreateTableExpression(
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
             ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
         ]),
-        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
         ColumnDefinition(dialect, 'manager_id', IntegerType(dialect)),
     ],
     if_not_exists=True,

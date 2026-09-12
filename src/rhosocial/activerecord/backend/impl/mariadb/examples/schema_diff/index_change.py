@@ -50,7 +50,7 @@ expr = CreateTableExpression(
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
             ]),
-        ColumnDefinition(dialect, "email", VarCharType(255, dialect=dialect)),
+        ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
     ],
     indexes=[IndexDefinition(dialect, "idx_email", ["email"])],
 )

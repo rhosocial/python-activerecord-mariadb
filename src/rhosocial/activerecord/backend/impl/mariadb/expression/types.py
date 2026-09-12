@@ -17,7 +17,7 @@ DDL definition expressions (``ColumnDefinition.data_type``).
 
 from __future__ import annotations
 
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
@@ -42,19 +42,15 @@ class MariaDBIntType(IntegerType):
     unsigned: bool = False
     zerofill: bool = False
 
-    def __init__(self, *, unsigned: bool = False, zerofill: bool = False, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
@@ -69,19 +65,15 @@ class MariaDBTinyIntType(TinyIntType):
     unsigned: bool = False
     zerofill: bool = False
 
-    def __init__(self, *, unsigned: bool = False, zerofill: bool = False, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
@@ -96,19 +88,15 @@ class MariaDBSmallIntType(SmallIntType):
     unsigned: bool = False
     zerofill: bool = False
 
-    def __init__(self, *, unsigned: bool = False, zerofill: bool = False, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
@@ -123,19 +111,15 @@ class MariaDBBigIntType(BigIntType):
     unsigned: bool = False
     zerofill: bool = False
 
-    def __init__(self, *, unsigned: bool = False, zerofill: bool = False, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
@@ -209,17 +193,13 @@ class MariaDBBitType(DataType):
 
     n: Optional[int] = None
 
-    def __init__(self, n: Optional[int] = None, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, n: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.n = n
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.n == other.n
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.n))
+    def _type_params(self) -> tuple:
+        return (self.n,)
 
 
 # ---------------------------------------------------------------------------
@@ -233,17 +213,13 @@ class MariaDBYearType(DataType):
 
     display_width: Optional[int] = None
 
-    def __init__(self, display_width: Optional[int] = None, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, display_width: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.display_width = display_width
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.display_width == other.display_width
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.display_width))
+    def _type_params(self) -> tuple:
+        return (self.display_width,)
 
 
 # ---------------------------------------------------------------------------
@@ -257,17 +233,13 @@ class MariaDBBinaryType(DataType):
 
     length: Optional[int] = None
 
-    def __init__(self, length: Optional[int] = None, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, length: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.length = length
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.length == other.length
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.length))
+    def _type_params(self) -> tuple:
+        return (self.length,)
 
 
 class MariaDBVarBinaryType(DataType):
@@ -277,17 +249,13 @@ class MariaDBVarBinaryType(DataType):
 
     length: Optional[int] = None
 
-    def __init__(self, length: Optional[int] = None, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, length: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.length = length
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.length == other.length
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.length))
+    def _type_params(self) -> tuple:
+        return (self.length,)
 
 
 # ---------------------------------------------------------------------------
@@ -299,31 +267,27 @@ class MariaDBEnumType(DataType):
 
     name = "mariadb_enum"
 
-    values: List[str]
+    values: Tuple[str, ...] = ()
     charset: Optional[str] = None
     collation: Optional[str] = None
 
-    def __init__(self, values: List[str], charset: Optional[str] = None,
-                 collation: Optional[str] = None, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, values: Optional[List[str]] = None,
+                 charset: Optional[str] = None, collation: Optional[str] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if values is None:
+            raise ValueError("MariaDBEnumType requires values")
         if not values:
             raise ValueError("ENUM must have at least one value")
-        self.values = list(values)
+        self.values = tuple(values)
         self.charset = charset
         self.collation = collation
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.values == other.values and
-                self.charset == other.charset and
-                self.collation == other.collation)
-
-    def __hash__(self) -> int:
-        return hash((type(self), tuple(self.values), self.charset, self.collation))
+    def _type_params(self) -> tuple:
+        return (self.values, self.charset, self.collation)
 
     def __repr__(self) -> str:
-        return (f"{type(self).__name__}(values={self.values!r}, "
+        return (f"{type(self).__name__}(values={list(self.values)!r}, "
                 f"charset={self.charset!r}, collation={self.collation!r})")
 
 
@@ -336,31 +300,27 @@ class MariaDBSetType(DataType):
 
     name = "mariadb_set"
 
-    values: List[str]
+    values: Tuple[str, ...] = ()
     charset: Optional[str] = None
     collation: Optional[str] = None
 
-    def __init__(self, values: List[str], charset: Optional[str] = None,
-                 collation: Optional[str] = None, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, values: Optional[List[str]] = None,
+                 charset: Optional[str] = None, collation: Optional[str] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if values is None:
+            raise ValueError("MariaDBSetType requires values")
         if not values:
             raise ValueError("SET must have at least one value")
-        self.values = list(values)
+        self.values = tuple(values)
         self.charset = charset
         self.collation = collation
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.values == other.values and
-                self.charset == other.charset and
-                self.collation == other.collation)
-
-    def __hash__(self) -> int:
-        return hash((type(self), tuple(self.values), self.charset, self.collation))
+    def _type_params(self) -> tuple:
+        return (self.values, self.charset, self.collation)
 
     def __repr__(self) -> str:
-        return (f"{type(self).__name__}(values={self.values!r}, "
+        return (f"{type(self).__name__}(values={list(self.values)!r}, "
                 f"charset={self.charset!r}, collation={self.collation!r})")
 
 
@@ -375,17 +335,13 @@ class MariaDBGeometryType(DataType):
 
     srid: Optional[int] = None
 
-    def __init__(self, srid: Optional[int] = None, dialect=None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, srid: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.srid = srid
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.srid == other.srid
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.srid))
+    def _type_params(self) -> tuple:
+        return (self.srid,)
 
 
 class MariaDBPointType(MariaDBGeometryType):

@@ -59,10 +59,10 @@ create_table = CreateTableExpression(
             ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
             ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
         ]),
-        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect), constraints=[
+        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), constraints=[
             ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
         ]),
-        ColumnDefinition(dialect, 'email', VarCharType(200, dialect=dialect)),
+        ColumnDefinition(dialect, 'email', VarCharType(dialect, 200)),
     ],
     if_not_exists=True,
 )

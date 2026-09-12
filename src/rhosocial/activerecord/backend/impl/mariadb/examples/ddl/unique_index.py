@@ -51,8 +51,8 @@ create_table = CreateTableExpression(
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
             ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
         ]),
-        ColumnDefinition(dialect, 'email', VarCharType(100, dialect=dialect)),
-        ColumnDefinition(dialect, 'name', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'email', VarCharType(dialect, 100)),
+        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
     ],
     if_not_exists=True,
 )

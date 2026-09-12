@@ -49,8 +49,8 @@ expr = CreateTableExpression(
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
             ]),
-        ColumnDefinition(dialect, "name", VarCharType(100, dialect=dialect)),
-        ColumnDefinition(dialect, "email", VarCharType(255, dialect=dialect)),
+        ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
+        ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
     ]
 )
 sql, params = expr.to_sql()

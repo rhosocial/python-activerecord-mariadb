@@ -58,10 +58,10 @@ create_table = CreateTableExpression(
                 ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition(dialect, 'product', VarCharType(100, dialect=dialect)),
+        ColumnDefinition(dialect, 'product', VarCharType(dialect, 100)),
         ColumnDefinition(dialect, 'quantity', IntegerType(dialect)),
-        ColumnDefinition(dialect, 'price', DecimalType(10, 2, dialect=dialect)),
-        ColumnDefinition(dialect, 'region', VarCharType(50, dialect=dialect)),
+        ColumnDefinition(dialect, 'price', DecimalType(dialect, 10, 2)),
+        ColumnDefinition(dialect, 'region', VarCharType(dialect, 50)),
     ],
     if_not_exists=True,
 )

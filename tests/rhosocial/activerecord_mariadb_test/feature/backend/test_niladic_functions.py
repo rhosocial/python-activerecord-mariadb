@@ -126,7 +126,7 @@ class TestMySQLNiladicDDLContext:
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
                     ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
                 ]),
-                ColumnDefinition(dialect, 'ts', TimestampType(dialect=dialect), constraints=[
+                ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
                                      default_value=current_timestamp(dialect)),
                 ]),
@@ -166,7 +166,7 @@ class TestMySQLNiladicDDLContext:
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
                     ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
                 ]),
-                ColumnDefinition(dialect, 'ts', TimestampType(dialect=dialect), constraints=[
+                ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
                                      default_value=FunctionCall(dialect, 'CURRENT_TIMESTAMP')),
                 ]),
@@ -205,7 +205,7 @@ class TestMySQLNiladicDDLContext:
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
                     ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
                 ]),
-                ColumnDefinition(dialect, 'ts', TimestampType(6, dialect=dialect), constraints=[
+                ColumnDefinition(dialect, 'ts', TimestampType(dialect, 6), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
                                      default_value=current_timestamp(dialect, 6)),
                 ]),
@@ -266,7 +266,7 @@ class TestAsyncMySQLNiladicDDLContext:
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
                     ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
                 ]),
-                ColumnDefinition(dialect, 'ts', TimestampType(dialect=dialect), constraints=[
+                ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
                                      default_value=current_timestamp(dialect)),
                 ]),

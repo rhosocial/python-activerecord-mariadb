@@ -601,6 +601,45 @@ class MariaDBDialect(
 
     # endregion
 
+    # region Type protocol
+
+    def suggested_data_types(self) -> Dict[str, type]:
+        """Cross-backend type-consistency suggestions for MariaDB.
+
+        Values are the suggested replacement DataType **classes** (same
+        value type as :meth:`supports_data_types`). Suggestions reflect
+        MariaDB's real storage model:
+
+        - ``uuid``: no native UUID type — the MariaDB convention is a
+          fixed-length byte string (``BINARY(16)``), so the suggested
+          replacement is ``MariaDBBinaryType``.
+        - ``enum``: MariaDB has a native ENUM, exposed through its
+          namespaced type ``MariaDBEnumType`` (the generic ``enum`` name
+          itself has no formatter here).
+        - ``binary`` / ``varbinary``: MariaDB natively renders
+          ``BINARY(n)`` / ``VARBINARY(n)`` through the namespaced
+          ``mariadb_binary`` / ``mariadb_varbinary`` types.
+
+        Types the type mixin does render (``integer``, ``varchar``,
+        ``json``, ``date``, ...) are deliberately absent: they already have
+        a rendering path here, so there is nothing to suggest (suggested
+        keys and supported keys are disjoint by contract).
+        """
+        from .expression.types import (
+            MariaDBBinaryType,
+            MariaDBEnumType,
+            MariaDBVarBinaryType,
+        )
+
+        return {
+            "uuid": MariaDBBinaryType,
+            "enum": MariaDBEnumType,
+            "binary": MariaDBBinaryType,
+            "varbinary": MariaDBVarBinaryType,
+        }
+
+    # endregion
+
     # region Custom implementations
     def format_returning_clause(self, clause: "ReturningClause") -> Tuple[str, tuple]:
         """Format RETURNING clause for MariaDB."""

@@ -79,7 +79,7 @@ class TestMySQLCreateTableLike:
             ColumnDefinition(dialect, "id", IntegerType(dialect), constraints=[
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition(dialect, "name", VarCharType(255, dialect=dialect))
+            ColumnDefinition(dialect, "name", VarCharType(dialect, 255))
         ]
         create_expr = CreateTableExpression(
             dialect=dialect,
@@ -116,7 +116,7 @@ class TestMySQLCreateTableLike:
             ColumnDefinition(dialect, "id", IntegerType(dialect), constraints=[
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ]),
-            ColumnDefinition(dialect, "name", VarCharType(255, dialect=dialect), constraints=[
+            ColumnDefinition(dialect, "name", VarCharType(dialect, 255), constraints=[
                 ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)
             ])
         ]
