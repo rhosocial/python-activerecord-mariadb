@@ -7,6 +7,9 @@ This module tests the MariaDB-specific JSON function functionality with actual d
 Note: JSON type and functions require MariaDB 10.2.3+
 """
 import pytest
+from rhosocial.activerecord.backend.impl.mariadb.expression.json import (
+    MariaDBJSONExtractExpression,
+)
 
 
 class TestMariaDBJSONFunctionBackend:
@@ -134,7 +137,8 @@ class TestMariaDBJSONFunctionBackend:
         )
 
         dialect = mariadb_backend.dialect
-        sql, params = dialect.format_json_extract('data', '$.name')
+        expr = MariaDBJSONExtractExpression(dialect, 'data', '$.name')
+        sql, params = expr.to_sql()
 
         result = mariadb_backend.execute(
             f"SELECT {sql} as name FROM test_format_json_extract",
@@ -278,7 +282,8 @@ class TestAsyncMariaDBJSONFunctionBackend:
         )
 
         dialect = async_mariadb_backend.dialect
-        sql, params = dialect.format_json_extract('data', '$.name')
+        expr = MariaDBJSONExtractExpression(dialect, 'data', '$.name')
+        sql, params = expr.to_sql()
 
         result = await async_mariadb_backend.execute(
             f"SELECT {sql} as name FROM test_async_format_json_extract",
