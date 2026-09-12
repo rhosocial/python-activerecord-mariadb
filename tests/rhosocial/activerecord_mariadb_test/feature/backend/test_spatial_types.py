@@ -10,6 +10,12 @@ This module tests MariaDB-specific spatial data type functionality including:
 """
 import pytest
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
+    MariaDBSTGeomFromTextExpression,
+    MariaDBSTDistanceExpression,
+    MariaDBSTWithinExpression,
+    MariaDBSTContainsExpression,
+)
 
 
 class TestSpatialTypeProtocol:
@@ -82,7 +88,8 @@ class TestSpatialFunctionFormatting:
     def test_format_st_geom_from_text(self):
         """Test ST_GeomFromText formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_geom_from_text("POINT(1 1)")
+        expr = MariaDBSTGeomFromTextExpression(dialect, "POINT(1 1)")
+        sql, params = expr.to_sql()
         assert "ST_GeomFromText" in sql
         assert params == ("POINT(1 1)",)
 
@@ -103,19 +110,22 @@ class TestSpatialFunctionFormatting:
     def test_format_st_distance(self):
         """Test ST_Distance formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_distance("geom1", "geom2")
+        expr = MariaDBSTDistanceExpression(dialect, "geom1", "geom2")
+        sql, params = expr.to_sql()
         assert "ST_Distance" in sql
 
     def test_format_st_within(self):
         """Test ST_Within formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_within("geom1", "geom2")
+        expr = MariaDBSTWithinExpression(dialect, "geom1", "geom2")
+        sql, params = expr.to_sql()
         assert "ST_Within" in sql
 
     def test_format_st_contains(self):
         """Test ST_Contains formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_contains("geom1", "geom2")
+        expr = MariaDBSTContainsExpression(dialect, "geom1", "geom2")
+        sql, params = expr.to_sql()
         assert "ST_Contains" in sql
 
     def test_format_st_distance_sphere(self):
