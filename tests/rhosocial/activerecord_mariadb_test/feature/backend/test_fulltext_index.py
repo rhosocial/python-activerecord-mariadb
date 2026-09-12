@@ -28,14 +28,16 @@ class TestFullTextProtocol:
         assert dialect_100.supports_fulltext_index()
 
     def test_format_match_against(self):
-        """Test format_match_against method."""
+        """Test format_match_against method via expression."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        sql, params = dialect.format_match_against(
-            ['title', 'content'],
-            'MariaDB',
+        expr = MariaDBMatchAgainstExpression(
+            dialect,
+            columns=['title', 'content'],
+            search_string='MariaDB',
             mode='NATURAL_LANGUAGE'
         )
+        sql, params = expr.to_sql()
 
         assert 'MATCH(`title`, `content`)' in sql
         assert 'AGAINST' in sql

@@ -56,19 +56,15 @@ class MariaDBFullTextSearchMixin:
             sql += f" WITH PARSER {self.format_identifier(parser_name)}"
         return sql, ()
 
-    def format_match_against(
-        self,
-        columns: List[str],
-        search_string: str,
-        mode: Optional[str] = None
-    ) -> Tuple[str, tuple]:
-        """Format MATCH ... AGAINST expression."""
-        cols_sql = ", ".join(self.format_identifier(c) for c in columns)
+    def format_match_against(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBMatchAgainstExpression` node."""
+        cols_sql = ", ".join(self.format_identifier(c) for c in expr.columns)
 
         placeholder = self.get_parameter_placeholder()
         search_sql = placeholder
-        search_params = (search_string,)
+        search_params = (expr.search_string,)
 
+        mode = expr.mode
         if mode:
             mode_upper = mode.upper()
             if mode_upper == "NATURAL_LANGUAGE":
@@ -83,6 +79,8 @@ class MariaDBFullTextSearchMixin:
             mode_str = "IN NATURAL LANGUAGE MODE"
 
         sql = f"MATCH({cols_sql}) AGAINST({search_sql} {mode_str})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, search_params
 
 

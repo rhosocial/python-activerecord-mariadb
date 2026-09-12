@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/spatial.py
 """MariaDB spatial data type protocol."""
 
-from typing import Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Optional, Protocol, Tuple, runtime_checkable
 
 
 @runtime_checkable
@@ -81,14 +81,12 @@ class MariaDBSpatialSupport(Protocol):
 
     def format_st_geom_from_text(
         self,
-        wkt: str,
-        srid: Optional[int] = None
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format ST_GeomFromText function call.
 
         Args:
-            wkt: Well-Known Text representation
-            srid: Optional Spatial Reference System Identifier
+            expr: MariaDBSTGeomFromTextExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -135,14 +133,12 @@ class MariaDBSpatialSupport(Protocol):
 
     def format_st_distance(
         self,
-        geom1: str,
-        geom2: str
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format ST_Distance function call.
 
         Args:
-            geom1: First geometry
-            geom2: Second geometry
+            expr: MariaDBSTDistanceExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -151,14 +147,12 @@ class MariaDBSpatialSupport(Protocol):
 
     def format_st_within(
         self,
-        geom1: str,
-        geom2: str
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format ST_Within function call.
 
         Args:
-            geom1: Geometry to test
-            geom2: Geometry to test against
+            expr: MariaDBSTWithinExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -167,14 +161,12 @@ class MariaDBSpatialSupport(Protocol):
 
     def format_st_contains(
         self,
-        geom1: str,
-        geom2: str
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format ST_Contains function call.
 
         Args:
-            geom1: Geometry to test
-            geom2: Geometry to test against
+            expr: MariaDBSTContainsExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

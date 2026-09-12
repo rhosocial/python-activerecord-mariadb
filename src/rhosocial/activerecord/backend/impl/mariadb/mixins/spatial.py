@@ -99,27 +99,22 @@ class MariaDBSpatialMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        if srid is not None:
-            return "ST_GeomFromText(%s, %s)", (wkt, srid)
-        return "ST_GeomFromText(%s)", (wkt,)
+        return self._format_spatial_literal_parts(wkt, srid)
 
-    def format_st_geom_from_text(
-        self,
-        wkt: str,
-        srid: Optional[int] = None
+    def _format_spatial_literal_parts(
+        self, wkt: str, srid: Optional[int] = None
     ) -> Tuple[str, tuple]:
-        """Format ST_GeomFromText function.
-
-        Args:
-            wkt: Well-Known Text string.
-            srid: Optional SRID.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
+        """Format ST_GeomFromText parts."""
         if srid is not None:
             return "ST_GeomFromText(%s, %s)", (wkt, srid)
         return "ST_GeomFromText(%s)", (wkt,)
+
+    def format_st_geom_from_text(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBSTGeomFromTextExpression` node."""
+        sql, params = self._format_spatial_literal_parts(expr.wkt, None)
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, params
 
     def format_st_geom_from_wkb(
         self,
@@ -173,21 +168,12 @@ class MariaDBSpatialMixin:
             )
         return f"ST_AsGeoJSON({geom})", ()
 
-    def format_st_distance(
-        self,
-        geom1: str,
-        geom2: str
-    ) -> Tuple[str, tuple]:
-        """Format ST_Distance function.
-
-        Args:
-            geom1: First geometry.
-            geom2: Second geometry.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
-        return f"ST_Distance({geom1}, {geom2})", ()
+    def format_st_distance(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBSTDistanceExpression` node."""
+        sql = f"ST_Distance({expr.geom1}, {expr.geom2})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, ()
 
     def format_st_distance_sphere(
         self,
@@ -207,37 +193,19 @@ class MariaDBSpatialMixin:
         """
         return f"ST_Distance_Sphere({geom1}, {geom2})", ()
 
-    def format_st_within(
-        self,
-        geom1: str,
-        geom2: str
-    ) -> Tuple[str, tuple]:
-        """Format ST_Within function.
+    def format_st_within(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBSTWithinExpression` node."""
+        sql = f"ST_Within({expr.geom1}, {expr.geom2})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, ()
 
-        Args:
-            geom1: Geometry to check.
-            geom2: Geometry to check within.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
-        return f"ST_Within({geom1}, {geom2})", ()
-
-    def format_st_contains(
-        self,
-        geom1: str,
-        geom2: str
-    ) -> Tuple[str, tuple]:
-        """Format ST_Contains function.
-
-        Args:
-            geom1: Containing geometry.
-            geom2: Geometry to check.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
-        return f"ST_Contains({geom1}, {geom2})", ()
+    def format_st_contains(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBSTContainsExpression` node."""
+        sql = f"ST_Contains({expr.geom1}, {expr.geom2})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, ()
 
     def format_st_intersects(
         self,
