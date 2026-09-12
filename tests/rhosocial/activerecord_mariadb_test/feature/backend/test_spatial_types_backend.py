@@ -302,7 +302,7 @@ class TestAsyncMariaDBSpatialTypeBackend:
     async def test_async_format_st_geom_from_text(self, async_mariadb_backend):
         """Test format_st_geom_from_text generates correct SQL (async)."""
         dialect = async_mariadb_backend.dialect
-        sql, params = dialect.format_st_geom_from_text('POINT(10 20)', 4326)
+        sql, params = dialect._format_spatial_literal_parts('POINT(10 20)', 4326)
 
         result = await async_mariadb_backend.execute(
             f"SELECT ST_SRID({sql}) as srid",
