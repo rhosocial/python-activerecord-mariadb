@@ -85,7 +85,7 @@ class TestMariaDBDialectSecurityIntegration:
         from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
 
         with pytest.raises(TypeError, match="data_type must be a DataType instance"):
-            ColumnDefinition(dialect, 
+            ColumnDefinition(
                 mariadb_backend.dialect,
                 name="test_col",
                 data_type="VARCHAR(255); DROP TABLE users--",
