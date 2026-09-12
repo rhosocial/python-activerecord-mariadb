@@ -93,6 +93,20 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.IntrospectionSupport,
     dialect_protocols.TransactionControlSupport,
     dialect_protocols.SQLFunctionSupport,
+    # Generic protocols MariaDB also satisfies (previously omitted from this list).
+    dialect_protocols.AlterTableModifierSupport,
+    dialect_protocols.CollationSupport,
+    dialect_protocols.DDLTypeSupport,
+    dialect_protocols.FunctionSupport,
+    dialect_protocols.GeneratedColumnSupport,
+    dialect_protocols.GraphSupport,
+    dialect_protocols.ILIKESupport,
+    dialect_protocols.OrderedSetAggregationSupport,
+    dialect_protocols.PartitionSupport,
+    dialect_protocols.SetOperationSupport,
+    dialect_protocols.TriggerSupport,
+    dialect_protocols.TruncateSupport,
+    dialect_protocols.UpsertSupport,
     # MariaDB-specific protocols
     mysql_protocols.MariaDBDMLOperationSupport,
     mysql_protocols.MariaDBTriggerSupport,
@@ -125,6 +139,75 @@ class TestMariaDBDialectProtocolConformance:
         assert isinstance(dialect, protocol), (
             f"MariaDBDialect does not implement protocol {protocol.__name__}, "
             f"missing methods: {get_all_protocol_methods(protocol) - set(dir(dialect))}"
+        )
+
+
+# Generic protocols MariaDBDialect intentionally does NOT implement.
+#
+# Listing them makes the omission a deliberate, tested contract: if MariaDB ever
+# satisfies one by accident, the negative test fails and forces a conscious
+# decision (move to MYSQL_PROTOCOLS or revert).
+MARIADB_NOT_IMPLEMENTED = [
+    # --- Intentional non-support ---
+    # MariaDB has no SQL/XML support.
+    dialect_protocols.SQLXMLSupport,
+    dialect_protocols.SQLXMLParsingSupport,
+    dialect_protocols.SQLXMLSerializationSupport,
+    dialect_protocols.SQLXMLConstructionSupport,
+    dialect_protocols.SQLXMLAggregationSupport,
+    dialect_protocols.SQLXMLQueryingSupport,
+    # MariaDB has no SQL/PGQ property-graph tables.
+    dialect_protocols.GraphTableSupport,
+    # --- Known gaps (feature exists, generic protocol not yet declared) ---
+    # TODO: MariaDB supports AUTO_INCREMENT; compose AutoIncrementMixin and move
+    # this to MYSQL_PROTOCOLS.
+    dialect_protocols.AutoIncrementSupport,
+]
+
+
+def get_all_generic_protocols() -> dict:
+    """Discover every generic dialect protocol defined in protocols.py."""
+    from typing import Protocol
+
+    discovered = {}
+    for name, obj in inspect.getmembers(dialect_protocols, inspect.isclass):
+        if Protocol in getattr(obj, "__mro__", []) and name.endswith("Support"):
+            discovered[name] = obj
+    return discovered
+
+
+class TestMariaDBDialectNegativeProtocolConformance:
+    """Assert MariaDBDialect does not implement intentionally-unsupported protocols."""
+
+    @pytest.fixture
+    def dialect(self):
+        return mariadb_dialect.MariaDBDialect()
+
+    @pytest.mark.parametrize("protocol", MARIADB_NOT_IMPLEMENTED)
+    def test_does_not_implement_protocol(self, dialect, protocol):
+        """MariaDBDialect must NOT implement any protocol in MARIADB_NOT_IMPLEMENTED."""
+        assert not isinstance(dialect, protocol), (
+            f"MariaDBDialect unexpectedly implements {protocol.__name__}. "
+            f"If intentional, move it from MARIADB_NOT_IMPLEMENTED to MYSQL_PROTOCOLS "
+            f"(and implement the behaviour fully)."
+        )
+
+    def test_positive_and_negative_lists_partition_all_protocols(self):
+        """Every generic protocol must be classified for MariaDB."""
+        all_protos = set(get_all_generic_protocols())
+        positive = {
+            p.__name__ for p in MYSQL_PROTOCOLS
+            if p.__module__ == dialect_protocols.__name__
+        }
+        negative = {p.__name__ for p in MARIADB_NOT_IMPLEMENTED}
+
+        overlap = positive & negative
+        assert not overlap, f"Protocols in BOTH lists: {sorted(overlap)}"
+
+        unclassified = all_protos - positive - negative
+        assert not unclassified, (
+            f"Generic protocols not classified for MariaDB: {sorted(unclassified)}. "
+            f"Add each to MYSQL_PROTOCOLS or MARIADB_NOT_IMPLEMENTED."
         )
 
 
@@ -164,6 +247,12 @@ class TestProtocolNonOverlap:
             # Rename index is an ALTER TABLE capability overlapping generic TableSupport
             ('TableSupport', 'MariaDBAlterTableSupport'),
             ('MariaDBAlterTableSupport', 'TableSupport'),
+            # MariaDB routine protocol restates the generic SQL/PSM function capability.
+            ('FunctionSupport', 'MariaDBRoutineSupport'),
+            ('MariaDBRoutineSupport', 'FunctionSupport'),
+            # MariaDB trigger protocol restates the generic trigger capability.
+            ('TriggerSupport', 'MariaDBTriggerSupport'),
+            ('MariaDBTriggerSupport', 'TriggerSupport'),
         }
 
         violations = []
@@ -316,6 +405,11 @@ class TestProtocolMethodSignatureConformance:
         ('MariaDBSequenceSupport', 'format_alter_sequence_statement'),
         # MariaDBLockingSupport: format_lock_in_share_mode uses different param name
         ('MariaDBLockingSupport', 'format_lock_in_share_mode'),
+        # GraphSupport: format_match_clause uses a different param name (_clause)
+        ('GraphSupport', 'format_match_clause'),
+        # OrderedSetAggregationSupport: format_ordered_set_aggregation uses a
+        # different param name (_aggregation)
+        ('OrderedSetAggregationSupport', 'format_ordered_set_aggregation'),
     }
 
     @pytest.mark.parametrize("protocol", MYSQL_PROTOCOLS)
