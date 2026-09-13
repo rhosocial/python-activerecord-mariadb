@@ -88,3 +88,15 @@ class MariaDBTableSupport(TableSupport, Protocol):
                 Example: dialect_options={'engine': 'InnoDB', 'charset': 'utf8mb4'}
         """
         ...
+
+    def format_column_definition(self, col_def) -> Tuple[str, tuple]:
+        """Format a column definition (name, type, constraints, comment)."""
+        ...
+
+    def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
+        """Format a table-level constraint (PRIMARY KEY / UNIQUE / FOREIGN KEY)."""
+        ...
+
+    def format_inline_index(self, idx_def) -> str:
+        """Format an inline index definition inside CREATE TABLE."""
+        ...
