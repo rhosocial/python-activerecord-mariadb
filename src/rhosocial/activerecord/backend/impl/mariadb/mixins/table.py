@@ -24,7 +24,7 @@ class MariaDBTableMixin:
     - CREATE TABLE ... LIKE syntax
     """
 
-    def supports_table_like_syntax(self) -> bool:
+    def supports_create_table_like(self) -> bool:
         """MariaDB supports CREATE TABLE ... LIKE syntax."""
         return True
 

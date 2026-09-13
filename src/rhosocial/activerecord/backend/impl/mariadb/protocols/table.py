@@ -34,7 +34,7 @@ class MariaDBTableSupport(TableSupport, Protocol):
     - System-versioned tables: MariaDB 10.3+
     """
 
-    def supports_table_like_syntax(self) -> bool:
+    def supports_create_table_like(self) -> bool:
         """Whether CREATE TABLE ... LIKE is supported.
 
         MariaDB supports copying table structure with LIKE syntax.

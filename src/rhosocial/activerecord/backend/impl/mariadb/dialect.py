@@ -128,6 +128,7 @@ from .mixins import (
     MARIADB_VERSION_BOUNDARIES,
 )
 from .collation import validate_mariadb_collation_name
+from .reserved_words import MARIADB_RESERVED_WORDS
 from .show.dialect import MariaDBShowDialectMixin
 
 # Import MariaDB-specific protocols
@@ -337,6 +338,7 @@ class MariaDBDialect(
                 features can be used.
         """
         super().__init__()
+        self._reserved_words = MARIADB_RESERVED_WORDS
         if version is not None:
             self.version = version
 
@@ -421,7 +423,7 @@ class MariaDBDialect(
             raise UnsupportedFeatureError(self.name, f"COLLATE options: {unsupported}")
         return validate_mariadb_collation_name(expr.collation_name, getattr(self, "version", None))
 
-    def format_identifier(self, identifier: str) -> str:
+    def format_identifier(self, identifier: str, need_quote: bool = True) -> str:
         """Format identifier using MariaDB's backtick quoting mechanism.
 
         Args:
@@ -430,6 +432,17 @@ class MariaDBDialect(
         Returns:
             Quoted identifier with escaped internal backticks
         """
+        if not need_quote:
+            if self.is_reserved_word(identifier):
+                import warnings
+                from rhosocial.activerecord.backend.warnings import IdentifierQuotingWarning
+                warnings.warn(
+                    f"Identifier '{identifier}' is a reserved word in {self.name} "
+                    f"and may cause SQL errors without quoting.",
+                    IdentifierQuotingWarning,
+                    stacklevel=2,
+                )
+            return identifier
         escaped = identifier.replace('`', '``')
         return f'`{escaped}`'
 
