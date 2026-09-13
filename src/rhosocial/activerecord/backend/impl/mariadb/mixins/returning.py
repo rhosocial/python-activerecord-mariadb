@@ -100,6 +100,15 @@ class MariaDBReturningMixin:
         """
         return False
 
+    # Protocol aliases (without _for_) expected by ReturningSupport
+    def supports_returning_insert(self) -> bool:
+        """Whether RETURNING clause is supported for INSERT."""
+        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+
+    def supports_returning_delete(self) -> bool:
+        """Whether RETURNING clause is supported for DELETE."""
+        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+
     def format_returning_clause(
         self,
         columns: Optional[List[str]] = None,

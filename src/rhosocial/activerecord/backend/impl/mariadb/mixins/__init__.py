@@ -18,9 +18,22 @@ Mixin Organization:
 - json.py: JSON functions and arrow operators
 - set_type.py: SET type support
 - fulltext.py: Full-text search support
-- intersect_except.py: INTERSECT/EXCEPT set operations
 - cte.py: Common Table Expressions support
 - window.py: Window functions support
+- datetime.py: DateTime formatting (DATE_ADD/SUB, TIMESTAMPDIFF)
+- collation.py: COLLATE expression support
+- filter_clause.py: FILTER clause support
+- set_operation.py: INTERSECT/EXCEPT support
+- upsert.py: ON DUPLICATE KEY UPDATE support
+- explain.py: EXPLAIN FORMAT/ANALYZE support
+- grouping.py: ROLLUP support
+- join.py: LATERAL join support
+- temporal.py: System-versioned temporal tables
+- array.py: Array support (not natively supported)
+- ddl_column.py: DDL column/table capability checks
+- view.py: View DDL support
+- generated_column.py: Generated column support
+- function.py: SQL function version checks
 """
 
 from .introspection import MariaDBIntrospectionMixin
@@ -49,6 +62,23 @@ from .ddl.alter_table import MariaDBAlterTableMixin
 from .ddl.maintenance import MariaDBMaintenanceMixin
 from .ddl.routine import MariaDBRoutineMixin
 from .ddl.admin import MariaDBAdminMixin
+# New mixins from dialect.py split
+from .datetime import MariaDBDateTimeMixin
+from .collation import MariaDBCollationMixin
+from .cte import MariaDBCTEMixin
+from .window import MariaDBWindowMixin
+from .filter_clause import MariaDBFilterClauseMixin
+from .set_operation import MariaDBSetOperationMixin
+from .upsert import MariaDBUpsertMixin
+from .explain import MariaDBExplainMixin
+from .grouping import MariaDBGroupingMixin
+from .join import MariaDBJoinMixin
+from .temporal import MariaDBTemporalMixin
+from .array import MariaDBArrayMixin
+from .ddl_column import MariaDBDDLColumnMixin
+from .view import MariaDBViewMixin
+from .generated_column import MariaDBGeneratedColumnMixin
+from .function import MariaDBFunctionMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -79,4 +109,20 @@ __all__ = [
     'MariaDBMaintenanceMixin',
     'MariaDBRoutineMixin',
     'MariaDBAdminMixin',
+    'MariaDBDateTimeMixin',
+    'MariaDBCollationMixin',
+    'MariaDBCTEMixin',
+    'MariaDBWindowMixin',
+    'MariaDBFilterClauseMixin',
+    'MariaDBSetOperationMixin',
+    'MariaDBUpsertMixin',
+    'MariaDBExplainMixin',
+    'MariaDBGroupingMixin',
+    'MariaDBJoinMixin',
+    'MariaDBTemporalMixin',
+    'MariaDBArrayMixin',
+    'MariaDBDDLColumnMixin',
+    'MariaDBViewMixin',
+    'MariaDBGeneratedColumnMixin',
+    'MariaDBFunctionMixin',
 ]
