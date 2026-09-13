@@ -43,7 +43,7 @@ def test_mysql_format_column_definition_default_string_escaping(dialect):
         constraints=[constraint],
     )
 
-    sql, params = dialect._format_column_definition(col_def, ColumnConstraintType)
+    sql, params = dialect.format_column_definition(col_def)
     assert "test''s value" in sql
 
 
@@ -56,7 +56,7 @@ def test_mysql_format_column_definition_comment_string_escaping(dialect):
         comment="Comment with 'single quote'",
     )
 
-    sql, params = dialect._format_column_definition(col_def, ColumnConstraintType)
+    sql, params = dialect.format_column_definition(col_def)
     assert "Comment with ''single quote''" in sql
 
 
