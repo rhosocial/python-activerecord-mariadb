@@ -9,7 +9,14 @@ MariaDB-specific features:
 - Table-level COMMENT
 - CREATE TABLE ... LIKE syntax
 """
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        ColumnDefinition,
+        IndexDefinition,
+        TableConstraint,
+    )
 
 
 class MariaDBTableMixin:
@@ -126,7 +133,7 @@ class MariaDBTableMixin:
 
     def format_column_definition(
         self,
-        col_def,
+        col_def: "ColumnDefinition",
     ) -> Tuple[str, tuple]:
         """Format a single column definition with MariaDB-specific syntax."""
         from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
@@ -171,7 +178,7 @@ class MariaDBTableMixin:
 
     def format_table_constraint(
         self,
-        t_const,
+        t_const: "TableConstraint",
     ) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
         from rhosocial.activerecord.backend.expression.statements import TableConstraintType
@@ -203,7 +210,7 @@ class MariaDBTableMixin:
 
         return ' '.join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def) -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 
