@@ -4,7 +4,7 @@
 This mixin implements the IntrospectionSupport protocol for MariaDB,
 providing database metadata introspection via information_schema.
 """
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope

@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Dict, Tuple, Type, TYPE_CHECKING
 from uuid import UUID
 
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter

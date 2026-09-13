@@ -3,7 +3,7 @@
 
 MariaDB supports FOR UPDATE, FOR SHARE, NOWAIT, and SKIP LOCKED.
 """
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 

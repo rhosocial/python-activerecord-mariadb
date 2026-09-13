@@ -4,7 +4,7 @@
 MariaDB 10.2.3+ supports JSON functions, and 10.2.7+ supports
 JSON arrow operators (-> and ->>).
 """
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.expression import bases

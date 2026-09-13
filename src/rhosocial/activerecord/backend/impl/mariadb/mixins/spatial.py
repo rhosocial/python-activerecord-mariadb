@@ -4,9 +4,8 @@
 MariaDB supports spatial data types with the same syntax as MySQL.
 Available in MyISAM, Aria, and InnoDB (MariaDB 10.0+).
 """
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
-from .backend import MARIADB_VERSION_BOUNDARIES
 
 
 class MariaDBSpatialMixin:

@@ -6,7 +6,7 @@ MariaDB supports triggers with some differences from MySQL:
 - OR REPLACE syntax for triggers
 - Multiple triggers per timing/event (MariaDB 10.4+)
 """
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
@@ -14,8 +14,6 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
         CreateTriggerExpression,
         DropTriggerExpression,
-        TriggerEvent,
-        TriggerLevel,
     )
 
 

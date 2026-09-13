@@ -124,12 +124,13 @@ class MariaDBTableMixin:
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
 
-    def _format_column_definition(
+    def format_column_definition(
         self,
         col_def,
-        ColumnConstraintType
-    ) -> Tuple[str, List[Any]]:
+    ) -> Tuple[str, tuple]:
         """Format a single column definition with MariaDB-specific syntax."""
+        from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
+        
         parts = [self.format_identifier(col_def.name), col_def.data_type]
         params: List[Any] = []
 
@@ -166,14 +167,15 @@ class MariaDBTableMixin:
             escaped_comment = self._escape_sql_string(col_def.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
-    def _format_table_constraint(
+    def format_table_constraint(
         self,
         t_const,
-        TableConstraintType
-    ) -> Tuple[str, List[Any]]:
+    ) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
+        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
+        
         parts = []
         params: List[Any] = []
 
@@ -199,9 +201,9 @@ class MariaDBTableMixin:
                     f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
                 )
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
-    def _format_inline_index(self, idx_def) -> str:
+    def format_inline_index(self, idx_def) -> str:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 

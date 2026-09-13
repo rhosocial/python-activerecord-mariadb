@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
 from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression import bases
+    pass
 
 
 class MariaDBSystemVersioningMixin:

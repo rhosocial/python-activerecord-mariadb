@@ -88,7 +88,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     FunctionMixin,
     IntrospectionMixin,
     # Additional Mixins
-    IdentifierMixin,
     PredicateMixin,
     ExpressionMixin,
     DateTimeMixin,
@@ -157,7 +156,6 @@ from .protocols import (
 )
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression import bases
     from rhosocial.activerecord.backend.expression.advanced_functions import ArrayExpression
     from rhosocial.activerecord.backend.expression.collation import CollateExpression
     from rhosocial.activerecord.backend.expression.statements import (
@@ -252,7 +250,6 @@ class MariaDBDialect(
     ViewMixin,
     FunctionMixin,
     IntrospectionMixin,
-    IdentifierMixin,
     PredicateMixin,
     ExpressionMixin,
     DateTimeMixin,
@@ -1009,10 +1006,6 @@ class MariaDBDialect(
             return self._format_create_table_like(expr)
 
         # Build standard CREATE TABLE statement
-        from rhosocial.activerecord.backend.expression.statements import (
-            ColumnConstraintType, TableConstraintType
-        )
-
         all_params: List[Any] = []
 
         parts = ["CREATE TABLE"]
@@ -1024,17 +1017,17 @@ class MariaDBDialect(
 
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self._format_column_definition(col_def, ColumnConstraintType)
+            col_sql, col_params = self.format_column_definition(col_def)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            const_sql, const_params = self._format_table_constraint(t_const, TableConstraintType)
+            const_sql, const_params = self.format_table_constraint(t_const)
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self._format_inline_index(idx_def)
+            idx_sql = self.format_inline_index(idx_def)
             column_parts.append(idx_sql)
 
         parts.append(f"({', '.join(column_parts)})")
@@ -1076,11 +1069,12 @@ class MariaDBDialect(
         value = value.replace("'", "''")
         return value
 
-    def _format_column_definition(
+    def format_column_definition(
         self,
-        col_def: "ColumnDefinition",
-        ColumnConstraintType
-    ) -> Tuple[str, List[Any]]:
+        col_def: "ColumnDefinition"
+    ) -> Tuple[str, tuple]:
+        from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
+
         type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
@@ -1118,15 +1112,14 @@ class MariaDBDialect(
             escaped_comment = self._escape_sql_string(col_def.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
-    def _format_table_constraint(
+    def format_table_constraint(
         self,
-        t_const: "TableConstraint",
-        TableConstraintType
-    ) -> Tuple[str, List[Any]]:
+        t_const: "TableConstraint"
+    ) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.expression.statements import (
-            ForeignKeyConstraint, ReferentialAction,
+            TableConstraintType, ForeignKeyConstraint, ReferentialAction,
         )
 
         parts = []
@@ -1168,9 +1161,9 @@ class MariaDBDialect(
             if t_const.dialect_options and t_const.dialect_options.get('enforced') is False:
                 parts.append("NOT ENFORCED")
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
-    def _format_inline_index(self, idx_def: "IndexDefinition") -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
         parts = []
 
         if idx_def.unique:

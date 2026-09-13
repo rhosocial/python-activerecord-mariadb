@@ -5,9 +5,8 @@ MariaDB supports the same partitioning strategies as MySQL (RANGE, LIST,
 HASH, KEY, RANGE COLUMNS, LIST COLUMNS, LINEAR variants, and subpartitioning).
 """
 
-from typing import Any, List, Sequence, Tuple, TYPE_CHECKING
+from typing import Any, Sequence, Tuple, TYPE_CHECKING
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import PartitionClause
