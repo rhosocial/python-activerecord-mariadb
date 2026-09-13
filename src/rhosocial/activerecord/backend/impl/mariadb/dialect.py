@@ -339,21 +339,8 @@ class MariaDBDialect(
         if version is not None:
             self.version = version
 
-    def format_insert_statement(self, expr: "InsertExpression"):
-        """Delegate INSERT formatting to MariaDBDMLOperationMixin."""
-        # Explicit override to ensure MariaDB's INSERT IGNORE / REPLACE INTO logic is used
-        from .mixins.dml import MariaDBDMLOperationMixin
-        return MariaDBDMLOperationMixin.format_insert_statement(self, expr)
 
-    def format_replace_statement(self, expr: "InsertExpression"):
-        """Delegate REPLACE formatting to MariaDBDMLOperationMixin."""
-        from .mixins.dml import MariaDBDMLOperationMixin
-        return MariaDBDMLOperationMixin.format_replace_statement(self, expr)
 
-    def format_load_data_statement(self, expr: "MariaDBLoadDataExpression"):
-        """Delegate LOAD DATA formatting to MariaDBDMLOperationMixin."""
-        from .mixins.dml import MariaDBDMLOperationMixin
-        return MariaDBDMLOperationMixin.format_load_data_statement(self, expr)
 
     def get_parameter_placeholder(self, position: int = 0) -> str:
         """MariaDB uses positional placeholders like :0, :1 or %s."""
@@ -452,9 +439,6 @@ class MariaDBDialect(
         """Recursive CTEs are supported since MariaDB 10.2."""
         return self.version >= MARIADB_VERSION_BOUNDARIES['CTE']
 
-    def supports_materialized_cte(self) -> bool:
-        """MATERIALIZED hint is not supported by MariaDB."""
-        return False
 
     def supports_window_functions(self) -> bool:
         """Window functions are supported since MariaDB 10.2."""
@@ -468,9 +452,6 @@ class MariaDBDialect(
         """RETURNING clause for INSERT is supported since MariaDB 10.5."""
         return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
 
-    def supports_returning_update(self) -> bool:
-        """RETURNING clause for UPDATE is NOT supported by MariaDB."""
-        return False
 
     def supports_returning_delete(self) -> bool:
         """RETURNING clause for DELETE is supported since MariaDB 10.5."""
@@ -526,16 +507,7 @@ class MariaDBDialect(
         """MariaDB uses ON DUPLICATE KEY UPDATE syntax."""
         return "ON DUPLICATE KEY"
 
-    def supports_on_conflict_clause(self) -> bool:
-        """Whether INSERT can carry an ON CONFLICT style clause.
 
-        MariaDB expresses upsert via the ON DUPLICATE KEY UPDATE clause.
-        """
-        return True
-
-    def supports_multiple_on_conflict_clauses(self) -> bool:
-        """MariaDB ON DUPLICATE KEY UPDATE allows only a single clause."""
-        return False
 
     def supports_explain_analyze(self) -> bool:
         """EXPLAIN ANALYZE is supported since MariaDB 10.6."""
@@ -558,41 +530,14 @@ class MariaDBDialect(
         """MariaDB supports ROLLUP with GROUP BY."""
         return True
 
-    def supports_cube(self) -> bool:
-        """MariaDB does not support CUBE."""
-        return False
 
-    def supports_grouping_sets(self) -> bool:
-        """MariaDB does not support GROUPING SETS."""
-        return False
 
-    def supports_array_type(self) -> bool:
-        """MariaDB does not support native array types."""
-        return False
 
-    def supports_array_constructor(self) -> bool:
-        """MariaDB does not support ARRAY constructor."""
-        return False
 
-    def supports_array_access(self) -> bool:
-        """MariaDB does not support array subscript access."""
-        return False
 
-    def supports_graph_match(self) -> bool:
-        """MariaDB does not support graph MATCH clause."""
-        return False
 
-    def supports_ordered_set_aggregation(self) -> bool:
-        """MariaDB does not support ordered-set aggregate functions."""
-        return False
 
-    def supports_qualify_clause(self) -> bool:
-        """MariaDB does not support QUALIFY clause."""
-        return False
 
-    def supports_merge_statement(self) -> bool:
-        """MariaDB does not support MERGE statement."""
-        return False
 
     def supports_for_update_skip_locked(self) -> bool:
         """MariaDB supports FOR UPDATE SKIP LOCKED."""
@@ -602,9 +547,6 @@ class MariaDBDialect(
         """MariaDB supports LATERAL joins."""
         return True
 
-    def supports_ilike(self) -> bool:
-        """MariaDB does not support ILIKE directly (use LOWER())."""
-        return False
 
     def supports_temporal_tables(self) -> bool:
         """MariaDB supports system-versioned tables since 10.3."""
@@ -668,32 +610,15 @@ class MariaDBDialect(
         """Format array expression - not supported."""
         raise UnsupportedFeatureError(self.name, "Array operations", _SUGGESTION_ARRAY)
 
-    def format_match_clause(self, _clause) -> Tuple[str, tuple]:
-        """Format MATCH clause - not supported."""
-        raise UnsupportedFeatureError(self.name, "graph MATCH clause", _SUGGESTION_GRAPH_MATCH)
 
-    def format_ordered_set_aggregation(self, _aggregation) -> Tuple[str, Tuple]:
-        """Format ordered-set aggregation - not supported."""
-        raise UnsupportedFeatureError(self.name, "ordered-set aggregate functions", _SUGGESTION_ORDERED_SET_AGG)
 
-    def format_qualify_clause(self, clause) -> Tuple[str, tuple]:
-        """Format QUALIFY clause - not supported."""
-        raise UnsupportedFeatureError(self.name, "QUALIFY clause", _SUGGESTION_QUALIFY)
 
     # endregion
 
     # region DDL Support
-    def supports_create_table(self) -> bool:
-        return True
 
-    def supports_drop_table(self) -> bool:
-        return True
 
-    def supports_alter_table(self) -> bool:
-        return True
 
-    def supports_temporary_table(self) -> bool:
-        return True
 
     def supports_if_not_exists_table(self) -> bool:
         return True
@@ -704,26 +629,14 @@ class MariaDBDialect(
     def supports_rename_table(self) -> bool:
         return True
 
-    def supports_rename_column(self) -> bool:
-        return True
 
-    def supports_drop_column(self) -> bool:
-        return True
 
     def supports_table_partitioning(self) -> bool:
         return True
 
-    def supports_table_tablespace(self) -> bool:
-        return False
 
-    def supports_create_index(self) -> bool:
-        return True
 
-    def supports_drop_index(self) -> bool:
-        return True
 
-    def supports_unique_index(self) -> bool:
-        return True
 
     def supports_index_if_exists(self) -> bool:
         return True
@@ -731,26 +644,18 @@ class MariaDBDialect(
     def supports_index_if_not_exists(self) -> bool:
         return True
 
-    def supports_partial_index(self) -> bool:
-        return False
 
     def supports_functional_index(self) -> bool:
         return True
 
-    def supports_concurrent_index(self) -> bool:
-        return False
 
     def supports_index_type(self) -> bool:
         return True
 
-    def supports_index_tablespace(self) -> bool:
-        return False
 
     def supports_fulltext_index(self) -> bool:
         return True
 
-    def supports_fulltext_boolean_mode(self) -> bool:
-        return True
 
     def supports_fulltext_parser(self) -> bool:
         return True
@@ -758,8 +663,6 @@ class MariaDBDialect(
     def supports_fulltext_query_expansion(self) -> bool:
         return True
 
-    def supports_index_include(self) -> bool:
-        return False
 
     def supports_generated_columns(self) -> bool:
         return True
@@ -785,11 +688,7 @@ class MariaDBDialect(
     def supports_truncate_cascade(self) -> bool:
         return False
 
-    def supports_create_view(self) -> bool:
-        return True
 
-    def supports_drop_view(self) -> bool:
-        return True
 
     def supports_or_replace_view(self) -> bool:
         return True
@@ -797,8 +696,6 @@ class MariaDBDialect(
     def supports_temporary_view(self) -> bool:
         return True
 
-    def supports_materialized_view(self) -> bool:
-        return False
 
     def supports_if_exists_view(self) -> bool:
         return True
@@ -833,15 +730,8 @@ class MariaDBDialect(
     def supports_trigger_if_not_exists(self) -> bool:
         return False
 
-    def supports_schema(self) -> bool:
-        """MariaDB has no schema layer distinct from its databases."""
-        return False
 
-    def supports_create_schema(self) -> bool:
-        return False
 
-    def supports_drop_schema(self) -> bool:
-        return False
 
     def supports_function(self) -> bool:
         return True
@@ -1043,25 +933,6 @@ class MariaDBDialect(
 
         return ' '.join(parts), tuple(all_params)
 
-    def _format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
-        """Format CREATE TABLE ... LIKE statement."""
-        like_table = expr.dialect_options['like_table']
-
-        parts = ["CREATE TABLE"]
-        if expr.temporary:
-            parts.append("TEMPORARY")
-        if expr.if_not_exists:
-            parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
-
-        if isinstance(like_table, tuple):
-            schema, table = like_table
-            like_table_str = f"{self.format_identifier(schema)}.{self.format_identifier(table)}"
-        else:
-            like_table_str = self.format_identifier(like_table)
-
-        parts.append(f"LIKE {like_table_str}")
-        return ' '.join(parts), ()
 
     @staticmethod
     def _escape_sql_string(value: str) -> str:
@@ -1163,31 +1034,7 @@ class MariaDBDialect(
 
         return ' '.join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
-        parts = []
 
-        if idx_def.unique:
-            parts.append("UNIQUE")
-
-        parts.append("INDEX")
-        parts.append(self.format_identifier(idx_def.name))
-
-        cols_str = ', '.join(self.format_identifier(c) for c in idx_def.columns)
-        parts.append(f"({cols_str})")
-
-        if idx_def.type:
-            parts.append(f"USING {idx_def.type}")
-
-        return ' '.join(parts)
-
-    def _format_storage_options(self, storage_options: Dict[str, Any]) -> str:
-        parts = []
-        for key, value in storage_options.items():
-            if isinstance(value, str):
-                parts.append(f"{key}='{self._escape_sql_string(value)}'")
-            else:
-                parts.append(f"{key}={value}")
-        return ' '.join(parts)
 
     # region ConstraintSupport protocol implementation (MariaDB)
 
