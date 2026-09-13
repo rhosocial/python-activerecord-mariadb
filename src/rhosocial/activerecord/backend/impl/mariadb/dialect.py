@@ -157,6 +157,7 @@ from .protocols import (
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression import bases
+    from rhosocial.activerecord.backend.expression.advanced_functions import ArrayExpression
     from rhosocial.activerecord.backend.expression.collation import CollateExpression
     from rhosocial.activerecord.backend.expression.statements import (
         InsertExpression,
@@ -653,7 +654,7 @@ class MariaDBDialect(
         returning_sql = f"RETURNING {', '.join(expr_parts)}"
         return returning_sql, tuple(all_params)
 
-    def format_array_expression(self, _expr: "bases.BaseExpression") -> Tuple[str, Tuple]:
+    def format_array_expression(self, _expr: "ArrayExpression") -> Tuple[str, Tuple]:
         """Format array expression - not supported."""
         raise UnsupportedFeatureError(self.name, "Array operations", _SUGGESTION_ARRAY)
 
