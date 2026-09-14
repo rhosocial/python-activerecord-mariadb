@@ -13,7 +13,7 @@ _SUGGESTION_ARRAY = "MariaDB does not support native array types. Use JSON array
 class MariaDBArrayMixin:
     """MariaDB array support — not natively supported."""
 
-    def format_array_expression(self, _expr: "ArrayExpression") -> Tuple[str, Tuple]:
+    def format_array_expression(self, _expr: "ArrayExpression") -> Tuple[str, tuple]:
         """Format array expression - not supported."""
         raise UnsupportedFeatureError(self.name, "Array operations", _SUGGESTION_ARRAY)
 

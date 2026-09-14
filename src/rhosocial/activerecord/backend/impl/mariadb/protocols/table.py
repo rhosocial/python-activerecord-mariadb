@@ -97,6 +97,6 @@ class MariaDBTableSupport(TableSupport, Protocol):
         """Format a table-level constraint (PRIMARY KEY / UNIQUE / FOREIGN KEY)."""
         ...
 
-    def format_inline_index(self, idx_def) -> str:
+    def format_inline_index(self, idx_def: Any) -> Tuple[str, tuple]:
         """Format an inline index definition inside CREATE TABLE."""
         ...

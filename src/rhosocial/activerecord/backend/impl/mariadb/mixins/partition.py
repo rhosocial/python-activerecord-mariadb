@@ -123,8 +123,8 @@ class MariaDBPartitionMixin:
     def format_exchange_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
         raise NotImplementedError("Partition expression formatting requires MariaDB-specific expression classes")
 
-    def format_partition_name_list(self, partitions: Sequence[str]) -> str:
-        return ", ".join(self.format_identifier(partition) for partition in partitions)
+    def format_partition_name_list(self, partitions: Sequence[str]) -> Tuple[str, tuple]:
+        return ", ".join(self.format_identifier(partition) for partition in partitions), ()
 
     def format_remove_partitioning_statement(self, expr: Any) -> Tuple[str, tuple]:
         raise NotImplementedError("Partition expression formatting requires MariaDB-specific expression classes")

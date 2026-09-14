@@ -244,12 +244,9 @@ class MariaDBTriggerMixin:
         if expr.function_name:
             parts.append(f"CALL {self.format_identifier(expr.function_name)}();")
         elif expr.body:
-            if isinstance(expr.body, str):
-                parts.append(expr.body)
-            else:
-                body_sql, body_params = expr.body.to_sql()
-                parts.append(body_sql)
-                all_params.extend(body_params)
+            body_sql, body_params = expr.body.to_sql()
+            parts.append(body_sql)
+            all_params.extend(body_params)
 
         parts.append("END")
 

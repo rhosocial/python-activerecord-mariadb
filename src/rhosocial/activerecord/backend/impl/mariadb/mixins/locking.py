@@ -146,10 +146,13 @@ class MariaDBLockingMixin:
 
         return " ".join(parts), ()
 
-    def format_lock_in_share_mode(self) -> Tuple[str, tuple]:
+    def format_lock_in_share_mode(self, clause: "ForUpdateClause" = None) -> Tuple[str, tuple]:
         """Format LOCK IN SHARE MODE clause (legacy syntax).
 
         This is the older syntax for FOR SHARE.
+
+        Args:
+            clause: Optional ForUpdateClause instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).

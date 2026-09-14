@@ -122,11 +122,10 @@ class MariaDBTableMixin:
             parts.append("IF NOT EXISTS")
         parts.append(self.format_identifier(expr.table_name))
 
-        if isinstance(like_table, tuple):
-            schema, table = like_table
-            like_table_str = f"{self.format_identifier(schema)}.{self.format_identifier(table)}"
+        if hasattr(like_table, 'schema_name') and like_table.schema_name:
+            like_table_str = f"{self.format_identifier(like_table.schema_name)}.{self.format_identifier(like_table.name)}"
         else:
-            like_table_str = self.format_identifier(like_table)
+            like_table_str = self.format_identifier(like_table.name)
 
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
@@ -151,16 +150,8 @@ class MariaDBTableMixin:
                 constraint_parts.append("UNIQUE")
             elif constraint.constraint_type == ColumnConstraintType.DEFAULT:
                 if constraint.default_value is not None:
-                    from rhosocial.activerecord.backend.expression import bases
-                    if isinstance(constraint.default_value, bases.BaseExpression):
-                        default_sql, default_params = constraint.default_value.to_sql()
-                        constraint_parts.append(f"DEFAULT {default_sql}")
-                        params.extend(default_params)
-                    elif isinstance(constraint.default_value, str):
-                        escaped = self._escape_sql_string(constraint.default_value)
-                        constraint_parts.append(f"DEFAULT '{escaped}'")
-                    else:
-                        constraint_parts.append(f"DEFAULT {constraint.default_value}")
+                    default_sql = self.inline_sql_literal(constraint.default_value)
+                    constraint_parts.append(f"DEFAULT {default_sql}")
             elif constraint.constraint_type == ColumnConstraintType.NULL:
                 constraint_parts.append("NULL")
 
@@ -210,7 +201,7 @@ class MariaDBTableMixin:
 
         return ' '.join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 
@@ -226,15 +217,13 @@ class MariaDBTableMixin:
         if idx_def.type:
             parts.append(f"USING {idx_def.type}")
 
-        return ' '.join(parts)
+        return ' '.join(parts), ()
 
     def _format_storage_options(self, storage_options: Dict[str, Any]) -> str:
         parts = []
         for key, value in storage_options.items():
-            if isinstance(value, str):
-                parts.append(f"{key}='{self._escape_sql_string(value)}'")
-            else:
-                parts.append(f"{key}={value}")
+            rendered = self.inline_sql_literal(value)
+            parts.append(f"{key}={rendered}")
         return ' '.join(parts)
 
 

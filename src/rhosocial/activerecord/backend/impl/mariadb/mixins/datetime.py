@@ -19,7 +19,7 @@ class MariaDBDateTimeMixin:
     TIMESTAMPDIFF.
     """
 
-    def format_date_trunc_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_date_trunc_expression(self, expr: "Any") -> Tuple[str, tuple]:
         source_sql, source_params = expr.source.to_sql()
         field = expr.field.value.upper()
         formats = {
@@ -35,23 +35,23 @@ class MariaDBDateTimeMixin:
         sql = f"CAST(DATE_FORMAT({source_sql}, {self.p()}) AS DATETIME)"
         return self.apply_alias(sql, source_params + (formats[field],), expr)
 
-    def format_interval_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_interval_expression(self, expr: "Any") -> Tuple[str, tuple]:
         sql = f"INTERVAL {self.p()} {expr.unit.value.upper()}"
         return self.apply_alias(sql, (expr.value,), expr)
 
-    def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"DATE_ADD({source_sql}, {interval_sql})"
         return self.apply_alias(sql, source_params + interval_params, expr)
 
-    def format_datetime_subtract_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_datetime_subtract_expression(self, expr: "Any") -> Tuple[str, tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"DATE_SUB({source_sql}, {interval_sql})"
         return self.apply_alias(sql, source_params + interval_params, expr)
 
-    def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, tuple]:
         start_sql, start_params = expr.start.to_sql()
         end_sql, end_params = expr.end.to_sql()
         sql = f"TIMESTAMPDIFF({expr.unit.value.upper()}, {start_sql}, {end_sql})"

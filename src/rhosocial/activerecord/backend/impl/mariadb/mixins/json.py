@@ -103,7 +103,7 @@ class MariaDBJSONMixin:
         """
         return ""
 
-    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
+    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, tuple]:
         """Format JSON expression using function-based equivalents.
 
         MariaDB does NOT support -> and ->> operators.
@@ -146,7 +146,7 @@ class MariaDBJSONMixin:
 
     def format_json_table_expression(
         self, expr: "JSONTableExpression"
-    ) -> Tuple[str, Tuple]:
+    ) -> Tuple[str, tuple]:
         """Format JSON_TABLE expression.
 
         MariaDB does NOT support JSON_TABLE function.
