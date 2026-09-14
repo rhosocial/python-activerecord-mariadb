@@ -123,7 +123,9 @@ class MariaDBTableMixin:
             parts.append("IF NOT EXISTS")
         parts.append(self.format_identifier(expr.table_name))
 
-        if hasattr(like_table, 'schema_name') and like_table.schema_name:
+        if isinstance(like_table, tuple) and len(like_table) == 2:
+            like_table_str = f"{self.format_identifier(like_table[0])}.{self.format_identifier(like_table[1])}"
+        elif hasattr(like_table, 'schema_name') and like_table.schema_name:
             like_table_str = f"{self.format_identifier(like_table.schema_name)}.{self.format_identifier(like_table.name)}"
         elif hasattr(like_table, 'name'):
             like_table_str = self.format_identifier(like_table.name)
