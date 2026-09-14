@@ -71,7 +71,7 @@ class MariaDBTableMixin:
             return self._format_create_table_like(expr)
 
         from rhosocial.activerecord.backend.expression.statements import (
-            ColumnConstraintType, TableConstraintType
+            TableConstraintType
         )
 
         all_params: List[Any] = []
@@ -85,12 +85,12 @@ class MariaDBTableMixin:
 
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self._format_column_definition(col_def, ColumnConstraintType)
+            col_sql, col_params = self.format_column_definition(col_def)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            const_sql, const_params = self._format_table_constraint(t_const, TableConstraintType)
+            const_sql, const_params = self.format_table_constraint(t_const)
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
@@ -152,8 +152,16 @@ class MariaDBTableMixin:
                 constraint_parts.append("UNIQUE")
             elif constraint.constraint_type == ColumnConstraintType.DEFAULT:
                 if constraint.default_value is not None:
-                    default_sql = self.inline_sql_literal(constraint.default_value)
-                    constraint_parts.append(f"DEFAULT {default_sql}")
+                    from rhosocial.activerecord.backend.expression import bases
+                    if isinstance(constraint.default_value, bases.BaseExpression):
+                        default_sql, default_params = constraint.default_value.to_sql()
+                        constraint_parts.append(f"DEFAULT {default_sql}")
+                        params.extend(default_params)
+                    elif isinstance(constraint.default_value, str):
+                        escaped = self._escape_sql_string(constraint.default_value)
+                        constraint_parts.append(f"DEFAULT '{escaped}'")
+                    else:
+                        constraint_parts.append(f"DEFAULT {constraint.default_value}")
             elif constraint.constraint_type == ColumnConstraintType.NULL:
                 constraint_parts.append("NULL")
 
