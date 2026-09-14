@@ -21,12 +21,12 @@ class MariaDBFullTextSearchMixin:
     """
 
     def supports_fulltext_index(self) -> bool:
-        """MariaDB 10.0+ supports FULLTEXT for InnoDB."""
-        return self.version >= (10, 0, 0)
+        """MariaDB supports FULLTEXT indexes (MyISAM all versions, InnoDB 10.0+)."""
+        return True
 
     def supports_fulltext_parser(self) -> bool:
-        """MariaDB supports FULLTEXT parser plugins."""
-        return self.version >= (10, 0, 0)
+        """MariaDB supports FULLTEXT parser plugins (5.x+)."""
+        return True
 
     def supports_fulltext_query_expansion(self) -> bool:
         """MariaDB supports QUERY EXPANSION."""
