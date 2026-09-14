@@ -40,6 +40,11 @@ from .routine import (
     MariaDBDropFunctionExpression,
     MariaDBDropProcedureExpression,
 )
+from .set_type import (
+    MariaDBSetLiteralExpression,
+    MariaDBFindInSetExpression,
+    MariaDBSetContainsExpression,
+)
 from .admin import (
     AccountSpec,
     GrantPrivilege,
@@ -156,4 +161,7 @@ __all__ = [
     "MariaDBTinyTextType",
     "MariaDBVarBinaryType",
     "MariaDBYearType",
+    "MariaDBSetLiteralExpression",
+    "MariaDBFindInSetExpression",
+    "MariaDBSetContainsExpression",
 ]

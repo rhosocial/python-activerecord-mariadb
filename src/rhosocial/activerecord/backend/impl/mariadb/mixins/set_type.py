@@ -8,7 +8,14 @@ MariaDB SET type features:
 - Supports FIND_IN_SET, LIKE operations
 - Automatically sorted on storage
 """
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.mariadb.expression.set_type import (
+        MariaDBSetLiteralExpression,
+        MariaDBFindInSetExpression,
+        MariaDBSetContainsExpression,
+    )
 
 
 class MariaDBSetTypeMixin:
@@ -31,21 +38,12 @@ class MariaDBSetTypeMixin:
 
     def format_set_literal(
         self,
-        values: List[str],
-        column_values: Optional[List[str]] = None
+        expr: "MariaDBSetLiteralExpression",
     ) -> Tuple[str, tuple]:
-        """Format SET literal value.
+        """Format a :class:`MariaDBSetLiteralExpression` node."""
+        values = expr.values
+        column_values = expr.column_values
 
-        Args:
-            values: Values to include in the SET
-            column_values: Allowed values for the column (for validation)
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-
-        Raises:
-            ValueError: If values exceed 64 members or contain invalid values
-        """
         if len(values) > 64:
             raise ValueError("MariaDB SET type supports maximum 64 members")
 
@@ -58,52 +56,44 @@ class MariaDBSetTypeMixin:
                 )
 
         if not values:
-            return "'", ()
+            sql = "'"
+            if expr.alias:
+                sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+            return sql, ()
 
         sorted_values = sorted(values)
         literal = ','.join(sorted_values)
-        return "%s", (literal,)
+        sql = "%s"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, (literal,)
 
     def format_find_in_set(
         self,
-        value: str,
-        set_column: str
+        expr: "MariaDBFindInSetExpression",
     ) -> Tuple[str, tuple]:
-        """Format FIND_IN_SET function.
-
-        Args:
-            value: Value to find
-            set_column: SET column name
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        return f"FIND_IN_SET(%s, {self.format_identifier(set_column)}) > 0", (value,)
+        """Format a :class:`MariaDBFindInSetExpression` node."""
+        sql = f"FIND_IN_SET(%s, {self.format_identifier(expr.set_column)}) > 0"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, (expr.value,)
 
     def format_set_contains(
         self,
-        column: str,
-        values: List[str]
+        expr: "MariaDBSetContainsExpression",
     ) -> Tuple[str, tuple]:
-        """Format SET contains check.
-
-        Checks if all values are present in the SET column.
-
-        Args:
-            column: SET column name
-            values: Values to check for
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+        """Format a :class:`MariaDBSetContainsExpression` node."""
         conditions = []
         params: List[str] = []
 
-        for value in values:
-            conditions.append(f"FIND_IN_SET(%s, {self.format_identifier(column)}) > 0")
+        for value in expr.values:
+            conditions.append(f"FIND_IN_SET(%s, {self.format_identifier(expr.column)}) > 0")
             params.append(value)
 
-        return " AND ".join(conditions), tuple(params)
+        sql = " AND ".join(conditions)
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, tuple(params)
 
 
 __all__ = ['MariaDBSetTypeMixin']
