@@ -87,7 +87,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_OBJECT with no arguments."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_object_parts([])
+        sql, params = MariaDBJSONObjectExpression(dialect, []).to_sql()
 
         assert sql == 'JSON_OBJECT()'
         assert params == ()
@@ -96,7 +96,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_OBJECT with single key-value pair."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_object_parts([('name', 'John')])
+        sql, params = MariaDBJSONObjectExpression(dialect, [('name', 'John')]).to_sql()
 
         assert sql == 'JSON_OBJECT(%s, %s)'
         assert params == ('name', 'John')
@@ -105,7 +105,9 @@ class TestJSONFunctionProtocol:
         """Test JSON_OBJECT with multiple key-value pairs."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_object_parts([('name', 'John'), ('age', 30), ('city', 'NYC')])
+        sql, params = MariaDBJSONObjectExpression(
+            dialect, [('name', 'John'), ('age', 30), ('city', 'NYC')]
+        ).to_sql()
 
         assert sql == 'JSON_OBJECT(%s, %s, %s, %s, %s, %s)'
         assert params == ('name', 'John', 'age', 30, 'city', 'NYC')
@@ -114,7 +116,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_ARRAY with no arguments."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_array_parts([])
+        sql, params = MariaDBJSONArrayExpression(dialect, []).to_sql()
 
         assert sql == 'JSON_ARRAY()'
         assert params == ()
@@ -123,7 +125,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_ARRAY with single value."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_array_parts([1])
+        sql, params = MariaDBJSONArrayExpression(dialect, [1]).to_sql()
 
         assert sql == 'JSON_ARRAY(%s)'
         assert params == (1,)
@@ -132,7 +134,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_ARRAY with multiple values."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_array_parts([1, 'hello', None, True])
+        sql, params = MariaDBJSONArrayExpression(dialect, [1, 'hello', None, True]).to_sql()
 
         assert sql == 'JSON_ARRAY(%s, %s, %s, %s)'
         assert params == (1, 'hello', None, True)
@@ -141,7 +143,9 @@ class TestJSONFunctionProtocol:
         """Test JSON_CONTAINS without path."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_contains_parts('data', '{"name": "John"}')
+        sql, params = MariaDBJSONContainsExpression(
+            dialect, 'data', '{"name": "John"}'
+        ).to_sql()
 
         assert sql == 'JSON_CONTAINS(data, %s)'
         assert params == ('{"name": "John"}',)
@@ -150,7 +154,9 @@ class TestJSONFunctionProtocol:
         """Test JSON_CONTAINS with path."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_contains_parts('data', '"John"', '$.name')
+        sql, params = MariaDBJSONContainsExpression(
+            dialect, 'data', '"John"', '$.name'
+        ).to_sql()
 
         assert sql == 'JSON_CONTAINS(data, %s, %s)'
         assert params == ('"John"', '$.name')
@@ -265,7 +271,7 @@ class TestAsyncJSONFunctionProtocol:
         """Test async version of JSON_OBJECT formatting."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_object_parts([('key', 'value')])
+        sql, params = MariaDBJSONObjectExpression(dialect, [('key', 'value')]).to_sql()
 
         assert 'JSON_OBJECT' in sql
         assert params == ('key', 'value')
@@ -275,7 +281,7 @@ class TestAsyncJSONFunctionProtocol:
         """Test async version of JSON_ARRAY formatting."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_array_parts([1, 2, 3])
+        sql, params = MariaDBJSONArrayExpression(dialect, [1, 2, 3]).to_sql()
 
         assert 'JSON_ARRAY' in sql
         assert params == (1, 2, 3)
@@ -285,7 +291,9 @@ class TestAsyncJSONFunctionProtocol:
         """Test async version of JSON_CONTAINS formatting."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect._format_json_contains_parts('data', '"value"', '$.path')
+        sql, params = MariaDBJSONContainsExpression(
+            dialect, 'data', '"value"', '$.path'
+        ).to_sql()
 
         assert 'JSON_CONTAINS' in sql
         assert '"value"' in params

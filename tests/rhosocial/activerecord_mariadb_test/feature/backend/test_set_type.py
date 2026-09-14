@@ -35,9 +35,7 @@ class TestSetTypeProtocol:
         """Test SET literal with single value."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(dialect, ['value1'])
-        )
+        sql, params = MariaDBSetLiteralExpression(dialect, ['value1']).to_sql()
 
         assert sql == '%s'
         assert params == ('value1',)
@@ -46,9 +44,9 @@ class TestSetTypeProtocol:
         """Test SET literal with multiple values."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(dialect, ['value3', 'value1', 'value2'])
-        )
+        sql, params = MariaDBSetLiteralExpression(
+            dialect, ['value3', 'value1', 'value2']
+        ).to_sql()
 
         assert sql == '%s'
         assert params == ('value1,value2,value3',)
@@ -57,9 +55,7 @@ class TestSetTypeProtocol:
         """Test SET literal with empty list."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(dialect, [])
-        )
+        sql, params = MariaDBSetLiteralExpression(dialect, []).to_sql()
 
         assert sql == "'"
         assert params == ()
@@ -69,9 +65,9 @@ class TestSetTypeProtocol:
         dialect = MariaDBDialect(version=(8, 0, 0))
         column_values = ['red', 'green', 'blue']
 
-        sql, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(dialect, ['red', 'blue'], column_values)
-        )
+        sql, params = MariaDBSetLiteralExpression(
+            dialect, ['red', 'blue'], column_values
+        ).to_sql()
 
         assert sql == '%s'
         assert params == ('blue,red',)
@@ -82,9 +78,9 @@ class TestSetTypeProtocol:
         column_values = ['red', 'green', 'blue']
 
         with pytest.raises(ValueError, match="Invalid SET values"):
-            dialect.format_set_literal(
-                MariaDBSetLiteralExpression(dialect, ['red', 'yellow'], column_values)
-            )
+            MariaDBSetLiteralExpression(
+                dialect, ['red', 'yellow'], column_values
+            ).to_sql()
 
     def test_format_set_literal_max_members_exceeded(self):
         """Test that exceeding 64 members raises error."""
@@ -92,18 +88,14 @@ class TestSetTypeProtocol:
         values = [f'val{i}' for i in range(65)]
 
         with pytest.raises(ValueError, match="maximum 64 members"):
-            dialect.format_set_literal(
-                MariaDBSetLiteralExpression(dialect, values)
-            )
+            MariaDBSetLiteralExpression(dialect, values).to_sql()
 
     def test_format_set_literal_max_members_allowed(self):
         """Test that 64 members is allowed."""
         dialect = MariaDBDialect(version=(8, 0, 0))
         values = [f'val{i:02d}' for i in range(64)]
 
-        sql, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(dialect, values)
-        )
+        sql, params = MariaDBSetLiteralExpression(dialect, values).to_sql()
 
         assert sql == '%s'
         assert len(params[0].split(',')) == 64
@@ -112,9 +104,7 @@ class TestSetTypeProtocol:
         """Test FIND_IN_SET function formatting."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_find_in_set(
-            MariaDBFindInSetExpression(dialect, 'value1', 'tags')
-        )
+        sql, params = MariaDBFindInSetExpression(dialect, 'value1', 'tags').to_sql()
 
         assert sql == 'FIND_IN_SET(%s, `tags`) > 0'
         assert params == ('value1',)
@@ -123,9 +113,7 @@ class TestSetTypeProtocol:
         """Test FIND_IN_SET with different column name."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_find_in_set(
-            MariaDBFindInSetExpression(dialect, 'active', 'status')
-        )
+        sql, params = MariaDBFindInSetExpression(dialect, 'active', 'status').to_sql()
 
         assert sql == 'FIND_IN_SET(%s, `status`) > 0'
         assert params == ('active',)
@@ -134,9 +122,9 @@ class TestSetTypeProtocol:
         """Test SET contains check with single value."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_contains(
-            MariaDBSetContainsExpression(dialect, 'tags', ['value1'])
-        )
+        sql, params = MariaDBSetContainsExpression(
+            dialect, 'tags', ['value1']
+        ).to_sql()
 
         assert sql == 'FIND_IN_SET(%s, `tags`) > 0'
         assert params == ('value1',)
@@ -145,9 +133,9 @@ class TestSetTypeProtocol:
         """Test SET contains check with multiple values."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_contains(
-            MariaDBSetContainsExpression(dialect, 'tags', ['value1', 'value2'])
-        )
+        sql, params = MariaDBSetContainsExpression(
+            dialect, 'tags', ['value1', 'value2']
+        ).to_sql()
 
         assert 'FIND_IN_SET(%s, `tags`) > 0' in sql
         assert ' AND ' in sql
@@ -157,9 +145,9 @@ class TestSetTypeProtocol:
         """Test SET contains check with three values."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_contains(
-            MariaDBSetContainsExpression(dialect, 'status', ['active', 'pending', 'verified'])
-        )
+        sql, params = MariaDBSetContainsExpression(
+            dialect, 'status', ['active', 'pending', 'verified']
+        ).to_sql()
 
         assert sql.count('FIND_IN_SET') == 3
         assert sql.count(' AND ') == 2
@@ -180,9 +168,7 @@ class TestAsyncSetTypeProtocol:
         """Test async version of SET literal formatting."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(dialect, ['a', 'b', 'c'])
-        )
+        sql, params = MariaDBSetLiteralExpression(dialect, ['a', 'b', 'c']).to_sql()
 
         assert sql == '%s'
         assert params == ('a,b,c',)
@@ -192,9 +178,7 @@ class TestAsyncSetTypeProtocol:
         """Test async version of FIND_IN_SET formatting."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_find_in_set(
-            MariaDBFindInSetExpression(dialect, 'test', 'column')
-        )
+        sql, params = MariaDBFindInSetExpression(dialect, 'test', 'column').to_sql()
 
         assert 'FIND_IN_SET' in sql
         assert params == ('test',)
@@ -204,9 +188,9 @@ class TestAsyncSetTypeProtocol:
         """Test async version of SET contains formatting."""
         dialect = MariaDBDialect(version=(8, 0, 0))
 
-        sql, params = dialect.format_set_contains(
-            MariaDBSetContainsExpression(dialect, 'tags', ['a', 'b'])
-        )
+        sql, params = MariaDBSetContainsExpression(
+            dialect, 'tags', ['a', 'b']
+        ).to_sql()
 
         assert ' AND ' in sql
         assert params == ('a', 'b')

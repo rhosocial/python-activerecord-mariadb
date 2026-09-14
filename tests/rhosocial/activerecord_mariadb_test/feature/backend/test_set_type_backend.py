@@ -115,12 +115,10 @@ class TestMariaDBSetTypeBackend:
         """)
 
         dialect = mariadb_backend.dialect
-        sql_literal, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(
-                dialect, ['red', 'blue'],
-                column_values=['red', 'green', 'blue'],
-            )
-        )
+        sql_literal, params = MariaDBSetLiteralExpression(
+            dialect, ['red', 'blue'],
+            column_values=['red', 'green', 'blue'],
+        ).to_sql()
 
         mariadb_backend.execute(
             f"INSERT INTO test_set_literal (colors) VALUES ({sql_literal})",
@@ -149,9 +147,7 @@ class TestMariaDBSetTypeBackend:
         mariadb_backend.execute("INSERT INTO test_find_format (tags) VALUES ('a,c')")
 
         dialect = mariadb_backend.dialect
-        condition, params = dialect.format_find_in_set(
-            MariaDBFindInSetExpression(dialect, 'a', 'tags')
-        )
+        condition, params = MariaDBFindInSetExpression(dialect, 'a', 'tags').to_sql()
 
         result = mariadb_backend.execute(
             f"SELECT id, tags FROM test_find_format WHERE {condition}",
@@ -179,9 +175,9 @@ class TestMariaDBSetTypeBackend:
         mariadb_backend.execute("INSERT INTO test_contains_format (permissions) VALUES ('read,write,admin')")
 
         dialect = mariadb_backend.dialect
-        condition, params = dialect.format_set_contains(
-            MariaDBSetContainsExpression(dialect, 'permissions', ['read', 'write'])
-        )
+        condition, params = MariaDBSetContainsExpression(
+            dialect, 'permissions', ['read', 'write']
+        ).to_sql()
 
         result = mariadb_backend.execute(
             f"SELECT id, permissions FROM test_contains_format WHERE {condition}",
@@ -334,12 +330,10 @@ class TestAsyncMariaDBSetTypeBackend:
         """)
 
         dialect = async_mariadb_backend.dialect
-        sql_literal, params = dialect.format_set_literal(
-            MariaDBSetLiteralExpression(
-                dialect, ['green', 'red'],
-                column_values=['red', 'green', 'blue'],
-            )
-        )
+        sql_literal, params = MariaDBSetLiteralExpression(
+            dialect, ['green', 'red'],
+            column_values=['red', 'green', 'blue'],
+        ).to_sql()
 
         await async_mariadb_backend.execute(
             f"INSERT INTO test_async_set_literal (colors) VALUES ({sql_literal})",
@@ -368,9 +362,7 @@ class TestAsyncMariaDBSetTypeBackend:
         await async_mariadb_backend.execute("INSERT INTO test_async_find_format (tags) VALUES ('z')")
 
         dialect = async_mariadb_backend.dialect
-        condition, params = dialect.format_find_in_set(
-            MariaDBFindInSetExpression(dialect, 'x', 'tags')
-        )
+        condition, params = MariaDBFindInSetExpression(dialect, 'x', 'tags').to_sql()
 
         result = await async_mariadb_backend.execute(
             f"SELECT id, tags FROM test_async_find_format WHERE {condition}",
@@ -397,9 +389,9 @@ class TestAsyncMariaDBSetTypeBackend:
         await async_mariadb_backend.execute("INSERT INTO test_async_contains (roles) VALUES ('admin,moderator')")
 
         dialect = async_mariadb_backend.dialect
-        condition, params = dialect.format_set_contains(
-            MariaDBSetContainsExpression(dialect, 'roles', ['admin'])
-        )
+        condition, params = MariaDBSetContainsExpression(
+            dialect, 'roles', ['admin']
+        ).to_sql()
 
         result = await async_mariadb_backend.execute(
             f"SELECT id, roles FROM test_async_contains WHERE {condition}",
