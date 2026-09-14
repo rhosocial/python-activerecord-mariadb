@@ -32,11 +32,11 @@ class MariaDBDateTimeMixin:
         }
         if field not in formats:
             raise UnsupportedFeatureError(self.name, f"date_trunc({expr.field.value})")
-        sql = f"CAST(DATE_FORMAT({source_sql}, %s) AS DATETIME)"
+        sql = f"CAST(DATE_FORMAT({source_sql}, {self.p()}) AS DATETIME)"
         return self.apply_alias(sql, source_params + (formats[field],), expr)
 
     def format_interval_expression(self, expr: "Any") -> Tuple[str, Tuple]:
-        sql = f"INTERVAL %s {expr.unit.value.upper()}"
+        sql = f"INTERVAL {self.p()} {expr.unit.value.upper()}"
         return self.apply_alias(sql, (expr.value,), expr)
 
     def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, Tuple]:

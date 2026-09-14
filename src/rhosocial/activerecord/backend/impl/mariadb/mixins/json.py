@@ -176,7 +176,7 @@ class MariaDBJSONMixin:
         all_paths = [path]
         if paths:
             all_paths.extend(paths)
-        path_placeholders = ', '.join(['%s' for _ in all_paths])
+        path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_EXTRACT({json_doc}, {path_placeholders})", tuple(all_paths)
 
     def format_json_unquote(self, json_val: str) -> Tuple[str, tuple]:
@@ -208,8 +208,8 @@ class MariaDBJSONMixin:
         params: List[Any] = []
 
         for key, value in key_value_pairs:
-            parts.append('%s')
-            parts.append('%s')
+            parts.append(self.p())
+            parts.append(self.p())
             params.append(key)
             params.append(value)
 
@@ -226,7 +226,7 @@ class MariaDBJSONMixin:
         """Format JSON_ARRAY function."""
         if not values:
             return "JSON_ARRAY()", ()
-        placeholders = ', '.join(['%s' for _ in values])
+        placeholders = ', '.join([self.p() for _ in values])
         return f"JSON_ARRAY({placeholders})", tuple(values)
 
     def format_json_contains(self, expr) -> Tuple[str, tuple]:
@@ -243,8 +243,8 @@ class MariaDBJSONMixin:
     ) -> Tuple[str, tuple]:
         """Format JSON_CONTAINS function."""
         if path:
-            return f"JSON_CONTAINS({target}, %s, %s)", (candidate, path)
-        return f"JSON_CONTAINS({target}, %s)", (candidate,)
+            return f"JSON_CONTAINS({target}, {self.p()}, {self.p()})", (candidate, path)
+        return f"JSON_CONTAINS({target}, {self.p()})", (candidate,)
 
     def format_json_set(
         self,
@@ -272,8 +272,8 @@ class MariaDBJSONMixin:
         params: List[Any] = []
 
         for p, v in all_pairs:
-            parts.append('%s')
-            parts.append('%s')
+            parts.append(self.p())
+            parts.append(self.p())
             params.append(p)
             params.append(v)
 
@@ -299,7 +299,7 @@ class MariaDBJSONMixin:
         if paths:
             all_paths.extend(paths)
 
-        path_placeholders = ', '.join(['%s' for _ in all_paths])
+        path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_REMOVE({json_doc}, {path_placeholders})", tuple(all_paths)
 
     def format_json_type(self, json_val: str) -> Tuple[str, tuple]:
@@ -339,7 +339,7 @@ class MariaDBJSONMixin:
             Tuple of (SQL string, parameters tuple).
         """
         if path:
-            return f"JSON_KEYS({json_doc}, %s)", (path,)
+            return f"JSON_KEYS({json_doc}, {self.p()})", (path,)
         return f"JSON_KEYS({json_doc})", ()
 
     def format_json_search(
@@ -362,8 +362,8 @@ class MariaDBJSONMixin:
         """
         one_or_all = "'all'" if all_ else "'one'"
         if path:
-            return f"JSON_SEARCH({json_doc}, {one_or_all}, %s, NULL, %s)", (search_str, path)
-        return f"JSON_SEARCH({json_doc}, {one_or_all}, %s)", (search_str,)
+            return f"JSON_SEARCH({json_doc}, {one_or_all}, {self.p()}, NULL, {self.p()})", (search_str, path)
+        return f"JSON_SEARCH({json_doc}, {one_or_all}, {self.p()})", (search_str,)
 
     def format_json_arrow(
         self,

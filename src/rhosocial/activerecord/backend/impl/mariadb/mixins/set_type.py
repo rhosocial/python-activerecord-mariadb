@@ -63,7 +63,7 @@ class MariaDBSetTypeMixin:
 
         sorted_values = sorted(values)
         literal = ','.join(sorted_values)
-        sql = "%s"
+        sql = f"{self.p()}"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, (literal,)
@@ -73,7 +73,7 @@ class MariaDBSetTypeMixin:
         expr: "MariaDBFindInSetExpression",
     ) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBFindInSetExpression` node."""
-        sql = f"FIND_IN_SET(%s, {self.format_identifier(expr.set_column)}) > 0"
+        sql = f"FIND_IN_SET({self.p()}, {self.format_identifier(expr.set_column)}) > 0"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, (expr.value,)
@@ -87,7 +87,7 @@ class MariaDBSetTypeMixin:
         params: List[str] = []
 
         for value in expr.values:
-            conditions.append(f"FIND_IN_SET(%s, {self.format_identifier(expr.column)}) > 0")
+            conditions.append(f"FIND_IN_SET({self.p()}, {self.format_identifier(expr.column)}) > 0")
             params.append(value)
 
         sql = " AND ".join(conditions)

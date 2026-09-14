@@ -105,8 +105,8 @@ class MariaDBSpatialMixin:
     ) -> Tuple[str, tuple]:
         """Format ST_GeomFromText parts."""
         if srid is not None:
-            return "ST_GeomFromText(%s, %s)", (wkt, srid)
-        return "ST_GeomFromText(%s)", (wkt,)
+            return f"ST_GeomFromText({self.p()}, {self.p()})", (wkt, srid)
+        return f"ST_GeomFromText({self.p()})", (wkt,)
 
     def format_st_geom_from_text(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBSTGeomFromTextExpression` node."""
@@ -130,8 +130,8 @@ class MariaDBSpatialMixin:
             Tuple of (SQL string, parameters tuple).
         """
         if srid is not None:
-            return "ST_GeomFromWKB(%s, %s)", (wkb, srid)
-        return "ST_GeomFromWKB(%s)", (wkb,)
+            return f"ST_GeomFromWKB({self.p()}, {self.p()})", (wkb, srid)
+        return f"ST_GeomFromWKB({self.p()})", (wkb,)
 
     def format_st_as_text(self, geom: str) -> Tuple[str, tuple]:
         """Format ST_AsText function.

@@ -114,7 +114,7 @@ class MariaDBShowDialectMixin:
 
         sql_params = ()
         if like_pattern:
-            parts.append("LIKE %s")
+            parts.append(f"LIKE {self.p()}")
             sql_params = (like_pattern,)
 
         return " ".join(parts), sql_params
@@ -149,7 +149,7 @@ class MariaDBShowDialectMixin:
 
         sql_params = ()
         if like_pattern:
-            parts.append("LIKE %s")
+            parts.append(f"LIKE {self.p()}")
             sql_params = (like_pattern,)
 
         return " ".join(parts), sql_params
@@ -162,7 +162,7 @@ class MariaDBShowDialectMixin:
         like_pattern = params.get("like_pattern")
 
         if like_pattern:
-            return "SHOW DATABASES LIKE %s", (like_pattern,)
+            return f"SHOW DATABASES LIKE {self.p()}", (like_pattern,)
         return "SHOW DATABASES", ()
 
     def format_show_table_status(
@@ -179,7 +179,7 @@ class MariaDBShowDialectMixin:
 
         sql_params = ()
         if like_pattern:
-            parts.append("LIKE %s")
+            parts.append(f"LIKE {self.p()}")
             sql_params = (like_pattern,)
 
         return " ".join(parts), sql_params
@@ -200,7 +200,7 @@ class MariaDBShowDialectMixin:
 
         sql_params = ()
         if table_name:
-            parts.append("LIKE %s")
+            parts.append(f"LIKE {self.p()}")
             sql_params = (table_name,)
 
         return " ".join(parts), sql_params
@@ -222,7 +222,7 @@ class MariaDBShowDialectMixin:
 
         sql_params = ()
         if like_pattern:
-            parts.append("LIKE %s")
+            parts.append(f"LIKE {self.p()}")
             sql_params = (like_pattern,)
 
         return " ".join(parts), sql_params
@@ -240,7 +240,7 @@ class MariaDBShowDialectMixin:
 
         sql_params = ()
         if like_pattern:
-            parts.append("LIKE %s")
+            parts.append(f"LIKE {self.p()}")
             sql_params = (like_pattern,)
 
         return " ".join(parts), sql_params
@@ -290,7 +290,7 @@ class MariaDBShowDialectMixin:
         like_pattern = params.get("like_pattern")
 
         if like_pattern:
-            return "SHOW CHARACTER SET LIKE %s", (like_pattern,)
+            return f"SHOW CHARACTER SET LIKE {self.p()}", (like_pattern,)
         return "SHOW CHARACTER SET", ()
 
     def format_show_collation(
@@ -301,7 +301,7 @@ class MariaDBShowDialectMixin:
         like_pattern = params.get("like_pattern")
 
         if like_pattern:
-            return "SHOW COLLATION LIKE %s", (like_pattern,)
+            return f"SHOW COLLATION LIKE {self.p()}", (like_pattern,)
         return "SHOW COLLATION", ()
 
     # ========== SHOW GRANTS/PLUGINS ==========
@@ -314,8 +314,8 @@ class MariaDBShowDialectMixin:
 
         if user:
             if host:
-                return "SHOW GRANTS FOR %s@%s", (user, host)
-            return "SHOW GRANTS FOR %s", (user,)
+                return f"SHOW GRANTS FOR {self.p()}@{self.p()}", (user, host)
+            return f"SHOW GRANTS FOR {self.p()}", (user,)
         return "SHOW GRANTS", ()
 
     def format_show_plugins(self, expr: "ShowPluginsExpression") -> Tuple[str, tuple]:
