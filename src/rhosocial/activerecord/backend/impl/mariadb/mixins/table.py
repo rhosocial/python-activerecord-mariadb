@@ -95,8 +95,9 @@ class MariaDBTableMixin:
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self._format_inline_index(idx_def)
+            idx_sql, idx_params = self.format_inline_index(idx_def)
             column_parts.append(idx_sql)
+            all_params.extend(idx_params)
 
         parts.append(f"({', '.join(column_parts)})")
 
