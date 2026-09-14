@@ -125,8 +125,10 @@ class MariaDBTableMixin:
 
         if hasattr(like_table, 'schema_name') and like_table.schema_name:
             like_table_str = f"{self.format_identifier(like_table.schema_name)}.{self.format_identifier(like_table.name)}"
-        else:
+        elif hasattr(like_table, 'name'):
             like_table_str = self.format_identifier(like_table.name)
+        else:
+            like_table_str = self.format_identifier(str(like_table))
 
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
