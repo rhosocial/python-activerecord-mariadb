@@ -454,7 +454,7 @@ class MariaDBDialect(
         return True
 
     def supports_check_constraint(self) -> bool:
-        return True
+        return self.version >= MARIADB_VERSION_BOUNDARIES['CHECK_CONSTRAINT']
 
     def supports_foreign_key_constraint(self) -> bool:
         return True

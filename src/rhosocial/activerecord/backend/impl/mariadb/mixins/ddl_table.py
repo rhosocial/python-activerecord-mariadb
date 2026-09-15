@@ -220,6 +220,12 @@ class MariaDBTableMixin:
                 parts.append(f"UNIQUE ({cols_str})")
         elif t_const.constraint_type == TableConstraintType.CHECK:
             if t_const.check_condition is not None:
+                if not self.supports_check_constraint():
+                    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+                    raise UnsupportedFeatureError(
+                        self.name, "CHECK constraint",
+                        f"{self.name} does not support CHECK constraints."
+                    )
                 check_sql, check_params = t_const.check_condition.to_sql()
                 parts.append(f"CHECK ({check_sql})")
                 params.extend(check_params)
@@ -238,6 +244,14 @@ class MariaDBTableMixin:
                         parts.append(f"ON DELETE {t_const.on_delete.value}")
                     if t_const.on_update and t_const.on_update != ReferentialAction.NO_ACTION:
                         parts.append(f"ON UPDATE {t_const.on_update.value}")
+                    if t_const.match_type is not None:
+                        if not self.supports_fk_match():
+                            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+                            raise UnsupportedFeatureError(
+                                self.name, "FOREIGN KEY MATCH",
+                                f"{self.name} does not support MATCH for foreign keys."
+                            )
+                        parts.append(f"MATCH {t_const.match_type}")
 
         return ' '.join(parts), tuple(params)
 

@@ -37,6 +37,7 @@ MARIADB_VERSION_BOUNDARIES = {
     'GRANT_OR_REPLACE': (10, 1, 4),
     'GRANT_IF_EXISTS': (10, 1, 4),
     'DENY': (13, 1, 0),
+    'CHECK_CONSTRAINT': (10, 2, 1),
 }
 
 

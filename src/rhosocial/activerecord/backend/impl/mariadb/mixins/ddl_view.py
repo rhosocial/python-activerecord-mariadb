@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/mixins/view.py
+# src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl_view.py
 """MariaDB view support mixin."""
 
 

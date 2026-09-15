@@ -76,7 +76,7 @@ from .join import MariaDBJoinMixin
 from .temporal import MariaDBTemporalMixin
 from .array import MariaDBArrayMixin
 from .ddl_column import MariaDBDDLColumnMixin
-from .view import MariaDBViewMixin
+from .ddl_view import MariaDBViewMixin
 from .generated_column import MariaDBGeneratedColumnMixin
 from .function import MariaDBFunctionMixin
 
