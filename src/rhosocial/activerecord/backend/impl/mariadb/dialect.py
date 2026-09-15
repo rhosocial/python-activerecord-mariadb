@@ -584,9 +584,10 @@ class MariaDBDialect(
         """Format CREATE TABLE statement for MariaDB."""
         all_params: List[Any] = []
 
-        parts = ["CREATE TABLE"]
+        parts = ["CREATE"]
         if expr.temporary:
             parts.append("TEMPORARY")
+        parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
         parts.append(self.format_identifier(expr.table_name))
