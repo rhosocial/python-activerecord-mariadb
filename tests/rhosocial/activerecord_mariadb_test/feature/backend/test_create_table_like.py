@@ -79,3 +79,25 @@ class TestMariaDBCreateTableLike:
         """MariaDB advertises CREATE TABLE ... LIKE support."""
         dialect = MariaDBDialect()
         assert dialect.supports_create_table_like() is True
+
+
+class TestMariaDBCreateTableOptions:
+    """MariaDB CREATE OR REPLACE TABLE via CreateTableOptions."""
+
+    def test_create_or_replace(self):
+        from rhosocial.activerecord.backend.expression import (
+            CreateTableExpression,
+            CreateTableOptions,
+        )
+
+        dialect = MariaDBDialect(version=(10, 5, 0))
+        expr = CreateTableExpression(
+            dialect,
+            table="t",
+            columns=[],
+            table_options=CreateTableOptions(dialect, or_replace=True),
+        )
+        sql, params = expr.to_sql()
+        assert sql.startswith("CREATE OR REPLACE TABLE `t`")
+        assert params == ()
+
