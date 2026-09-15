@@ -69,6 +69,7 @@ from .cte import MariaDBCTEMixin
 from .window import MariaDBWindowMixin
 from .filter_clause import MariaDBFilterClauseMixin
 from .set_operation import MariaDBSetOperationMixin
+from .dql import MariaDBDQLMixin
 from .upsert import MariaDBUpsertMixin
 from .explain import MariaDBExplainMixin
 from .grouping import MariaDBGroupingMixin
@@ -115,6 +116,7 @@ __all__ = [
     'MariaDBWindowMixin',
     'MariaDBFilterClauseMixin',
     'MariaDBSetOperationMixin',
+    'MariaDBDQLMixin',
     'MariaDBUpsertMixin',
     'MariaDBExplainMixin',
     'MariaDBGroupingMixin',

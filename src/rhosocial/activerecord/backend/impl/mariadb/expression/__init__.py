@@ -30,7 +30,6 @@ from .spatial import (
     MariaDBSTContainsExpression,
 )
 from .match_against import MariaDBMatchAgainstExpression, MatchAgainstMode
-from .locking import MariaDBForUpdateClause, MariaDBLockStrength
 from .rename_table import MariaDBRenameTableExpression
 from .rename_index import MariaDBRenameIndexExpression
 from .routine import (
@@ -111,8 +110,6 @@ __all__ = [
     "MariaDBSTContainsExpression",
     "MariaDBMatchAgainstExpression",
     "MatchAgainstMode",
-    "MariaDBForUpdateClause",
-    "MariaDBLockStrength",
     "MariaDBRenameTableExpression",
     "MariaDBRenameIndexExpression",
     "MariaDBTableMaintenanceExpression",

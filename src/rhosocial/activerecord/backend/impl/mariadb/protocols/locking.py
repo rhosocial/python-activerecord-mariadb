@@ -46,7 +46,7 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         """Format MariaDB-specific FOR UPDATE clause.
 
         Args:
-            clause: MariaDBForUpdateClause instance
+            clause: ForUpdateClause instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

@@ -17,5 +17,17 @@ class MariaDBSetOperationMixin:
         """EXCEPT is supported since MariaDB 10.3."""
         return self.version >= MARIADB_VERSION_BOUNDARIES['INTERSECT_EXCEPT']
 
+    def supports_set_operation_order_by(self) -> bool:
+        """Set operations support ORDER BY."""
+        return True
+
+    def supports_set_operation_limit_offset(self) -> bool:
+        """Set operations support LIMIT and OFFSET."""
+        return True
+
+    def supports_set_operation_for_update(self) -> bool:
+        """Set operations support FOR UPDATE."""
+        return True
+
 
 __all__ = ['MariaDBSetOperationMixin']
