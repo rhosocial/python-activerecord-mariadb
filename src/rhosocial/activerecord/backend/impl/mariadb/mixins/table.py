@@ -127,12 +127,23 @@ class MariaDBTableMixin:
             parts.append(comment_sql)
 
         dialect_options = getattr(expr, "dialect_options", {}) or {}
-        if "engine" in dialect_options:
-            parts.append(f"ENGINE={self.inline_sql_literal(dialect_options['engine'])}")
-        if "charset" in dialect_options:
-            parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(dialect_options['charset'])}")
-        if "collate" in dialect_options:
-            parts.append(f"COLLATE={self.inline_sql_literal(dialect_options['collate'])}")
+        engine = getattr(table_options, "engine", None) if table_options else None
+        if not engine:
+            engine = dialect_options.get("engine")
+        if engine:
+            parts.append(f"ENGINE={self.inline_sql_literal(engine)}")
+
+        charset = getattr(table_options, "charset", None) if table_options else None
+        if not charset:
+            charset = dialect_options.get("charset")
+        if charset:
+            parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(charset)}")
+
+        collate = getattr(table_options, "collate", None) if table_options else None
+        if not collate:
+            collate = dialect_options.get("collate")
+        if collate:
+            parts.append(f"COLLATE={self.inline_sql_literal(collate)}")
 
         return ' '.join(parts), tuple(all_params)
 
