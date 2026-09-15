@@ -48,13 +48,13 @@ from .locking import MariaDBLockingMixin
 from .trigger import MariaDBTriggerMixin
 from .json import MariaDBJSONMixin
 from .fulltext_search import MariaDBFullTextSearchMixin
-from .table import MariaDBTableMixin
+from .ddl_table import MariaDBTableMixin
 from .set_type import MariaDBSetTypeMixin
 from .modify_column import MariaDBModifyColumnMixin
 from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
 from .partition import MariaDBPartitionMixin
 from .types import MariaDBTypeSupportMixin
-from .rename_table import MariaDBRenameTableMixin
+from .ddl_rename_table import MariaDBRenameTableMixin
 from .truncate import MariaDBTruncateMixin
 from .ddl.column import MariaDBAlterColumnModifierMixin
 from .ddl.constraint import MariaDBAlterConstraintModifierMixin
