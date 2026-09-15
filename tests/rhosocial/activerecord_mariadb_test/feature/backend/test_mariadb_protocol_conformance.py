@@ -150,6 +150,8 @@ class TestMariaDBDialectProtocolConformance:
 # decision (move to MYSQL_PROTOCOLS or revert).
 MARIADB_NOT_IMPLEMENTED = [
     # --- Intentional non-support ---
+    # The generic DatabaseSupport protocol is not composed by MariaDBDialect.
+    dialect_protocols.DatabaseSupport,
     # MariaDB has no SQL/XML support.
     dialect_protocols.SQLXMLSupport,
     dialect_protocols.SQLXMLParsingSupport,
