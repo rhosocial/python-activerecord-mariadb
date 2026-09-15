@@ -582,9 +582,6 @@ class MariaDBDialect(
         self, expr: "CreateTableExpression"
     ) -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for MariaDB."""
-        if 'like_table' in expr.dialect_options:
-            return self._format_create_table_like(expr)
-
         all_params: List[Any] = []
 
         parts = ["CREATE TABLE"]

@@ -1,9 +1,14 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/table.py
 """MariaDB table DDL protocol."""
 
-from typing import Any, Dict, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Tuple, TYPE_CHECKING, runtime_checkable
 
 from rhosocial.activerecord.backend.dialect.protocols import TableSupport
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        CreateTableLikeExpression,
+    )
 
 
 @runtime_checkable
@@ -87,6 +92,12 @@ class MariaDBTableSupport(TableSupport, Protocol):
                 - 'with_system_versioning': Enable system-versioned tables (MariaDB 10.3+)
                 Example: dialect_options={'engine': 'InnoDB', 'charset': 'utf8mb4'}
         """
+        ...
+
+    def format_create_table_like_statement(
+        self, expr: "CreateTableLikeExpression"
+    ) -> Tuple[str, tuple]:
+        """Format CREATE TABLE ... LIKE statement."""
         ...
 
     def format_column_definition(self, col_def) -> Tuple[str, tuple]:

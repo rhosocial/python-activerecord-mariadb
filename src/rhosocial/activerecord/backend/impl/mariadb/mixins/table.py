@@ -35,6 +35,16 @@ class MariaDBTableMixin:
         """MariaDB supports CREATE TABLE ... LIKE syntax."""
         return True
 
+    def format_create_table_like_statement(self, expr) -> Tuple[str, tuple]:
+        """Format CREATE TABLE ... LIKE by delegating to the generic renderer.
+
+        MariaDB uses the generic vendor form
+        ``CREATE [TEMPORARY] TABLE [IF NOT EXISTS] <t> LIKE <src>`` provided by
+        the core ``TableMixin``; this override only forwards to it so that the
+        MariaDB-specific mixin satisfies the protocol it advertises.
+        """
+        return super().format_create_table_like_statement(expr)
+
     def supports_inline_index(self) -> bool:
         """MariaDB allows inline INDEX/KEY definitions."""
         return True
@@ -61,19 +71,11 @@ class MariaDBTableMixin:
         """Format CREATE TABLE statement for MariaDB.
 
         Handles MariaDB-specific syntax including:
-        - LIKE syntax (copying table structure)
         - Inline index definitions
         - Storage options (ENGINE, CHARSET, COLLATE)
         - Table-level comments
         - AUTO_INCREMENT in column definitions
         """
-        if 'like_table' in expr.dialect_options:
-            return self._format_create_table_like(expr)
-
-        from rhosocial.activerecord.backend.expression.statements import (
-            TableConstraintType
-        )
-
         all_params: List[Any] = []
 
         parts = ["CREATE TABLE"]
@@ -111,29 +113,6 @@ class MariaDBTableMixin:
             parts.append(f"COMMENT '{escaped_comment}'")
 
         return ' '.join(parts), tuple(all_params)
-
-    def _format_create_table_like(self, expr) -> Tuple[str, tuple]:
-        """Format CREATE TABLE ... LIKE statement."""
-        like_table = expr.dialect_options['like_table']
-
-        parts = ["CREATE TABLE"]
-        if expr.temporary:
-            parts.append("TEMPORARY")
-        if expr.if_not_exists:
-            parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
-
-        if isinstance(like_table, tuple) and len(like_table) == 2:
-            like_table_str = f"{self.format_identifier(like_table[0])}.{self.format_identifier(like_table[1])}"
-        elif hasattr(like_table, 'schema_name') and like_table.schema_name:
-            like_table_str = f"{self.format_identifier(like_table.schema_name)}.{self.format_identifier(like_table.name)}"
-        elif hasattr(like_table, 'name'):
-            like_table_str = self.format_identifier(like_table.name)
-        else:
-            like_table_str = self.format_identifier(str(like_table))
-
-        parts.append(f"LIKE {like_table_str}")
-        return ' '.join(parts), ()
 
     def format_column_definition(
         self,
