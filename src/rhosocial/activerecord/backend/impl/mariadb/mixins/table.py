@@ -187,7 +187,11 @@ class MariaDBTableMixin:
         t_const: "TableConstraint",
     ) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
-        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
+        from rhosocial.activerecord.backend.expression.statements import (
+            ForeignKeyConstraint,
+            ReferentialAction,
+            TableConstraintType,
+        )
         
         parts = []
         params: List[Any] = []
@@ -203,6 +207,11 @@ class MariaDBTableMixin:
             if t_const.columns:
                 cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
                 parts.append(f"UNIQUE ({cols_str})")
+        elif t_const.constraint_type == TableConstraintType.CHECK:
+            if t_const.check_condition is not None:
+                check_sql, check_params = t_const.check_condition.to_sql()
+                parts.append(f"CHECK ({check_sql})")
+                params.extend(check_params)
         elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
             if t_const.columns and t_const.foreign_key_table and t_const.foreign_key_columns:
                 cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
@@ -213,6 +222,11 @@ class MariaDBTableMixin:
                 parts.append(
                     f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
                 )
+                if isinstance(t_const, ForeignKeyConstraint):
+                    if t_const.on_delete and t_const.on_delete != ReferentialAction.NO_ACTION:
+                        parts.append(f"ON DELETE {t_const.on_delete.value}")
+                    if t_const.on_update and t_const.on_update != ReferentialAction.NO_ACTION:
+                        parts.append(f"ON UPDATE {t_const.on_update.value}")
 
         return ' '.join(parts), tuple(params)
 

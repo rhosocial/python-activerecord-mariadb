@@ -20,7 +20,9 @@ from rhosocial.activerecord.backend.expression import (
     IndexDefinition,
     TableConstraint,
     TableConstraintType,
+    ForeignKeyConstraint,
 )
+from rhosocial.activerecord.backend.expression.statements import ReferentialAction
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
     DateTimeType,
@@ -612,6 +614,61 @@ class TestMySQLTableConstraints:
         assert 'PRIMARY KEY' in sql
         assert '`user_id`' in sql
         assert '`role_id`' in sql
+
+    def test_foreign_key_constraint(self):
+        """Test FOREIGN KEY table constraint."""
+        dialect = MariaDBDialect()
+        columns = [
+            ColumnDefinition(dialect, "id", IntegerType(dialect)),
+            ColumnDefinition(dialect, "user_id", IntegerType(dialect)),
+        ]
+        fk = ForeignKeyConstraint(
+            dialect, columns=["user_id"], foreign_key_table="users",
+            foreign_key_columns=["id"], on_delete=ReferentialAction.CASCADE,
+        )
+        expr = CreateTableExpression(
+            dialect=dialect, table="orders", columns=columns, table_constraints=[fk],
+        )
+        sql, params = expr.to_sql()
+        assert "FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)" in sql
+        assert "ON DELETE CASCADE" in sql
+
+    def test_foreign_key_with_on_update(self):
+        """Test FOREIGN KEY with ON UPDATE."""
+        dialect = MariaDBDialect()
+        columns = [ColumnDefinition(dialect, "user_id", IntegerType(dialect))]
+        fk = ForeignKeyConstraint(
+            dialect, columns=["user_id"], foreign_key_table="users",
+            foreign_key_columns=["id"], on_delete=ReferentialAction.NO_ACTION,
+            on_update=ReferentialAction.SET_NULL,
+        )
+        expr = CreateTableExpression(
+            dialect=dialect, table="orders", columns=columns, table_constraints=[fk],
+        )
+        sql, params = expr.to_sql()
+        assert "ON UPDATE SET NULL" in sql
+        assert "ON DELETE" not in sql
+
+    def test_check_constraint(self):
+        """Test CHECK table constraint."""
+        from rhosocial.activerecord.backend.expression import Column, Literal
+        from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
+        dialect = MariaDBDialect()
+        columns = [
+            ColumnDefinition(dialect, "id", IntegerType(dialect)),
+            ColumnDefinition(dialect, "age", IntegerType(dialect)),
+        ]
+        check = TableConstraint(
+            dialect, TableConstraintType.CHECK,
+            check_condition=ComparisonPredicate(
+                dialect, ">=", Column(dialect, "age"), Literal(dialect, 0)
+            ),
+        )
+        expr = CreateTableExpression(
+            dialect=dialect, table="users", columns=columns, table_constraints=[check],
+        )
+        sql, params = expr.to_sql()
+        assert "CHECK (" in sql
 
 
 class TestMySQLDropTable:
