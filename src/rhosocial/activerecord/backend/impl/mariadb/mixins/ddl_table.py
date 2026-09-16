@@ -191,6 +191,11 @@ class MariaDBTableMixin:
             escaped_comment = self._escape_sql_string(col_def.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
 
+        if col_def.generated_expression is not None:
+            gen_sql, gen_params = col_def.generated_expression.to_sql()
+            parts.append(gen_sql.lstrip())
+            params.extend(gen_params)
+
         return ' '.join(parts), tuple(params)
 
     def format_table_constraint(
