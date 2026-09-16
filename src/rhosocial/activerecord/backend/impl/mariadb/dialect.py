@@ -63,18 +63,16 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     SetOperationMixin,
     SequenceMixin,
     UpsertMixin,
-    LockingMixin,
+
     ExplainMixin,
     JoinMixin,
     ILIKEMixin,
-    FilterClauseMixin,
-    AdvancedGroupingMixin,
+
     ArrayMixin,
     LateralJoinMixin,
     MergeMixin,
     TemporalTableMixin,
-    QualifyClauseMixin,
-    OrderedSetAggregationMixin,
+
     GraphMixin,
     # DDL Mixins
     TableMixin,
@@ -257,18 +255,16 @@ class MariaDBDialect(
     SetOperationMixin,
     SequenceMixin,
     UpsertMixin,
-    LockingMixin,
+
     ExplainMixin,
     JoinMixin,
     ILIKEMixin,
-    FilterClauseMixin,
-    AdvancedGroupingMixin,
+
     ArrayMixin,
     LateralJoinMixin,
     MergeMixin,
     TemporalTableMixin,
-    QualifyClauseMixin,
-    OrderedSetAggregationMixin,
+
     GraphMixin,
     TableMixin,
     MariaDBTruncateMixin,
