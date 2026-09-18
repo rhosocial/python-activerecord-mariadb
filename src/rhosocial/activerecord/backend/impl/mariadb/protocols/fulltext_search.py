@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/fulltext_search.py
 """MariaDB full-text search protocol."""
 
-from typing import List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, List, Optional, Protocol, Tuple, runtime_checkable
 
 
 @runtime_checkable
@@ -44,16 +44,12 @@ class MariaDBFullTextSearchSupport(Protocol):
 
     def format_match_against(
         self,
-        columns: List[str],
-        search_string: str,
-        mode: Optional[str] = None
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format MATCH ... AGAINST expression.
 
         Args:
-            columns: Column names to search
-            search_string: Search string
-            mode: Search mode (None, 'NATURAL_LANGUAGE', 'BOOLEAN', 'QUERY_EXPANSION')
+            expr: MariaDBMatchAgainstExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

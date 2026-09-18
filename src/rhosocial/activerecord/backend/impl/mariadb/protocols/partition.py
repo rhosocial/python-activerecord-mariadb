@@ -82,6 +82,6 @@ class MariaDBPartitionSupport(PartitionSupport, Protocol):
         """Format ALTER TABLE ... COALESCE PARTITION."""
         ...
 
-    def format_partition_name_list(self, partitions: Sequence[str]) -> str:
+    def format_partition_name_list(self, partitions: Sequence[str]) -> Tuple[str, tuple]:
         """Format a list of partition names."""
         ...

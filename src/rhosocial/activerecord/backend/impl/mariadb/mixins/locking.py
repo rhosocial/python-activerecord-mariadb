@@ -3,7 +3,7 @@
 
 MariaDB supports FOR UPDATE, FOR SHARE, NOWAIT, and SKIP LOCKED.
 """
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
@@ -74,6 +74,10 @@ class MariaDBLockingMixin:
         """
         return self.version >= MARIADB_VERSION_BOUNDARIES['SKIP_LOCKED']
 
+    def supports_lock_in_share_mode(self) -> bool:
+        """Whether the legacy LOCK IN SHARE MODE syntax is supported."""
+        return True
+
     def supports_lock_strength(self, strength: str) -> bool:
         """Check if a specific lock strength is supported.
 
@@ -96,6 +100,7 @@ class MariaDBLockingMixin:
         Syntax:
             FOR UPDATE [OF tbl_name [, tbl_name] ...] [NOWAIT | SKIP LOCKED]
             FOR SHARE [OF tbl_name [, tbl_name] ...] [NOWAIT | SKIP LOCKED]
+            LOCK IN SHARE MODE
 
         Args:
             clause: ForUpdateClause instance.
@@ -103,18 +108,27 @@ class MariaDBLockingMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression import LockStrength
+
         parts = []
 
-        lock_type = getattr(clause, 'lock_type', 'UPDATE')
-        if isinstance(lock_type, str):
-            lock_type_upper = lock_type.upper()
-        else:
-            lock_type_upper = str(lock_type)
-
-        if lock_type_upper == 'SHARE':
+        strength = clause.strength
+        if strength == LockStrength.LOCK_IN_SHARE_MODE:
+            if not self.supports_lock_in_share_mode():
+                raise UnsupportedFeatureError(
+                    self.name, "LOCK IN SHARE MODE",
+                    "This MariaDB dialect does not support LOCK IN SHARE MODE."
+                )
+            parts.append("LOCK IN SHARE MODE")
+        elif strength == LockStrength.SHARE:
             parts.append("FOR SHARE")
-        else:
+        elif strength == LockStrength.UPDATE:
             parts.append("FOR UPDATE")
+        else:
+            raise UnsupportedFeatureError(
+                self.name, f"{strength.value} (unsupported lock strength)"
+            )
 
         if clause.of_columns:
             tables_sql = ", ".join(
@@ -122,21 +136,16 @@ class MariaDBLockingMixin:
             )
             parts.append(f"OF {tables_sql}")
 
-        nowait = getattr(clause, 'nowait', False)
-        skip_locked = getattr(clause, 'skip_locked', False)
-
-        if skip_locked:
+        if clause.skip_locked:
             if not self.supports_for_update_skip_locked():
-                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
                 raise UnsupportedFeatureError(
                     self.name,
                     "SKIP LOCKED",
                     "SKIP LOCKED requires MariaDB 10.3 or later."
                 )
             parts.append("SKIP LOCKED")
-        elif nowait:
+        elif clause.nowait:
             if not self.supports_for_update_nowait():
-                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
                 raise UnsupportedFeatureError(
                     self.name,
                     "NOWAIT",
@@ -146,10 +155,13 @@ class MariaDBLockingMixin:
 
         return " ".join(parts), ()
 
-    def format_lock_in_share_mode(self) -> Tuple[str, tuple]:
+    def format_lock_in_share_mode(self, clause: "ForUpdateClause" = None) -> Tuple[str, tuple]:
         """Format LOCK IN SHARE MODE clause (legacy syntax).
 
         This is the older syntax for FOR SHARE.
+
+        Args:
+            clause: Optional ForUpdateClause instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).

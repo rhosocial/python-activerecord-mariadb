@@ -17,7 +17,7 @@ DDL definition expressions (``ColumnDefinition.data_type``).
 
 from __future__ import annotations
 
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
@@ -34,80 +34,92 @@ from rhosocial.activerecord.backend.expression.types import (
 # Integer variants with UNSIGNED / ZEROFILL
 # ---------------------------------------------------------------------------
 
-class MariaDBIntType(IntegerType, backend="mariadb"):
+class MariaDBIntType(IntegerType):
     """MariaDB ``INTEGER`` / ``INT`` with optional UNSIGNED / ZEROFILL."""
+
+    name = "mariadb_int"
 
     unsigned: bool = False
     zerofill: bool = False
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        self.unsigned = unsigned
+        self.zerofill = zerofill
 
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
         return {'IntegerType'}
 
 
-class MariaDBTinyIntType(TinyIntType, backend="mariadb"):
+class MariaDBTinyIntType(TinyIntType):
     """MariaDB ``TINYINT`` with optional UNSIGNED / ZEROFILL."""
+
+    name = "mariadb_tinyint"
 
     unsigned: bool = False
     zerofill: bool = False
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        self.unsigned = unsigned
+        self.zerofill = zerofill
 
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
         return {'TinyIntType'}
 
 
-class MariaDBSmallIntType(SmallIntType, backend="mariadb"):
+class MariaDBSmallIntType(SmallIntType):
     """MariaDB ``SMALLINT`` with optional UNSIGNED / ZEROFILL."""
+
+    name = "mariadb_smallint"
 
     unsigned: bool = False
     zerofill: bool = False
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        self.unsigned = unsigned
+        self.zerofill = zerofill
 
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
         return {'SmallIntType'}
 
 
-class MariaDBBigIntType(BigIntType, backend="mariadb"):
+class MariaDBBigIntType(BigIntType):
     """MariaDB ``BIGINT`` with optional UNSIGNED / ZEROFILL."""
+
+    name = "mariadb_bigint"
 
     unsigned: bool = False
     zerofill: bool = False
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.unsigned == other.unsigned and
-                self.zerofill == other.zerofill)
+    def __init__(self, dialect=None, *, unsigned: bool = False,
+                 zerofill: bool = False,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        self.unsigned = unsigned
+        self.zerofill = zerofill
 
-    def __hash__(self) -> int:
-        return hash((type(self), self.unsigned, self.zerofill))
+    def _type_params(self) -> tuple:
+        return (self.unsigned, self.zerofill)
 
     @classmethod
     def synonyms(cls) -> Set[str]:
@@ -118,158 +130,164 @@ class MariaDBBigIntType(BigIntType, backend="mariadb"):
 # BLOB size variants
 # ---------------------------------------------------------------------------
 
-class MariaDBTinyBlobType(BlobType, backend="mariadb"):
+class MariaDBTinyBlobType(BlobType):
     """MariaDB ``TINYBLOB`` — maximum 255 bytes."""
 
+    name = "mariadb_tinyblob"
 
-class MariaDBBlobType(BlobType, backend="mariadb"):
+
+class MariaDBBlobType(BlobType):
     """MariaDB ``BLOB`` — maximum 65,535 bytes."""
 
+    name = "mariadb_blob"
 
-class MariaDBMediumBlobType(BlobType, backend="mariadb"):
+
+class MariaDBMediumBlobType(BlobType):
     """MariaDB ``MEDIUMBLOB`` — maximum 16,777,215 bytes."""
 
+    name = "mariadb_mediumblob"
 
-class MariaDBLongBlobType(BlobType, backend="mariadb"):
+
+class MariaDBLongBlobType(BlobType):
     """MariaDB ``LONGBLOB`` — maximum 4,294,967,295 bytes."""
+
+    name = "mariadb_longblob"
 
 
 # ---------------------------------------------------------------------------
 # TEXT size variants
 # ---------------------------------------------------------------------------
 
-class MariaDBTinyTextType(TextType, backend="mariadb"):
+class MariaDBTinyTextType(TextType):
     """MariaDB ``TINYTEXT`` — maximum 255 bytes."""
 
+    name = "mariadb_tinytext"
 
-class MariaDBTextType(TextType, backend="mariadb"):
+
+class MariaDBTextType(TextType):
     """MariaDB ``TEXT`` — maximum 65,535 bytes."""
 
+    name = "mariadb_text"
 
-class MariaDBMediumTextType(TextType, backend="mariadb"):
+
+class MariaDBMediumTextType(TextType):
     """MariaDB ``MEDIUMTEXT`` — maximum 16,777,215 bytes."""
 
+    name = "mariadb_mediumtext"
 
-class MariaDBLongTextType(TextType, backend="mariadb"):
+
+class MariaDBLongTextType(TextType):
     """MariaDB ``LONGTEXT`` — maximum 4,294,967,295 bytes."""
+
+    name = "mariadb_longtext"
 
 
 # ---------------------------------------------------------------------------
 # Bit type
 # ---------------------------------------------------------------------------
 
-class MariaDBBitType(DataType, backend="mariadb"):
+class MariaDBBitType(DataType):
     """MariaDB ``BIT[(n)]`` — bit-field type."""
+
+    name = "mariadb_bit"
 
     n: Optional[int] = None
 
-    def __init__(self, n: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, n: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.n = n
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.n == other.n
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.n))
+    def _type_params(self) -> tuple:
+        return (self.n,)
 
 
 # ---------------------------------------------------------------------------
 # Year type
 # ---------------------------------------------------------------------------
 
-class MariaDBYearType(DataType, backend="mariadb"):
+class MariaDBYearType(DataType):
     """MariaDB ``YEAR[(4)]`` — year type."""
+
+    name = "mariadb_year"
 
     display_width: Optional[int] = None
 
-    def __init__(self, display_width: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, display_width: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.display_width = display_width
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.display_width == other.display_width
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.display_width))
+    def _type_params(self) -> tuple:
+        return (self.display_width,)
 
 
 # ---------------------------------------------------------------------------
 # Binary / VarBinary
 # ---------------------------------------------------------------------------
 
-class MariaDBBinaryType(DataType, backend="mariadb"):
+class MariaDBBinaryType(DataType):
     """MariaDB ``BINARY[(n)]`` — fixed-length binary."""
 
+    name = "mariadb_binary"
+
     length: Optional[int] = None
 
-    def __init__(self, length: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, length: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.length = length
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.length == other.length
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.length))
+    def _type_params(self) -> tuple:
+        return (self.length,)
 
 
-class MariaDBVarBinaryType(DataType, backend="mariadb"):
+class MariaDBVarBinaryType(DataType):
     """MariaDB ``VARBINARY(n)`` — variable-length binary."""
 
+    name = "mariadb_varbinary"
+
     length: Optional[int] = None
 
-    def __init__(self, length: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, length: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.length = length
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.length == other.length
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.length))
+    def _type_params(self) -> tuple:
+        return (self.length,)
 
 
 # ---------------------------------------------------------------------------
 # ENUM
 # ---------------------------------------------------------------------------
 
-class MariaDBEnumType(DataType, backend="mariadb"):
+class MariaDBEnumType(DataType):
     """MariaDB ``ENUM('val', ...)`` with optional CHARACTER SET / COLLATE."""
 
-    values: List[str]
+    name = "mariadb_enum"
+
+    values: Tuple[str, ...] = ()
     charset: Optional[str] = None
     collation: Optional[str] = None
 
-    def __init__(self, values: List[str], charset: Optional[str] = None,
-                 collation: Optional[str] = None):
-        super().__init__()
+    def __init__(self, dialect=None, values: Optional[List[str]] = None,
+                 charset: Optional[str] = None, collation: Optional[str] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if values is None:
+            raise ValueError("MariaDBEnumType requires values")
         if not values:
             raise ValueError("ENUM must have at least one value")
-        self.values = list(values)
+        self.values = tuple(values)
         self.charset = charset
         self.collation = collation
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.values == other.values and
-                self.charset == other.charset and
-                self.collation == other.collation)
-
-    def __hash__(self) -> int:
-        return hash((type(self), tuple(self.values), self.charset, self.collation))
+    def _type_params(self) -> tuple:
+        return (self.values, self.charset, self.collation)
 
     def __repr__(self) -> str:
-        return (f"{type(self).__name__}(values={self.values!r}, "
+        return (f"{type(self).__name__}(values={list(self.values)!r}, "
                 f"charset={self.charset!r}, collation={self.collation!r})")
 
 
@@ -277,34 +295,32 @@ class MariaDBEnumType(DataType, backend="mariadb"):
 # SET
 # ---------------------------------------------------------------------------
 
-class MariaDBSetType(DataType, backend="mariadb"):
+class MariaDBSetType(DataType):
     """MariaDB ``SET('val', ...)`` with optional CHARACTER SET / COLLATE."""
 
-    values: List[str]
+    name = "mariadb_set"
+
+    values: Tuple[str, ...] = ()
     charset: Optional[str] = None
     collation: Optional[str] = None
 
-    def __init__(self, values: List[str], charset: Optional[str] = None,
-                 collation: Optional[str] = None):
-        super().__init__()
+    def __init__(self, dialect=None, values: Optional[List[str]] = None,
+                 charset: Optional[str] = None, collation: Optional[str] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if values is None:
+            raise ValueError("MariaDBSetType requires values")
         if not values:
             raise ValueError("SET must have at least one value")
-        self.values = list(values)
+        self.values = tuple(values)
         self.charset = charset
         self.collation = collation
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.values == other.values and
-                self.charset == other.charset and
-                self.collation == other.collation)
-
-    def __hash__(self) -> int:
-        return hash((type(self), tuple(self.values), self.charset, self.collation))
+    def _type_params(self) -> tuple:
+        return (self.values, self.charset, self.collation)
 
     def __repr__(self) -> str:
-        return (f"{type(self).__name__}(values={self.values!r}, "
+        return (f"{type(self).__name__}(values={list(self.values)!r}, "
                 f"charset={self.charset!r}, collation={self.collation!r})")
 
 
@@ -312,47 +328,59 @@ class MariaDBSetType(DataType, backend="mariadb"):
 # Spatial / Geometry types
 # ---------------------------------------------------------------------------
 
-class MariaDBGeometryType(DataType, backend="mariadb"):
+class MariaDBGeometryType(DataType):
     """MariaDB ``GEOMETRY`` with optional SRID."""
+
+    name = "mariadb_geometry"
 
     srid: Optional[int] = None
 
-    def __init__(self, srid: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, srid: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.srid = srid
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.srid == other.srid
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.srid))
+    def _type_params(self) -> tuple:
+        return (self.srid,)
 
 
-class MariaDBPointType(MariaDBGeometryType, backend="mariadb"):
+class MariaDBPointType(MariaDBGeometryType):
     """MariaDB ``POINT`` with optional SRID."""
 
+    name = "mariadb_point"
 
-class MariaDBLineStringType(MariaDBGeometryType, backend="mariadb"):
+
+class MariaDBLineStringType(MariaDBGeometryType):
     """MariaDB ``LINESTRING`` with optional SRID."""
 
+    name = "mariadb_linestring"
 
-class MariaDBPolygonType(MariaDBGeometryType, backend="mariadb"):
+
+class MariaDBPolygonType(MariaDBGeometryType):
     """MariaDB ``POLYGON`` with optional SRID."""
 
+    name = "mariadb_polygon"
 
-class MariaDBMultiPointType(MariaDBGeometryType, backend="mariadb"):
+
+class MariaDBMultiPointType(MariaDBGeometryType):
     """MariaDB ``MULTIPOINT`` with optional SRID."""
 
+    name = "mariadb_multipoint"
 
-class MariaDBMultiLineStringType(MariaDBGeometryType, backend="mariadb"):
+
+class MariaDBMultiLineStringType(MariaDBGeometryType):
     """MariaDB ``MULTILINESTRING`` with optional SRID."""
 
+    name = "mariadb_multilinestring"
 
-class MariaDBMultiPolygonType(MariaDBGeometryType, backend="mariadb"):
+
+class MariaDBMultiPolygonType(MariaDBGeometryType):
     """MariaDB ``MULTIPOLYGON`` with optional SRID."""
 
+    name = "mariadb_multipolygon"
 
-class MariaDBGeometryCollectionType(MariaDBGeometryType, backend="mariadb"):
+
+class MariaDBGeometryCollectionType(MariaDBGeometryType):
     """MariaDB ``GEOMETRYCOLLECTION`` with optional SRID."""
+
+    name = "mariadb_geometrycollection"

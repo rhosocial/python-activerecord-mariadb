@@ -9,7 +9,14 @@ MariaDB-specific features:
 - Table-level COMMENT
 - CREATE TABLE ... LIKE syntax
 """
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        ColumnDefinition,
+        IndexDefinition,
+        TableConstraint,
+    )
 
 
 class MariaDBTableMixin:
@@ -24,9 +31,19 @@ class MariaDBTableMixin:
     - CREATE TABLE ... LIKE syntax
     """
 
-    def supports_table_like_syntax(self) -> bool:
+    def supports_create_table_like(self) -> bool:
         """MariaDB supports CREATE TABLE ... LIKE syntax."""
         return True
+
+    def format_create_table_like_statement(self, expr) -> Tuple[str, tuple]:
+        """Format CREATE TABLE ... LIKE by delegating to the generic renderer.
+
+        MariaDB uses the generic vendor form
+        ``CREATE [TEMPORARY] TABLE [IF NOT EXISTS] <t> LIKE <src>`` provided by
+        the core ``TableMixin``; this override only forwards to it so that the
+        MariaDB-specific mixin satisfies the protocol it advertises.
+        """
+        return super().format_create_table_like_statement(expr)
 
     def supports_inline_index(self) -> bool:
         """MariaDB allows inline INDEX/KEY definitions."""
@@ -54,84 +71,92 @@ class MariaDBTableMixin:
         """Format CREATE TABLE statement for MariaDB.
 
         Handles MariaDB-specific syntax including:
-        - LIKE syntax (copying table structure)
         - Inline index definitions
         - Storage options (ENGINE, CHARSET, COLLATE)
         - Table-level comments
         - AUTO_INCREMENT in column definitions
         """
-        if 'like_table' in expr.dialect_options:
-            return self._format_create_table_like(expr)
-
-        from rhosocial.activerecord.backend.expression.statements import (
-            ColumnConstraintType, TableConstraintType
-        )
-
         all_params: List[Any] = []
 
-        parts = ["CREATE TABLE"]
+        options_part = ""
+        table_options = getattr(expr, "table_options", None)
+        if table_options is not None:
+            options_sql, options_params = table_options.to_sql()
+            if options_sql:
+                options_part = options_sql
+            all_params.extend(options_params)
+        parts = ["CREATE"]
+        if options_part:
+            parts.append(options_part)
         if expr.temporary:
             parts.append("TEMPORARY")
+        parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
         parts.append(self.format_identifier(expr.table_name))
 
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self._format_column_definition_mariadb(col_def, ColumnConstraintType)
+            col_sql, col_params = self.format_column_definition(col_def)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            const_sql, const_params = self._format_table_constraint_mariadb(t_const, TableConstraintType)
+            const_sql, const_params = self.format_table_constraint(t_const)
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self._format_inline_index_mariadb(idx_def)
+            idx_sql, idx_params = self.format_inline_index(idx_def)
             column_parts.append(idx_sql)
+            all_params.extend(idx_params)
 
         parts.append(f"({', '.join(column_parts)})")
 
         if expr.storage_options:
-            storage_sql = self._format_storage_options_mariadb(expr.storage_options)
+            storage_sql = self._format_storage_options(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
 
-        if 'comment' in expr.dialect_options:
-            escaped_comment = self._escape_sql_string(expr.dialect_options['comment'])
-            parts.append(f"COMMENT '{escaped_comment}'")
+        table_options = getattr(expr, "table_options", None)
+        if table_options is not None and getattr(table_options, "comment", None):
+            comment_sql, _ = self.format_table_comment(table_options.comment)
+            parts.append(comment_sql)
+        elif 'comment' in expr.dialect_options:
+            comment_sql, _ = self.format_table_comment(expr.dialect_options['comment'])
+            parts.append(comment_sql)
+
+        dialect_options = getattr(expr, "dialect_options", {}) or {}
+        engine = getattr(table_options, "engine", None) if table_options else None
+        if not engine:
+            engine = dialect_options.get("engine")
+        if engine:
+            parts.append(f"ENGINE={self.inline_sql_literal(engine)}")
+
+        charset = getattr(table_options, "charset", None) if table_options else None
+        if not charset:
+            charset = dialect_options.get("charset")
+        if charset:
+            parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(charset)}")
+
+        collate = getattr(table_options, "collate", None) if table_options else None
+        if not collate:
+            collate = dialect_options.get("collate")
+        if collate:
+            parts.append(f"COLLATE={self.inline_sql_literal(collate)}")
 
         return ' '.join(parts), tuple(all_params)
 
-    def _format_create_table_like(self, expr) -> Tuple[str, tuple]:
-        """Format CREATE TABLE ... LIKE statement."""
-        like_table = expr.dialect_options['like_table']
-
-        parts = ["CREATE TABLE"]
-        if expr.temporary:
-            parts.append("TEMPORARY")
-        if expr.if_not_exists:
-            parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
-
-        if isinstance(like_table, tuple):
-            schema, table = like_table
-            like_table_str = f"{self.format_identifier(schema)}.{self.format_identifier(table)}"
-        else:
-            like_table_str = self.format_identifier(like_table)
-
-        parts.append(f"LIKE {like_table_str}")
-        return ' '.join(parts), ()
-
-    def _format_column_definition_mariadb(
+    def format_column_definition(
         self,
-        col_def,
-        ColumnConstraintType
-    ) -> Tuple[str, List[Any]]:
+        col_def: "ColumnDefinition",
+    ) -> Tuple[str, tuple]:
         """Format a single column definition with MariaDB-specific syntax."""
-        parts = [self.format_identifier(col_def.name), col_def.data_type]
-        params: List[Any] = []
+        from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
+        
+        type_sql, type_params = col_def.data_type.to_sql()
+        parts = [self.format_identifier(col_def.name), type_sql]
+        params: List[Any] = list(type_params)
 
         constraint_parts = []
         for constraint in col_def.constraints:
@@ -166,14 +191,24 @@ class MariaDBTableMixin:
             escaped_comment = self._escape_sql_string(col_def.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
 
-        return ' '.join(parts), params
+        if col_def.generated_expression is not None:
+            gen_sql, gen_params = col_def.generated_expression.to_sql()
+            parts.append(gen_sql.lstrip())
+            params.extend(gen_params)
 
-    def _format_table_constraint_mariadb(
+        return ' '.join(parts), tuple(params)
+
+    def format_table_constraint(
         self,
-        t_const,
-        TableConstraintType
-    ) -> Tuple[str, List[Any]]:
+        t_const: "TableConstraint",
+    ) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
+        from rhosocial.activerecord.backend.expression.statements import (
+            ForeignKeyConstraint,
+            ReferentialAction,
+            TableConstraintType,
+        )
+        
         parts = []
         params: List[Any] = []
 
@@ -188,6 +223,17 @@ class MariaDBTableMixin:
             if t_const.columns:
                 cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
                 parts.append(f"UNIQUE ({cols_str})")
+        elif t_const.constraint_type == TableConstraintType.CHECK:
+            if t_const.check_condition is not None:
+                if not self.supports_check_constraint():
+                    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+                    raise UnsupportedFeatureError(
+                        self.name, "CHECK constraint",
+                        f"{self.name} does not support CHECK constraints."
+                    )
+                check_sql, check_params = t_const.check_condition.to_sql()
+                parts.append(f"CHECK ({check_sql})")
+                params.extend(check_params)
         elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
             if t_const.columns and t_const.foreign_key_table and t_const.foreign_key_columns:
                 cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
@@ -198,10 +244,23 @@ class MariaDBTableMixin:
                 parts.append(
                     f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
                 )
+                if isinstance(t_const, ForeignKeyConstraint):
+                    if t_const.on_delete and t_const.on_delete != ReferentialAction.NO_ACTION:
+                        parts.append(f"ON DELETE {t_const.on_delete.value}")
+                    if t_const.on_update and t_const.on_update != ReferentialAction.NO_ACTION:
+                        parts.append(f"ON UPDATE {t_const.on_update.value}")
+                    if t_const.match_type is not None:
+                        if not self.supports_fk_match():
+                            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+                            raise UnsupportedFeatureError(
+                                self.name, "FOREIGN KEY MATCH",
+                                f"{self.name} does not support MATCH for foreign keys."
+                            )
+                        parts.append(f"MATCH {t_const.match_type}")
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
-    def _format_inline_index_mariadb(self, idx_def) -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 
@@ -217,15 +276,13 @@ class MariaDBTableMixin:
         if idx_def.type:
             parts.append(f"USING {idx_def.type}")
 
-        return ' '.join(parts)
+        return ' '.join(parts), ()
 
-    def _format_storage_options_mariadb(self, storage_options: Dict[str, Any]) -> str:
+    def _format_storage_options(self, storage_options: Dict[str, Any]) -> str:
         parts = []
         for key, value in storage_options.items():
-            if isinstance(value, str):
-                parts.append(f"{key}='{self._escape_sql_string(value)}'")
-            else:
-                parts.append(f"{key}={value}")
+            rendered = self.inline_sql_literal(value)
+            parts.append(f"{key}={rendered}")
         return ' '.join(parts)
 
 

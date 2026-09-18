@@ -7,7 +7,7 @@ This module provides MariaDBMatchAgainstExpression for MariaDB's full-text searc
 
 from typing import TYPE_CHECKING, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -72,19 +72,10 @@ class MariaDBMatchAgainstExpression(
         self.mode = mode
         self.alias = alias  # Initialize alias attribute
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        """Generate MATCH...AGAINST SQL using dialect's format method."""
-        sql, params = self.dialect.format_match_against(
-            self.columns,
-            self.search_string,
-            self.mode,
-        )
-        
-        # Apply alias if any
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_match_against"
 
 
 __all__ = [

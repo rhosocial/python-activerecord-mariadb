@@ -46,7 +46,7 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         """Format MariaDB-specific FOR UPDATE clause.
 
         Args:
-            clause: MariaDBForUpdateClause instance
+            clause: ForUpdateClause instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -71,7 +71,7 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         """Format LOCK IN SHARE MODE clause (legacy MariaDB syntax).
 
         Args:
-            clause: LockInShareModeClause instance
+            clause: ForUpdateClause instance (lock_type='SHARE')
 
         Returns:
             Tuple of (SQL string, parameters tuple)

@@ -403,7 +403,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
         self,
         sql: str,
         params: Optional[Union[Tuple, Dict, List]]
-    ) -> Tuple[str, Tuple]:
+    ) -> Tuple[str, tuple]:
         """Prepare SQL and parameters for MariaDB.
 
         Only performs parameter normalization. Type adapter conversions

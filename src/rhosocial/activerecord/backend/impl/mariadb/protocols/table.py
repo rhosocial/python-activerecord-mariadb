@@ -1,9 +1,14 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/table.py
 """MariaDB table DDL protocol."""
 
-from typing import Any, Dict, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Tuple, TYPE_CHECKING, runtime_checkable
 
 from rhosocial.activerecord.backend.dialect.protocols import TableSupport
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        CreateTableLikeExpression,
+    )
 
 
 @runtime_checkable
@@ -34,7 +39,7 @@ class MariaDBTableSupport(TableSupport, Protocol):
     - System-versioned tables: MariaDB 10.3+
     """
 
-    def supports_table_like_syntax(self) -> bool:
+    def supports_create_table_like(self) -> bool:
         """Whether CREATE TABLE ... LIKE is supported.
 
         MariaDB supports copying table structure with LIKE syntax.
@@ -87,4 +92,22 @@ class MariaDBTableSupport(TableSupport, Protocol):
                 - 'with_system_versioning': Enable system-versioned tables (MariaDB 10.3+)
                 Example: dialect_options={'engine': 'InnoDB', 'charset': 'utf8mb4'}
         """
+        ...
+
+    def format_create_table_like_statement(
+        self, expr: "CreateTableLikeExpression"
+    ) -> Tuple[str, tuple]:
+        """Format CREATE TABLE ... LIKE statement."""
+        ...
+
+    def format_column_definition(self, col_def) -> Tuple[str, tuple]:
+        """Format a column definition (name, type, constraints, comment)."""
+        ...
+
+    def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
+        """Format a table-level constraint (PRIMARY KEY / UNIQUE / FOREIGN KEY)."""
+        ...
+
+    def format_inline_index(self, idx_def: Any) -> Tuple[str, tuple]:
+        """Format an inline index definition inside CREATE TABLE."""
         ...
