@@ -4,7 +4,7 @@
 MariaDB 10.3+ supports SEQUENCE objects for generating sequential numbers.
 This is a MariaDB-specific feature not available in MySQL.
 """
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 

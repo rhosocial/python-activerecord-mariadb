@@ -291,7 +291,7 @@ class AsyncMariaDBBackend(AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin, Asy
         except Exception as e:
             self.log(logging.WARNING, f"Failed to auto-commit: {str(e)}")
 
-    def _prepare_sql_and_params(self, sql: str, params: Optional[Union[Tuple, dict, List]]) -> Tuple[str, Tuple]:
+    def _prepare_sql_and_params(self, sql: str, params: Optional[Union[Tuple, dict, List]]) -> Tuple[str, tuple]:
         """Prepare SQL and parameters.
 
         Only performs parameter normalization. Type adapter conversions

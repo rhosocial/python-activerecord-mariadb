@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Dict, Tuple, Type, TYPE_CHECKING
 from uuid import UUID
 
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
@@ -37,6 +37,7 @@ MARIADB_VERSION_BOUNDARIES = {
     'GRANT_OR_REPLACE': (10, 1, 4),
     'GRANT_IF_EXISTS': (10, 1, 4),
     'DENY': (13, 1, 0),
+    'CHECK_CONSTRAINT': (10, 2, 1),
 }
 
 

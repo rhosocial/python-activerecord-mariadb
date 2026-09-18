@@ -6,7 +6,7 @@ MariaDB supports triggers with some differences from MySQL:
 - OR REPLACE syntax for triggers
 - Multiple triggers per timing/event (MariaDB 10.4+)
 """
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
@@ -14,8 +14,6 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
         CreateTriggerExpression,
         DropTriggerExpression,
-        TriggerEvent,
-        TriggerLevel,
     )
 
 
@@ -246,12 +244,9 @@ class MariaDBTriggerMixin:
         if expr.function_name:
             parts.append(f"CALL {self.format_identifier(expr.function_name)}();")
         elif expr.body:
-            if isinstance(expr.body, str):
-                parts.append(expr.body)
-            else:
-                body_sql, body_params = expr.body.to_sql()
-                parts.append(body_sql)
-                all_params.extend(body_params)
+            body_sql, body_params = expr.body.to_sql()
+            parts.append(body_sql)
+            all_params.extend(body_params)
 
         parts.append("END")
 

@@ -4,7 +4,7 @@
 MariaDB 10.2.3+ supports JSON functions, and 10.2.7+ supports
 JSON arrow operators (-> and ->>).
 """
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.expression import bases
@@ -103,7 +103,7 @@ class MariaDBJSONMixin:
         """
         return ""
 
-    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
+    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, tuple]:
         """Format JSON expression using function-based equivalents.
 
         MariaDB does NOT support -> and ->> operators.
@@ -128,10 +128,6 @@ class MariaDBJSONMixin:
             sql = f"{col_sql} {expr.operation} '{escaped_path}'"
             params = col_params
 
-        if expr.cast_types:
-            for target_type in expr.cast_types:
-                sql, params = self.format_cast_expression(sql, target_type, params, None)
-
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
 
@@ -150,7 +146,7 @@ class MariaDBJSONMixin:
 
     def format_json_table_expression(
         self, expr: "JSONTableExpression"
-    ) -> Tuple[str, Tuple]:
+    ) -> Tuple[str, tuple]:
         """Format JSON_TABLE expression.
 
         MariaDB does NOT support JSON_TABLE function.
@@ -166,27 +162,21 @@ class MariaDBJSONMixin:
             "MariaDB does not support JSON_TABLE. Use json_table() stored procedure or other alternatives."
         )
 
-    def format_json_extract(
-        self,
-        json_doc: str,
-        path: str,
-        paths: Optional[List[str]] = None
+    def format_json_extract(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBJSONExtractExpression` node."""
+        sql, params = self._format_json_extract_parts(expr.json_column, expr.path)
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, params
+
+    def _format_json_extract_parts(
+        self, json_doc: str, path: str, paths: Optional[List[str]] = None
     ) -> Tuple[str, tuple]:
-        """Format JSON_EXTRACT function.
-
-        Args:
-            json_doc: JSON document or column name.
-            path: JSON path expression.
-            paths: Additional paths for multiple extraction.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
+        """Format JSON_EXTRACT function."""
         all_paths = [path]
         if paths:
             all_paths.extend(paths)
-
-        path_placeholders = ', '.join(['%s' for _ in all_paths])
+        path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_EXTRACT({json_doc}, {path_placeholders})", tuple(all_paths)
 
     def format_json_unquote(self, json_val: str) -> Tuple[str, tuple]:
@@ -200,18 +190,17 @@ class MariaDBJSONMixin:
         """
         return f"JSON_UNQUOTE({json_val})", ()
 
-    def format_json_object(
-        self,
-        key_value_pairs: List[Tuple[str, Any]]
+    def format_json_object(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBJSONObjectExpression` node."""
+        sql, params = self._format_json_object_parts(expr.pairs)
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, params
+
+    def _format_json_object_parts(
+        self, key_value_pairs: List[Tuple[str, Any]]
     ) -> Tuple[str, tuple]:
-        """Format JSON_OBJECT function.
-
-        Args:
-            key_value_pairs: List of (key, value) tuples.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
+        """Format JSON_OBJECT function."""
         if not key_value_pairs:
             return "JSON_OBJECT()", ()
 
@@ -219,47 +208,43 @@ class MariaDBJSONMixin:
         params: List[Any] = []
 
         for key, value in key_value_pairs:
-            parts.append('%s')
-            parts.append('%s')
+            parts.append(self.p())
+            parts.append(self.p())
             params.append(key)
             params.append(value)
 
         return f"JSON_OBJECT({', '.join(parts)})", tuple(params)
 
-    def format_json_array(self, values: List[Any]) -> Tuple[str, tuple]:
-        """Format JSON_ARRAY function.
+    def format_json_array(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBJSONArrayExpression` node."""
+        sql, params = self._format_json_array_parts(expr.values)
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, params
 
-        Args:
-            values: List of values for the array.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
+    def _format_json_array_parts(self, values: List[Any]) -> Tuple[str, tuple]:
+        """Format JSON_ARRAY function."""
         if not values:
             return "JSON_ARRAY()", ()
-
-        placeholders = ', '.join(['%s' for _ in values])
+        placeholders = ', '.join([self.p() for _ in values])
         return f"JSON_ARRAY({placeholders})", tuple(values)
 
-    def format_json_contains(
-        self,
-        target: str,
-        candidate: str,
-        path: Optional[str] = None
+    def format_json_contains(self, expr) -> Tuple[str, tuple]:
+        """Format a :class:`MariaDBJSONContainsExpression` node."""
+        sql, params = self._format_json_contains_parts(
+            expr.json_column, expr.value, expr.path
+        )
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, params
+
+    def _format_json_contains_parts(
+        self, target: str, candidate: str, path: Optional[str] = None
     ) -> Tuple[str, tuple]:
-        """Format JSON_CONTAINS function.
-
-        Args:
-            target: Target JSON document.
-            candidate: Candidate value to search for.
-            path: Optional JSON path.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
+        """Format JSON_CONTAINS function."""
         if path:
-            return f"JSON_CONTAINS({target}, %s, %s)", (candidate, path)
-        return f"JSON_CONTAINS({target}, %s)", (candidate,)
+            return f"JSON_CONTAINS({target}, {self.p()}, {self.p()})", (candidate, path)
+        return f"JSON_CONTAINS({target}, {self.p()})", (candidate,)
 
     def format_json_set(
         self,
@@ -287,8 +272,8 @@ class MariaDBJSONMixin:
         params: List[Any] = []
 
         for p, v in all_pairs:
-            parts.append('%s')
-            parts.append('%s')
+            parts.append(self.p())
+            parts.append(self.p())
             params.append(p)
             params.append(v)
 
@@ -314,7 +299,7 @@ class MariaDBJSONMixin:
         if paths:
             all_paths.extend(paths)
 
-        path_placeholders = ', '.join(['%s' for _ in all_paths])
+        path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_REMOVE({json_doc}, {path_placeholders})", tuple(all_paths)
 
     def format_json_type(self, json_val: str) -> Tuple[str, tuple]:
@@ -354,7 +339,7 @@ class MariaDBJSONMixin:
             Tuple of (SQL string, parameters tuple).
         """
         if path:
-            return f"JSON_KEYS({json_doc}, %s)", (path,)
+            return f"JSON_KEYS({json_doc}, {self.p()})", (path,)
         return f"JSON_KEYS({json_doc})", ()
 
     def format_json_search(
@@ -377,8 +362,8 @@ class MariaDBJSONMixin:
         """
         one_or_all = "'all'" if all_ else "'one'"
         if path:
-            return f"JSON_SEARCH({json_doc}, {one_or_all}, %s, NULL, %s)", (search_str, path)
-        return f"JSON_SEARCH({json_doc}, {one_or_all}, %s)", (search_str,)
+            return f"JSON_SEARCH({json_doc}, {one_or_all}, {self.p()}, NULL, {self.p()})", (search_str, path)
+        return f"JSON_SEARCH({json_doc}, {one_or_all}, {self.p()})", (search_str,)
 
     def format_json_arrow(
         self,

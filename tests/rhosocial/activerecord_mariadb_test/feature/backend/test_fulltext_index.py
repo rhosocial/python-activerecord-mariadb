@@ -13,6 +13,9 @@ from rhosocial.activerecord.backend.expression.statements import (
     CreateFulltextIndexExpression,
     DropFulltextIndexExpression
 )
+from rhosocial.activerecord.backend.expression.statements.fulltext_match import (
+    FulltextMatchExpression,
+)
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBMatchAgainstExpression
 
 
@@ -28,14 +31,16 @@ class TestFullTextProtocol:
         assert dialect_100.supports_fulltext_index()
 
     def test_format_match_against(self):
-        """Test format_match_against method."""
+        """Test format_match_against method via expression."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        sql, params = dialect.format_match_against(
-            ['title', 'content'],
-            'MariaDB',
+        expr = MariaDBMatchAgainstExpression(
+            dialect,
+            columns=['title', 'content'],
+            search_string='MariaDB',
             mode='NATURAL_LANGUAGE'
         )
+        sql, params = expr.to_sql()
 
         assert 'MATCH(`title`, `content`)' in sql
         assert 'AGAINST' in sql
@@ -94,10 +99,8 @@ class TestFullTextProtocol:
         """Test MATCH ... AGAINST with natural language mode."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        sql, params = dialect.format_fulltext_match(
-            ['title', 'content'],
-            'database system'
-        )
+        expr = FulltextMatchExpression(dialect, ['title', 'content'], 'database system')
+        sql, params = dialect.format_fulltext_match(expr)
 
         assert 'MATCH(`title`, `content`)' in sql
         assert 'AGAINST' in sql
@@ -108,11 +111,10 @@ class TestFullTextProtocol:
         """Test MATCH ... AGAINST with boolean mode."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        sql, params = dialect.format_fulltext_match(
-            ['title', 'content'],
-            '+database +system',
-            mode='BOOLEAN'
+        expr = FulltextMatchExpression(
+            dialect, ['title', 'content'], '+database +system', mode='BOOLEAN'
         )
+        sql, params = dialect.format_fulltext_match(expr)
 
         assert 'MATCH(`title`, `content`)' in sql
         assert 'AGAINST' in sql
@@ -123,11 +125,10 @@ class TestFullTextProtocol:
         """Test MATCH ... AGAINST with query expansion."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        sql, params = dialect.format_fulltext_match(
-            ['content'],
-            'database',
-            mode='WITH QUERY EXPANSION'
+        expr = FulltextMatchExpression(
+            dialect, ['content'], 'database', mode='WITH QUERY EXPANSION'
         )
+        sql, params = dialect.format_fulltext_match(expr)
 
         assert 'MATCH(`content`)' in sql
         assert 'AGAINST' in sql
@@ -184,11 +185,8 @@ class TestAsyncFullTextProtocol:
         """Test async version of MATCH formatting."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        sql, params = dialect.format_fulltext_match(
-            ['title'],
-            'test',
-            mode='BOOLEAN'
-        )
+        expr = FulltextMatchExpression(dialect, ['title'], 'test', mode='BOOLEAN')
+        sql, params = dialect.format_fulltext_match(expr)
 
         assert 'MATCH(`title`)' in sql
         assert 'IN BOOLEAN MODE' in sql

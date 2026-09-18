@@ -30,7 +30,6 @@ from .spatial import (
     MariaDBSTContainsExpression,
 )
 from .match_against import MariaDBMatchAgainstExpression, MatchAgainstMode
-from .locking import MariaDBForUpdateClause, MariaDBLockStrength
 from .rename_table import MariaDBRenameTableExpression
 from .rename_index import MariaDBRenameIndexExpression
 from .routine import (
@@ -39,6 +38,11 @@ from .routine import (
     MariaDBCreateProcedureExpression,
     MariaDBDropFunctionExpression,
     MariaDBDropProcedureExpression,
+)
+from .set_type import (
+    MariaDBSetLiteralExpression,
+    MariaDBFindInSetExpression,
+    MariaDBSetContainsExpression,
 )
 from .admin import (
     AccountSpec,
@@ -106,8 +110,6 @@ __all__ = [
     "MariaDBSTContainsExpression",
     "MariaDBMatchAgainstExpression",
     "MatchAgainstMode",
-    "MariaDBForUpdateClause",
-    "MariaDBLockStrength",
     "MariaDBRenameTableExpression",
     "MariaDBRenameIndexExpression",
     "MariaDBTableMaintenanceExpression",
@@ -156,4 +158,7 @@ __all__ = [
     "MariaDBTinyTextType",
     "MariaDBVarBinaryType",
     "MariaDBYearType",
+    "MariaDBSetLiteralExpression",
+    "MariaDBFindInSetExpression",
+    "MariaDBSetContainsExpression",
 ]

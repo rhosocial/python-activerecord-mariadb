@@ -14,6 +14,11 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression.types import (
+    IntegerType,
+    VarCharType,
+    DecimalType,
+)
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -37,16 +42,17 @@ create_table = CreateTableExpression(
     table_name='products',
     columns=[
         ColumnDefinition(
+            dialect,
             'id',
-            'INT',
+            IntegerType(dialect),
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
             ],
         ),
-        ColumnDefinition('name', 'VARCHAR(100)'),
-        ColumnDefinition('category', 'VARCHAR(50)'),
-        ColumnDefinition('price', 'DECIMAL(10,2)'),
+        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
+        ColumnDefinition(dialect, 'category', VarCharType(dialect, 50)),
+        ColumnDefinition(dialect, 'price', DecimalType(dialect, 10, 2)),
     ],
     if_not_exists=True,
 )

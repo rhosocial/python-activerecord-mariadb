@@ -100,16 +100,12 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
 
     def format_json_extract(
         self,
-        json_doc: str,
-        path: str,
-        paths: Optional[List[str]] = None
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format JSON_EXTRACT function call.
 
         Args:
-            json_doc: JSON document or column
-            path: JSON path expression
-            paths: Additional path expressions
+            expr: MariaDBJSONExtractExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -129,23 +125,23 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
 
     def format_json_object(
         self,
-        key_value_pairs: List[Tuple[str, Any]]
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format JSON_OBJECT function call.
 
         Args:
-            key_value_pairs: List of (key, value) tuples
+            expr: MariaDBJSONObjectExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
         """
         ...
 
-    def format_json_array(self, values: List[Any]) -> Tuple[str, tuple]:
+    def format_json_array(self, expr: Any) -> Tuple[str, tuple]:
         """Format JSON_ARRAY function call.
 
         Args:
-            values: Values to include in the JSON array
+            expr: MariaDBJSONArrayExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -154,16 +150,12 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
 
     def format_json_contains(
         self,
-        target: str,
-        candidate: str,
-        path: Optional[str] = None
+        expr: Any,
     ) -> Tuple[str, tuple]:
         """Format JSON_CONTAINS function call.
 
         Args:
-            target: JSON document or column to search in
-            candidate: JSON value to search for
-            path: Optional path within the target document
+            expr: MariaDBJSONContainsExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

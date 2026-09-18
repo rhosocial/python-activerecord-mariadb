@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/set_type.py
 """MariaDB SET type protocol."""
 
-from typing import List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Protocol, Tuple, runtime_checkable
 
 
 @runtime_checkable
@@ -30,14 +30,12 @@ class MariaDBSetTypeSupport(Protocol):
 
     def format_set_literal(
         self,
-        values: List[str],
-        column_values: Optional[List[str]] = None
+        expr: Any,
     ) -> Tuple[str, tuple]:
-        """Format SET type literal.
+        """Format a SET literal expression.
 
         Args:
-            values: Allowed values for the SET type
-            column_values: Values being inserted/compared
+            expr: MariaDBSetLiteralExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -46,14 +44,12 @@ class MariaDBSetTypeSupport(Protocol):
 
     def format_find_in_set(
         self,
-        value: str,
-        set_column: str
+        expr: Any,
     ) -> Tuple[str, tuple]:
-        """Format FIND_IN_SET function call.
+        """Format a FIND_IN_SET expression.
 
         Args:
-            value: Value to search for
-            set_column: SET column or expression to search in
+            expr: MariaDBFindInSetExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -62,14 +58,12 @@ class MariaDBSetTypeSupport(Protocol):
 
     def format_set_contains(
         self,
-        column: str,
-        values: List[str]
+        expr: Any,
     ) -> Tuple[str, tuple]:
-        """Format SET contains check expression.
+        """Format a SET contains check expression.
 
         Args:
-            column: SET column name
-            values: Values to check for containment
+            expr: MariaDBSetContainsExpression instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
