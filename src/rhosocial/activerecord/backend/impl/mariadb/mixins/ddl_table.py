@@ -107,7 +107,7 @@ class MariaDBTableMixin:
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql, idx_params = self.format_inline_index(idx_def)
+            idx_sql, idx_params = self.format_index_definition(idx_def)
             column_parts.append(idx_sql)
             all_params.extend(idx_params)
 
@@ -260,7 +260,7 @@ class MariaDBTableMixin:
 
         return ' '.join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
+    def format_index_definition(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 
