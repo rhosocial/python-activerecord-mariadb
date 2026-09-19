@@ -46,13 +46,6 @@ class MariaDBTableSupport(TableSupport, Protocol):
         """
         ...
 
-    def supports_inline_index(self) -> bool:
-        """Whether inline index definitions are supported.
-
-        MariaDB allows INDEX/KEY definitions within CREATE TABLE.
-        """
-        ...
-
     def supports_storage_engine_option(self) -> bool:
         """Whether ENGINE option is supported.
 
@@ -106,8 +99,4 @@ class MariaDBTableSupport(TableSupport, Protocol):
 
     def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
         """Format a table-level constraint (PRIMARY KEY / UNIQUE / FOREIGN KEY)."""
-        ...
-
-    def format_inline_index(self, idx_def: Any) -> Tuple[str, tuple]:
-        """Format an inline index definition inside CREATE TABLE."""
         ...
