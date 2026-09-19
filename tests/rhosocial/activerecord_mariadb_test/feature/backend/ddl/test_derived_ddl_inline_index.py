@@ -6,7 +6,10 @@ positive rendering path is exercised here on a dialect that supports it
 (``supports_inline_index()`` is True).
 """
 
-from typing import Annotated
+try:
+    from typing import Annotated
+except ImportError:  # Python 3.8
+    from typing_extensions import Annotated
 
 from rhosocial.activerecord.base import UseIndex
 from rhosocial.activerecord.base.ddl import TableDDLDeriver
