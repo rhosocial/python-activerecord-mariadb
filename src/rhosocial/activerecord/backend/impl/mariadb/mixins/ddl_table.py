@@ -67,6 +67,90 @@ class MariaDBTableMixin:
         """
         return self.version >= (10, 1, 0)
 
+    def format_create_table_statement(self, expr) -> Tuple[str, tuple]:
+        """Format CREATE TABLE statement for MariaDB.
+
+        Handles MariaDB-specific syntax including:
+        - Inline index definitions
+        - Storage options (ENGINE, CHARSET, COLLATE)
+        - Table-level comments
+        - AUTO_INCREMENT in column definitions
+        """
+        all_params: List[Any] = []
+
+        options_part = ""
+        table_options = getattr(expr, "table_options", None)
+        if table_options is not None:
+            options_sql, options_params = table_options.to_sql()
+            if options_sql:
+                options_part = options_sql
+            all_params.extend(options_params)
+        parts = ["CREATE"]
+        if options_part:
+            parts.append(options_part)
+        if expr.temporary:
+            parts.append("TEMPORARY")
+        parts.append("TABLE")
+        if expr.if_not_exists:
+            parts.append("IF NOT EXISTS")
+        parts.append(self.format_identifier(expr.table_name))
+
+        column_parts = []
+        for col_def in expr.columns:
+            col_sql, col_params = self.format_column_definition(col_def)
+            column_parts.append(col_sql)
+            all_params.extend(col_params)
+
+        for t_const in expr.table_constraints:
+            const_sql, const_params = self.format_table_constraint(t_const)
+            column_parts.append(const_sql)
+            all_params.extend(const_params)
+
+        for idx_def in expr.indexes:
+            idx_sql, idx_params = self.format_index_definition(idx_def)
+            column_parts.append(idx_sql)
+            all_params.extend(idx_params)
+
+        parts.append(f"({', '.join(column_parts)})")
+
+        if expr.storage_options:
+            storage_sql = self._format_storage_options(expr.storage_options)
+            if storage_sql:
+                parts.append(storage_sql)
+
+        from rhosocial.activerecord.backend.impl.mariadb.expression.table_options import (
+            MariaDBCreateTableOptions,
+        )
+        table_options = getattr(expr, "table_options", None)
+        if table_options is not None and getattr(table_options, "comment", None):
+            comment_sql, _ = self.format_table_comment(table_options.comment)
+            parts.append(comment_sql)
+
+        if isinstance(table_options, MariaDBCreateTableOptions):
+            if table_options.engine:
+                parts.append(f"ENGINE={self.inline_sql_literal(table_options.engine)}")
+            if table_options.charset:
+                parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(table_options.charset)}")
+            if table_options.collate:
+                parts.append(f"COLLATE={self.inline_sql_literal(table_options.collate)}")
+            if table_options.auto_increment is not None:
+                parts.append(f"AUTO_INCREMENT={int(table_options.auto_increment)}")
+            if table_options.row_format:
+                parts.append(f"ROW_FORMAT={table_options.row_format}")
+            if table_options.with_system_versioning:
+                if not self.supports_system_versioning():
+                    from rhosocial.activerecord.backend.dialect.exceptions import (
+                        UnsupportedFeatureError,
+                    )
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "WITH SYSTEM VERSIONING",
+                        "System-versioned tables require MariaDB 10.3 or later.",
+                    )
+                parts.append("WITH SYSTEM VERSIONING")
+
+        return ' '.join(parts), tuple(all_params)
+
     def format_column_definition(
         self,
         col_def: "ColumnDefinition",
