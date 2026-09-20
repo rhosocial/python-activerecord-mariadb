@@ -436,15 +436,18 @@ class TestMySQLCreateTableCommentEscaping:
 
     def test_create_table_comment_escaped(self, dialect):
         """Test table-level COMMENT is properly escaped."""
-        from rhosocial.activerecord.backend.expression.statements import CreateTableExpression
+        from rhosocial.activerecord.backend.expression.statements import (
+            CreateTableExpression,
+            CreateTableOptions,
+        )
 
         expr = CreateTableExpression(
             dialect=dialect,
             table="test_table",
             columns=[],
-            dialect_options={
-                "comment": "Table's comment with 'quotes'",
-            },
+            table_options=CreateTableOptions(
+                dialect, comment="Table's comment with 'quotes'"
+            ),
         )
 
         sql, params = dialect.format_create_table_statement(expr)
@@ -455,15 +458,16 @@ class TestMySQLCreateTableCommentEscaping:
 
     def test_create_table_comment_with_backslash(self, dialect):
         """Test table-level COMMENT with backslash is properly escaped."""
-        from rhosocial.activerecord.backend.expression.statements import CreateTableExpression
+        from rhosocial.activerecord.backend.expression.statements import (
+            CreateTableExpression,
+            CreateTableOptions,
+        )
 
         expr = CreateTableExpression(
             dialect=dialect,
             table="test_table",
             columns=[],
-            dialect_options={
-                "comment": "Test\\value",
-            },
+            table_options=CreateTableOptions(dialect, comment="Test\\value"),
         )
 
         sql, params = dialect.format_create_table_statement(expr)
