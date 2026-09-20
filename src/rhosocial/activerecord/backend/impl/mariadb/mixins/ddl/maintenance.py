@@ -60,20 +60,19 @@ class MariaDBMaintenanceMixin:
         """Format a MariaDB table maintenance statement."""
         expr.validate(strict=self.strict_validation)
 
-        options = expr.dialect_options
         operation = expr.operation.value
         tables = ", ".join(self.format_identifier(t) for t in expr.table_names)
 
         parts = [operation]
 
-        if options.get("no_write_to_binlog") or options.get("local"):
+        if expr.no_write_to_binlog or expr.local:
             parts.append("NO_WRITE_TO_BINLOG")
 
         parts.append("TABLE")
         parts.append(tables)
 
         if operation == "ANALYZE":
-            persistent = options.get("persistent")
+            persistent = expr.persistent
             if persistent is not None:
                 if not self.supports_analyze_table_persistent():
                     raise self._unsupported(
@@ -83,14 +82,14 @@ class MariaDBMaintenanceMixin:
                 target = self._persistent_target(persistent)
                 parts.append(f"PERSISTENT FOR {target}")
         elif operation == "CHECK":
-            for mode in options.get("check_mode", ()):
+            for mode in (expr.check_mode or ()):
                 parts.append(mode)
         elif operation == "CHECKSUM":
-            mode = options.get("checksum_mode")
+            mode = expr.checksum_mode
             if mode is not None:
                 parts.append(str(mode).upper())
         elif operation == "REPAIR":
-            for mode in options.get("repair_mode", ()):
+            for mode in (expr.repair_mode or ()):
                 parts.append(mode)
 
         return " ".join(parts), ()
