@@ -59,6 +59,7 @@ from .admin import (
     MariaDBRevokeExpression,
     MariaDBShutdownExpression,
 )
+from .table_options import MariaDBCreateTableOptions
 from .column import (
     MariaDBColumnFormat,
     MariaDBColumnStorage,
@@ -135,6 +136,7 @@ __all__ = [
     "MariaDBRenameIndexExpression",
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
+    "MariaDBCreateTableOptions",
     "MariaDBColumnFormat",
     "MariaDBColumnStorage",
     "MariaDBColumnDefinition",
