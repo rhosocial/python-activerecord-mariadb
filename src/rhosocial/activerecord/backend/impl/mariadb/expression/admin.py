@@ -14,7 +14,7 @@ These cover instance-level, security, and account management commands:
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -62,12 +62,10 @@ class MariaDBFlushExpression(BaseExpression):
         options: List[FlushOption],
         *,
         no_write_to_binlog: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.options: List[FlushOption] = list(options)
         self.no_write_to_binlog: bool = no_write_to_binlog
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         if not strict:
@@ -87,13 +85,10 @@ class MariaDBKillExpression(BaseExpression):
         dialect: "SQLDialectBase",
         processlist_id: int,
         target: KillTarget = KillTarget.CONNECTION,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.processlist_id: int = processlist_id
         self.target: KillTarget = target
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_kill_statement(self)
@@ -105,11 +100,8 @@ class MariaDBShutdownExpression(BaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_shutdown_statement(self)
@@ -136,13 +128,11 @@ class MariaDBCreateUserExpression(BaseExpression):
         *,
         if_not_exists: bool = False,
         identified_by: Optional[str] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.accounts: List[AccountSpec] = list(accounts)
         self.if_not_exists: bool = if_not_exists
         self.identified_by: Optional[str] = identified_by
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_create_user_statement(self)
@@ -158,13 +148,11 @@ class MariaDBAlterUserExpression(BaseExpression):
         *,
         if_exists: bool = False,
         identified_by: Optional[str] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.accounts: List[AccountSpec] = list(accounts)
         self.if_exists: bool = if_exists
         self.identified_by: Optional[str] = identified_by
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_alter_user_statement(self)
@@ -179,12 +167,10 @@ class MariaDBDropUserExpression(BaseExpression):
         accounts: List[AccountSpec],
         *,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.accounts: List[AccountSpec] = list(accounts)
         self.if_exists: bool = if_exists
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_drop_user_statement(self)
@@ -199,12 +185,10 @@ class MariaDBCreateRoleExpression(BaseExpression):
         roles: List[str],
         *,
         if_not_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.roles: List[str] = list(roles)
         self.if_not_exists: bool = if_not_exists
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_create_role_statement(self)
@@ -219,12 +203,10 @@ class MariaDBDropRoleExpression(BaseExpression):
         roles: List[str],
         *,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.roles: List[str] = list(roles)
         self.if_exists: bool = if_exists
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_drop_role_statement(self)
@@ -262,7 +244,6 @@ class MariaDBGrantExpression(BaseExpression):
         with_grant_option: bool = False,
         or_replace: bool = False,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.privileges: List[GrantPrivilege] = list(privileges)
@@ -271,7 +252,6 @@ class MariaDBGrantExpression(BaseExpression):
         self.with_grant_option: bool = with_grant_option
         self.or_replace: bool = or_replace
         self.if_exists: bool = if_exists
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_grant_statement(self)
@@ -288,14 +268,12 @@ class MariaDBRevokeExpression(BaseExpression):
         *,
         on_object: Optional[str] = None,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.privileges: List[GrantPrivilege] = list(privileges)
         self.accounts: List[AccountSpec] = list(accounts)
         self.on_object: Optional[str] = on_object
         self.if_exists: bool = if_exists
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_revoke_statement(self)
@@ -311,13 +289,11 @@ class MariaDBDenyExpression(BaseExpression):
         accounts: List[AccountSpec],
         *,
         on_object: Optional[str] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.privileges: List[GrantPrivilege] = list(privileges)
         self.accounts: List[AccountSpec] = list(accounts)
         self.on_object: Optional[str] = on_object
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_deny_statement(self)
