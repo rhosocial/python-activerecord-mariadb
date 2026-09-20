@@ -59,6 +59,12 @@ from .admin import (
     MariaDBRevokeExpression,
     MariaDBShutdownExpression,
 )
+from .column import (
+    MariaDBColumnFormat,
+    MariaDBColumnStorage,
+    MariaDBColumnDefinition,
+    MariaDBColumnOptions,
+)
 from .maintenance import (
     MariaDBTableMaintenanceExpression,
     TableMaintenanceOperation,
@@ -129,6 +135,10 @@ __all__ = [
     "MariaDBRenameIndexExpression",
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
+    "MariaDBColumnFormat",
+    "MariaDBColumnStorage",
+    "MariaDBColumnDefinition",
+    "MariaDBColumnOptions",
     "MariaDBPartitionStrategy",
     "MariaDBSubpartitionStrategy",
     "MariaDBPartitionMaxValue",

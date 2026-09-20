@@ -637,6 +637,9 @@ class MariaDBDialect(
         col_def: "ColumnDefinition"
     ) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
+        from rhosocial.activerecord.backend.impl.mariadb.expression.column import (
+            MariaDBColumnDefinition,
+        )
 
         type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
@@ -670,6 +673,16 @@ class MariaDBDialect(
 
         if constraint_parts:
             parts.append(' '.join(constraint_parts))
+
+        if isinstance(col_def, MariaDBColumnDefinition):
+            if col_def.character_set:
+                parts.append(f"CHARACTER SET {self.format_identifier(col_def.character_set)}")
+            if col_def.column_format is not None:
+                parts.append(f"COLUMN_FORMAT {col_def.column_format.value}")
+            if col_def.storage is not None:
+                parts.append(f"STORAGE {col_def.storage.value}")
+            if col_def.invisible:
+                parts.append("INVISIBLE")
 
         if col_def.comment:
             escaped_comment = self._escape_sql_string(col_def.comment)
