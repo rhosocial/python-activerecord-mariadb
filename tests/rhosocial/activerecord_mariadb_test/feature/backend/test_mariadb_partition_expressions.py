@@ -14,6 +14,7 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBPartitionByRangeColumns,
     MariaDBPartitionDefinition,
     MariaDBPartitionMaxValue,
+    MariaDBPartitionOptions,
     MariaDBPartitionValue,
     MariaDBSubpartitionDefinition,
 )
@@ -161,7 +162,7 @@ def test_partition_definition_options(dialect):
             MariaDBPartitionDefinition(
                 "p0",
                 less_than=[_value(dialect, 1)],
-                dialect_options={"comment": "first"},
+                partition_options=MariaDBPartitionOptions(comment="first"),
             )
         ],
     )
@@ -169,18 +170,39 @@ def test_partition_definition_options(dialect):
     assert sql.endswith("PARTITION `p0` VALUES LESS THAN (1) COMMENT 'first')")
 
 
-def test_partition_definition_rejects_unknown_option(dialect):
-    expr = MariaDBPartitionByRange(
-        dialect,
-        [Column(dialect, "a")],
-        partitions=[
-            MariaDBPartitionDefinition(
-                "p0", less_than=[_value(dialect, 1)], dialect_options={"bogus": 1}
-            )
-        ],
+def test_partition_definition_options_are_formatted(dialect):
+    definition = MariaDBPartitionDefinition(
+        "p0",
+        less_than=[_value(dialect, 1)],
+        partition_options=MariaDBPartitionOptions(
+            engine="InnoDB",
+            comment="tenant's partition",
+            max_rows=1000,
+            tablespace="ts_hot",
+        ),
     )
-    with pytest.raises(ValueError, match="Unsupported partition definition option"):
-        expr.to_sql()
+    sql, params = dialect.format_partition_definition(definition)
+    assert "ENGINE" in sql and "InnoDB" in sql
+    assert "COMMENT" in sql and "tenant''s partition" in sql
+    assert "MAX_ROWS 1000" in sql
+    assert "TABLESPACE" in sql and "ts_hot" in sql
+    assert params == ()
+
+
+def test_partition_definition_options_reject_invalid_options(dialect):
+    with pytest.raises(TypeError, match="engine option must be a non-empty string"):
+        dialect.format_partition_definition_options(MariaDBPartitionOptions(engine=""))
+    with pytest.raises(TypeError, match="max_rows option"):
+        dialect.format_partition_definition_options(MariaDBPartitionOptions(max_rows=-1))
+
+
+def test_partition_definition_rejects_invalid_partition_options(dialect):
+    with pytest.raises(TypeError, match="partition_options must be a MariaDBPartitionOptions"):
+        MariaDBPartitionDefinition(
+            "p0",
+            less_than=[_value(dialect, 1)],
+            partition_options="invalid",  # type: ignore[arg-type]
+        )
 
 
 def test_partition_definition_with_subpartitions(dialect):

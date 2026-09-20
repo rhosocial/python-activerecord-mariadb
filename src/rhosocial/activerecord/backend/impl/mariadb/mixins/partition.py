@@ -5,11 +5,14 @@ MariaDB supports the same partitioning strategies as MySQL (RANGE, LIST,
 HASH, KEY, RANGE COLUMNS, LIST COLUMNS, LINEAR variants, and subpartitioning).
 """
 
-from typing import Any, Sequence, Tuple, TYPE_CHECKING
+from typing import Any, Optional, Sequence, Tuple, TYPE_CHECKING
 
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import PartitionClause
+    from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+        MariaDBPartitionOptions,
+    )
 
 
 class MariaDBPartitionMixin:
@@ -232,7 +235,8 @@ class MariaDBPartitionMixin:
 
         params: list = []
         parts = ["PARTITION", self.format_identifier(definition.name)]
-        if definition.dialect_options and not self.supports_partition_definition_options():
+        partition_options = definition.partition_options
+        if partition_options is not None and not self.supports_partition_definition_options():
             raise UnsupportedFeatureError(self.name, "partition definition options")
 
         if definition.less_than is not None:
@@ -262,9 +266,9 @@ class MariaDBPartitionMixin:
         else:
             raise ValueError("partition definition requires less_than or in_values")
 
-        if definition.dialect_options:
+        if partition_options is not None:
             options_sql, options_params = self.format_partition_definition_options(
-                definition.dialect_options
+                partition_options
             )
             if options_sql:
                 parts.append(options_sql)
@@ -282,12 +286,22 @@ class MariaDBPartitionMixin:
             parts.append(f"({', '.join(sub_parts)})")
         return " ".join(parts), tuple(params)
 
-    def format_partition_definition_options(self, options: dict) -> Tuple[str, tuple]:
-        """Format MariaDB partition definition options."""
+    def format_partition_definition_options(self, options: Optional["MariaDBPartitionOptions"]) -> Tuple[str, tuple]:
+        """Format MariaDB partition definition options from typed options."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+            MariaDBPartitionOptions,
+        )
 
         if not self.supports_partition_definition_options():
             raise UnsupportedFeatureError(self.name, "partition definition options")
+        if options is None:
+            return "", ()
+        if not isinstance(options, MariaDBPartitionOptions):
+            raise TypeError(
+                "partition_options must be a MariaDBPartitionOptions value, "
+                f"got {type(options).__name__}"
+            )
 
         parts: list = []
         allowed_options = {
@@ -299,23 +313,22 @@ class MariaDBPartitionMixin:
             "min_rows": "MIN_ROWS",
             "tablespace": "TABLESPACE",
         }
-        for key, value in options.items():
-            normalized = str(key).lower()
-            if normalized not in allowed_options:
-                raise ValueError(f"Unsupported partition definition option: {key}")
-            keyword = allowed_options[normalized]
-            if normalized in {"engine", "tablespace"}:
+        for name, keyword in allowed_options.items():
+            value = getattr(options, name)
+            if value is None:
+                continue
+            if name in {"engine", "tablespace"}:
                 if not isinstance(value, str) or not value:
-                    raise TypeError(f"{key} option must be a non-empty string")
+                    raise TypeError(f"{name} option must be a non-empty string")
                 parts.append(f"{keyword} {self.format_identifier(value)}")
-            elif normalized in {"comment", "data_directory", "index_directory"}:
+            elif name in {"comment", "data_directory", "index_directory"}:
                 if not isinstance(value, str):
-                    raise TypeError(f"{key} option must be a string")
+                    raise TypeError(f"{name} option must be a string")
                 escaped = self._escape_sql_string(value)
                 parts.append(f"{keyword} '{escaped}'")
-            elif normalized in {"max_rows", "min_rows"}:
+            elif name in {"max_rows", "min_rows"}:
                 if not isinstance(value, int) or value < 0:
-                    raise TypeError(f"{key} option must be a non-negative integer")
+                    raise TypeError(f"{name} option must be a non-negative integer")
                 parts.append(f"{keyword} {value}")
         return " ".join(parts), ()
 
@@ -325,9 +338,10 @@ class MariaDBPartitionMixin:
             raise ValueError("subpartition name must not be empty")
         parts = ["SUBPARTITION", self.format_identifier(definition.name)]
         params: list = []
-        if definition.dialect_options:
+        partition_options = definition.partition_options
+        if partition_options is not None:
             options_sql, options_params = self.format_partition_definition_options(
-                definition.dialect_options
+                partition_options
             )
             if options_sql:
                 parts.append(options_sql)
