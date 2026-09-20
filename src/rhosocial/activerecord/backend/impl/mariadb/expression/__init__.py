@@ -59,7 +59,7 @@ from .admin import (
     MariaDBRevokeExpression,
     MariaDBShutdownExpression,
 )
-from .table_options import MariaDBCreateTableOptions
+from .table_options import MariaDBRowFormat, MariaDBCreateTableOptions
 from .dml import MariaDBInsertExpression
 from .truncate import MariaDBTruncateExpression
 from .alter_table import MariaDBAlterTableExpression
@@ -142,6 +142,7 @@ __all__ = [
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
     "MariaDBCreateTableOptions",
+    "MariaDBRowFormat",
     "MariaDBInsertExpression",
     "MariaDBTruncateExpression",
     "MariaDBColumnFormat",
