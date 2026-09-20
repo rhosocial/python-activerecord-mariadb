@@ -17,6 +17,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import ColumnDefinition
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import TruncateExpression
+from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBTruncateExpression
 from rhosocial.activerecord.backend.expression.types import TextType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
@@ -149,22 +150,19 @@ class TestMariaDBTruncate:
 
     def test_wait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = TruncateExpression(dialect, table_name='users',
-                                  dialect_options={'wait': 3})
+        expr = MariaDBTruncateExpression(dialect, table_name='users', wait=3)
         sql, params = expr.to_sql()
         assert sql == 'TRUNCATE TABLE `users` WAIT 3'
 
     def test_nowait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = TruncateExpression(dialect, table_name='users',
-                                  dialect_options={'nowait': True})
+        expr = MariaDBTruncateExpression(dialect, table_name='users', nowait=True)
         sql, params = expr.to_sql()
         assert sql == 'TRUNCATE TABLE `users` NOWAIT'
 
     def test_wait_version_gated(self):
         dialect = _dialect((10, 2, 0))
-        expr = TruncateExpression(dialect, table_name='users',
-                                  dialect_options={'nowait': True})
+        expr = MariaDBTruncateExpression(dialect, table_name='users', nowait=True)
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
