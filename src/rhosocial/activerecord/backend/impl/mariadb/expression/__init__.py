@@ -63,6 +63,21 @@ from .maintenance import (
     MariaDBTableMaintenanceExpression,
     TableMaintenanceOperation,
 )
+from .partition import (
+    MariaDBPartitionStrategy,
+    MariaDBSubpartitionStrategy,
+    MariaDBPartitionMaxValue,
+    MariaDBPartitionValue,
+    MariaDBSubpartitionDefinition,
+    MariaDBPartitionDefinition,
+    MariaDBPartitionClause,
+    MariaDBPartitionByRange,
+    MariaDBPartitionByRangeColumns,
+    MariaDBPartitionByList,
+    MariaDBPartitionByListColumns,
+    MariaDBPartitionByHash,
+    MariaDBPartitionByKey,
+)
 
 # DataType subclasses for DDL
 from .types import (
@@ -114,6 +129,19 @@ __all__ = [
     "MariaDBRenameIndexExpression",
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
+    "MariaDBPartitionStrategy",
+    "MariaDBSubpartitionStrategy",
+    "MariaDBPartitionMaxValue",
+    "MariaDBPartitionValue",
+    "MariaDBSubpartitionDefinition",
+    "MariaDBPartitionDefinition",
+    "MariaDBPartitionClause",
+    "MariaDBPartitionByRange",
+    "MariaDBPartitionByRangeColumns",
+    "MariaDBPartitionByList",
+    "MariaDBPartitionByListColumns",
+    "MariaDBPartitionByHash",
+    "MariaDBPartitionByKey",
     "MariaDBCallExpression",
     "MariaDBCreateFunctionExpression",
     "MariaDBCreateProcedureExpression",
