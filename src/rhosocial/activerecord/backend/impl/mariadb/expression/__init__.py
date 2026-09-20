@@ -76,6 +76,7 @@ from .maintenance import (
 from .partition import (
     MariaDBPartitionStrategy,
     MariaDBSubpartitionStrategy,
+    MariaDBPartitionOptions,
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
     MariaDBSubpartitionDefinition,
@@ -149,6 +150,7 @@ __all__ = [
     "MariaDBColumnOptions",
     "MariaDBPartitionStrategy",
     "MariaDBSubpartitionStrategy",
+    "MariaDBPartitionOptions",
     "MariaDBPartitionMaxValue",
     "MariaDBPartitionValue",
     "MariaDBSubpartitionDefinition",

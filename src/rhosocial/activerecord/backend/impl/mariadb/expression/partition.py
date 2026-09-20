@@ -10,6 +10,7 @@ generic declarations in ``rhosocial.activerecord.backend.expression.statements``
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from math import isfinite
@@ -52,6 +53,32 @@ class MariaDBSubpartitionStrategy(Enum):
     LINEAR_KEY = "LINEAR KEY"
 
 
+@dataclass
+class MariaDBPartitionOptions:
+    """Typed MariaDB storage options for a partition or subpartition definition.
+
+    Replaces the generic ``dialect_options`` bag with one attribute per MariaDB
+    ``PARTITION`` option keyword rendered by the MariaDB formatter.
+
+    Attributes:
+        engine: Storage engine name (``ENGINE``).
+        comment: Free-form comment (``COMMENT``).
+        data_directory: Data directory path (``DATA DIRECTORY``).
+        index_directory: Index directory path (``INDEX DIRECTORY``).
+        max_rows: Maximum number of rows (``MAX_ROWS``).
+        min_rows: Minimum number of rows (``MIN_ROWS``).
+        tablespace: Tablespace name (``TABLESPACE``).
+    """
+
+    engine: Optional[str] = None
+    comment: Optional[str] = None
+    data_directory: Optional[str] = None
+    index_directory: Optional[str] = None
+    max_rows: Optional[int] = None
+    min_rows: Optional[int] = None
+    tablespace: Optional[str] = None
+
+
 class MariaDBPartitionMaxValue(BaseExpression):
     """MariaDB MAXVALUE partition boundary token."""
 
@@ -87,15 +114,33 @@ class MariaDBPartitionValue(BaseExpression):
         return "format_partition_value"
 
 
+@dataclass
 class MariaDBSubpartitionDefinition(SubpartitionDefinition):
     """A single named subpartition within a MariaDB partition definition.
 
     MariaDB subpartitions carry no explicit boundary (the ``SUBPARTITION BY``
     template applies), so this subclass adds nothing beyond the base name and
-    options.
+    typed options.
+
+    Raises:
+        TypeError: if ``partition_options`` is not a
+            :class:`MariaDBPartitionOptions` when provided.
     """
 
+    partition_options: Optional[MariaDBPartitionOptions] = None
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.partition_options is not None and not isinstance(
+            self.partition_options, MariaDBPartitionOptions
+        ):
+            raise TypeError(
+                "partition_options must be a MariaDBPartitionOptions value, "
+                f"got {type(self.partition_options).__name__}"
+            )
+
+
+@dataclass
 class MariaDBPartitionDefinition(PartitionDefinition):
     """A MariaDB ``PARTITION ... VALUES ...`` definition.
 
@@ -106,15 +151,27 @@ class MariaDBPartitionDefinition(PartitionDefinition):
     ``BaseExpression``; for multi-column LIST COLUMNS it accepts a sequence of
     row tuples (each a sequence of ``BaseExpression``).
 
+    ``partition_options`` carries MariaDB-only storage options typed on
+    :class:`MariaDBPartitionOptions`.
+
     Raises:
         ValueError: if both boundaries are provided, or neither is provided.
-        TypeError: if ``dialect_options`` is not a dict when provided.
+        TypeError: if ``partition_options`` is not a
+            :class:`MariaDBPartitionOptions` when provided.
     """
 
     subpartition_definitions: Optional[Sequence["MariaDBSubpartitionDefinition"]] = None
+    partition_options: Optional[MariaDBPartitionOptions] = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        if self.partition_options is not None and not isinstance(
+            self.partition_options, MariaDBPartitionOptions
+        ):
+            raise TypeError(
+                "partition_options must be a MariaDBPartitionOptions value, "
+                f"got {type(self.partition_options).__name__}"
+            )
         if self.less_than is None and self.in_values is None:
             raise ValueError("partition definition requires less_than or in_values")
 
@@ -229,6 +286,7 @@ class MariaDBPartitionByKey(MariaDBPartitionClause):
 __all__ = [
     "MariaDBPartitionStrategy",
     "MariaDBSubpartitionStrategy",
+    "MariaDBPartitionOptions",
     "MariaDBPartitionMaxValue",
     "MariaDBPartitionValue",
     "MariaDBSubpartitionDefinition",
