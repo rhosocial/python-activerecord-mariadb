@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/table.py
 """MariaDB table DDL protocol."""
 
-from typing import Any, Dict, Optional, Protocol, Tuple, TYPE_CHECKING, runtime_checkable
+from typing import Any, Protocol, Tuple, TYPE_CHECKING, runtime_checkable
 
 from rhosocial.activerecord.backend.dialect.protocols import TableSupport
 
@@ -64,26 +64,13 @@ class MariaDBTableSupport(TableSupport, Protocol):
         """Whether CREATE OR REPLACE TABLE is supported (MariaDB 10.1+)."""
         ...
 
-    def format_create_table_statement(
-        self,
-        expr,
-        dialect_options: Optional[Dict[str, Any]] = None
-    ) -> Tuple[str, tuple]:
+    def format_create_table_statement(self, expr) -> Tuple[str, tuple]:
         """Format CREATE TABLE statement.
 
-        Note: Generic TableSupport protocol defines this interface.
-        This MariaDB-specific version documents available options.
-
-        Args:
-            expr: CreateTableExpression instance
-            dialect_options: MariaDB-specific options:
-                - 'engine': Storage engine (InnoDB, MyISAM, Aria, etc.)
-                - 'charset': Character set
-                - 'collate': Collation
-                - 'auto_increment': Initial AUTO_INCREMENT value
-                - 'row_format': Row format (DYNAMIC, COMPACT, etc.)
-                - 'with_system_versioning': Enable system-versioned tables (MariaDB 10.3+)
-                Example: dialect_options={'engine': 'InnoDB', 'charset': 'utf8mb4'}
+        Note: The generic TableSupport protocol defines this interface.
+        MariaDB-specific table options (``engine`` / ``charset`` /
+        ``collate``) are typed fields on ``MariaDBCreateTableOptions``,
+        not a ``dialect_options`` bag.
         """
         ...
 
