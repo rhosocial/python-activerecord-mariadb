@@ -746,7 +746,7 @@ class MariaDBDialect(
             parts.append(f"CHECK ({check_sql})")
             params.extend(check_params)
 
-            if t_const.dialect_options and t_const.dialect_options.get('enforced') is False:
+            if getattr(t_const, 'enforced', None) is False:
                 parts.append("NOT ENFORCED")
 
         return ' '.join(parts), tuple(params)

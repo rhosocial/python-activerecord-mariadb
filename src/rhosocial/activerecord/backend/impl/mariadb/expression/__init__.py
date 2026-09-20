@@ -60,6 +60,7 @@ from .admin import (
     MariaDBShutdownExpression,
 )
 from .table_options import MariaDBCreateTableOptions
+from .alter_table import MariaDBAlterTableExpression
 from .column import (
     MariaDBColumnFormat,
     MariaDBColumnStorage,
@@ -134,6 +135,7 @@ __all__ = [
     "MatchAgainstMode",
     "MariaDBRenameTableExpression",
     "MariaDBRenameIndexExpression",
+    "MariaDBAlterTableExpression",
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
     "MariaDBCreateTableOptions",
