@@ -41,6 +41,7 @@ from .transaction import MariaDBTransactionMixin
 from .backend import MariaDBBackendMixin, MARIADB_VERSION_BOUNDARIES
 from .sequence import MariaDBSequenceMixin
 from .returning import MariaDBReturningMixin
+from .ddl_database import MariaDBDatabaseMixin
 from .system_versioning import MariaDBSystemVersioningMixin
 from .dml import MariaDBDMLOperationMixin
 from .spatial import MariaDBSpatialMixin
@@ -120,6 +121,7 @@ __all__ = [
     'MariaDBCollation',
     'MariaDBStorageEngine',
     'MariaDBCharsetCollationMixin',
+    'MariaDBDatabaseMixin',
     'MariaDBCTEMixin',
     'MariaDBWindowMixin',
     'MariaDBFilterClauseMixin',
