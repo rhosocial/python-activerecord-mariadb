@@ -65,9 +65,7 @@ class MariaDBRenameTableMixin:
         """Format a MariaDB ``RENAME TABLE ...`` statement."""
         expr.validate(strict=self.strict_validation)
 
-        options = expr.dialect_options
-
-        if options.get('if_exists'):
+        if expr.if_exists:
             if not self.supports_rename_table_if_exists():
                 raise UnsupportedFeatureError(
                     self.name,
@@ -79,10 +77,10 @@ class MariaDBRenameTableMixin:
             head = "RENAME TABLE"
 
         wait = None
-        if options.get("nowait"):
+        if expr.nowait:
             wait = "NOWAIT"
-        elif options.get("wait") is not None:
-            wait = f"WAIT {int(options['wait'])}"
+        elif expr.wait is not None:
+            wait = f"WAIT {int(expr.wait)}"
         if wait is not None and not self.supports_rename_table_wait():
             raise UnsupportedFeatureError(
                 self.name,

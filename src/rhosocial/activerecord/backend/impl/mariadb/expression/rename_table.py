@@ -16,7 +16,7 @@ The statement is atomic for the tables it renames: either all renames
 succeed or all are rolled back.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -29,10 +29,9 @@ class MariaDBRenameTableExpression(BaseExpression):
 
     Attributes:
         renames: Sequence of ``(old_name, new_name)`` table name pairs.
-        dialect_options: MariaDB-specific options:
-            - 'if_exists': Add statement-level IF EXISTS (MariaDB 10.5+).
-            - 'wait': Lock wait timeout in seconds (MariaDB 10.3+).
-            - 'nowait': Do not wait for metadata locks (MariaDB 10.3+).
+        if_exists: Add statement-level ``IF EXISTS`` (MariaDB 10.5+).
+        wait: Lock wait timeout in seconds (MariaDB 10.3+).
+        nowait: Do not wait for metadata locks (MariaDB 10.3+).
     """
 
     def __init__(
@@ -40,11 +39,15 @@ class MariaDBRenameTableExpression(BaseExpression):
         dialect: "SQLDialectBase",
         renames: List[Tuple[str, str]],
         *,
-        dialect_options: Optional[Dict[str, Any]] = None,
+        if_exists: bool = False,
+        wait: Optional[int] = None,
+        nowait: bool = False,
     ):
         super().__init__(dialect)
         self.renames: List[Tuple[str, str]] = list(renames)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
+        self.if_exists = if_exists
+        self.wait = wait
+        self.nowait = nowait
 
     def validate(self, strict: bool = True) -> None:
         """Validate the rename pair list.

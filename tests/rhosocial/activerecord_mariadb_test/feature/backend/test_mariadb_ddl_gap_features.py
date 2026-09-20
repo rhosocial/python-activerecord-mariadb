@@ -90,7 +90,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 6, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'if_exists': True},
+            if_exists=True,
         )
         sql, params = expr.to_sql()
         assert sql == 'RENAME TABLE IF EXISTS `old_table` TO `new_table`'
@@ -99,7 +99,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 4, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'if_exists': True},
+            if_exists=True,
         )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
@@ -108,7 +108,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 6, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'wait': 5},
+            wait=5,
         )
         sql, params = expr.to_sql()
         assert sql == 'RENAME TABLE `old_table` WAIT 5 TO `new_table`'
@@ -117,7 +117,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 6, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'nowait': True},
+            nowait=True,
         )
         sql, params = expr.to_sql()
         assert sql == 'RENAME TABLE `old_table` NOWAIT TO `new_table`'
@@ -126,7 +126,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 2, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'nowait': True},
+            nowait=True,
         )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
@@ -272,7 +272,7 @@ class TestMariaDBTableMaintenance:
     def _expr(self, dialect, operation, tables, **options):
         return MariaDBTableMaintenanceExpression(
             dialect, operation, tables,
-            dialect_options=options,
+            **options,
         )
 
     def test_analyze_basic(self):
