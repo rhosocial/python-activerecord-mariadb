@@ -17,7 +17,7 @@ DDL definition expressions (``ColumnDefinition.data_type``).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
@@ -43,9 +43,8 @@ class MariaDBIntType(IntegerType):
     zerofill: bool = False
 
     def __init__(self, dialect=None, *, unsigned: bool = False,
-                 zerofill: bool = False,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+                 zerofill: bool = False):
+        super().__init__(dialect)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
@@ -66,9 +65,8 @@ class MariaDBTinyIntType(TinyIntType):
     zerofill: bool = False
 
     def __init__(self, dialect=None, *, unsigned: bool = False,
-                 zerofill: bool = False,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+                 zerofill: bool = False):
+        super().__init__(dialect)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
@@ -89,9 +87,8 @@ class MariaDBSmallIntType(SmallIntType):
     zerofill: bool = False
 
     def __init__(self, dialect=None, *, unsigned: bool = False,
-                 zerofill: bool = False,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+                 zerofill: bool = False):
+        super().__init__(dialect)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
@@ -112,9 +109,8 @@ class MariaDBBigIntType(BigIntType):
     zerofill: bool = False
 
     def __init__(self, dialect=None, *, unsigned: bool = False,
-                 zerofill: bool = False,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+                 zerofill: bool = False):
+        super().__init__(dialect)
         self.unsigned = unsigned
         self.zerofill = zerofill
 
@@ -193,9 +189,8 @@ class MariaDBBitType(DataType):
 
     n: Optional[int] = None
 
-    def __init__(self, dialect=None, n: Optional[int] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, n: Optional[int] = None):
+        super().__init__(dialect)
         self.n = n
 
     def _type_params(self) -> tuple:
@@ -213,9 +208,8 @@ class MariaDBYearType(DataType):
 
     display_width: Optional[int] = None
 
-    def __init__(self, dialect=None, display_width: Optional[int] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, display_width: Optional[int] = None):
+        super().__init__(dialect)
         self.display_width = display_width
 
     def _type_params(self) -> tuple:
@@ -233,9 +227,8 @@ class MariaDBBinaryType(DataType):
 
     length: Optional[int] = None
 
-    def __init__(self, dialect=None, length: Optional[int] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, length: Optional[int] = None):
+        super().__init__(dialect)
         self.length = length
 
     def _type_params(self) -> tuple:
@@ -249,9 +242,8 @@ class MariaDBVarBinaryType(DataType):
 
     length: Optional[int] = None
 
-    def __init__(self, dialect=None, length: Optional[int] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, length: Optional[int] = None):
+        super().__init__(dialect)
         self.length = length
 
     def _type_params(self) -> tuple:
@@ -272,9 +264,8 @@ class MariaDBEnumType(DataType):
     collation: Optional[str] = None
 
     def __init__(self, dialect=None, values: Optional[List[str]] = None,
-                 charset: Optional[str] = None, collation: Optional[str] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+                 charset: Optional[str] = None, collation: Optional[str] = None):
+        super().__init__(dialect)
         if values is None:
             raise ValueError("MariaDBEnumType requires values")
         if not values:
@@ -305,9 +296,8 @@ class MariaDBSetType(DataType):
     collation: Optional[str] = None
 
     def __init__(self, dialect=None, values: Optional[List[str]] = None,
-                 charset: Optional[str] = None, collation: Optional[str] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+                 charset: Optional[str] = None, collation: Optional[str] = None):
+        super().__init__(dialect)
         if values is None:
             raise ValueError("MariaDBSetType requires values")
         if not values:
@@ -335,9 +325,8 @@ class MariaDBGeometryType(DataType):
 
     srid: Optional[int] = None
 
-    def __init__(self, dialect=None, srid: Optional[int] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, srid: Optional[int] = None):
+        super().__init__(dialect)
         self.srid = srid
 
     def _type_params(self) -> tuple:
