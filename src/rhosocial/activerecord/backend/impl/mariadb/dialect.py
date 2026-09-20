@@ -620,9 +620,21 @@ class MariaDBDialect(
             if storage_sql:
                 parts.append(storage_sql)
 
-        if 'comment' in expr.dialect_options:
-            escaped_comment = self._escape_sql_string(expr.dialect_options['comment'])
+        from rhosocial.activerecord.backend.impl.mariadb.expression.table_options import (
+            MariaDBCreateTableOptions,
+        )
+        table_options = getattr(expr, "table_options", None)
+        if table_options is not None and getattr(table_options, "comment", None):
+            escaped_comment = self._escape_sql_string(table_options.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
+
+        if isinstance(table_options, MariaDBCreateTableOptions):
+            if table_options.engine:
+                parts.append(f"ENGINE={self.inline_sql_literal(table_options.engine)}")
+            if table_options.charset:
+                parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(table_options.charset)}")
+            if table_options.collate:
+                parts.append(f"COLLATE={self.inline_sql_literal(table_options.collate)}")
 
         return ' '.join(parts), tuple(all_params)
 
