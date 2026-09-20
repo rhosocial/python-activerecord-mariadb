@@ -11,9 +11,8 @@ Official Documentation:
 import pytest
 import pytest_asyncio
 
-from rhosocial.activerecord.backend.expression.statements import (
-    InsertExpression, ValuesSource
-)
+from rhosocial.activerecord.backend.expression.statements import ValuesSource
+from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
 from rhosocial.activerecord.backend.expression import core
 
 
@@ -42,7 +41,7 @@ class TestMariaDBReplaceInto:
         """Test REPLACE INTO with no conflict - should insert normally."""
         dialect = mariadb_backend.dialect
 
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -52,7 +51,7 @@ class TestMariaDBReplaceInto:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"replace": True}
+            replace=True,
         )
 
         sql, params = expr.to_sql()
@@ -88,7 +87,7 @@ class TestMariaDBReplaceInto:
         original_id = original_row["id"]
 
         # REPLACE with new data
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -98,7 +97,7 @@ class TestMariaDBReplaceInto:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"replace": True}
+            replace=True,
         )
 
         sql, params = expr.to_sql()
@@ -128,7 +127,7 @@ class TestMariaDBReplaceInto:
         )
 
         # REPLACE multiple rows, one conflicts
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -140,7 +139,7 @@ class TestMariaDBReplaceInto:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"replace": True}
+            replace=True,
         )
 
         sql, params = expr.to_sql()
@@ -169,7 +168,7 @@ class TestMariaDBReplaceInto:
 
         # This should raise ValueError
         with pytest.raises(ValueError, match="REPLACE INTO does not support ON CONFLICT"):
-            expr = InsertExpression(
+            expr = MariaDBInsertExpression(
                 dialect=dialect,
                 into=test_table,
                 source=ValuesSource(
@@ -177,7 +176,7 @@ class TestMariaDBReplaceInto:
                     [[core.Literal(dialect, "test@example.com"), core.Literal(dialect, "Test")]]
                 ),
                 columns=["email", "name"],
-                dialect_options={"replace": True},
+                replace=True,
                 on_conflict=OnConflictClause(dialect, ["email"], do_nothing=True)  # Invalid combination
             )
             expr.to_sql()
@@ -187,7 +186,7 @@ class TestMariaDBReplaceInto:
         dialect = mariadb_backend.dialect
 
         with pytest.raises(ValueError, match="Cannot use both 'replace' and 'ignore'"):
-            expr = InsertExpression(
+            expr = MariaDBInsertExpression(
                 dialect=dialect,
                 into=test_table,
                 source=ValuesSource(
@@ -195,7 +194,8 @@ class TestMariaDBReplaceInto:
                     [[core.Literal(dialect, "test@example.com"), core.Literal(dialect, "Test")]]
                 ),
                 columns=["email", "name"],
-                dialect_options={"replace": True, "ignore": True}
+                replace=True,
+                ignore=True,
             )
             expr.to_sql()
 
@@ -228,7 +228,7 @@ class TestMySQLAsyncReplaceInto:
         )
 
         # REPLACE with new data
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -238,7 +238,7 @@ class TestMySQLAsyncReplaceInto:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"replace": True}
+            replace=True,
         )
 
         sql, params = expr.to_sql()

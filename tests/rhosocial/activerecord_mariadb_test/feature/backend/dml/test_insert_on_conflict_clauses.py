@@ -19,6 +19,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
 
 
 @pytest.fixture
@@ -82,14 +83,14 @@ class TestMariaDBOnConflictRendering:
         """REPLACE INTO / INSERT IGNORE remain unaffected by the capability gate."""
         source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
 
-        expr = InsertExpression(
-            dialect, into="users", columns=["id"], source=source, dialect_options={"replace": True}
+        expr = MariaDBInsertExpression(
+            dialect, into="users", columns=["id"], source=source, replace=True
         )
         sql, _ = expr.to_sql()
         assert sql.startswith('REPLACE INTO `users`')
 
-        expr = InsertExpression(
-            dialect, into="users", columns=["id"], source=source, dialect_options={"ignore": True}
+        expr = MariaDBInsertExpression(
+            dialect, into="users", columns=["id"], source=source, ignore=True
         )
         sql, _ = expr.to_sql()
         assert sql.startswith('INSERT IGNORE INTO `users`')

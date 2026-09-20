@@ -60,6 +60,8 @@ from .admin import (
     MariaDBShutdownExpression,
 )
 from .table_options import MariaDBCreateTableOptions
+from .dml import MariaDBInsertExpression
+from .truncate import MariaDBTruncateExpression
 from .alter_table import MariaDBAlterTableExpression
 from .column import (
     MariaDBColumnFormat,
@@ -139,6 +141,8 @@ __all__ = [
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
     "MariaDBCreateTableOptions",
+    "MariaDBInsertExpression",
+    "MariaDBTruncateExpression",
     "MariaDBColumnFormat",
     "MariaDBColumnStorage",
     "MariaDBColumnDefinition",
