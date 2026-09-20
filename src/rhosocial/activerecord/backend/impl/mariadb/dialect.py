@@ -632,6 +632,21 @@ class MariaDBDialect(
                 parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(table_options.charset)}")
             if table_options.collate:
                 parts.append(f"COLLATE={self.inline_sql_literal(table_options.collate)}")
+            if table_options.auto_increment is not None:
+                parts.append(f"AUTO_INCREMENT={int(table_options.auto_increment)}")
+            if table_options.row_format:
+                parts.append(f"ROW_FORMAT={table_options.row_format}")
+            if table_options.with_system_versioning:
+                if not self.supports_system_versioning():
+                    from rhosocial.activerecord.backend.dialect.exceptions import (
+                        UnsupportedFeatureError,
+                    )
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "WITH SYSTEM VERSIONING",
+                        "System-versioned tables require MariaDB 10.3 or later.",
+                    )
+                parts.append("WITH SYSTEM VERSIONING")
 
         return ' '.join(parts), tuple(all_params)
 
