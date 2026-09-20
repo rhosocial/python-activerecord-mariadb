@@ -94,7 +94,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     TransactionControlMixin,
     PartitionMixin,
 )
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 # Import MariaDB-specific mixins
 from .mixins import (
@@ -124,7 +123,7 @@ from .mixins import (
     MARIADB_VERSION_BOUNDARIES,
     # New mixins from dialect.py split
     MariaDBDateTimeMixin,
-    MariaDBCollationMixin,
+    MariaDBCharsetCollationMixin,
     MariaDBCTEMixin,
     MariaDBWindowMixin,
     MariaDBFilterClauseMixin,
@@ -171,10 +170,8 @@ from .protocols import (
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        InsertExpression,
         ReturningClause,
     )
-    from .expression.load_data import MariaDBLoadDataExpression
 
 MARIADB_VERSION_BOUNDARIES = {
     'WINDOW_FUNCTIONS': (10, 2, 0),
@@ -232,7 +229,7 @@ class MariaDBDialect(
     MariaDBAdminMixin,
     # New mixins from dialect.py split
     MariaDBDateTimeMixin,
-    MariaDBCollationMixin,
+    MariaDBCharsetCollationMixin,
     MariaDBCTEMixin,
     MariaDBWindowMixin,
     MariaDBFilterClauseMixin,

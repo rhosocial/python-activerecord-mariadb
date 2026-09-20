@@ -38,11 +38,17 @@ class MariaDBCreateTableOptions(CreateTableOptions):
         *,
         or_replace: bool = False,
         comment: Optional[str] = None,
-        engine: Optional[str] = None,
-        charset: Optional[str] = None,
+        engine: Optional[object] = None,
+        charset: Optional[object] = None,
         collate: Optional[str] = None,
     ):
         super().__init__(dialect, or_replace=or_replace, comment=comment)
-        self.engine = engine
-        self.charset = charset
-        self.collate = collate
+        self.engine = (
+            dialect.validate_storage_engine_name(engine) if engine is not None else None
+        )
+        self.charset = (
+            dialect.validate_charset_name(charset) if charset is not None else None
+        )
+        self.collate = (
+            dialect.validate_collation_by_name(collate) if collate is not None else None
+        )
