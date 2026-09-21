@@ -47,6 +47,6 @@ def test_create_indexes_is_empty_when_inline_capable():
 
 def test_create_schema_is_a_single_statement():
     deriver = TableDDLDeriver(Indexed, mariadb_dialect())
-    plan = deriver.create_schema()
+    plan = deriver.creation_plan()
     assert len(plan) == 1
     assert isinstance(plan[0], CreateTableExpression)

@@ -70,6 +70,7 @@ def get_own_protocol_methods(proto: type) -> set:
 
 MYSQL_PROTOCOLS = [
     dialect_protocols.CTESupport,
+    dialect_protocols.ColumnAttributeSupport,
     dialect_protocols.FilterClauseSupport,
     dialect_protocols.WindowFunctionSupport,
     dialect_protocols.JSONSupport,
