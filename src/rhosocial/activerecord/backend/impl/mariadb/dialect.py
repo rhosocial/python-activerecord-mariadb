@@ -579,64 +579,6 @@ class MariaDBDialect(
         value = value.replace("'", "''")
         return value
 
-    def format_column_definition(
-        self,
-        col_def: "ColumnDefinition"
-    ) -> Tuple[str, tuple]:
-        from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
-        from rhosocial.activerecord.backend.impl.mariadb.expression.column import (
-            MariaDBColumnDefinition,
-        )
-
-        type_sql, type_params = col_def.data_type.to_sql()
-        parts = [self.format_identifier(col_def.name), type_sql]
-        params: List[Any] = list(type_params)
-
-        constraint_parts = []
-        for constraint in col_def.constraints:
-            if constraint.constraint_type == ColumnConstraintType.PRIMARY_KEY:
-                constraint_parts.append("PRIMARY KEY")
-            elif constraint.constraint_type == ColumnConstraintType.NOT_NULL:
-                constraint_parts.append("NOT NULL")
-            elif constraint.constraint_type == ColumnConstraintType.UNIQUE:
-                constraint_parts.append("UNIQUE")
-            elif constraint.constraint_type == ColumnConstraintType.DEFAULT:
-                if constraint.default_value is not None:
-                    from rhosocial.activerecord.backend.expression import bases
-                    if isinstance(constraint.default_value, bases.BaseExpression):
-                        default_sql, default_params = constraint.default_value.to_sql()
-                        constraint_parts.append(f"DEFAULT {default_sql}")
-                        params.extend(default_params)
-                    elif isinstance(constraint.default_value, str):
-                        escaped = self._escape_sql_string(constraint.default_value)
-                        constraint_parts.append(f"DEFAULT '{escaped}'")
-                    else:
-                        constraint_parts.append(f"DEFAULT {constraint.default_value}")
-            elif constraint.constraint_type == ColumnConstraintType.NULL:
-                constraint_parts.append("NULL")
-
-            if constraint.is_auto_increment:
-                constraint_parts.append("AUTO_INCREMENT")
-
-        if constraint_parts:
-            parts.append(' '.join(constraint_parts))
-
-        if isinstance(col_def, MariaDBColumnDefinition):
-            if col_def.character_set:
-                parts.append(f"CHARACTER SET {self.format_identifier(col_def.character_set)}")
-            if col_def.column_format is not None:
-                parts.append(f"COLUMN_FORMAT {col_def.column_format.value}")
-            if col_def.storage is not None:
-                parts.append(f"STORAGE {col_def.storage.value}")
-            if col_def.invisible:
-                parts.append("INVISIBLE")
-
-        if col_def.comment:
-            escaped_comment = self._escape_sql_string(col_def.comment)
-            parts.append(f"COMMENT '{escaped_comment}'")
-
-        return ' '.join(parts), tuple(params)
-
     def format_table_constraint(
         self,
         t_const: "TableConstraint"
