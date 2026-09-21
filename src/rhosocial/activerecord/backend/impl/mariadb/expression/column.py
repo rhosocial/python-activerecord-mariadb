@@ -68,10 +68,7 @@ class MariaDBColumnDefinition(ColumnDefinition):
         constraints=None,
         comment: Optional[str] = None,
         generated_expression=None,
-        identity: Optional[str] = None,
-        identity_start: Optional[int] = None,
-        identity_increment: Optional[int] = None,
-        identity_clause=None,
+        attributes=None,
         *,
         character_set: Optional[str] = None,
         column_format: Optional[MariaDBColumnFormat] = None,
@@ -85,10 +82,7 @@ class MariaDBColumnDefinition(ColumnDefinition):
             constraints=constraints,
             comment=comment,
             generated_expression=generated_expression,
-            identity=identity,
-            identity_start=identity_start,
-            identity_increment=identity_increment,
-            identity_clause=identity_clause,
+            attributes=attributes,
         )
         if column_format is not None and not isinstance(column_format, MariaDBColumnFormat):
             raise TypeError(
@@ -112,17 +106,12 @@ class MariaDBColumnOptions(ColumnOptions):
     def __init__(
         self,
         *,
-        identity_start: Optional[int] = None,
-        identity_increment: Optional[int] = None,
         character_set: Optional[str] = None,
         column_format: Optional[MariaDBColumnFormat] = None,
         storage: Optional[MariaDBColumnStorage] = None,
         invisible: Optional[bool] = None,
     ):
-        super().__init__(
-            identity_start=identity_start,
-            identity_increment=identity_increment,
-        )
+        super().__init__()
         if column_format is not None and not isinstance(column_format, MariaDBColumnFormat):
             raise TypeError(
                 "column_format must be a MariaDBColumnFormat value, "
