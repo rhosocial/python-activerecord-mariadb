@@ -49,6 +49,20 @@ class MariaDBTableMixin:
         """MariaDB allows inline INDEX/KEY definitions."""
         return True
 
+    def supports_table_comment(self) -> bool:
+        """Whether inline ``COMMENT 'text'`` on ``CREATE TABLE`` is supported.
+
+        MariaDB renders the table comment as an inline table option (and the
+        column comment inside the column definition), so both capabilities
+        advertise True and the inline path is the rendering path.
+        """
+        return True
+
+    def supports_column_comment(self) -> bool:
+        """Whether inline ``COMMENT 'text'`` in a column definition is
+        supported. MariaDB renders it natively."""
+        return True
+
     def supports_storage_engine_option(self) -> bool:
         """MariaDB supports multiple storage engines."""
         return True
