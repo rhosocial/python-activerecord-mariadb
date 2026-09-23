@@ -4,6 +4,7 @@
 import pytest
 
 from rhosocial.activerecord.backend.expression import ColumnDefinition
+from rhosocial.activerecord.backend.expression import ColumnCommentClause
 from rhosocial.activerecord.backend.expression.types import VarCharType
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBColumnDefinition,
@@ -63,7 +64,7 @@ def test_combined_attributes(dialect):
 
 
 def test_generic_column_still_renders_on_mariadb(dialect):
-    generic = ColumnDefinition(dialect, "name", VarCharType(dialect, length=50), comment="c")
+    generic = ColumnDefinition(dialect, "name", VarCharType(dialect, length=50), comment=ColumnCommentClause(dialect, "c"))
     sql, _ = generic.to_sql()
     assert sql == "`name` VARCHAR(50) COMMENT 'c'"
 
