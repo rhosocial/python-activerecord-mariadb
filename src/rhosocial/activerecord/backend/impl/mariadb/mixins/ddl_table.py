@@ -90,6 +90,18 @@ class MariaDBTableMixin:
         - Table-level comments
         - AUTO_INCREMENT in column definitions
         """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        if expr.tablespace:
+            raise UnsupportedFeatureError(
+                self.name, "TABLESPACE",
+                "MariaDB does not support table tablespaces.",
+            )
+        if expr.inherits:
+            raise UnsupportedFeatureError(
+                self.name, "table INHERITS",
+                "MariaDB does not support table inheritance.",
+            )
         all_params: List[Any] = []
 
         options_part = ""
