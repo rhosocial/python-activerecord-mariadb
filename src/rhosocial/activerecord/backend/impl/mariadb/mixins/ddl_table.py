@@ -136,9 +136,9 @@ class MariaDBTableMixin:
             MariaDBCreateTableOptions,
         )
         table_options = getattr(expr, "table_options", None)
-        if table_options is not None and getattr(table_options, "comment", None):
-            comment_sql, _ = self.format_table_comment(table_options.comment)
-            parts.append(comment_sql)
+        if table_options is not None and getattr(table_options, "comment", None) is not None:
+            comment_sql, _ = self.format_table_comment_clause(table_options.comment)
+            parts.append(comment_sql.strip())
 
         if isinstance(table_options, MariaDBCreateTableOptions):
             if table_options.engine:
@@ -229,9 +229,9 @@ class MariaDBTableMixin:
             if col_def.invisible:
                 parts.append("INVISIBLE")
 
-        if col_def.comment:
-            escaped_comment = self._escape_sql_string(col_def.comment)
-            parts.append(f"COMMENT '{escaped_comment}'")
+        if col_def.comment is not None:
+            comment_sql, _ = self.format_column_comment_clause(col_def.comment)
+            parts.append(comment_sql.strip())
 
         if col_def.generated_expression is not None:
             gen_sql, gen_params = col_def.generated_expression.to_sql()
