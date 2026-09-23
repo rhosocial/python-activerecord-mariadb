@@ -151,6 +151,9 @@ class TestMariaDBDialectProtocolConformance:
 # decision (move to MYSQL_PROTOCOLS or revert).
 MARIADB_NOT_IMPLEMENTED = [
     # --- Intentional non-support ---
+    # MariaDB has no standalone COMMENT ON statement; inline table/column
+    # comments are rendered by CREATE TABLE instead.
+    dialect_protocols.CommentSupport,
     # The generic DatabaseSupport protocol is not composed by MariaDBDialect.
     dialect_protocols.DatabaseSupport,
     # MariaDB has no SQL/XML support.

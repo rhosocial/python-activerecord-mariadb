@@ -84,6 +84,10 @@ class MariaDBTableSupport(TableSupport, Protocol):
         """Format a column definition (name, type, constraints, comment)."""
         ...
 
+    def supports_column_comment(self) -> bool:
+        """Whether an inline column COMMENT is supported (MariaDB: yes)."""
+        ...
+
     def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
         """Format a table-level constraint (PRIMARY KEY / UNIQUE / FOREIGN KEY)."""
         ...
