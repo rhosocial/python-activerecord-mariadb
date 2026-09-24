@@ -53,7 +53,9 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     FunctionSupport,
     # Additional Protocols
     SQLFunctionSupport,
-    DDLTypeSupport,
+    DataTypeSupport,
+    UserDefinedTypeSupport,
+    DomainSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
     CollationMixin,
@@ -91,6 +93,8 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    UserDefinedTypeMixin,
+    DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
 )
@@ -281,6 +285,8 @@ class MariaDBDialect(
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    UserDefinedTypeMixin,
+    DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
     # Protocol support markers
@@ -314,7 +320,9 @@ class MariaDBDialect(
     ViewSupport,
     FunctionSupport,
     SQLFunctionSupport,
-    DDLTypeSupport,
+    DataTypeSupport,
+    UserDefinedTypeSupport,
+    DomainSupport,
     MariaDBDMLOperationSupport,
     MariaDBTriggerSupport,
     MariaDBTableSupport,
@@ -410,11 +418,12 @@ class MariaDBDialect(
         from .expression.types import (
             MariaDBBinaryType,
             MariaDBEnumType,
+            MariaDBUUIDType,
             MariaDBVarBinaryType,
         )
 
         return {
-            "uuid": MariaDBBinaryType,
+            "uuid": MariaDBUUIDType,
             "enum": MariaDBEnumType,
             "binary": MariaDBBinaryType,
             "varbinary": MariaDBVarBinaryType,

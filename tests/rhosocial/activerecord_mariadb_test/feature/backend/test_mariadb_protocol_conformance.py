@@ -98,7 +98,9 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.AutoIncrementSupport,
     dialect_protocols.AlterTableModifierSupport,
     dialect_protocols.CollationSupport,
-    dialect_protocols.DDLTypeSupport,
+    dialect_protocols.DataTypeSupport,
+    dialect_protocols.UserDefinedTypeSupport,
+    dialect_protocols.DomainSupport,
     dialect_protocols.FunctionSupport,
     dialect_protocols.GeneratedColumnSupport,
     dialect_protocols.GraphSupport,
@@ -174,8 +176,13 @@ def get_all_generic_protocols() -> dict:
 
     discovered = {}
     for name, obj in inspect.getmembers(dialect_protocols, inspect.isclass):
-        if Protocol in getattr(obj, "__mro__", []) and name.endswith("Support"):
-            discovered[name] = obj
+        if Protocol not in getattr(obj, "__mro__", []) or not name.endswith("Support"):
+            continue
+        if name == "DDLTypeSupport":
+            assert obj is dialect_protocols.DataTypeSupport
+            continue
+        assert name == obj.__name__, f"unexpected protocol alias: {name}"
+        discovered[name] = obj
     return discovered
 
 
