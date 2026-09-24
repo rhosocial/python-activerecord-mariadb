@@ -234,6 +234,25 @@ class MariaDBBinaryType(DataType):
     def _type_params(self) -> tuple:
         return (self.length,)
 
+    def is_equivalent(self, other: DataType) -> bool:
+        if isinstance(other, MariaDBUUIDType):
+            return self.length == 16 and other.length == 16
+        return super().is_equivalent(other)
+
+
+class MariaDBUUIDType(MariaDBBinaryType):
+    """MariaDB UUID storage as a fixed 16-byte BINARY value."""
+
+    name = "mariadb_uuid"
+
+    def __init__(self, dialect=None):
+        super().__init__(dialect, length=16)
+
+    def is_equivalent(self, other: DataType) -> bool:
+        if isinstance(other, MariaDBBinaryType):
+            return self.length == 16 and other.length == 16
+        return super().is_equivalent(other)
+
 
 class MariaDBVarBinaryType(DataType):
     """MariaDB ``VARBINARY(n)`` — variable-length binary."""

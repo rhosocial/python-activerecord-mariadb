@@ -6,8 +6,8 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple
 
-from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
-from rhosocial.activerecord.backend.dialect.protocols import DDLTypeSupport
+from rhosocial.activerecord.backend.dialect.mixins.data_type import DataTypeMixin
+from rhosocial.activerecord.backend.dialect.protocols import DataTypeSupport
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
     BlobType,
@@ -59,26 +59,27 @@ from ..expression.types import (
     MariaDBTinyBlobType,
     MariaDBTinyIntType,
     MariaDBTinyTextType,
+    MariaDBUUIDType,
     MariaDBVarBinaryType,
     MariaDBYearType,
 )
 
 
-class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
+class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     """MariaDB DataType formatting and parsing.
 
-    Implements ``DDLTypeSupport`` so the dialect can render ``DataType``
+    Implements ``DataTypeSupport`` so the dialect can render ``DataType``
     expressions to SQL strings and parse raw SQL type strings back into
     ``DataType`` instances.
 
     Formatting dispatches by the type instance's ``name`` through the
     naming-convention ``format_data_type_<name>`` methods (see
-    ``DDLTypeMixin``). MariaDB-specific types carry ``mariadb_``-prefixed
+    ``DataTypeMixin``). MariaDB-specific types carry ``mariadb_``-prefixed
     names; core types render their real MariaDB SQL.
     """
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — formatting
+    # DataTypeSupport — formatting
     # ------------------------------------------------------------------
 
     def _validate_fsp(self, label: str, precision: Optional[int]) -> None:
@@ -161,6 +162,9 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         if data_type.length is not None:
             return f"BINARY({data_type.length})", ()
         return "BINARY", ()
+
+    def format_data_type_mariadb_uuid(self, data_type: MariaDBUUIDType) -> Tuple[str, tuple]:
+        return self.format_data_type_mariadb_binary(data_type)
 
     def format_data_type_mariadb_varbinary(self, data_type: MariaDBVarBinaryType) -> Tuple[str, tuple]:
         if data_type.length is not None:
@@ -327,7 +331,7 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return data_type.raw, ()
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — per-type support declarations
+    # DataTypeSupport — per-type support declarations
     #
     # MariaDB declares support for exactly the format_data_type_* family
     # above (1:1 correspondence contract): every type this mixin renders
@@ -379,6 +383,9 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return True
 
     def supports_data_type_mariadb_binary(self) -> bool:
+        return True
+
+    def supports_data_type_mariadb_uuid(self) -> bool:
         return True
 
     def supports_data_type_mariadb_varbinary(self) -> bool:
@@ -484,7 +491,7 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return True
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — parsing
+    # DataTypeSupport — parsing
     # ------------------------------------------------------------------
 
     _MARIA_INTEGER_TYPES = re.compile(
