@@ -1,9 +1,8 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/ddl/test_derived_ddl_inline_index.py
-"""MariaDB inline-index support for ActiveRecord-derived DDL (positive path).
+"""MariaDB inline-index support for direct DDL expressions.
 
-SQLite and other SQL-standard dialects cannot inline index definitions, so the
-positive rendering path is exercised here on a dialect that supports it
-(``supports_inline_index()`` is True).
+The DDLSource index declaration is passed directly to CreateTableExpression
+on a dialect that advertises ``supports_inline_index()``.
 """
 
 try:
@@ -12,10 +11,11 @@ except ImportError:  # Python 3.8
     from typing_extensions import Annotated
 
 from rhosocial.activerecord.base import UseIndex
-from rhosocial.activerecord.base.ddl import TableDDLDeriver
-from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+from rhosocial.activerecord.backend.expression import (
+    ColumnDefinition,
     CreateTableExpression,
 )
+from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.model import ActiveRecord
 
@@ -31,22 +31,28 @@ def mariadb_dialect():
     return MariaDBDialect((10, 11, 0))
 
 
+def _create_indexed_table():
+    dialect = mariadb_dialect()
+    return CreateTableExpression(
+        dialect,
+        Indexed.__table_name__,
+        columns=[
+            ColumnDefinition(dialect, "id", IntegerType(dialect)),
+            ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
+        ],
+        indexes=Indexed.column_indexes("email"),
+    )
+
+
 def test_create_table_renders_inline_index():
-    deriver = TableDDLDeriver(Indexed, mariadb_dialect())
-    expression = deriver.create_table()
+    expression = _create_indexed_table()
 
     assert [index.name for index in expression.indexes] == ["idx_indexed_email"]
     sql, _ = expression.to_sql()
     assert "UNIQUE INDEX `idx_indexed_email` (`email`)" in sql
 
 
-def test_create_indexes_is_empty_when_inline_capable():
-    deriver = TableDDLDeriver(Indexed, mariadb_dialect())
-    assert deriver.create_indexes() == []
-
-
-def test_create_schema_is_a_single_statement():
-    deriver = TableDDLDeriver(Indexed, mariadb_dialect())
-    plan = deriver.creation_plan()
-    assert len(plan) == 1
-    assert isinstance(plan[0], CreateTableExpression)
+def test_inline_index_declaration_stays_on_create_table():
+    expression = _create_indexed_table()
+    assert len(expression.indexes) == 1
+    assert expression.indexes[0].unique is True

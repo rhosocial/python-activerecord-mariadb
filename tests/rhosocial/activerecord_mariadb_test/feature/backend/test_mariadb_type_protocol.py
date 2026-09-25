@@ -19,12 +19,10 @@ system and the MariaDB backend:
   equality.
 """
 
-from uuid import UUID
-
 import pytest
 
-from rhosocial.activerecord.base.ddl import ColumnTypeResolver
 from rhosocial.activerecord.backend.dialect.mixins import DataTypeMixin
+from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
 from rhosocial.activerecord.backend.expression.types import (
     DataType,
     DecimalType,
@@ -131,13 +129,11 @@ class TestSuggestedDataTypes:
         assert sql == "BINARY(16)"
         assert params == ()
 
-    def test_column_type_resolver_resolves_uuid_as_fixed_length_binary(self, dialect):
-        resolved = ColumnTypeResolver(dialect).resolve(UUID)
-        assert type(resolved) is MariaDBUUIDType
-        assert resolved.name == "mariadb_uuid"
-        assert resolved.length == 16
-        assert resolved.dialect is dialect
-        assert resolved.to_sql() == ("BINARY(16)", ())
+    def test_uuid_type_renders_in_direct_column_expression(self, dialect):
+        data_type = MariaDBUUIDType(dialect)
+        column = ColumnDefinition(dialect, "id", data_type)
+        assert dialect.supports_data_type_mariadb_uuid() is True
+        assert column.to_sql() == ("`id` BINARY(16)", ())
 
     def test_enum_suggested_as_mariadb_enum(self, dialect):
         suggestions = dialect.suggested_data_types()
