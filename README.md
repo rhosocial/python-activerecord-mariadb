@@ -155,23 +155,111 @@ User.insert_or_update(
 
 ## MariaDB Version Compatibility
 
+Server versions this backend is tested against in CI: **10.2, 10.3, 10.4, 10.5,
+10.6, 10.11, 11.4, 11.7, 11.8, 12.0, 12.2, 12.3, 13.0** (gating) and
+**13.1-rc** (experimental, non-gating).
+
 | Feature | Min Version | Notes |
 |---------|-------------|-------|
 | Basic operations | 10.2+ | Core functionality |
-| JSON | 10.2+ | `JSON` alias for LONGTEXT, JSON functions |
+| CHECK constraints | 10.2.1+ | Enforced |
 | Window functions | 10.2+ | ROW_NUMBER, RANK, etc. |
-| CTEs | 10.2+ | WITH clauses |
+| CTEs | 10.2+ | WITH clauses, incl. recursive |
 | Full-text search | 10.2+ | MATCH ... AGAINST |
 | Generated columns | 10.2+ | Virtual/Stored columns |
-| CHECK constraints | 10.2+ | Enforced |
-| DEFAULT expressions | 10.2+ | Expression defaults |
-| System versioning | 10.3+ | Temporal tables |
-| Sequences | 10.3+ | `CREATE SEQUENCE` |
-| GROUPING SETS | 10.3+ | Advanced grouping |
-| INET6 type | 10.5+ | Native IPv6 |
-| SKIP LOCKED | 10.6+ | Row-level locking control |
+| Spatial types | 10.2+ | GEOMETRY, POINT, spatial index |
+| `ST_AsGeoJSON()` | 10.2.3+ | |
+| JSON | 10.2.3+ | `JSON` alias for LONGTEXT, JSON functions |
+| INTERSECT / EXCEPT | 10.3+ | Set operations |
+| Sequences | 10.3+ | `CREATE SEQUENCE`, `NEXT VALUE FOR` |
+| System versioning | 10.3+ | `WITH SYSTEM VERSIONING` |
+| Invisible columns | 10.3+ | |
+| SKIP LOCKED / NOWAIT | 10.3+ | Row-level locking control |
+| `TRUNCATE ... WAIT` | 10.3+ | |
+| Triggers (FOLLOWS/PRECEDES) | 10.2.3+ | |
+| INSTEAD OF triggers | 10.4+ | View triggers |
+| RETURNING (INSERT/DELETE/REPLACE) | 10.5+ | |
+| `RENAME TABLE ... WAIT` | 10.3+ | |
+| `EXPLAIN FORMAT=JSON` / `ANALYZE` | 10.6+ | |
+| `ANALYZE TABLE ... PERSISTENT` | 10.5+ | |
+| `JSON_TABLE` | 10.6+ | |
+| `IS JSON` predicate | 12.3+ | |
+| `TO_DATE()` | 12.3+ | |
+| `UPDATE ... RETURNING` | 13.0+ | Single-table UPDATE only; pairs with `OLD_VALUE()` |
+| `DENY ... ON ... TO ...` | 13.1+ | Negative grants |
+| Native `->` / `->>` | 13.1+ | JSON **column** operands only; see JSON note below |
 
-**Recommended**: MariaDB 10.6+ for optimal feature support.
+Not implemented: `QUALIFY`, ordered-set aggregates (`WITHIN GROUP`),
+`LATERAL VIEW`, `ROW()` composite types, `MBR*` functions, `SOUNDEX`,
+`PARTITION BY SYSTEM_TIME`, packages, domains, `SET PATH`,
+`SET SESSION AUTHORIZATION`, cursors on prepared statements, optimizer hints
+(`/*+ ... */`), the `VECTOR` type, and the `XML` type.
+
+### JSON arrow operators
+
+`->` and `->>` are always rendered as the equivalent
+`JSON_EXTRACT(...)` / `JSON_UNQUOTE(JSON_EXTRACT(...))` calls, which behave
+identically on every supported version. MariaDB 13.1 added a native
+`column -> path` form, but it applies **only to a real JSON column** —
+`CAST(x AS JSON) -> '$'` is a syntax error even on 13.1 — so it is not used as
+the general-purpose rendering. `supports_json_arrow_operators_native()` reports
+whether it is available.
+
+### The `utf8` character set alias
+
+`utf8` is a server-side **alias** whose meaning changed in MariaDB 13.1
+(MDEV-30041): it resolved to `utf8mb3` on every release up to 13.0, and
+resolves to `utf8mb4` from 13.1, because `old_mode` no longer sets
+`UTF8_IS_UTF8MB3` by default.
+
+```sql
+CREATE TABLE t (s VARCHAR(50)) CHARACTER SET utf8
+-- MariaDB <= 13.0  ->  utf8mb3_uca1400_ai_ci   (4-byte characters rejected)
+-- MariaDB >= 13.1  ->  utf8mb4_uca1400_ai_ci   (4-byte characters accepted)
+```
+
+This backend resolves the alias to **`utf8mb3`** — the meaning it always had
+before 13.1 — before emitting it, so one DDL statement produces one schema on
+every supported server. Ask for `utf8mb4` explicitly if you want 4-byte
+storage.
+
+Note this affects the DDL context only: `SET NAMES utf8` already resolved to
+`utf8mb4` on every version tested, including 12.2.
+
+### Reserved words
+
+Identifiers are quoted by default. The reserved-word check is
+version-aware, because MariaDB adds reserved words in otherwise-minor
+releases — `conversion` and `to_date` became reserved in **12.3**, and `deny`
+in **13.1**. An unquoted identifier matching a reserved word emits an
+`IdentifierQuotingWarning`; it is a warning, not an error, so passing
+`need_quote=False` remains possible at your own risk.
+
+## Supported Versions Policy
+
+| Line | Status | Rationale |
+|------|--------|-----------|
+| **12.3** | **Recommended baseline** | LTS, maintained to June 2029 |
+| 13.0 | Supported, opt-in | GA (rolling, non-LTS) |
+| 13.1 | Not recommended for production | Release candidate; `utf8` alias change and `mariadb-dump` behaviour change need independent validation |
+| 11.8 | Supported | Previous LTS |
+| 10.2 – 11.7 | Supported | Older lines, CI-covered |
+
+**On unrecognised newer versions.** There is no upper bound: the backend does
+not reject a version it has not seen. It behaves as follows.
+
+- Feature gates resolve to "enabled" when the server is newer than a
+  feature's introduction version, so **new syntax is assumed available**.
+  If that assumption is wrong the server rejects the statement.
+- Removals are handled explicitly, per feature. For example
+  `supports_function_name("des_encrypt")` returns `False` on 13.0+, where the
+  function was removed.
+- Behaviour changes that are *not* new syntax cannot be detected from the
+  version alone. The `utf8` alias is handled by resolving the alias to an
+  unambiguous spelling rather than by branching on version.
+
+When bumping to a new major, check that release's "Incompatible Changes"
+section before assuming compatibility.
 
 ## Get Started with AI Code Agents
 
