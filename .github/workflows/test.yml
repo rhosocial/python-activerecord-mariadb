@@ -38,6 +38,8 @@ jobs:
           - { python-version: '3.14', mariadb-version: '11.8', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
           - { python-version: '3.14t', mariadb-version: '12.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
           - { python-version: '3.14t', mariadb-version: '12.2', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.14t', mariadb-version: '12.3', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.14t', mariadb-version: '13.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
 
     services:
       mariadb:
@@ -123,7 +125,8 @@ jobs:
       matrix:
         include:
           - { python-version: '3.15.0-rc.2', mariadb-version: '12.3', freethreaded: false }
-          - { python-version: '3.15.0-rc.2', mariadb-version: '13.0-rc', freethreaded: true }
+          - { python-version: '3.15.0-rc.2', mariadb-version: '13.0', freethreaded: true }
+          - { python-version: '3.14', mariadb-version: '13.1-rc', freethreaded: false }
 
     services:
       mariadb:
@@ -178,5 +181,5 @@ jobs:
 
       - name: Run tests
         run: |
-          export PYTHONPATH=src
+          export PYTHONPATH=src:tests
           python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short
