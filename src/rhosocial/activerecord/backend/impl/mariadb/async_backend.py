@@ -239,10 +239,8 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
             version_row = await cursor.fetchone()
             version_str = version_row[0] if version_row else "10.5.0"
 
-            if '-MariaDB' in version_str:
-                version_clean = version_str.split('-')[0]
-            else:
-                version_clean = version_str.split('-')[0]
+            # Strip the vendor suffix: "13.1.1-MariaDB-ubu2604" -> "13.1.1".
+            version_clean = version_str.split('-')[0]
 
             version_parts = version_clean.split('.')
 

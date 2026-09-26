@@ -19,6 +19,22 @@ if TYPE_CHECKING:
         TriggerListExpression,
     )
 
+#: Schemas owned by the server rather than the user. Excluded from user-facing
+#: listings and from disk-usage totals.
+#:
+#: This is a fixed list rather than a discovery query because
+#: ``information_schema.SCHEMATA`` carries no flag distinguishing a system
+#: schema from a user schema -- the only reliable discriminator would be a
+#: round trip to compare against the server's own bootstrap state. Keeping it
+#: in one place (rather than inline at each call site) means a new MariaDB
+#: release that adds a system schema needs a change here and nowhere else.
+SYSTEM_SCHEMAS = ("information_schema", "performance_schema", "mysql", "sys")
+
+#: SQL fragment excluding :data:`SYSTEM_SCHEMAS` from a ``table_schema`` filter.
+SYSTEM_SCHEMAS_SQL_PREDICATE = (
+    "TABLE_SCHEMA NOT IN ('" + "', '".join(SYSTEM_SCHEMAS) + "')"
+)
+
 
 class MariaDBIntrospectionMixin:
     """MariaDB introspection capability declaration and query formatting.
@@ -135,9 +151,7 @@ class MariaDBIntrospectionMixin:
         sql_params: list = [schema]
 
         if not include_system:
-            conditions.append(
-                "TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')"
-            )
+            conditions.append(SYSTEM_SCHEMAS_SQL_PREDICATE)
         if not include_views:
             conditions.append("TABLE_TYPE = 'BASE TABLE'")
         if table_type:
@@ -259,9 +273,7 @@ class MariaDBIntrospectionMixin:
         sql_params: list = [schema]
 
         if not include_system:
-            conditions.append(
-                "TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')"
-            )
+            conditions.append(SYSTEM_SCHEMAS_SQL_PREDICATE)
 
         where = " AND ".join(conditions)
         sql = (

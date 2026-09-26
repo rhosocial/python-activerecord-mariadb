@@ -59,8 +59,6 @@ class MariaDBShowFunctionality:
         self._backend = backend
         self._version = version
         self.dialect = backend.dialect
-        # MariaDB 10.3+ supports invisible columns
-        self._supports_invisible_columns = version >= (10, 3, 0) if version else True
 
     # ========== Parsing Helper Methods ==========
 

@@ -8,6 +8,7 @@ like Galera cluster status and thread pool metrics.
 
 from typing import Any, Dict, List, Optional
 
+from ..mixins.introspection import SYSTEM_SCHEMAS_SQL_PREDICATE
 from rhosocial.activerecord.backend.introspection.status import (
     StatusItem,
     StatusCategory,
@@ -201,13 +202,12 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
 
     def get_storage_info(self) -> StorageInfo:
         try:
-            rows = self._execute_query_dict("""
-                SELECT SUM(data_length) AS data_bytes,
-                       SUM(index_length) AS index_bytes
-                FROM information_schema.TABLES
-                WHERE table_schema NOT IN
-                    ('information_schema', 'performance_schema', 'mysql', 'sys')
-            """)
+            rows = self._execute_query_dict(
+                "SELECT SUM(data_length) AS data_bytes,\n"
+                "       SUM(index_length) AS index_bytes\n"
+                "FROM information_schema.TABLES\n"
+                f"WHERE {SYSTEM_SCHEMAS_SQL_PREDICATE}"
+            )
             if rows:
                 data = int(rows[0].get("data_bytes") or 0)
                 index = int(rows[0].get("index_bytes") or 0)
@@ -395,13 +395,12 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
 
     async def get_storage_info(self) -> StorageInfo:
         try:
-            rows = await self._execute_query_dict("""
-                SELECT SUM(data_length) AS data_bytes,
-                       SUM(index_length) AS index_bytes
-                FROM information_schema.TABLES
-                WHERE table_schema NOT IN
-                    ('information_schema', 'performance_schema', 'mysql', 'sys')
-            """)
+            rows = await self._execute_query_dict(
+                "SELECT SUM(data_length) AS data_bytes,\n"
+                "       SUM(index_length) AS index_bytes\n"
+                "FROM information_schema.TABLES\n"
+                f"WHERE {SYSTEM_SCHEMAS_SQL_PREDICATE}"
+            )
             if rows:
                 data = int(rows[0].get("data_bytes") or 0)
                 index = int(rows[0].get("index_bytes") or 0)

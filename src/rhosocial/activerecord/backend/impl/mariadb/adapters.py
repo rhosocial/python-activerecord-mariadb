@@ -251,13 +251,13 @@ class MariaDBDatetimeAdapter(SQLTypeAdapter):
     """
 
     def __init__(self, mariadb_version: Optional[Tuple[int, int, int]] = None):
-        """Initialize adapter with MariaDB version info.
+        """Initialize the adapter.
 
         Args:
-            mariadb_version: MariaDB server version tuple (major, minor, patch).
-                             If None, defaults to (10, 5, 0).
+            mariadb_version: Accepted for call-site compatibility. Behaviour
+                does not currently vary by server version, so the value is
+                not retained.
         """
-        self._mariadb_version = mariadb_version or (10, 5, 0)
 
     @property
     def supported_types(self) -> Dict[Type, List[Any]]:
