@@ -3,6 +3,15 @@
 MariaDB reserved words list.
 
 Source: MariaDB 11.0 Documentation (https://mariadb.com/kb/en/reserved-words/)
+
+MariaDB adds reserved words in otherwise-minor releases, so a single frozen
+set goes stale. :data:`MARIADB_RESERVED_WORDS_ADDED_BY_VERSION` carries the
+later additions and :func:`reserved_words_for_version` folds them in according
+to the server version the dialect was built for.
+
+Note that this list is advisory: identifiers are quoted by default, and the
+check only fires on the unquoted path. Always prefer an explicitly quoted
+identifier for user-supplied names.
 """
 
 MARIADB_RESERVED_WORDS = frozenset({
@@ -47,3 +56,44 @@ MARIADB_RESERVED_WORDS = frozenset({
     "varchar", "varcharacter", "varying", "virtual", "when", "where",
     "while", "with", "write", "xor", "year_month", "zerofill",
 })
+
+#: Reserved words added after the MariaDB 11.0 baseline captured by
+#: :data:`MARIADB_RESERVED_WORDS`. Maps minimum server version -> words that
+#: became reserved in that release.
+#:
+#: Verified against live servers: ``SELECT to_date ...`` and
+#: ``SELECT conversion ...`` parse on 12.2 and fail with errno 1064 on
+#: 12.3, 13.0 and 13.1.
+MARIADB_RESERVED_WORDS_ADDED_BY_VERSION = {
+    (12, 3, 0): frozenset({
+        "conversion",  # MDEV: 12.3 "Incompatible Changes"
+        "to_date",     # very common as a column name -- quoting is essential
+    }),
+    (13, 1, 0): frozenset({
+        "deny",  # DENY ... ON ... TO ... privilege statement
+    }),
+}
+
+#: Cached unions keyed by version so the fold is not recomputed per lookup.
+_RESERVED_WORDS_CACHE = {}
+
+
+def reserved_words_for_version(version=None) -> frozenset:
+    """Return the reserved words in effect for a MariaDB ``version``.
+
+    ``version`` is a comparable tuple such as ``(13, 1, 0)``. ``None`` (the
+    server version is unknown) returns the baseline set unchanged, which
+    degrades to "assume the oldest documented set" rather than guessing.
+    """
+    if version is None:
+        return MARIADB_RESERVED_WORDS
+    cached = _RESERVED_WORDS_CACHE.get(version)
+    if cached is not None:
+        return cached
+    words = set(MARIADB_RESERVED_WORDS)
+    for introduced_in, added in MARIADB_RESERVED_WORDS_ADDED_BY_VERSION.items():
+        if version >= introduced_in:
+            words.update(added)
+    result = frozenset(words)
+    _RESERVED_WORDS_CACHE[version] = result
+    return result

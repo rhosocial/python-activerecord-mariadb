@@ -145,7 +145,7 @@ from .mixins import (
     MariaDBGeneratedColumnMixin,
     MariaDBFunctionMixin,
 )
-from .reserved_words import MARIADB_RESERVED_WORDS
+from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
 
 # Import MariaDB-specific protocols
@@ -346,9 +346,22 @@ class MariaDBDialect(
                 features can be used.
         """
         super().__init__()
-        self._reserved_words = MARIADB_RESERVED_WORDS
+        self._reserved_words = reserved_words_for_version(version)
         if version is not None:
             self.version = version
+
+    @property
+    def version(self) -> Tuple[int, int, int]:
+        return SQLDialectBase.version.fget(self)
+
+    @version.setter
+    def version(self, value: Tuple[int, int, int]) -> None:
+        # Keep the reserved-word set in step with the version: MariaDB added
+        # `conversion` / `to_date` in 12.3 and `deny` in 13.1, and a dialect
+        # re-adapted after construction would otherwise keep quoting
+        # decisions made for the old version.
+        SQLDialectBase.version.fset(self, value)
+        self._reserved_words = reserved_words_for_version(value)
 
     def get_parameter_placeholder(self, position: int = 0) -> str:
         """MariaDB uses positional placeholders like :0, :1 or %s."""
