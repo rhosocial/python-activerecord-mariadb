@@ -94,12 +94,12 @@ class MariaDBDMLOperationMixin:
     def supports_returning_for_update(self) -> bool:
         """Whether RETURNING is supported for UPDATE.
 
-        MariaDB does NOT support RETURNING for UPDATE.
+        MariaDB 13.0+ supports RETURNING for single-table UPDATE.
 
         Returns:
-            False.
+            True if MariaDB version >= 13.0.0.
         """
-        return False
+        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE']
 
     def format_insert_statement(
         self,

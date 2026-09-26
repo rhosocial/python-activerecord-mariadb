@@ -92,13 +92,17 @@ class MariaDBReturningMixin:
     def supports_returning_for_update(self) -> bool:
         """Whether RETURNING is supported for UPDATE.
 
-        Note: MariaDB does NOT support RETURNING for UPDATE statements.
-        Only PostgreSQL supports this.
+        MariaDB 13.0 added ``UPDATE ... RETURNING`` (MDEV-5092). It accepts
+        expressions and the ``OLD_VALUE()`` function, so pre- and post-update
+        values can be read in a single round trip.
+
+        Only **single-table** UPDATE is supported; MariaDB rejects the clause
+        on a multi-table UPDATE.
 
         Returns:
-            False (MariaDB does not support RETURNING for UPDATE).
+            True if MariaDB version >= 13.0.0.
         """
-        return False
+        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE']
 
     # Protocol aliases (without _for_) expected by ReturningSupport
     def supports_returning_insert(self) -> bool:
@@ -108,6 +112,15 @@ class MariaDBReturningMixin:
     def supports_returning_delete(self) -> bool:
         """Whether RETURNING clause is supported for DELETE."""
         return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+
+    def supports_returning_update(self) -> bool:
+        """Whether RETURNING clause is supported for UPDATE.
+
+        The core ``format_update_statement`` consults this alias (not the
+        ``_for_`` variant), so both must agree or the clause is rejected
+        regardless of what ``supports_returning_for_update`` reports.
+        """
+        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE']
 
     def format_returning_clause(
         self,
