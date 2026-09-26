@@ -202,14 +202,31 @@ class MariaDBBitType(DataType):
 # ---------------------------------------------------------------------------
 
 class MariaDBYearType(DataType):
-    """MariaDB ``YEAR[(4)]`` — year type."""
+    """MariaDB ``YEAR[(4)]`` — year type.
+
+    ``display_width`` accepts only ``None`` (bare ``YEAR``) or ``4``.
+    ``YEAR(2)`` was deprecated in 2012 and is **rejected outright by
+    MariaDB 13.0+** (verified: ``CREATE TABLE t (y YEAR(2))`` succeeds on
+    12.2/12.3 and fails with errno 1064 on 13.0/13.1). Accepting it here
+    would let a schema that builds on an older server fail to deploy on a
+    newer one, so it is rejected at construction time regardless of dialect.
+    """
 
     name = "mariadb_year"
 
     display_width: Optional[int] = None
 
+    #: Widths this backend is willing to emit.
+    ALLOWED_DISPLAY_WIDTHS = (4,)
+
     def __init__(self, dialect=None, display_width: Optional[int] = None):
         super().__init__(dialect)
+        if display_width is not None and display_width not in self.ALLOWED_DISPLAY_WIDTHS:
+            allowed = ", ".join(str(w) for w in self.ALLOWED_DISPLAY_WIDTHS)
+            raise ValueError(
+                f"YEAR display_width must be None or {allowed}; got {display_width!r}. "
+                "YEAR(2) was deprecated in 2012 and is not accepted by MariaDB 13.0+."
+            )
         self.display_width = display_width
 
     def _type_params(self) -> tuple:

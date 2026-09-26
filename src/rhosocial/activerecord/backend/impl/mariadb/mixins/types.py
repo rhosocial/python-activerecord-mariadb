@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from typing import Optional, Tuple
 
 from rhosocial.activerecord.backend.dialect.mixins.data_type import DataTypeMixin
@@ -658,6 +659,21 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
                 nums = re.findall(r"\d+", stripped)
                 display_width = int(nums[0]) if nums else None
                 from ..expression.types import MariaDBYearType
+                if display_width not in MariaDBYearType.ALLOWED_DISPLAY_WIDTHS:
+                    # A pre-13.0 server can still report YEAR(2). We cannot
+                    # round-trip it (MariaDBYearType rejects it, and
+                    # MariaDB 13.0+ would refuse the DDL), so degrade to bare
+                    # YEAR -- which is the 4-byte storage YEAR always used --
+                    # and say so rather than failing introspection or
+                    # silently rewriting the schema.
+                    warnings.warn(
+                        f"Server reported YEAR({display_width}); MariaDB 13.0+ rejects "
+                        "YEAR(2). Reading it as YEAR. Use old_mode=2_DIGIT_YEAR (itself "
+                        "deprecated) only if the 2-digit truncation is intentional.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    display_width = None
                 return MariaDBYearType(self, display_width)
             if upper.startswith("DATE"):
                 if upper.strip() == "DATE":
