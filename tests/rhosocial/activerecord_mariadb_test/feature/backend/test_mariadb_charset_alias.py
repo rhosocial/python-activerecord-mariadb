@@ -19,7 +19,7 @@ from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.mixins.charset_collation import (
     _CHARSET_ALIASES,
     _CHARSET_MIN_VERSIONS,
-    _COLLATION_MIN_VERSIONS,
+    _COLLATION_VERSIONS,
     MariaDBCharset,
 )
 
@@ -110,29 +110,54 @@ class TestCharsetVersionTable:
 
 
 class TestCollationVersionTable:
+    """Collations are gated on both bounds.
+
+    MariaDB 10.6 renamed the 3-byte family from ``utf8_*`` to
+    ``utf8mb3_*``, so those names are a *removal* at 10.6 rather than an
+    addition. The ``utf8mb4_*`` collations predate every supported release.
+    Verified against live servers: 10.2 and 10.5 expose ``utf8_general_ci``
+    and not ``utf8mb3_general_ci``; 10.6 and later the reverse.
+    """
+
     def test_table_is_populated(self):
         # It used to be empty, which made the version branch in
         # supported_collations() and validate_collation_by_name() unreachable.
-        assert _COLLATION_MIN_VERSIONS
-        for name, boundary in _COLLATION_MIN_VERSIONS.items():
-            assert isinstance(boundary, tuple) and len(boundary) == 3, name
+        assert _COLLATION_VERSIONS
+        for name, window in _COLLATION_VERSIONS.items():
+            assert isinstance(window, tuple) and len(window) == 2, name
 
-    def test_utf8_family_collations_gated_at_10_6(self):
-        before = _dialect((10, 5, 9)).supported_collations()
-        after = _dialect((10, 6, 0)).supported_collations()
-        assert "utf8_general_ci" not in before
-        assert "utf8mb4_bin" not in before
-        assert "utf8_general_ci" in after
-        assert "utf8mb4_bin" in after
+    def test_three_byte_family_was_renamed_in_10_6(self):
+        assert _COLLATION_VERSIONS["utf8_general_ci"] == (None, (10, 5, 0))
+        assert _COLLATION_VERSIONS["utf8mb3_general_ci"] == ((10, 6, 0), None)
 
-    def test_version_branch_is_reachable(self):
+    def test_old_spelling_removed_after_10_5(self):
+        assert "utf8_general_ci" in _dialect((10, 5, 0)).supported_collations()
+        assert "utf8_general_ci" not in _dialect((10, 6, 0)).supported_collations()
+        assert "utf8_general_ci" not in _dialect(RC_131).supported_collations()
+        with pytest.raises(ValueError, match="utf8mb3"):
+            _dialect((10, 6, 0)).validate_collation_by_name("utf8_general_ci")
+
+    def test_new_spelling_requires_10_6(self):
+        assert "utf8mb3_general_ci" not in _dialect((10, 5, 0)).supported_collations()
         with pytest.raises(ValueError, match="10.6"):
-            _dialect((10, 5, 9)).validate_collation_by_name("utf8mb4_bin")
-        assert _dialect((10, 6, 0)).validate_collation_by_name("utf8mb4_bin") == "utf8mb4_bin"
+            _dialect((10, 5, 0)).validate_collation_by_name("utf8mb3_general_ci")
+        assert (
+            _dialect((10, 6, 0)).validate_collation_by_name("utf8mb3_general_ci")
+            == "utf8mb3_general_ci"
+        )
 
-    def test_non_utf8_collations_ungated(self):
-        assert "latin1_swedish_ci" in _dialect((10, 5, 9)).supported_collations()
-        assert "binary" in _dialect((10, 5, 9)).supported_collations()
+    def test_utf8mb4_collations_available_on_oldest_supported_version(self):
+        # They landed in 5.5.3, so the gate must never fire for 10.2+.
+        for version in ((10, 2, 0), (10, 5, 0), (10, 6, 0), RC_131):
+            names = _dialect(version).supported_collations()
+            assert "utf8mb4_bin" in names
+            assert "utf8mb4_general_ci" in names
+
+    def test_ungated_collations_always_present(self):
+        for version in ((10, 2, 0), (10, 6, 0), RC_131):
+            names = _dialect(version).supported_collations()
+            assert "latin1_swedish_ci" in names
+            assert "binary" in names
 
 
 class TestCharsetParityAcrossVersions:

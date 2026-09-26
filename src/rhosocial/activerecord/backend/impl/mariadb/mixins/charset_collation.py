@@ -102,8 +102,12 @@ class MariaDBCollation(Enum):
 
     BINARY = "binary"
     LATIN1_SWEDISH_CI = "latin1_swedish_ci"
+    # 3-byte family. MariaDB 10.6 renamed these to the explicit utf8mb3_*
+    # spellings and dropped the old names; see _COLLATION_VERSIONS.
     UTF8_GENERAL_CI = "utf8_general_ci"
     UTF8_UNICODE_CI = "utf8_unicode_ci"
+    UTF8MB3_GENERAL_CI = "utf8mb3_general_ci"
+    UTF8MB3_UNICODE_CI = "utf8mb3_unicode_ci"
     UTF8MB4_BIN = "utf8mb4_bin"
     UTF8MB4_GENERAL_CI = "utf8mb4_general_ci"
     UTF8MB4_UNICODE_CI = "utf8mb4_unicode_ci"
@@ -113,7 +117,7 @@ _CHARSET_BY_VALUE = {member.value: member for member in MariaDBCharset}
 _ENGINE_BY_LOWER = {member.value.lower(): member for member in MariaDBStorageEngine}
 _COLLATION_VALUES = {member.value for member in MariaDBCollation}
 
-# Introduced-in server versions for version-gated values.
+# Introduced-in server versions for version-gated character sets.
 _CHARSET_MIN_VERSIONS: dict = {
     # MariaDB 5.5.3 is a real MariaDB release and is where utf8mb4 landed,
     # so this threshold is meaningful for a backend that supports 10.2+.
@@ -121,18 +125,25 @@ _CHARSET_MIN_VERSIONS: dict = {
     "utf8mb3": (10, 6, 0),
     "utf8": (10, 0, 0),
 }
+
+# Availability windows for version-gated collations, as
+# ``name -> (min_version, max_version)``. A ``None`` bound means unbounded.
+#
+# Verified against live servers: MariaDB 10.6 renamed the 3-byte family from
+# ``utf8_*`` to the explicit ``utf8mb3_*`` and dropped the old spellings, so
+# these are *removals* at 10.6 rather than additions. The ``utf8mb4_*``
+# collations predate every release this backend supports.
+_COLLATION_VERSIONS: dict = {
+    "utf8_general_ci": (None, (10, 5, 0)),
+    "utf8_unicode_ci": (None, (10, 5, 0)),
+    "utf8mb3_general_ci": ((10, 6, 0), None),
+    "utf8mb3_unicode_ci": ((10, 6, 0), None),
+    "utf8mb4_bin": ((5, 5, 3), None),
+    "utf8mb4_general_ci": ((5, 5, 3), None),
+    "utf8mb4_unicode_ci": ((5, 5, 3), None),
+}
 _ENGINE_MIN_VERSIONS: dict = {
     "SEQUENCE": (10, 3, 0),
-}
-_COLLATION_MIN_VERSIONS: dict = {
-    # The ``utf8_general_ci`` / ``utf8_unicode_ci`` names are spelled without
-    # the ``mb3`` marker but belong to the 3-byte family. Spell them out in
-    # full (``utf8mb3_general_ci``) to be unambiguous.
-    "utf8_general_ci": (10, 6, 0),
-    "utf8_unicode_ci": (10, 6, 0),
-    "utf8mb4_bin": (10, 6, 0),
-    "utf8mb4_general_ci": (10, 6, 0),
-    "utf8mb4_unicode_ci": (10, 6, 0),
 }
 
 #: Charsets that are ambiguous server-side aliases, mapped to the explicit
@@ -258,9 +269,13 @@ class MariaDBCharsetCollationMixin:
         version = self._mariadb_capability_version()
         names = set()
         for name in _COLLATION_VALUES:
-            min_version = _COLLATION_MIN_VERSIONS.get(name)
-            if version is not None and min_version is not None and version < min_version:
-                continue
+            window = _COLLATION_VERSIONS.get(name)
+            if version is not None and window is not None:
+                min_version, max_version = window
+                if min_version is not None and version < min_version:
+                    continue
+                if max_version is not None and version > max_version:
+                    continue
             if charset is not None:
                 prefix = charset.lower() + "_"
                 if not (
@@ -285,10 +300,20 @@ class MariaDBCharsetCollationMixin:
         normalized = name.lower()
         if normalized not in _COLLATION_VALUES:
             raise ValueError(f"Unsupported MariaDB collation: {name!r}")
-        min_version = _COLLATION_MIN_VERSIONS.get(normalized)
-        if version is not None and min_version is not None and version < min_version:
-            formatted = ".".join(str(part) for part in min_version[:2])
-            raise ValueError(f"MariaDB collation requires MariaDB {formatted}+: {name!r}")
+        window = _COLLATION_VERSIONS.get(normalized)
+        if version is not None and window is not None:
+            min_version, max_version = window
+            if min_version is not None and version < min_version:
+                formatted = ".".join(str(part) for part in min_version[:2])
+                raise ValueError(
+                    f"MariaDB collation requires MariaDB {formatted}+: {name!r}"
+                )
+            if max_version is not None and version > max_version:
+                last = ".".join(str(part) for part in max_version[:2])
+                raise ValueError(
+                    f"MariaDB collation is not available after MariaDB {last}: "
+                    f"use the utf8mb3_* spelling instead ({name!r})"
+                )
         return normalized
 
     # --- storage engine --------------------------------------------------
