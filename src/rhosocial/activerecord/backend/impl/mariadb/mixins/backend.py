@@ -17,10 +17,16 @@ if TYPE_CHECKING:
     from ..dialect import MariaDBDialect
     from rhosocial.activerecord.backend.options import ExecutionOptions
 
+#: Single source of truth for "feature X first appeared in MariaDB <version>".
+#:
+#: Every version gate in this backend must read a key from here. Do NOT
+#: rebind this name in another module: a shadowing local copy silently
+#: diverges from this table and turns gates into ``KeyError`` at runtime.
 MARIADB_VERSION_BOUNDARIES = {
     'WINDOW_FUNCTIONS': (10, 2, 0),
     'JSON_FUNCTIONS': (10, 2, 3),
     'JSON_ARROWS': (10, 2, 7),
+    'JSON_TABLE': (10, 6, 0),
     'CTE': (10, 2, 0),
     'INTERSECT_EXCEPT': (10, 3, 0),
     'SEQUENCE': (10, 3, 0),
@@ -36,8 +42,15 @@ MARIADB_VERSION_BOUNDARIES = {
     'ROUTINE_IF_NOT_EXISTS': (10, 1, 3),
     'GRANT_OR_REPLACE': (10, 1, 4),
     'GRANT_IF_EXISTS': (10, 1, 4),
-    'DENY': (13, 1, 0),
     'CHECK_CONSTRAINT': (10, 2, 1),
+    # --- 12.3 (LTS) ---
+    'IS_JSON_PREDICATE': (12, 3, 0),
+    'TO_DATE_FUNCTION': (12, 3, 0),
+    # --- 13.0 (GA) ---
+    'RETURNING_UPDATE': (13, 0, 0),
+    # --- 13.1 (RC) ---
+    'DENY': (13, 1, 0),
+    'JSON_ARROW_NATIVE': (13, 1, 0),
 }
 
 
