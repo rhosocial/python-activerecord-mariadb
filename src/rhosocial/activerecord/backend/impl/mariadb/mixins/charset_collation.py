@@ -63,6 +63,15 @@ class MariaDBCharset(Enum):
     TIS620 = "tis620"
     UCS2 = "ucs2"
     UJIS = "ujis"
+    # ``utf8`` is a server-side *alias* whose meaning changed in MariaDB
+    # 13.1 (MDEV-30041): it resolved to ``utf8mb3`` on every release up to
+    # 13.0 and resolves to ``utf8mb4`` from 13.1, because ``old_mode`` no
+    # longer sets ``UTF8_IS_UTF8MB3`` by default. Emitting a bare ``utf8``
+    # therefore produces a *different column charset* depending on the
+    # server version, so ``validate_charset_name`` resolves it to
+    # ``utf8mb3`` -- the meaning it always had before 13.1 -- and the same
+    # DDL yields the same schema on every supported server.
+    # Prefer ``UTF8MB4`` (or ``UTF8MB3``) to be explicit.
     UTF8 = "utf8"
     UTF8MB3 = "utf8mb3"
     UTF8MB4 = "utf8mb4"
@@ -106,13 +115,48 @@ _COLLATION_VALUES = {member.value for member in MariaDBCollation}
 
 # Introduced-in server versions for version-gated values.
 _CHARSET_MIN_VERSIONS: dict = {
+    # MariaDB 5.5.3 is a real MariaDB release and is where utf8mb4 landed,
+    # so this threshold is meaningful for a backend that supports 10.2+.
     "utf8mb4": (5, 5, 3),
     "utf8mb3": (10, 6, 0),
+    "utf8": (10, 0, 0),
 }
 _ENGINE_MIN_VERSIONS: dict = {
     "SEQUENCE": (10, 3, 0),
 }
-_COLLATION_MIN_VERSIONS: dict = {}
+_COLLATION_MIN_VERSIONS: dict = {
+    # The ``utf8_general_ci`` / ``utf8_unicode_ci`` names are spelled without
+    # the ``mb3`` marker but belong to the 3-byte family. Spell them out in
+    # full (``utf8mb3_general_ci``) to be unambiguous.
+    "utf8_general_ci": (10, 6, 0),
+    "utf8_unicode_ci": (10, 6, 0),
+    "utf8mb4_bin": (10, 6, 0),
+    "utf8mb4_general_ci": (10, 6, 0),
+    "utf8mb4_unicode_ci": (10, 6, 0),
+}
+
+#: Charsets that are ambiguous server-side aliases, mapped to the explicit
+#: spelling they should be emitted as, together with the minimum server
+#: version at which that spelling is valid.
+#:
+#: The point of resolving them is that generated DDL is *identical* on every
+#: supported server version. ``utf8`` is the only such alias: it meant
+#: ``utf8mb3`` on every MariaDB release up to 13.0, then became an alias for
+#: ``utf8mb4`` in 13.1 (MDEV-30041 dropped the default
+#: ``old_mode=UTF8_IS_UTF8MB3`` flag). Passing ``utf8`` through therefore
+#: makes the column charset depend on the server version.
+#:
+#: It resolves to ``utf8mb3`` -- the historical meaning -- rather than to
+#: ``utf8mb4``. Resolving forward instead would silently widen the column on
+#: every pre-13.1 server, trading one silent drift for another. Callers who
+#: want 4-byte storage must ask for ``utf8mb4`` explicitly.
+#:
+#: Below MariaDB 10.6 the explicit ``utf8mb3`` name is not documented, so the
+#: alias is passed through unchanged there. That is still unambiguous: on
+#: every version before 13.1 ``utf8`` can only mean ``utf8mb3``.
+_CHARSET_ALIASES: dict = {
+    "utf8": ((10, 6, 0), "utf8mb3"),
+}
 
 
 class MariaDBCharsetCollationMixin:
@@ -140,15 +184,39 @@ class MariaDBCharsetCollationMixin:
 
     # --- charset ---------------------------------------------------------
     def supported_charsets(self) -> FrozenSet[str]:
-        """Charset names available on the configured server version."""
+        """Charset names available on the configured server version.
+
+        An alias is reported under the explicit spelling it resolves to, so
+        the returned set never contains a name whose meaning depends on the
+        server version. Where the explicit spelling is not yet valid the alias
+        itself is reported, since it is unambiguous at that point.
+        """
         version = self._mariadb_capability_version()
-        return frozenset(
-            member.value
-            for member in MariaDBCharset
-            if version is None
-            or _CHARSET_MIN_VERSIONS.get(member.value) is None
-            or version >= _CHARSET_MIN_VERSIONS[member.value]
-        )
+        names = set()
+        for member in MariaDBCharset:
+            if version is not None:
+                min_version = _CHARSET_MIN_VERSIONS.get(member.value)
+                if min_version is not None and version < min_version:
+                    continue
+            names.add(self._resolve_charset_alias(member.value, version))
+        return frozenset(names)
+
+    @staticmethod
+    def _resolve_charset_alias(
+        name: str, version: Optional[Tuple[int, ...]] = None
+    ) -> str:
+        """Map an ambiguous charset alias to the spelling to emit.
+
+        Falls back to the alias itself when the server predates the explicit
+        spelling, or when the version is unknown.
+        """
+        entry = _CHARSET_ALIASES.get(name)
+        if entry is None:
+            return name
+        valid_from, replacement = entry
+        if version is None or version < valid_from:
+            return name
+        return replacement
 
     def supports_charset(self, name: object) -> bool:
         try:
@@ -158,6 +226,15 @@ class MariaDBCharsetCollationMixin:
         return True
 
     def validate_charset_name(self, name: object) -> str:
+        """Validate a charset and return the spelling to emit in SQL.
+
+        The ambiguous alias ``utf8`` is resolved to ``utf8mb3`` from MariaDB
+        10.6, which is what it meant on every release before 13.1. Emitting
+        the alias itself on 13.1+ would make the resulting column charset
+        depend on the server version; resolving it means one DDL statement
+        produces one schema on every supported server. Ask for ``utf8mb4`` to
+        get 4-byte storage.
+        """
         version = self._mariadb_capability_version()
         if isinstance(name, MariaDBCharset):
             normalized = name.value
@@ -173,7 +250,7 @@ class MariaDBCharsetCollationMixin:
         if version is not None and min_version is not None and version < min_version:
             formatted = ".".join(str(part) for part in min_version[:2])
             raise ValueError(f"MariaDB character set requires MariaDB {formatted}+: {name!r}")
-        return normalized
+        return self._resolve_charset_alias(normalized, version)
 
     # --- collation -------------------------------------------------------
     def supported_collations(self, charset: Optional[str] = None) -> FrozenSet[str]:
