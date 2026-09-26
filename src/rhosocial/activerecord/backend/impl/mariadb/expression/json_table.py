@@ -58,11 +58,18 @@ class MariaDBJSONTableExpression(BaseExpression):
     Supported in MariaDB 10.6+.
 
     Attributes:
-        json_doc: JSON document string or expression
+        json_doc: JSON document **string literal**, or a
+            :class:`~...expression.bases.BaseExpression` when the document
+            lives in a column. A plain ``str`` is always emitted as a quoted
+            JSON literal, so ``'{"a": 1}'`` is a document and ``"j"`` is the
+            two-character JSON text ``j`` -- pass ``Column(dialect, "j")`` to
+            reference a column.
         path: JSON path expression for the root array/object
         columns: List of column definitions
-        nested_paths: Optional list of NESTED PATH definitions
-        alias: Table alias
+        nested_paths: Optional list of NESTED PATH definitions. MariaDB's
+            grammar does not allow an alias on a NESTED PATH, so
+            ``NestedPath.alias`` is not rendered.
+        alias: Table alias. Required by MariaDB when the result is joined.
     """
 
     def __init__(
