@@ -19,7 +19,7 @@ class TestMariaDBShowFunctionalityInit:
         func = MariaDBShowFunctionality(mariadb_backend_single, version=(10, 3, 0))
 
         assert func._version == (10, 3, 0)
-        assert func._supports_invisible_columns is True
+        assert func.dialect is mariadb_backend_single.dialect
 
     def test_init_with_mysql57_version(self, mariadb_backend_single):
         """Test initialization with MySQL 5.7 version."""
@@ -28,16 +28,26 @@ class TestMariaDBShowFunctionalityInit:
         func = MariaDBShowFunctionality(mariadb_backend_single, version=(5, 7, 0))
 
         assert func._version == (5, 7, 0)
-        assert func._supports_invisible_columns is False
 
     def test_init_without_version(self, mariadb_backend_single):
-        """Test initialization without version (defaults to supporting invisible columns)."""
+        """Test initialization without an explicit version."""
         from rhosocial.activerecord.backend.impl.mariadb.show.functionality import MariaDBShowFunctionality
 
         func = MariaDBShowFunctionality(mariadb_backend_single)
 
         assert func._version is None
-        assert func._supports_invisible_columns is True
+
+    def test_no_dead_invisible_column_flag(self, mariadb_backend_single):
+        """The invisible-column flag was removed as dead state.
+
+        It was computed from the version and never read: the SHOW CREATE
+        TABLE parser matches ``INVISIBLE`` unconditionally, which is correct
+        because a server old enough not to emit the keyword never produces it.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.show.functionality import MariaDBShowFunctionality
+
+        func = MariaDBShowFunctionality(mariadb_backend_single, version=(10, 3, 0))
+        assert not hasattr(func, "_supports_invisible_columns")
 
 
 class TestShowCreateTableParsing:
