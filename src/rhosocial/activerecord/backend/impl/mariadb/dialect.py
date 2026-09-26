@@ -178,28 +178,6 @@ if TYPE_CHECKING:
         ReturningClause,
     )
 
-MARIADB_VERSION_BOUNDARIES = {
-    'WINDOW_FUNCTIONS': (10, 2, 0),
-    'CTE': (10, 2, 0),
-    'JSON_FUNCTIONS': (10, 2, 3),
-    'JSON_ARROWS': (10, 2, 7),
-    'INTERSECT_EXCEPT': (10, 3, 0),
-    'SEQUENCE': (10, 3, 0),
-    'SYSTEM_VERSIONING': (10, 3, 0),
-    'RETURNING': (10, 5, 0),
-    'EXPLAIN_FORMAT': (10, 6, 0),
-    'INSTEAD_OF_TRIGGER': (10, 4, 0),
-    'SKIP_LOCKED': (10, 3, 0),
-    'RENAME_TABLE_IF_EXISTS': (10, 5, 0),
-    'RENAME_TABLE_WAIT': (10, 3, 0),
-    'TRUNCATE_WAIT': (10, 3, 0),
-    'ROUTINE_OR_REPLACE': (10, 1, 3),
-    'ROUTINE_IF_NOT_EXISTS': (10, 1, 3),
-    'GRANT_OR_REPLACE': (10, 1, 4),
-    'GRANT_IF_EXISTS': (10, 1, 4),
-    'DENY': (13, 1, 0),
-}
-
 _SUGGESTION_GRAPH_MATCH = "MariaDB does not support graph MATCH clause."
 _SUGGESTION_ORDERED_SET_AGG = "MariaDB does not support ordered-set aggregate functions (WITHIN GROUP)."
 _SUGGESTION_QUALIFY = "MariaDB does not support QUALIFY clause. Use a subquery or CTE instead."
