@@ -53,7 +53,9 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     FunctionSupport,
     # Additional Protocols
     SQLFunctionSupport,
-    DDLTypeSupport,
+    DataTypeSupport,
+    UserDefinedTypeSupport,
+    DomainSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
     CollationMixin,
@@ -91,10 +93,11 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    UserDefinedTypeMixin,
+    DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
 )
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 # Import MariaDB-specific mixins
 from .mixins import (
@@ -109,6 +112,7 @@ from .mixins import (
     MariaDBJSONMixin,
     MariaDBFullTextSearchMixin,
     MariaDBTableMixin,
+    MariaDBDatabaseMixin,
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
@@ -124,7 +128,7 @@ from .mixins import (
     MARIADB_VERSION_BOUNDARIES,
     # New mixins from dialect.py split
     MariaDBDateTimeMixin,
-    MariaDBCollationMixin,
+    MariaDBCharsetCollationMixin,
     MariaDBCTEMixin,
     MariaDBWindowMixin,
     MariaDBFilterClauseMixin,
@@ -141,7 +145,7 @@ from .mixins import (
     MariaDBGeneratedColumnMixin,
     MariaDBFunctionMixin,
 )
-from .reserved_words import MARIADB_RESERVED_WORDS
+from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
 
 # Import MariaDB-specific protocols
@@ -171,32 +175,8 @@ from .protocols import (
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        InsertExpression,
         ReturningClause,
     )
-    from .expression.load_data import MariaDBLoadDataExpression
-
-MARIADB_VERSION_BOUNDARIES = {
-    'WINDOW_FUNCTIONS': (10, 2, 0),
-    'CTE': (10, 2, 0),
-    'JSON_FUNCTIONS': (10, 2, 3),
-    'JSON_ARROWS': (10, 2, 7),
-    'INTERSECT_EXCEPT': (10, 3, 0),
-    'SEQUENCE': (10, 3, 0),
-    'SYSTEM_VERSIONING': (10, 3, 0),
-    'RETURNING': (10, 5, 0),
-    'EXPLAIN_FORMAT': (10, 6, 0),
-    'INSTEAD_OF_TRIGGER': (10, 4, 0),
-    'SKIP_LOCKED': (10, 3, 0),
-    'RENAME_TABLE_IF_EXISTS': (10, 5, 0),
-    'RENAME_TABLE_WAIT': (10, 3, 0),
-    'TRUNCATE_WAIT': (10, 3, 0),
-    'ROUTINE_OR_REPLACE': (10, 1, 3),
-    'ROUTINE_IF_NOT_EXISTS': (10, 1, 3),
-    'GRANT_OR_REPLACE': (10, 1, 4),
-    'GRANT_IF_EXISTS': (10, 1, 4),
-    'DENY': (13, 1, 0),
-}
 
 _SUGGESTION_GRAPH_MATCH = "MariaDB does not support graph MATCH clause."
 _SUGGESTION_ORDERED_SET_AGG = "MariaDB does not support ordered-set aggregate functions (WITHIN GROUP)."
@@ -219,6 +199,7 @@ class MariaDBDialect(
     MariaDBJSONMixin,
     MariaDBFullTextSearchMixin,
     MariaDBTableMixin,
+    MariaDBDatabaseMixin,
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
@@ -232,7 +213,7 @@ class MariaDBDialect(
     MariaDBAdminMixin,
     # New mixins from dialect.py split
     MariaDBDateTimeMixin,
-    MariaDBCollationMixin,
+    MariaDBCharsetCollationMixin,
     MariaDBCTEMixin,
     MariaDBWindowMixin,
     MariaDBFilterClauseMixin,
@@ -282,6 +263,8 @@ class MariaDBDialect(
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    UserDefinedTypeMixin,
+    DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
     # Protocol support markers
@@ -315,7 +298,9 @@ class MariaDBDialect(
     ViewSupport,
     FunctionSupport,
     SQLFunctionSupport,
-    DDLTypeSupport,
+    DataTypeSupport,
+    UserDefinedTypeSupport,
+    DomainSupport,
     MariaDBDMLOperationSupport,
     MariaDBTriggerSupport,
     MariaDBTableSupport,
@@ -361,9 +346,22 @@ class MariaDBDialect(
                 features can be used.
         """
         super().__init__()
-        self._reserved_words = MARIADB_RESERVED_WORDS
+        self._reserved_words = reserved_words_for_version(version)
         if version is not None:
             self.version = version
+
+    @property
+    def version(self) -> Tuple[int, int, int]:
+        return SQLDialectBase.version.fget(self)
+
+    @version.setter
+    def version(self, value: Tuple[int, int, int]) -> None:
+        # Keep the reserved-word set in step with the version: MariaDB added
+        # `conversion` / `to_date` in 12.3 and `deny` in 13.1, and a dialect
+        # re-adapted after construction would otherwise keep quoting
+        # decisions made for the old version.
+        SQLDialectBase.version.fset(self, value)
+        self._reserved_words = reserved_words_for_version(value)
 
     def get_parameter_placeholder(self, position: int = 0) -> str:
         """MariaDB uses positional placeholders like :0, :1 or %s."""
@@ -411,11 +409,12 @@ class MariaDBDialect(
         from .expression.types import (
             MariaDBBinaryType,
             MariaDBEnumType,
+            MariaDBUUIDType,
             MariaDBVarBinaryType,
         )
 
         return {
-            "uuid": MariaDBBinaryType,
+            "uuid": MariaDBUUIDType,
             "enum": MariaDBEnumType,
             "binary": MariaDBBinaryType,
             "varbinary": MariaDBVarBinaryType,
@@ -574,108 +573,11 @@ class MariaDBDialect(
 
     # region DDL Support - format_create_table_statement
 
-    def format_create_table_statement(
-        self, expr: "CreateTableExpression"
-    ) -> Tuple[str, tuple]:
-        """Format CREATE TABLE statement for MariaDB."""
-        all_params: List[Any] = []
-
-        options_part = ""
-        table_options = getattr(expr, "table_options", None)
-        if table_options is not None:
-            options_sql, options_params = table_options.to_sql()
-            if options_sql:
-                options_part = options_sql
-            all_params.extend(options_params)
-        parts = ["CREATE"]
-        if options_part:
-            parts.append(options_part)
-        if expr.temporary:
-            parts.append("TEMPORARY")
-        parts.append("TABLE")
-        if expr.if_not_exists:
-            parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
-
-        column_parts = []
-        for col_def in expr.columns:
-            col_sql, col_params = self.format_column_definition(col_def)
-            column_parts.append(col_sql)
-            all_params.extend(col_params)
-
-        for t_const in expr.table_constraints:
-            const_sql, const_params = self.format_table_constraint(t_const)
-            column_parts.append(const_sql)
-            all_params.extend(const_params)
-
-        for idx_def in expr.indexes:
-            idx_sql, idx_params = self.format_inline_index(idx_def)
-            column_parts.append(idx_sql)
-            all_params.extend(idx_params)
-
-        parts.append(f"({', '.join(column_parts)})")
-
-        if expr.storage_options:
-            storage_sql = self._format_storage_options(expr.storage_options)
-            if storage_sql:
-                parts.append(storage_sql)
-
-        if 'comment' in expr.dialect_options:
-            escaped_comment = self._escape_sql_string(expr.dialect_options['comment'])
-            parts.append(f"COMMENT '{escaped_comment}'")
-
-        return ' '.join(parts), tuple(all_params)
-
     @staticmethod
     def _escape_sql_string(value: str) -> str:
         value = value.replace('\\', '\\\\')
         value = value.replace("'", "''")
         return value
-
-    def format_column_definition(
-        self,
-        col_def: "ColumnDefinition"
-    ) -> Tuple[str, tuple]:
-        from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
-
-        type_sql, type_params = col_def.data_type.to_sql()
-        parts = [self.format_identifier(col_def.name), type_sql]
-        params: List[Any] = list(type_params)
-
-        constraint_parts = []
-        for constraint in col_def.constraints:
-            if constraint.constraint_type == ColumnConstraintType.PRIMARY_KEY:
-                constraint_parts.append("PRIMARY KEY")
-            elif constraint.constraint_type == ColumnConstraintType.NOT_NULL:
-                constraint_parts.append("NOT NULL")
-            elif constraint.constraint_type == ColumnConstraintType.UNIQUE:
-                constraint_parts.append("UNIQUE")
-            elif constraint.constraint_type == ColumnConstraintType.DEFAULT:
-                if constraint.default_value is not None:
-                    from rhosocial.activerecord.backend.expression import bases
-                    if isinstance(constraint.default_value, bases.BaseExpression):
-                        default_sql, default_params = constraint.default_value.to_sql()
-                        constraint_parts.append(f"DEFAULT {default_sql}")
-                        params.extend(default_params)
-                    elif isinstance(constraint.default_value, str):
-                        escaped = self._escape_sql_string(constraint.default_value)
-                        constraint_parts.append(f"DEFAULT '{escaped}'")
-                    else:
-                        constraint_parts.append(f"DEFAULT {constraint.default_value}")
-            elif constraint.constraint_type == ColumnConstraintType.NULL:
-                constraint_parts.append("NULL")
-
-            if constraint.is_auto_increment:
-                constraint_parts.append("AUTO_INCREMENT")
-
-        if constraint_parts:
-            parts.append(' '.join(constraint_parts))
-
-        if col_def.comment:
-            escaped_comment = self._escape_sql_string(col_def.comment)
-            parts.append(f"COMMENT '{escaped_comment}'")
-
-        return ' '.join(parts), tuple(params)
 
     def format_table_constraint(
         self,
@@ -721,7 +623,7 @@ class MariaDBDialect(
             parts.append(f"CHECK ({check_sql})")
             params.extend(check_params)
 
-            if t_const.dialect_options and t_const.dialect_options.get('enforced') is False:
+            if getattr(t_const, 'enforced', None) is False:
                 parts.append("NOT ENFORCED")
 
         return ' '.join(parts), tuple(params)

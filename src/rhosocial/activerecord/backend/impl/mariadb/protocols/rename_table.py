@@ -52,10 +52,8 @@ class MariaDBRenameTableSupport(Protocol):
         """Format a MariaDB RENAME TABLE statement.
 
         Args:
-            expr: MariaDBRenameTableExpression instance
-            dialect_options: MariaDB-specific options:
-                - 'if_exists': Add statement-level IF EXISTS (MariaDB 10.5+)
-                - 'wait': Lock wait timeout in seconds (MariaDB 10.3+)
-                - 'nowait': Do not wait for metadata locks (MariaDB 10.3+)
+            expr: MariaDBRenameTableExpression with typed fields:
+                ``if_exists`` (MariaDB 10.5+), ``wait`` / ``nowait``
+                (MariaDB 10.3+).
         """
         ...

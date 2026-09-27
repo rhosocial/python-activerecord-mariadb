@@ -10,7 +10,7 @@ from typing import Union, Any, List, TYPE_CHECKING
 from rhosocial.activerecord.backend.expression import bases, core
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .dialect import MariaDBDialect
+    from ..dialect import MariaDBDialect
 
 
 def _convert_to_expression(

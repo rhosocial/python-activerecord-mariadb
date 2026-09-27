@@ -21,7 +21,8 @@ system and the MariaDB backend:
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
+from rhosocial.activerecord.backend.dialect.mixins import DataTypeMixin
+from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
 from rhosocial.activerecord.backend.expression.types import (
     DataType,
     DecimalType,
@@ -30,11 +31,15 @@ from rhosocial.activerecord.backend.expression.types import (
     TimestampType,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.schema import MariaDBSchemaDiffer
 from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
+    MariaDBBinaryType,
     MariaDBEnumType,
     MariaDBIntType,
     MariaDBSetType,
+    MariaDBUUIDType,
 )
+from rhosocial.activerecord.backend.introspection.types import ColumnInfo
 
 
 @pytest.fixture
@@ -74,7 +79,7 @@ class TestSupportFormatCorrespondence:
             assert issubclass(klass, DataType), name
 
     def test_inherits_mixin_scan_implementation(self, dialect):
-        assert MariaDBDialect.supports_data_types is DDLTypeMixin.supports_data_types
+        assert MariaDBDialect.supports_data_types is DataTypeMixin.supports_data_types
 
 
 class TestSupportsDataTypesMapping:
@@ -86,6 +91,7 @@ class TestSupportsDataTypesMapping:
         assert supported["mariadb_int"] is MariaDBIntType
         assert "mariadb_enum" in supported
         assert "mariadb_set" in supported
+        assert supported["mariadb_uuid"] is MariaDBUUIDType
 
     def test_includes_core_entries(self, dialect):
         supported = dialect.supports_data_types()
@@ -116,16 +122,65 @@ class TestSuggestedDataTypes:
         supported = dialect.supports_data_types()
         assert not (set(suggestions) & set(supported))
 
-    def test_uuid_suggested_as_fixed_length_binary(self, dialect):
-        suggestions = dialect.suggested_data_types()
-        assert "uuid" in suggestions
-        klass = suggestions["uuid"]
-        sql, _ = klass(dialect, 16).to_sql()
+    def test_uuid_suggestion_defaults_to_fixed_length_binary(self, dialect):
+        suggestion = dialect.suggested_data_types()["uuid"]
+        assert suggestion is MariaDBUUIDType
+        sql, params = suggestion(dialect).to_sql()
         assert sql == "BINARY(16)"
+        assert params == ()
+
+    def test_uuid_type_renders_in_direct_column_expression(self, dialect):
+        data_type = MariaDBUUIDType(dialect)
+        column = ColumnDefinition(dialect, "id", data_type)
+        assert dialect.supports_data_type_mariadb_uuid() is True
+        assert column.to_sql() == ("`id` BINARY(16)", ())
 
     def test_enum_suggested_as_mariadb_enum(self, dialect):
         suggestions = dialect.suggested_data_types()
         assert suggestions.get("enum") is MariaDBEnumType
+
+
+class TestMariaDBUUIDTypeEquivalence:
+    @pytest.mark.parametrize("length", [8, 32])
+    def test_schema_differ_rejects_non_16_byte_binary(self, dialect, length):
+        differ = MariaDBSchemaDiffer()
+        binary_column = ColumnInfo(
+            name="id",
+            table_name="users",
+            ordinal_position=1,
+            data_type=f"BINARY({length})",
+            parsed_data_type=MariaDBBinaryType(dialect, length=length),
+        )
+        uuid_column = ColumnInfo(
+            name="id",
+            table_name="users",
+            ordinal_position=1,
+            data_type="BINARY(16)",
+            parsed_data_type=MariaDBUUIDType(dialect),
+        )
+
+        assert not differ._columns_equivalent(binary_column, uuid_column)
+        assert not differ._columns_equivalent(uuid_column, binary_column)
+
+    def test_schema_differ_accepts_16_byte_binary(self, dialect):
+        differ = MariaDBSchemaDiffer()
+        binary_column = ColumnInfo(
+            name="id",
+            table_name="users",
+            ordinal_position=1,
+            data_type="BINARY(16)",
+            parsed_data_type=MariaDBBinaryType(dialect, length=16),
+        )
+        uuid_column = ColumnInfo(
+            name="id",
+            table_name="users",
+            ordinal_position=1,
+            data_type="BINARY(16)",
+            parsed_data_type=MariaDBUUIDType(dialect),
+        )
+
+        assert differ._columns_equivalent(binary_column, uuid_column)
+        assert differ._columns_equivalent(uuid_column, binary_column)
 
 
 class TestMariaDBEnumRendering:
@@ -196,22 +251,13 @@ class TestDialectRangeValidation:
 
 
 class TestDialectOptions:
-    """dialect_options forwards through construction and affects equality."""
+    """The data-type value objects no longer carry a dialect_options bag."""
 
-    def test_construction_forwards_dialect_options(self, dialect):
-        data_type = MariaDBIntType(dialect, unsigned=True,
-                                   dialect_options={"display_width": 10})
-        assert data_type.dialect_options == {"display_width": 10}
 
-    def test_dialect_options_participate_in_equality(self, dialect):
-        a = MariaDBIntType(dialect, unsigned=True,
-                           dialect_options={"display_width": 10})
-        b = MariaDBIntType(dialect, unsigned=True,
-                           dialect_options={"display_width": 10})
-        c = MariaDBIntType(dialect, unsigned=True,
-                           dialect_options={"display_width": 11})
-        assert a == b
-        assert a != c
+
+    def test_constructor_rejects_dialect_options(self, dialect):
+        with pytest.raises(TypeError):
+            MariaDBIntType(dialect, unsigned=True, dialect_options={"display_width": 10})
 
     def test_equality_ignores_dialect(self, dialect):
         other = MariaDBDialect()

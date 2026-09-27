@@ -70,6 +70,7 @@ def get_own_protocol_methods(proto: type) -> set:
 
 MYSQL_PROTOCOLS = [
     dialect_protocols.CTESupport,
+    dialect_protocols.ColumnAttributeSupport,
     dialect_protocols.FilterClauseSupport,
     dialect_protocols.WindowFunctionSupport,
     dialect_protocols.JSONSupport,
@@ -97,7 +98,9 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.AutoIncrementSupport,
     dialect_protocols.AlterTableModifierSupport,
     dialect_protocols.CollationSupport,
-    dialect_protocols.DDLTypeSupport,
+    dialect_protocols.DataTypeSupport,
+    dialect_protocols.UserDefinedTypeSupport,
+    dialect_protocols.DomainSupport,
     dialect_protocols.FunctionSupport,
     dialect_protocols.GeneratedColumnSupport,
     dialect_protocols.GraphSupport,
@@ -150,6 +153,9 @@ class TestMariaDBDialectProtocolConformance:
 # decision (move to MYSQL_PROTOCOLS or revert).
 MARIADB_NOT_IMPLEMENTED = [
     # --- Intentional non-support ---
+    # MariaDB has no standalone COMMENT ON statement; inline table/column
+    # comments are rendered by CREATE TABLE instead.
+    dialect_protocols.CommentSupport,
     # The generic DatabaseSupport protocol is not composed by MariaDBDialect.
     dialect_protocols.DatabaseSupport,
     # MariaDB has no SQL/XML support.
@@ -170,8 +176,13 @@ def get_all_generic_protocols() -> dict:
 
     discovered = {}
     for name, obj in inspect.getmembers(dialect_protocols, inspect.isclass):
-        if Protocol in getattr(obj, "__mro__", []) and name.endswith("Support"):
-            discovered[name] = obj
+        if Protocol not in getattr(obj, "__mro__", []) or not name.endswith("Support"):
+            continue
+        if name == "DDLTypeSupport":
+            assert obj is dialect_protocols.DataTypeSupport
+            continue
+        assert name == obj.__name__, f"unexpected protocol alias: {name}"
+        discovered[name] = obj
     return discovered
 
 

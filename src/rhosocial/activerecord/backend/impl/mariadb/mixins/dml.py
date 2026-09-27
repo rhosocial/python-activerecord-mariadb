@@ -94,12 +94,12 @@ class MariaDBDMLOperationMixin:
     def supports_returning_for_update(self) -> bool:
         """Whether RETURNING is supported for UPDATE.
 
-        MariaDB does NOT support RETURNING for UPDATE.
+        MariaDB 13.0+ supports RETURNING for single-table UPDATE.
 
         Returns:
-            False.
+            True if MariaDB version >= 13.0.0.
         """
-        return False
+        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE']
 
     def format_insert_statement(
         self,
@@ -108,8 +108,8 @@ class MariaDBDMLOperationMixin:
         """Format INSERT statement with MariaDB-specific options.
 
         Extends the base implementation to support:
-        - INSERT IGNORE via dialect_options={'ignore': True}
-        - REPLACE INTO via dialect_options={'replace': True}
+        - INSERT IGNORE via MariaDBInsertExpression(ignore=True)
+        - REPLACE INTO via MariaDBInsertExpression(replace=True)
         - RETURNING clause (10.5+)
 
         Args:
@@ -125,8 +125,8 @@ class MariaDBDMLOperationMixin:
         if self.strict_validation:
             expr.validate(strict=True)
 
-        is_replace = expr.dialect_options.get('replace', False)
-        is_ignore = expr.dialect_options.get('ignore', False)
+        is_replace = getattr(expr, 'replace', False)
+        is_ignore = getattr(expr, 'ignore', False)
 
         if is_replace and is_ignore:
             raise ValueError("Cannot use both 'replace' and 'ignore' options together")

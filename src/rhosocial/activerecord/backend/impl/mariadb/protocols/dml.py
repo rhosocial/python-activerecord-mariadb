@@ -89,9 +89,10 @@ class MariaDBDMLOperationSupport(Protocol):
         ...
 
     def supports_returning_for_update(self) -> bool:
-        """Whether RETURNING is supported for UPDATE.
+        """Whether RETURNING is supported for UPDATE (MariaDB 13.0+).
 
-        MariaDB does NOT support RETURNING for UPDATE.
+        Single-table UPDATE only; MariaDB rejects the clause on a
+        multi-table UPDATE.
         """
         ...
 

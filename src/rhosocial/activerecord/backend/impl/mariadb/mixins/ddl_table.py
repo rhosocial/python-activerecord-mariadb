@@ -49,6 +49,20 @@ class MariaDBTableMixin:
         """MariaDB allows inline INDEX/KEY definitions."""
         return True
 
+    def supports_table_comment(self) -> bool:
+        """Whether inline ``COMMENT 'text'`` on ``CREATE TABLE`` is supported.
+
+        MariaDB renders the table comment as an inline table option (and the
+        column comment inside the column definition), so both capabilities
+        advertise True and the inline path is the rendering path.
+        """
+        return True
+
+    def supports_column_comment(self) -> bool:
+        """Whether inline ``COMMENT 'text'`` in a column definition is
+        supported. MariaDB renders it natively."""
+        return True
+
     def supports_storage_engine_option(self) -> bool:
         """MariaDB supports multiple storage engines."""
         return True
@@ -76,6 +90,18 @@ class MariaDBTableMixin:
         - Table-level comments
         - AUTO_INCREMENT in column definitions
         """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        if expr.tablespace:
+            raise UnsupportedFeatureError(
+                self.name, "TABLESPACE",
+                "MariaDB does not support table tablespaces.",
+            )
+        if expr.inherits:
+            raise UnsupportedFeatureError(
+                self.name, "table INHERITS",
+                "MariaDB does not support table inheritance.",
+            )
         all_params: List[Any] = []
 
         options_part = ""
@@ -107,7 +133,7 @@ class MariaDBTableMixin:
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql, idx_params = self.format_inline_index(idx_def)
+            idx_sql, idx_params = self.format_index_definition(idx_def)
             column_parts.append(idx_sql)
             all_params.extend(idx_params)
 
@@ -118,32 +144,36 @@ class MariaDBTableMixin:
             if storage_sql:
                 parts.append(storage_sql)
 
+        from rhosocial.activerecord.backend.impl.mariadb.expression.table_options import (
+            MariaDBCreateTableOptions,
+        )
         table_options = getattr(expr, "table_options", None)
-        if table_options is not None and getattr(table_options, "comment", None):
-            comment_sql, _ = self.format_table_comment(table_options.comment)
-            parts.append(comment_sql)
-        elif 'comment' in expr.dialect_options:
-            comment_sql, _ = self.format_table_comment(expr.dialect_options['comment'])
-            parts.append(comment_sql)
+        if table_options is not None and getattr(table_options, "comment", None) is not None:
+            comment_sql, _ = self.format_table_comment_clause(table_options.comment)
+            parts.append(comment_sql.strip())
 
-        dialect_options = getattr(expr, "dialect_options", {}) or {}
-        engine = getattr(table_options, "engine", None) if table_options else None
-        if not engine:
-            engine = dialect_options.get("engine")
-        if engine:
-            parts.append(f"ENGINE={self.inline_sql_literal(engine)}")
-
-        charset = getattr(table_options, "charset", None) if table_options else None
-        if not charset:
-            charset = dialect_options.get("charset")
-        if charset:
-            parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(charset)}")
-
-        collate = getattr(table_options, "collate", None) if table_options else None
-        if not collate:
-            collate = dialect_options.get("collate")
-        if collate:
-            parts.append(f"COLLATE={self.inline_sql_literal(collate)}")
+        if isinstance(table_options, MariaDBCreateTableOptions):
+            if table_options.engine:
+                parts.append(f"ENGINE={self.inline_sql_literal(table_options.engine)}")
+            if table_options.charset:
+                parts.append(f"DEFAULT CHARSET={self.inline_sql_literal(table_options.charset)}")
+            if table_options.collate:
+                parts.append(f"COLLATE={self.inline_sql_literal(table_options.collate)}")
+            if table_options.auto_increment is not None:
+                parts.append(f"AUTO_INCREMENT={int(table_options.auto_increment)}")
+            if table_options.row_format:
+                parts.append(f"ROW_FORMAT={table_options.row_format}")
+            if table_options.with_system_versioning:
+                if not self.supports_system_versioning():
+                    from rhosocial.activerecord.backend.dialect.exceptions import (
+                        UnsupportedFeatureError,
+                    )
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "WITH SYSTEM VERSIONING",
+                        "System-versioned tables require MariaDB 10.3 or later.",
+                    )
+                parts.append("WITH SYSTEM VERSIONING")
 
         return ' '.join(parts), tuple(all_params)
 
@@ -151,9 +181,18 @@ class MariaDBTableMixin:
         self,
         col_def: "ColumnDefinition",
     ) -> Tuple[str, tuple]:
-        """Format a single column definition with MariaDB-specific syntax."""
+        """Format a single column definition with MariaDB-specific syntax.
+
+        Accepts both the generic ``ColumnDefinition`` and the MariaDB
+        ``MariaDBColumnDefinition``; the latter's MariaDB-only attributes
+        (``character_set`` / ``column_format`` / ``storage`` / ``invisible``)
+        are rendered here.
+        """
         from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
-        
+        from rhosocial.activerecord.backend.impl.mariadb.expression.column import (
+            MariaDBColumnDefinition,
+        )
+
         type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
@@ -187,9 +226,24 @@ class MariaDBTableMixin:
         if constraint_parts:
             parts.append(' '.join(constraint_parts))
 
-        if col_def.comment:
-            escaped_comment = self._escape_sql_string(col_def.comment)
-            parts.append(f"COMMENT '{escaped_comment}'")
+        attr_sql, attr_params = self.format_column_attributes(col_def)
+        if attr_sql:
+            parts.append(attr_sql.strip())
+        params.extend(attr_params)
+
+        if isinstance(col_def, MariaDBColumnDefinition):
+            if col_def.character_set:
+                parts.append(f"CHARACTER SET {self.format_identifier(col_def.character_set)}")
+            if col_def.column_format is not None:
+                parts.append(f"COLUMN_FORMAT {col_def.column_format.value}")
+            if col_def.storage is not None:
+                parts.append(f"STORAGE {col_def.storage.value}")
+            if col_def.invisible:
+                parts.append("INVISIBLE")
+
+        if col_def.comment is not None:
+            comment_sql, _ = self.format_column_comment_clause(col_def.comment)
+            parts.append(comment_sql.strip())
 
         if col_def.generated_expression is not None:
             gen_sql, gen_params = col_def.generated_expression.to_sql()
@@ -260,7 +314,7 @@ class MariaDBTableMixin:
 
         return ' '.join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
+    def format_index_definition(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 

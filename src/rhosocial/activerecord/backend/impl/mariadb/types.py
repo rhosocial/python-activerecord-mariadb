@@ -36,6 +36,7 @@ from .expression.types import (
     MariaDBTinyBlobType,
     MariaDBTinyIntType,
     MariaDBTinyTextType,
+    MariaDBUUIDType,
     MariaDBVarBinaryType,
     MariaDBYearType,
 )
@@ -65,6 +66,7 @@ __all__ = [
     "MariaDBTinyBlobType",
     "MariaDBTinyIntType",
     "MariaDBTinyTextType",
+    "MariaDBUUIDType",
     "MariaDBVarBinaryType",
     "MariaDBYearType",
 ]

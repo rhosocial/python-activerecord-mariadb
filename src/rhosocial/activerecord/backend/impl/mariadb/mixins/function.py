@@ -69,6 +69,11 @@ class MariaDBFunctionMixin:
         "bit_get_bit": (None, None),
         "bit_shift_left": (None, None),
         "bit_shift_right": (None, None),
+        # Removed in MariaDB 13.0, which dropped the deprecated DES logic.
+        # Declared with an upper bound so the gate is exercised and a future
+        # caller cannot silently emit SQL that 13.0+ rejects.
+        "des_encrypt": (None, (13, 0, 0)),
+        "des_decrypt": (None, (13, 0, 0)),
     }
 
     def supports_functions(self) -> Dict[str, bool]:
@@ -101,6 +106,19 @@ class MariaDBFunctionMixin:
                 result[func_name] = True
 
         return result
+
+    def supports_function_name(self, name: str) -> bool:
+        """Whether ``name`` exists as a SQL function on the configured version.
+
+        Unlike :meth:`supports_functions`, which only reports what this
+        backend can construct, this answers the question for an arbitrary
+        name -- including functions that are *not* constructible here but
+        whose availability is version-bounded, such as the DES functions
+        removed in MariaDB 13.0.
+        """
+        if not isinstance(name, str):
+            return False
+        return self._is_mariadb_function_supported(name.strip().lower())
 
     def _is_mariadb_function_supported(self, func_name: str) -> bool:
         """Check if a MariaDB-specific function is supported based on version."""

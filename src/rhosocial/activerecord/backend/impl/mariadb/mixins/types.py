@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import re
+import warnings
 from typing import Optional, Tuple
 
-from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
-from rhosocial.activerecord.backend.dialect.protocols import DDLTypeSupport
+from rhosocial.activerecord.backend.dialect.mixins.data_type import DataTypeMixin
+from rhosocial.activerecord.backend.dialect.protocols import DataTypeSupport
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
     BlobType,
@@ -59,26 +60,27 @@ from ..expression.types import (
     MariaDBTinyBlobType,
     MariaDBTinyIntType,
     MariaDBTinyTextType,
+    MariaDBUUIDType,
     MariaDBVarBinaryType,
     MariaDBYearType,
 )
 
 
-class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
+class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     """MariaDB DataType formatting and parsing.
 
-    Implements ``DDLTypeSupport`` so the dialect can render ``DataType``
+    Implements ``DataTypeSupport`` so the dialect can render ``DataType``
     expressions to SQL strings and parse raw SQL type strings back into
     ``DataType`` instances.
 
     Formatting dispatches by the type instance's ``name`` through the
     naming-convention ``format_data_type_<name>`` methods (see
-    ``DDLTypeMixin``). MariaDB-specific types carry ``mariadb_``-prefixed
+    ``DataTypeMixin``). MariaDB-specific types carry ``mariadb_``-prefixed
     names; core types render their real MariaDB SQL.
     """
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — formatting
+    # DataTypeSupport — formatting
     # ------------------------------------------------------------------
 
     def _validate_fsp(self, label: str, precision: Optional[int]) -> None:
@@ -161,6 +163,9 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         if data_type.length is not None:
             return f"BINARY({data_type.length})", ()
         return "BINARY", ()
+
+    def format_data_type_mariadb_uuid(self, data_type: MariaDBUUIDType) -> Tuple[str, tuple]:
+        return self.format_data_type_mariadb_binary(data_type)
 
     def format_data_type_mariadb_varbinary(self, data_type: MariaDBVarBinaryType) -> Tuple[str, tuple]:
         if data_type.length is not None:
@@ -327,7 +332,7 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return data_type.raw, ()
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — per-type support declarations
+    # DataTypeSupport — per-type support declarations
     #
     # MariaDB declares support for exactly the format_data_type_* family
     # above (1:1 correspondence contract): every type this mixin renders
@@ -379,6 +384,9 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return True
 
     def supports_data_type_mariadb_binary(self) -> bool:
+        return True
+
+    def supports_data_type_mariadb_uuid(self) -> bool:
         return True
 
     def supports_data_type_mariadb_varbinary(self) -> bool:
@@ -484,7 +492,7 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return True
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — parsing
+    # DataTypeSupport — parsing
     # ------------------------------------------------------------------
 
     _MARIA_INTEGER_TYPES = re.compile(
@@ -651,6 +659,21 @@ class MariaDBTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
                 nums = re.findall(r"\d+", stripped)
                 display_width = int(nums[0]) if nums else None
                 from ..expression.types import MariaDBYearType
+                if display_width not in MariaDBYearType.ALLOWED_DISPLAY_WIDTHS:
+                    # A pre-13.0 server can still report YEAR(2). We cannot
+                    # round-trip it (MariaDBYearType rejects it, and
+                    # MariaDB 13.0+ would refuse the DDL), so degrade to bare
+                    # YEAR -- which is the 4-byte storage YEAR always used --
+                    # and say so rather than failing introspection or
+                    # silently rewriting the schema.
+                    warnings.warn(
+                        f"Server reported YEAR({display_width}); MariaDB 13.0+ rejects "
+                        "YEAR(2). Reading it as YEAR. Use old_mode=2_DIGIT_YEAR (itself "
+                        "deprecated) only if the 2-digit truncation is intentional.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    display_width = None
                 return MariaDBYearType(self, display_width)
             if upper.startswith("DATE"):
                 if upper.strip() == "DATE":

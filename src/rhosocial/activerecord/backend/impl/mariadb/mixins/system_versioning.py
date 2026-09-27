@@ -4,7 +4,7 @@
 MariaDB 10.3+ supports system-versioned tables for temporal data tracking.
 This is a MariaDB-specific feature not available in MySQL.
 """
-from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
@@ -61,49 +61,6 @@ class MariaDBSystemVersioningMixin:
             True if MariaDB version >= 10.3.0.
         """
         return self.supports_system_versioning()
-
-    def format_system_versioning_clause(
-        self,
-        table_options: Optional[Dict[str, Any]] = None
-    ) -> Tuple[str, tuple]:
-        """Format WITH SYSTEM VERSIONING clause for CREATE TABLE.
-
-        Syntax:
-            WITH SYSTEM VERSIONING
-            [WITH SYSTEM VERSIONING ON {DELETE|UPDATE} {EQUAL|BEFORE}]
-
-        Args:
-            table_options: Optional dict with:
-                - 'versioning_on_delete': 'EQUAL' or 'BEFORE'
-                - 'versioning_on_update': 'EQUAL' or 'BEFORE'
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
-        if not self.supports_system_versioning():
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-            raise UnsupportedFeatureError(
-                self.name,
-                "System-Versioned Tables",
-                "System-versioned tables require MariaDB 10.3 or later."
-            )
-
-        parts = ["WITH SYSTEM VERSIONING"]
-
-        if table_options:
-            on_delete = table_options.get('versioning_on_delete')
-            on_update = table_options.get('versioning_on_update')
-
-            on_parts = []
-            if on_delete:
-                on_parts.append(f"ON DELETE {on_delete.upper()}")
-            if on_update:
-                on_parts.append(f"ON UPDATE {on_update.upper()}")
-
-            if on_parts:
-                parts.append("WITH SYSTEM VERSIONING " + " ".join(on_parts))
-
-        return " ".join(parts), ()
 
     def format_for_system_time_as_of(
         self,

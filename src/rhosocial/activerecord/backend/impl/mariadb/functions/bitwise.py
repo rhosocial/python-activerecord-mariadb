@@ -15,7 +15,7 @@ from rhosocial.activerecord.backend.expression.operators import BinaryArithmetic
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
-    from .dialect import MariaDBDialect
+    from ..dialect import MariaDBDialect
 
 
 def _convert_to_expression(

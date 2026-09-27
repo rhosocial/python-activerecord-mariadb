@@ -57,12 +57,12 @@ class MariaDBMaintenanceSupport(Protocol):
     ) -> Tuple[str, tuple]:
         """Format a MariaDB table maintenance statement.
 
-        dialect_options:
-            - 'no_write_to_binlog' / 'local': Render NO_WRITE_TO_BINLOG
-            - 'persistent': 'all' or {'columns': [...], 'indexes': [...]}
+        Options are typed fields on ``MariaDBTableMaintenanceExpression``:
+            - ``no_write_to_binlog`` / ``local``: render NO_WRITE_TO_BINLOG
+            - ``persistent``: 'all' or {'columns': [...], 'indexes': [...]}
               (ANALYZE only, MariaDB 10.5+)
-            - 'check_mode': e.g. ['QUICK', 'EXTENDED'] (CHECK)
-            - 'checksum_mode': 'QUICK' | 'EXTENDED' (CHECKSUM)
-            - 'repair_mode': e.g. ['QUICK'] (REPAIR)
+            - ``check_mode``: e.g. ['QUICK', 'EXTENDED'] (CHECK)
+            - ``checksum_mode``: 'QUICK' | 'EXTENDED' (CHECKSUM)
+            - ``repair_mode``: e.g. ['QUICK'] (REPAIR)
         """
         ...

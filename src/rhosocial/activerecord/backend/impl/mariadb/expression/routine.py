@@ -11,7 +11,7 @@ MariaDB supports:
     DROP FUNCTION [IF EXISTS] name
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -41,7 +41,6 @@ class MariaDBRoutineExpression(BaseExpression):
         body: Optional[str] = None,
         or_replace: bool = False,
         if_not_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.name: Any = name
@@ -49,7 +48,6 @@ class MariaDBRoutineExpression(BaseExpression):
         self.body: Optional[str] = body
         self.or_replace: bool = or_replace
         self.if_not_exists: bool = if_not_exists
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         if not strict:
@@ -88,9 +86,8 @@ class MariaDBDropProcedureExpression(MariaDBRoutineExpression):
         name: Any,
         *,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(dialect, name, dialect_options=dialect_options)
+        super().__init__(dialect, name)
         self.if_exists: bool = if_exists
 
     def to_sql(self) -> Tuple[str, tuple]:
@@ -112,7 +109,6 @@ class MariaDBCreateFunctionExpression(MariaDBRoutineExpression):
         aggregate: bool = False,
         or_replace: bool = False,
         if_not_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             dialect,
@@ -121,7 +117,6 @@ class MariaDBCreateFunctionExpression(MariaDBRoutineExpression):
             body=body,
             or_replace=or_replace,
             if_not_exists=if_not_exists,
-            dialect_options=dialect_options,
         )
         self.returns: str = returns
         self.deterministic: bool = deterministic
@@ -140,9 +135,8 @@ class MariaDBDropFunctionExpression(MariaDBRoutineExpression):
         name: Any,
         *,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(dialect, name, dialect_options=dialect_options)
+        super().__init__(dialect, name)
         self.if_exists: bool = if_exists
 
     def to_sql(self) -> Tuple[str, tuple]:
@@ -162,13 +156,10 @@ class MariaDBCallExpression(BaseExpression):
         dialect: "SQLDialectBase",
         name: Any,
         args: Optional[List[Any]] = None,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.name: Any = name
         self.args: List[Any] = list(args or [])
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         if not strict:

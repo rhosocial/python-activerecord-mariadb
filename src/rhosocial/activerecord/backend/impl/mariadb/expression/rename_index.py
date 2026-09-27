@@ -9,7 +9,7 @@ RENAME CONSTRAINT is not supported by MariaDB; the recommended approach is
 to drop and recreate the constraint.
 """
 
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -32,14 +32,11 @@ class MariaDBRenameIndexExpression(BaseExpression):
         table_name: str,
         old_index_name: str,
         new_index_name: str,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.table_name = table_name
         self.old_index_name = old_index_name
         self.new_index_name = new_index_name
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         """Validate index names.

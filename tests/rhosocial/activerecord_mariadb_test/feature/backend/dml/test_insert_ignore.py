@@ -11,9 +11,8 @@ Official Documentation:
 import pytest
 import pytest_asyncio
 
-from rhosocial.activerecord.backend.expression.statements import (
-    InsertExpression, ValuesSource
-)
+from rhosocial.activerecord.backend.expression.statements import ValuesSource
+from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
 from rhosocial.activerecord.backend.expression import core
 
 
@@ -42,7 +41,7 @@ class TestMariaDBInsertIgnore:
         """Test INSERT IGNORE with no conflict - should insert normally."""
         dialect = mariadb_backend.dialect
 
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -52,7 +51,7 @@ class TestMariaDBInsertIgnore:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"ignore": True}
+            ignore=True,
         )
 
         sql, params = expr.to_sql()
@@ -81,7 +80,7 @@ class TestMariaDBInsertIgnore:
         )
 
         # Try to insert duplicate with IGNORE
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -91,7 +90,7 @@ class TestMariaDBInsertIgnore:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"ignore": True}
+            ignore=True,
         )
 
         sql, params = expr.to_sql()
@@ -120,7 +119,7 @@ class TestMariaDBInsertIgnore:
         )
 
         # Insert multiple rows, one conflicts
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -132,7 +131,7 @@ class TestMariaDBInsertIgnore:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"ignore": True}
+            ignore=True,
         )
 
         sql, params = expr.to_sql()
@@ -160,7 +159,7 @@ class TestMariaDBInsertIgnore:
         )
 
         # Regular insert without IGNORE should fail
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -209,7 +208,7 @@ class TestMariaDBAsyncInsertIgnore:
         )
 
         # Try to insert duplicate with IGNORE
-        expr = InsertExpression(
+        expr = MariaDBInsertExpression(
             dialect=dialect,
             into=test_table,
             source=ValuesSource(
@@ -219,7 +218,7 @@ class TestMariaDBAsyncInsertIgnore:
                 ]
             ),
             columns=["email", "name"],
-            dialect_options={"ignore": True}
+            ignore=True,
         )
 
         sql, params = expr.to_sql()

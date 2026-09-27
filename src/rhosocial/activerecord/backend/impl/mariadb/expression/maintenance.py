@@ -18,7 +18,7 @@ MariaDB supports the standard table maintenance statements:
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -42,16 +42,16 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
     Attributes:
         operation: The maintenance operation to run.
         table_names: Tables the operation targets.
-        dialect_options: MariaDB-specific options:
-            - 'no_write_to_binlog': Suppress binary logging (ANALYZE, OPTIMIZE,
-              REPAIR). When True renders NO_WRITE_TO_BINLOG.
-            - 'local': Synonym for NO_WRITE_TO_BINLOG.
-            - 'persistent': Persistent statistics: 'all' | 'columns' | 'indexes'
-              (ANALYZE only)
-            - 'check_mode': CHECK flags, a list among FOR UPGRADE, QUICK, FAST,
-              MEDIUM, EXTENDED, CHANGED.
-            - 'checksum_mode': CHECKSUM mode, 'quick' or 'extended'.
-            - 'repair_mode': REPAIR flags to append ('QUICK'/'EXTENDED'/'USE_FRM').
+        no_write_to_binlog: Suppress binary logging (ANALYZE, OPTIMIZE,
+            REPAIR). When True renders NO_WRITE_TO_BINLOG.
+        local: Synonym for ``no_write_to_binlog``.
+        persistent: Persistent statistics: ``'all'`` | a dict with
+            ``columns``/``indexes`` (ANALYZE only).
+        check_mode: CHECK flags, a list among ``FOR UPGRADE``, ``QUICK``,
+            ``FAST``, ``MEDIUM``, ``EXTENDED``, ``CHANGED``.
+        checksum_mode: CHECKSUM mode, ``'quick'`` or ``'extended'``.
+        repair_mode: REPAIR flags to append (``'QUICK'``/``'EXTENDED'``/
+            ``'USE_FRM'``).
     """
 
     def __init__(
@@ -60,12 +60,22 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
         operation: "TableMaintenanceOperation",
         table_names: List[str],
         *,
-        dialect_options: Optional[Dict[str, Any]] = None,
+        no_write_to_binlog: bool = False,
+        local: bool = False,
+        persistent=None,
+        check_mode: Optional[List[str]] = None,
+        checksum_mode: Optional[str] = None,
+        repair_mode: Optional[List[str]] = None,
     ):
         super().__init__(dialect)
         self.operation = operation
         self.table_names: List[str] = list(table_names)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
+        self.no_write_to_binlog = no_write_to_binlog
+        self.local = local
+        self.persistent = persistent
+        self.check_mode = check_mode
+        self.checksum_mode = checksum_mode
+        self.repair_mode = repair_mode
 
     def validate(self, strict: bool = True) -> None:
         """Validate the operation and table name list."""

@@ -65,11 +65,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         ...
 
     def supports_json_table(self) -> bool:
-        """Whether JSON_TABLE is supported.
-
-        MariaDB does NOT support JSON_TABLE (unlike MySQL 8.0.4+).
-        Always returns False for MariaDB.
-        """
+        """Whether JSON_TABLE is supported (MariaDB 10.6+)."""
         ...
 
     def supports_json_function(self, function_name: str) -> bool:
@@ -84,18 +80,25 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         ...
 
     def supports_json_arrow_operators(self) -> bool:
-        """Whether JSON arrow operators (-> and ->>) are supported.
+        """Whether arrows are emitted natively as ``->`` / ``->>``.
 
-        MariaDB does NOT support JSON arrow operators.
+        False for MariaDB on every version: arrows are rendered as the
+        equivalent ``JSON_EXTRACT`` calls, which behave identically
+        everywhere. See :meth:`supports_json_arrow_operators_native` for the
+        13.1 column-only form.
+        """
+        ...
+
+    def supports_json_arrow_operators_native(self) -> bool:
+        """Whether MariaDB 13.1's native ``->`` / ``->>`` is available.
+
+        Only valid for a real JSON column operand, not for an arbitrary
+        expression such as ``CAST(x AS JSON)``.
         """
         ...
 
     def supports_json_arrows(self) -> bool:
-        """Deprecated singular alias for :meth:`supports_json_arrow_operators`.
-
-        Kept for backwards compatibility with callers that predate the
-        pluralised rename. MariaDB does NOT support JSON arrow operators.
-        """
+        """Alias for :meth:`supports_json_arrow_operators`."""
         ...
 
     def format_json_extract(

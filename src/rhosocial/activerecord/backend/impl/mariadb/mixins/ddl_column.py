@@ -1,9 +1,19 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl_column.py
 """MariaDB DDL column/table support mixin."""
 
+from typing import Tuple
+
 
 class MariaDBDDLColumnMixin:
     """MariaDB DDL column and table capability checks."""
+
+    def format_identity_clause(self, expr) -> Tuple[str, Tuple]:
+        """MariaDB renders an identity column as ``AUTO_INCREMENT``.
+
+        MariaDB has no ``GENERATED ... AS IDENTITY`` column syntax; seed and
+        increment are table-level options, so only the marker is emitted.
+        """
+        return " AUTO_INCREMENT", ()
 
     def supports_if_not_exists_table(self) -> bool:
         return True

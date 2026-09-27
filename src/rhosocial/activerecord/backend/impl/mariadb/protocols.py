@@ -32,6 +32,7 @@ The protocols are organized as follows:
 
 # Import from modular protocols subdirectory
 from .protocols import (
+    MariaDBCharsetCollationSupport,
     MariaDBCTESupport,
     MariaDBDMLOperationSupport,
     MariaDBFullTextSearchSupport,
@@ -66,5 +67,6 @@ __all__ = [
     'MariaDBSystemVersioningSupport',
     'MariaDBWindowFunctionSupport',
     'MariaDBCTESupport',
+    'MariaDBCharsetCollationSupport',
     'MariaDBPartitionSupport',
 ]

@@ -59,9 +59,35 @@ from .admin import (
     MariaDBRevokeExpression,
     MariaDBShutdownExpression,
 )
+from .table_options import MariaDBRowFormat, MariaDBCreateTableOptions
+from .dml import MariaDBInsertExpression
+from .truncate import MariaDBTruncateExpression
+from .alter_table import MariaDBAlterTableExpression
+from .column import (
+    MariaDBColumnFormat,
+    MariaDBColumnStorage,
+    MariaDBColumnDefinition,
+    MariaDBColumnOptions,
+)
 from .maintenance import (
     MariaDBTableMaintenanceExpression,
     TableMaintenanceOperation,
+)
+from .partition import (
+    MariaDBPartitionStrategy,
+    MariaDBSubpartitionStrategy,
+    MariaDBPartitionOptions,
+    MariaDBPartitionMaxValue,
+    MariaDBPartitionValue,
+    MariaDBSubpartitionDefinition,
+    MariaDBPartitionDefinition,
+    MariaDBPartitionClause,
+    MariaDBPartitionByRange,
+    MariaDBPartitionByRangeColumns,
+    MariaDBPartitionByList,
+    MariaDBPartitionByListColumns,
+    MariaDBPartitionByHash,
+    MariaDBPartitionByKey,
 )
 
 # DataType subclasses for DDL
@@ -90,6 +116,7 @@ from .types import (
     MariaDBTinyBlobType,
     MariaDBTinyIntType,
     MariaDBTinyTextType,
+    MariaDBUUIDType,
     MariaDBVarBinaryType,
     MariaDBYearType,
 )
@@ -112,8 +139,31 @@ __all__ = [
     "MatchAgainstMode",
     "MariaDBRenameTableExpression",
     "MariaDBRenameIndexExpression",
+    "MariaDBAlterTableExpression",
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
+    "MariaDBCreateTableOptions",
+    "MariaDBRowFormat",
+    "MariaDBInsertExpression",
+    "MariaDBTruncateExpression",
+    "MariaDBColumnFormat",
+    "MariaDBColumnStorage",
+    "MariaDBColumnDefinition",
+    "MariaDBColumnOptions",
+    "MariaDBPartitionStrategy",
+    "MariaDBSubpartitionStrategy",
+    "MariaDBPartitionOptions",
+    "MariaDBPartitionMaxValue",
+    "MariaDBPartitionValue",
+    "MariaDBSubpartitionDefinition",
+    "MariaDBPartitionDefinition",
+    "MariaDBPartitionClause",
+    "MariaDBPartitionByRange",
+    "MariaDBPartitionByRangeColumns",
+    "MariaDBPartitionByList",
+    "MariaDBPartitionByListColumns",
+    "MariaDBPartitionByHash",
+    "MariaDBPartitionByKey",
     "MariaDBCallExpression",
     "MariaDBCreateFunctionExpression",
     "MariaDBCreateProcedureExpression",
@@ -156,6 +206,7 @@ __all__ = [
     "MariaDBTinyBlobType",
     "MariaDBTinyIntType",
     "MariaDBTinyTextType",
+    "MariaDBUUIDType",
     "MariaDBVarBinaryType",
     "MariaDBYearType",
     "MariaDBSetLiteralExpression",

@@ -22,6 +22,7 @@ from rhosocial.activerecord.backend.expression import (
     TableConstraintType,
     ForeignKeyConstraint,
 )
+from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.statements import ReferentialAction
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
@@ -141,17 +142,25 @@ class TestMySQLTableComment:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            CreateTableOptions,
+        )
+
         expr = CreateTableExpression(
             dialect=dialect,
             table='users',
             columns=columns,
-            dialect_options={'comment': '用户信息表'}
+            table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, '用户信息表')),
         )
         sql, params = expr.to_sql()
         assert "COMMENT '用户信息表'" in sql
 
     def test_table_comment_with_storage_options(self):
         """Test table COMMENT with storage options."""
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            CreateTableOptions,
+        )
+
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
@@ -166,7 +175,7 @@ class TestMySQLTableComment:
                 'ENGINE': 'InnoDB',
                 'DEFAULT CHARSET': 'utf8mb4'
             },
-            dialect_options={'comment': '用户信息表'}
+            table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, '用户信息表')),
         )
         sql, params = expr.to_sql()
         assert "ENGINE='InnoDB'" in sql
@@ -181,11 +190,15 @@ class TestMySQLTableComment:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            CreateTableOptions,
+        )
+
         expr = CreateTableExpression(
             dialect=dialect,
             table='test',
             columns=columns,
-            dialect_options={'comment': "测试's表"}
+            table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, "测试's表")),
         )
         sql, params = expr.to_sql()
         assert "COMMENT" in sql
@@ -200,8 +213,8 @@ class TestMySQLColumnComment:
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
-            ], comment='主键ID'),
-            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), comment='用户名')
+            ], comment=ColumnCommentClause(dialect, '主键ID')),
+            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), comment=ColumnCommentClause(dialect, '用户名'))
         ]
         expr = CreateTableExpression(
             dialect=dialect,
@@ -218,14 +231,18 @@ class TestMySQLColumnComment:
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
-            ], comment='主键'),
-            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), comment='名称')
+            ], comment=ColumnCommentClause(dialect, '主键')),
+            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), comment=ColumnCommentClause(dialect, '名称'))
         ]
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            CreateTableOptions,
+        )
+
         expr = CreateTableExpression(
             dialect=dialect,
             table='users',
             columns=columns,
-            dialect_options={'comment': '用户表'}
+            table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, '用户表')),
         )
         sql, params = expr.to_sql()
         assert "COMMENT '主键'" in sql
@@ -261,7 +278,7 @@ class TestMySQLAutoIncrement:
             ColumnDefinition(dialect, 'id', BigIntType(dialect), constraints=[
                 ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
-            ], comment='自增主键')
+            ], comment=ColumnCommentClause(dialect, '自增主键'))
         ]
         expr = CreateTableExpression(
             dialect=dialect,
@@ -704,6 +721,10 @@ class TestMySQLCompleteTableCreation:
 
     def test_complete_table_creation(self):
         """Test complete table creation with all MySQL features."""
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            CreateTableOptions,
+        )
+
         dialect = MariaDBDialect()
         status_enum = MariaDBEnumType(dialect, ['active', 'inactive', 'deleted'])
         
@@ -715,27 +736,27 @@ class TestMySQLCompleteTableCreation:
                     ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
                 ],
-                comment='Primary key'
+                comment=ColumnCommentClause(dialect, 'Primary key')
             ),
             ColumnDefinition(dialect, 
                 'name',
                 VarCharType(dialect, 100),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
-                comment='User name'
+                comment=ColumnCommentClause(dialect, 'User name')
             ),
             ColumnDefinition(dialect, 
                 'email',
                 VarCharType(dialect, 255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
-                comment='Email address'
+                comment=ColumnCommentClause(dialect, 'Email address')
             ),
             ColumnDefinition(dialect, 
                 'status',
                 status_enum,
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
-                comment='User status'
+                comment=ColumnCommentClause(dialect, 'User status')
             ),
-            ColumnDefinition(dialect, 'created_at', DateTimeType(dialect), comment='Creation timestamp')
+            ColumnDefinition(dialect, 'created_at', DateTimeType(dialect), comment=ColumnCommentClause(dialect, 'Creation timestamp'))
         ]
         
         indexes = [
@@ -754,7 +775,7 @@ class TestMySQLCompleteTableCreation:
                 'DEFAULT CHARSET': 'utf8mb4',
                 'COLLATE': 'utf8mb4_unicode_ci'
             },
-            dialect_options={'comment': 'User information table'}
+            table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, 'User information table')),
         )
         
         sql, params = expr.to_sql()

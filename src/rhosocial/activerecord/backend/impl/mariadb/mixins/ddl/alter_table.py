@@ -70,13 +70,12 @@ class MariaDBAlterTableMixin:
         """Format a MariaDB ``ALTER TABLE ...`` statement.
 
         Injects the MariaDB-specific statement-level qualifiers ``IF EXISTS``
-        (10.5+) and ``WAIT n | NOWAIT`` (10.3+) based on ``dialect_options``,
-        then falls back to the generic action rendering.
+        (10.5+) and ``WAIT n | NOWAIT`` (10.3+) from the typed fields of
+        ``MariaDBAlterTableExpression``, then falls back to the generic action
+        rendering.
         """
-        options = expr.dialect_options
-
         head = "ALTER TABLE"
-        if options.get("if_exists"):
+        if getattr(expr, "if_exists", False):
             if not self.supports_alter_table_if_exists():
                 raise UnsupportedFeatureError(
                     self.name,
@@ -87,10 +86,11 @@ class MariaDBAlterTableMixin:
 
         table_part = f"{head} {self.format_identifier(expr.table_name)}"
 
-        if options.get("nowait"):
+        wait_value = getattr(expr, "wait", None)
+        if getattr(expr, "nowait", False):
             wait = "NOWAIT"
-        elif options.get("wait") is not None:
-            wait = f"WAIT {int(options['wait'])}"
+        elif wait_value is not None:
+            wait = f"WAIT {int(wait_value)}"
         else:
             wait = None
         if wait is not None:

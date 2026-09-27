@@ -17,8 +17,12 @@ from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import ColumnDefinition
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import TruncateExpression
+from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBTruncateExpression
 from rhosocial.activerecord.backend.expression.types import TextType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression import (
+    MariaDBAlterTableExpression,
+)
 from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
     MariaDBRenameIndexExpression,
 )
@@ -86,7 +90,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 6, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'if_exists': True},
+            if_exists=True,
         )
         sql, params = expr.to_sql()
         assert sql == 'RENAME TABLE IF EXISTS `old_table` TO `new_table`'
@@ -95,7 +99,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 4, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'if_exists': True},
+            if_exists=True,
         )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
@@ -104,7 +108,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 6, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'wait': 5},
+            wait=5,
         )
         sql, params = expr.to_sql()
         assert sql == 'RENAME TABLE `old_table` WAIT 5 TO `new_table`'
@@ -113,7 +117,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 6, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'nowait': True},
+            nowait=True,
         )
         sql, params = expr.to_sql()
         assert sql == 'RENAME TABLE `old_table` NOWAIT TO `new_table`'
@@ -122,7 +126,7 @@ class TestMariaDBRenameTable:
         dialect = _dialect((10, 2, 0))
         expr = MariaDBRenameTableExpression(
             dialect, [('old_table', 'new_table')],
-            dialect_options={'nowait': True},
+            nowait=True,
         )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
@@ -146,22 +150,19 @@ class TestMariaDBTruncate:
 
     def test_wait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = TruncateExpression(dialect, table_name='users',
-                                  dialect_options={'wait': 3})
+        expr = MariaDBTruncateExpression(dialect, table_name='users', wait=3)
         sql, params = expr.to_sql()
         assert sql == 'TRUNCATE TABLE `users` WAIT 3'
 
     def test_nowait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = TruncateExpression(dialect, table_name='users',
-                                  dialect_options={'nowait': True})
+        expr = MariaDBTruncateExpression(dialect, table_name='users', nowait=True)
         sql, params = expr.to_sql()
         assert sql == 'TRUNCATE TABLE `users` NOWAIT'
 
     def test_wait_version_gated(self):
         dialect = _dialect((10, 2, 0))
-        expr = TruncateExpression(dialect, table_name='users',
-                                  dialect_options={'nowait': True})
+        expr = MariaDBTruncateExpression(dialect, table_name='users', nowait=True)
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
@@ -200,9 +201,9 @@ class TestMariaDBAlterTableStatement:
 
     def test_alter_if_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = AlterTableExpression(
+        expr = MariaDBAlterTableExpression(
             dialect, 'users', [self._add_column_action(dialect)],
-            dialect_options={'if_exists': True},
+            if_exists=True,
         )
         sql, params = expr.to_sql()
         assert sql.startswith('ALTER TABLE IF EXISTS `users`')
@@ -211,18 +212,18 @@ class TestMariaDBAlterTableStatement:
     def test_alter_if_exists_version_gated(self):
         dialect = _dialect((10, 4, 0))
         assert dialect.supports_alter_table_if_exists() is False
-        expr = AlterTableExpression(
+        expr = MariaDBAlterTableExpression(
             dialect, 'users', [self._add_column_action(dialect)],
-            dialect_options={'if_exists': True},
+            if_exists=True,
         )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
     def test_alter_wait(self):
         dialect = _dialect((10, 6, 0))
-        expr = AlterTableExpression(
+        expr = MariaDBAlterTableExpression(
             dialect, 'users', [self._add_column_action(dialect)],
-            dialect_options={'wait': 4},
+            wait=4,
         )
         sql, params = expr.to_sql()
         assert 'ALTER TABLE `users` WAIT 4' in sql
@@ -230,9 +231,9 @@ class TestMariaDBAlterTableStatement:
 
     def test_alter_if_exists_nowait(self):
         dialect = _dialect((10, 6, 0))
-        expr = AlterTableExpression(
+        expr = MariaDBAlterTableExpression(
             dialect, 'users', [self._add_column_action(dialect)],
-            dialect_options={'if_exists': True, 'nowait': True},
+            if_exists=True, nowait=True,
         )
         sql, params = expr.to_sql()
         assert 'ALTER TABLE IF EXISTS `users` NOWAIT' in sql
@@ -271,7 +272,7 @@ class TestMariaDBTableMaintenance:
     def _expr(self, dialect, operation, tables, **options):
         return MariaDBTableMaintenanceExpression(
             dialect, operation, tables,
-            dialect_options=options,
+            **options,
         )
 
     def test_analyze_basic(self):

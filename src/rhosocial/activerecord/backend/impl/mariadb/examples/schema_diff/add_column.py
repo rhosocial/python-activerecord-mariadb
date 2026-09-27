@@ -72,9 +72,8 @@ from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # 
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
-# Add `age` column between `name` and `email` — shifts email to position 4
-add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)),
-                    dialect_options={"after": "name"})
+# Add `age` column — appended after the existing columns
+add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
 alter_expr = AlterTableExpression(dialect, "users", [add_col])
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)

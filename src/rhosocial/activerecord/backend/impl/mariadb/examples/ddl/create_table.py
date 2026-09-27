@@ -15,6 +15,7 @@ This example demonstrates:
 import os
 from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBCreateTableOptions
 from rhosocial.activerecord.backend.expression import (
     DropTableExpression,
     CreateTableExpression,
@@ -48,7 +49,7 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop if exists for clean setup
-drop = DropTableExpression(dialect=dialect, table_name='products', if_exists=True)
+drop = DropTableExpression(dialect=dialect, table='products', if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
@@ -116,14 +117,11 @@ indexes = [
 # Create table with MariaDB-specific ENGINE and CHARSET options
 create_expr = CreateTableExpression(
     dialect=dialect,
-    table_name='products',
+    table='products',
     columns=columns,
     indexes=indexes,
     if_not_exists=True,
-    dialect_options={
-        'engine': 'InnoDB',
-        'charset': 'utf8mb4',
-    },
+    table_options=MariaDBCreateTableOptions(dialect, engine="InnoDB", charset="utf8mb4"),
 )
 
 sql, params = create_expr.to_sql()
@@ -145,7 +143,7 @@ for col in columns_info:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table_name='products', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table='products', if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()
@@ -155,7 +153,7 @@ backend.disconnect()
 # ============================================================
 # Key points:
 # 1. Use ColumnConstraint with is_auto_increment=True for AUTO_INCREMENT
-# 2. MariaDB dialect_options supports 'engine' and 'charset' keys
+# 2. MariaDB table options (engine/charset) are typed on MariaDBCreateTableOptions
 # 3. IndexDefinition creates inline indexes within CREATE TABLE
 # 4. Use current_timestamp(dialect) for SQL niladic functions (no parentheses)
 # 5. Use introspector.get_columns() to verify table structure

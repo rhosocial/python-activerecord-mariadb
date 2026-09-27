@@ -29,6 +29,7 @@ Protocol Organization:
 - partition.py: Table partitioning support
 """
 
+from .charset import MariaDBCharsetCollationSupport
 from .cte import MariaDBCTESupport
 from .dml import MariaDBDMLOperationSupport
 from .fulltext_search import MariaDBFullTextSearchSupport
@@ -67,6 +68,7 @@ __all__ = [
     'MariaDBSystemVersioningSupport',
     'MariaDBWindowFunctionSupport',
     'MariaDBCTESupport',
+    'MariaDBCharsetCollationSupport',
     'MariaDBPartitionSupport',
     'MariaDBRenameTableSupport',
     'MariaDBAlterTableSupport',

@@ -62,12 +62,11 @@ class MariaDBTruncateMixin:
 
         sql = f"TRUNCATE TABLE {self.format_identifier(expr.table_name)}"
 
-        options = expr.dialect_options
         wait = None
-        if options.get("nowait"):
+        if getattr(expr, "nowait", False):
             wait = "NOWAIT"
-        elif options.get("wait") is not None:
-            wait = f"WAIT {int(options['wait'])}"
+        elif getattr(expr, "wait", None) is not None:
+            wait = f"WAIT {int(expr.wait)}"
         if wait is not None:
             if not self.supports_truncate_wait():
                 raise UnsupportedFeatureError(
