@@ -11,7 +11,7 @@ from rhosocial.activerecord.backend.expression import bases
 from rhosocial.activerecord.backend.expression import operators
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .dialect import MariaDBDialect
+    from ..dialect import MariaDBDialect
 
 
 def match_against(
