@@ -18,7 +18,7 @@ All methods follow the pattern:
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .expressions import (
+    from ..expression.show import (
         ShowCreateTableExpression,
         ShowCreateViewExpression,
         ShowColumnsExpression,

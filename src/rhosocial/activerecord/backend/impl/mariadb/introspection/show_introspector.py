@@ -19,7 +19,7 @@ from rhosocial.activerecord.backend.introspection.executor import (
     SyncIntrospectorExecutor,
     AsyncIntrospectorExecutor,
 )
-from ..show.expressions import (
+from ..expression.show import (
     ShowCreateTableExpression,
     ShowCreateViewExpression,
     ShowColumnsExpression,

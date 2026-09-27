@@ -9,7 +9,7 @@ for the dialect's ``format_show_*`` methods.
 import pytest
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.show.expressions import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
     ShowCharsetExpression,
     ShowCollationExpression,
     ShowColumnsExpression,

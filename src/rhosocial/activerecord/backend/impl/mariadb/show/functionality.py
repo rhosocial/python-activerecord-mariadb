@@ -15,7 +15,7 @@ The implementation:
 
 from typing import Optional, Tuple, TYPE_CHECKING
 
-from .expressions import (
+from ..expression.show import (
     ShowCreateTableExpression,
     ShowCreateViewExpression,
     ShowColumnsExpression,

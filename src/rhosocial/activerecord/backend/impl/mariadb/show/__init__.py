@@ -8,7 +8,7 @@ for executing SHOW commands on MariaDB databases.
 Design principle: Sync and Async are separate and cannot coexist.
 """
 
-from .expressions import (
+from ..expression.show import (
     ShowExpression,
     ShowCreateTableExpression,
     ShowCreateViewExpression,
