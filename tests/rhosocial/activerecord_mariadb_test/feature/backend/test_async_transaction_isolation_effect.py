@@ -17,7 +17,13 @@ from rhosocial.activerecord.backend.errors import TransactionError
 
 @pytest_asyncio.fixture
 async def async_isolation_test_table(async_mariadb_backend):
-    """Create a test table for async isolation tests."""
+    """Create a test table on the transactional default engine.
+
+    The engine is named explicitly rather than left to the server default:
+    the other isolation levels exercised here only mean anything on a
+    transactional engine, and READ UNCOMMITTED behaves differently on
+    InnoDB than it does on MyISAM.
+    """
     await async_mariadb_backend.execute("drop table if exists async_isolation_test")
     await async_mariadb_backend.execute("""
         create table async_isolation_test (
@@ -25,7 +31,7 @@ async def async_isolation_test_table(async_mariadb_backend):
             name VARCHAR(255),
             balance DECIMAL(10, 2),
             version INT DEFAULT 1
-        )
+        ) engine=InnoDB
     """)
     await async_mariadb_backend.execute(
         "insert into async_isolation_test (name, balance) values (%s, %s)",
@@ -33,6 +39,36 @@ async def async_isolation_test_table(async_mariadb_backend):
     )
     yield "async_isolation_test"
     await async_mariadb_backend.execute("drop table if exists async_isolation_test")
+
+
+@pytest_asyncio.fixture(params=["InnoDB", "MyISAM"])
+async def async_engine_test_table(request, async_mariadb_backend):
+    """Create an async isolation test table on a named storage engine.
+
+    Yields the table name together with the engine, because what READ
+    UNCOMMITTED actually does is decided by the engine rather than by the
+    isolation level alone: InnoDB promotes it to READ COMMITTED and hides the
+    other session's write, while MyISAM keeps no MVCC, so the write is visible
+    as soon as the other session issues it.
+    """
+    engine = request.param
+    table = f"async_isolation_engine_test_{engine.lower()}"
+
+    await async_mariadb_backend.execute(f"drop table if exists {table}")
+    await async_mariadb_backend.execute(f"""
+        create table {table} (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255),
+            balance DECIMAL(10, 2),
+            version INT DEFAULT 1
+        ) engine={engine}
+    """)
+    await async_mariadb_backend.execute(
+        f"insert into {table} (name, balance) values (%s, %s)",
+        ("user1", Decimal("100.00"))
+    )
+    yield table, engine
+    await async_mariadb_backend.execute(f"drop table if exists {table}")
 
 
 @pytest_asyncio.fixture
@@ -92,22 +128,32 @@ class TestAsyncIsolationLevelEffect:
     """Test actual isolation behavior for each isolation level."""
 
     @pytest.mark.asyncio
-    async def test_read_uncommitted_allows_dirty_reads(self, async_mariadb_backend, async_mariadb_control_backend, async_isolation_test_table):
-        """Verify READ UNCOMMITTED isolation level allows dirty reads (async).
+    async def test_read_uncommitted_isolation_effect(self, async_mariadb_backend, async_mariadb_control_backend, async_engine_test_table):
+        """Verify what READ UNCOMMITTED actually does, per storage engine.
 
-        A dirty read occurs when a transaction reads data written by another
-        uncommitted transaction. READ UNCOMMITTED should allow this.
+        A dirty read is reading another session's uncommitted write. Whether one
+        is possible is a property of the engine, not of the isolation level:
+        InnoDB promotes READ UNCOMMITTED to READ COMMITTED, so the write stays
+        hidden, while MyISAM has no MVCC and no working rollback, so the write is
+        visible immediately.
+
+        The previous form of this test asserted a dirty read unconditionally,
+        which cannot hold on InnoDB and made it fail on every version.
         """
+        table, engine = async_engine_test_table
+        backend1 = async_mariadb_backend
+        backend2 = async_mariadb_control_backend
+
         dirty_read_detected = []
 
         async def transaction1():
-            """Transaction 1: Read uncommitted data."""
+            """Read on the first connection while the second one has written."""
             try:
-                async_mariadb_backend.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
-                async with async_mariadb_backend.transaction():
+                backend1.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
+                async with backend1.transaction():
                     await asyncio.sleep(0.1)
-                    rows = await async_mariadb_backend.fetch_all(
-                        "select balance from async_isolation_test where name = %s",
+                    rows = await backend1.fetch_all(
+                        f"select balance from {table} where name = %s",
                         ("user1",)
                     )
                     if rows and rows[0]["balance"] == Decimal("200.00"):
@@ -116,12 +162,12 @@ class TestAsyncIsolationLevelEffect:
                 dirty_read_detected.append(str(e))
 
         async def transaction2():
-            """Transaction 2: Modify data without committing."""
+            """Write on the second connection and never commit it."""
             try:
-                async_mariadb_control_backend.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
-                async with async_mariadb_control_backend.transaction():
-                    await async_mariadb_control_backend.execute(
-                        "update async_isolation_test set balance = %s where name = %s",
+                backend2.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
+                async with backend2.transaction():
+                    await backend2.execute(
+                        f"update {table} set balance = %s where name = %s",
                         (Decimal("200.00"), "user1")
                     )
                     await asyncio.sleep(0.3)
@@ -130,7 +176,17 @@ class TestAsyncIsolationLevelEffect:
                 pass
 
         await asyncio.gather(transaction1(), transaction2())
-        assert True in dirty_read_detected, "READ UNCOMMITTED should allow dirty reads"
+
+        if engine == "MyISAM":
+            assert True in dirty_read_detected, (
+                "MyISAM keeps no MVCC, so the other session's write must be visible "
+                "under READ UNCOMMITTED"
+            )
+        else:
+            assert True not in dirty_read_detected, (
+                "InnoDB promotes READ UNCOMMITTED to READ COMMITTED, so the other "
+                f"session's write must stay hidden on {engine}"
+            )
 
     @pytest.mark.asyncio
     async def test_read_committed_prevents_dirty_reads(self, async_mariadb_backend, async_mariadb_control_backend, async_isolation_test_table):
