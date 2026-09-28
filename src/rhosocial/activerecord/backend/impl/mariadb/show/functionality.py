@@ -39,7 +39,7 @@ from ..expression.show import (
 
 if TYPE_CHECKING:
     from ..backend import MariaDBBackend
-    from ..async_backend import AsyncMariaDBBackend
+    from .async_backend import AsyncMariaDBBackend
 
 
 class MariaDBShowFunctionality:

@@ -440,7 +440,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
     async def _setup_model_async(
         self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str, shared_backend=None
     ) -> Type[ActiveRecord]:
-        from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+        from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
         from rhosocial.activerecord.backend.expression import DropTableExpression, TableExpression
@@ -520,7 +520,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
 
     async def setup_json_user_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
         import pytest
-        from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+        from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
         from rhosocial.activerecord.testsuite.feature.query.fixtures.async_json_models import AsyncJsonUser
         _, config = get_scenario(scenario_name)
         await AsyncJsonUser.configure(config, AsyncMariaDBBackend)
@@ -610,7 +610,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
         from rhosocial.activerecord.backend.expression import DropTableExpression, TableExpression
-        from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+        from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
         from providers.fixtures.basic import TABLE_EXPRESSIONS as BASIC_EXPRS
         from providers.fixtures._common import to_mariadb_ddl_sql
 

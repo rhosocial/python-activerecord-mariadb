@@ -12,7 +12,7 @@ import yaml
 from typing import Dict, Any, Tuple, Type
 
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
-from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 

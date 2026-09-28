@@ -2,7 +2,7 @@
 from typing import Dict, List, Tuple, Type, Set
 
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
-from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.testsuite.feature.relation.interfaces import (
     IRelationSyncProvider,
     IRelationAsyncProvider,

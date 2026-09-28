@@ -99,7 +99,7 @@ class BasicConnectionProvider(IBasicConnectionProvider):
 
     async def setup_async_pool_and_model(self, scenario_name: str) -> Tuple[AsyncBackendPool, Type[AsyncActiveRecord]]:
         """Setup async connection pool and model for context tests."""
-        from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+        from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 
         _, config = get_scenario(scenario_name)
 

@@ -32,7 +32,7 @@ from typing import ClassVar, Optional
 
 from rhosocial.activerecord.model import AsyncActiveRecord
 from rhosocial.activerecord.base.field_proxy import FieldProxy
-from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 
 logger = logging.getLogger(__name__)
 

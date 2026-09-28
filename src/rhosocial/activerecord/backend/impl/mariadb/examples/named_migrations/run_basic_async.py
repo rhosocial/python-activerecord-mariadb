@@ -24,7 +24,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.migration import (
     AsyncMigrationRunner,

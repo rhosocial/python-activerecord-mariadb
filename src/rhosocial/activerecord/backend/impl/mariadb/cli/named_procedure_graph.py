@@ -49,7 +49,7 @@ def handle(args):
 
         def backend_async_factory():
             nonlocal async_backend
-            from rhosocial.activerecord.backend.impl.mariadb.async_backend import (
+            from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import (
                 AsyncMariaDBBackend,
             )
 

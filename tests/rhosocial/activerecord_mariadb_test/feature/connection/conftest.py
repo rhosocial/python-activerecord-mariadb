@@ -15,7 +15,7 @@ import pytest_asyncio
 import yaml
 
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
-from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.connection.pool import (
     PoolConfig,
