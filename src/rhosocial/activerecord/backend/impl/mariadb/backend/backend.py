@@ -39,19 +39,7 @@ from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
 from ..transaction import MariaDBTransactionManager
-from ..mixins import MariaDBBackendMixin, MariaDBConcurrencyMixin
-
-# MariaDB connection error codes that indicate connection loss
-# Reference: https://mariadb.com/kb/en/mariadb-error-codes/
-CONNECTION_ERROR_CODES = {
-    2003,  # CR_CONN_HOST_ERROR - Can't connect to MariaDB server
-    2006,  # CR_SERVER_GONE_ERROR - MariaDB server has gone away
-    2013,  # CR_SERVER_LOST - Lost connection to MariaDB server during query
-    2048,  # CR_CONN_UNKNOW_PROTOCOL - Invalid connection protocol
-    2055,  # CR_SERVER_LOST_EXTENDED - Lost connection to MariaDB server
-    2502,  # CR_SERVER_GONE - The server has gone away
-}
-
+from ..mixins import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MariaDBConcurrencyMixin
 
 class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBackendMixin, IntrospectorBackendMixin, StorageBackend):
     """Synchronous MariaDB backend implementation.
@@ -302,58 +290,6 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
         except Exception as e:
             self.log(logging.ERROR, f"Reconnection failed: {str(e)}")
             return False
-
-    def _handle_mariadb_error(self, error: Exception) -> None:
-        """Handle MariaDB-specific errors and convert to appropriate exceptions.
-
-        Args:
-            error: The MariaDB error to handle.
-
-        Raises:
-            Appropriate exception based on the error type.
-        """
-        error_msg = str(error)
-        error_code = getattr(error, 'errno', None)
-
-        if isinstance(error, mariadb.OperationalError):
-            if error_code in CONNECTION_ERROR_CODES:
-                self.log(logging.ERROR, f"Connection error ({error_code}): {error_msg}")
-                raise ConnectionError(error_msg) from error
-            if "Connection timed out" in error_msg or "Can't connect" in error_msg:
-                self.log(logging.ERROR, f"Connection error: {error_msg}")
-                raise ConnectionError(error_msg) from error
-            if "Deadlock found" in error_msg:
-                self.log(logging.ERROR, f"Deadlock: {error_msg}")
-                raise DeadlockError(error_msg) from error
-            if "Lock wait timeout exceeded" in error_msg:
-                self.log(logging.ERROR, f"Lock timeout: {error_msg}")
-                raise OperationalError(error_msg) from error
-            self.log(logging.ERROR, f"MariaDB operational error: {error_msg}")
-            raise OperationalError(error_msg) from error
-
-        if isinstance(error, mariadb.IntegrityError):
-            if "Duplicate entry" in error_msg:
-                self.log(logging.ERROR, f"Duplicate key error: {error_msg}")
-                raise IntegrityError(f"Duplicate key error: {error_msg}") from error
-            if "foreign key constraint" in error_msg.lower():
-                self.log(logging.ERROR, f"Foreign key constraint violation: {error_msg}")
-                raise IntegrityError(f"Foreign key constraint violation: {error_msg}") from error
-            if "cannot be null" in error_msg.lower():
-                self.log(logging.ERROR, f"Null constraint violation: {error_msg}")
-                raise IntegrityError(f"Null constraint violation: {error_msg}") from error
-            self.log(logging.ERROR, f"MariaDB integrity error: {error_msg}")
-            raise IntegrityError(error_msg) from error
-
-        if isinstance(error, mariadb.ProgrammingError):
-            self.log(logging.ERROR, f"MariaDB programming error: {error_msg}")
-            raise QueryError(error_msg) from error
-
-        if isinstance(error, mariadb.Error):
-            self.log(logging.ERROR, f"MariaDB error: {error_msg}")
-            raise DatabaseError(error_msg) from error
-
-        self.log(logging.ERROR, f"Unhandled error: {error_msg}")
-        raise error
 
     def _handle_error(self, error: Exception) -> None:
         """Handle MariaDB-specific errors."""

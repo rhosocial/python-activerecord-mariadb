@@ -334,33 +334,8 @@ class AsyncMariaDBBackend(
             return False
 
     async def _handle_error(self, error: Exception) -> None:
-        """Handle MariaDB-specific errors asynchronously."""
-        error_msg = str(error)
-
-        if 'IntegrityError' in type(error).__name__:
-            if "Duplicate entry" in error_msg:
-                self.log(logging.ERROR, f"Unique constraint violation: {error_msg}")
-                raise IntegrityError(f"Unique constraint violation: {error_msg}")
-            elif "foreign key constraint" in error_msg.lower():
-                self.log(logging.ERROR, f"Foreign key constraint violation: {error_msg}")
-                raise IntegrityError(f"Foreign key constraint violation: {error_msg}")
-            self.log(logging.ERROR, f"Integrity error: {error_msg}")
-            raise IntegrityError(error_msg)
-        elif 'DatabaseError' in type(error).__name__:
-            if "Deadlock" in error_msg:
-                self.log(logging.ERROR, f"Deadlock error: {error_msg}")
-                raise DeadlockError(error_msg)
-            self.log(logging.ERROR, f"Database error: {error_msg}")
-            raise DatabaseError(error_msg)
-        elif 'OperationalError' in type(error).__name__:
-            if "Lock wait timeout" in error_msg:
-                self.log(logging.ERROR, f"Lock timeout error: {error_msg}")
-                raise OperationalError(error_msg)
-            self.log(logging.ERROR, f"Operational error: {error_msg}")
-            raise OperationalError(error_msg)
-        else:
-            self.log(logging.ERROR, f"Unexpected error: {error_msg}")
-            raise error
+        """Delegate to the shared driver error mapping."""
+        self._handle_mariadb_error(error)
 
     async def _handle_auto_commit(self) -> None:
         """Handle auto commit based on connection and transaction state."""
