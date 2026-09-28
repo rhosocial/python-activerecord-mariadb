@@ -123,7 +123,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
     def _register_mariadb_adapters(self):
         """Register MariaDB-specific type adapters."""
-        from ...adapters import (
+        from ..adapters import (
             MariaDBBlobAdapter,
             MariaDBBooleanAdapter,
             MariaDBDateAdapter,
@@ -621,7 +621,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
     def _create_introspector(self):
         """Create the MariaDB introspector instance."""
-        from ...introspection import SyncMariaDBIntrospector
+        from ..introspection import SyncMariaDBIntrospector
         return SyncMariaDBIntrospector(self, SyncIntrospectorExecutor(self))
 
     def insert(self, options: InsertOptions) -> QueryResult:
@@ -665,6 +665,6 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
     def _parse_explain_result(self, raw_rows, sql, duration):
         """Parse EXPLAIN result for MariaDB."""
-        from ...explain import MariaDBExplainResult, MariaDBExplainRow
+        from ..explain import MariaDBExplainResult, MariaDBExplainRow
         rows = [MariaDBExplainRow(**r) for r in raw_rows]
         return MariaDBExplainResult(raw_rows=raw_rows, sql=sql, duration=duration, rows=rows)
