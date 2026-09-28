@@ -27,13 +27,7 @@ class TestIsolationLevelEffects:
 
     @pytest.fixture
     def test_table(self, mariadb_backend):
-        """Create a test table on the transactional default engine.
-
-        The engine is named explicitly rather than left to the server default:
-        the other isolation levels exercised here only mean anything on a
-        transactional engine, and READ UNCOMMITTED behaves differently on
-        InnoDB than it does on MyISAM.
-        """
+        """Create a test table for isolation tests."""
         mariadb_backend.execute("DROP TABLE IF EXISTS isolation_test")
         mariadb_backend.execute("""
             CREATE TABLE isolation_test (
@@ -41,7 +35,7 @@ class TestIsolationLevelEffects:
                 name VARCHAR(255),
                 balance DECIMAL(10, 2),
                 version INT DEFAULT 1
-            ) ENGINE=InnoDB
+            )
         """)
         mariadb_backend.execute(
             "INSERT INTO isolation_test (name, balance) VALUES (%s, %s)",
@@ -50,61 +44,31 @@ class TestIsolationLevelEffects:
         yield "isolation_test"
         mariadb_backend.execute("DROP TABLE IF EXISTS isolation_test")
 
-    @pytest.fixture(params=["InnoDB", "MyISAM"])
-    def engine_table(self, request, mariadb_backend):
-        """Create an isolation test table on a named storage engine.
+    def test_read_uncommitted_allows_dirty_reads(self, mariadb_backend, mariadb_control_backend, test_table):
+        """Verify READ UNCOMMITTED isolation level allows dirty reads.
 
-        Yields the table name together with the engine, because what READ
-        UNCOMMITTED actually does is decided by the engine rather than by the
-        isolation level alone: InnoDB promotes it to READ COMMITTED and hides the
-        other session's write, while MyISAM keeps no MVCC, so the write is
-        visible as soon as the other session issues it.
+        A dirty read occurs when a transaction reads data written by another
+        uncommitted transaction. READ UNCOMMITTED should allow this.
+
+        This test uses two separate backend connections to test isolation.
         """
-        engine = request.param
-        table = f"isolation_engine_test_{engine.lower()}"
-
-        mariadb_backend.execute(f"DROP TABLE IF EXISTS {table}")
-        mariadb_backend.execute(f"""
-            CREATE TABLE {table} (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255),
-                balance DECIMAL(10, 2),
-                version INT DEFAULT 1
-            ) ENGINE={engine}
-        """)
-        mariadb_backend.execute(
-            f"INSERT INTO {table} (name, balance) VALUES (%s, %s)",
-            ("user1", Decimal("100.00"))
-        )
-        yield table, engine
-        mariadb_backend.execute(f"DROP TABLE IF EXISTS {table}")
-
-    def test_read_uncommitted_isolation_effect(self, mariadb_backend, mariadb_control_backend, engine_table):
-        """Verify what READ UNCOMMITTED actually does, per storage engine.
-
-        A dirty read is reading another session's uncommitted write. Whether one
-        is possible is a property of the engine, not of the isolation level:
-        InnoDB promotes READ UNCOMMITTED to READ COMMITTED, so the write stays
-        hidden, while MyISAM has no MVCC and no working rollback, so the write is
-        visible immediately.
-
-        The previous form of this test asserted a dirty read unconditionally,
-        which cannot hold on InnoDB and made it fail on every version.
-        """
-        table, engine = engine_table
+        # Use control backend for transaction 2 (independent connection)
         backend1 = mariadb_backend
         backend2 = mariadb_control_backend
 
         dirty_read_detected = []
 
         def transaction1():
-            """Read on the first connection while the second one has written."""
+            """Transaction 1: Read uncommitted data."""
             try:
+                # Set isolation level before starting transaction
                 backend1.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
                 with backend1.transaction():
+                    # Wait for transaction 2 to modify
                     time.sleep(0.15)
+                    # Read potentially uncommitted data
                     rows = backend1.fetch_all(
-                        f"SELECT balance FROM {table} WHERE name = %s",
+                        "SELECT balance FROM isolation_test WHERE name = %s",
                         ("user1",)
                     )
                     if rows and rows[0]["balance"] == Decimal("200.00"):
@@ -113,18 +77,21 @@ class TestIsolationLevelEffects:
                 dirty_read_detected.append(str(e))
 
         def transaction2():
-            """Write on the second connection and never commit it."""
+            """Transaction 2: Modify data without committing."""
             try:
                 backend2.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
                 with backend2.transaction():
+                    # Update balance
                     backend2.execute(
-                        f"UPDATE {table} SET balance = %s WHERE name = %s",
+                        "UPDATE isolation_test SET balance = %s WHERE name = %s",
                         (Decimal("200.00"), "user1")
                     )
+                    # Wait for transaction 1 to read
                     time.sleep(0.3)
+                    # Rollback (dirty read scenario)
                     raise Exception("Force rollback for dirty read test")
             except Exception:
-                pass
+                pass  # Expected rollback
 
         t1 = threading.Thread(target=transaction1)
         t2 = threading.Thread(target=transaction2)
@@ -134,16 +101,8 @@ class TestIsolationLevelEffects:
         t1.join(timeout=5)
         t2.join(timeout=5)
 
-        if engine == "MyISAM":
-            assert True in dirty_read_detected, (
-                "MyISAM keeps no MVCC, so the other session's write must be visible "
-                "under READ UNCOMMITTED"
-            )
-        else:
-            assert True not in dirty_read_detected, (
-                "InnoDB promotes READ UNCOMMITTED to READ COMMITTED, so the other "
-                f"session's write must stay hidden on {engine}"
-            )
+        # READ UNCOMMITTED should have detected the dirty read
+        assert True in dirty_read_detected, "READ UNCOMMITTED should allow dirty reads"
 
     def test_read_committed_prevents_dirty_reads(self, mariadb_backend, mariadb_control_backend, test_table):
         """Verify READ COMMITTED isolation level prevents dirty reads.
