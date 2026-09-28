@@ -30,8 +30,8 @@ from ..mixins import MariaDBBackendMixin
 class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
     """Asynchronous MariaDB-specific backend implementation.
 
-    This backend uses the mariadb connector's async support, provided by
-    Connector/Python 1.1 through its ``mariadb.aio`` module.
+    This backend uses the mariadb connector's native async support, provided by
+    Connector/Python 2.0 through ``mariadb.asyncConnect``.
     """
 
     def __init__(self, **kwargs):
@@ -103,34 +103,33 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
     async def connect(self):
         """Establish async connection to MariaDB database.
 
-        Connector/Python 1.1 supplies the async API. 2.0 replaced ``mariadb.aio``
-        with ``asyncConnect`` and is not yet GA, so the dependency is pinned below
-        2.0 and this is the only supported path.
+        Requires Connector/Python 2.0, which exposes the async API as
+        ``mariadb.asyncConnect``.
         """
-        try:
-            import mariadb.aio  # noqa: F401
-        except ImportError as e:
+        import mariadb
+
+        if not hasattr(mariadb, "asyncConnect"):
             raise ImportError(
-                "The async MariaDB backend needs mariadb 1.1.x, which provides "
-                "the mariadb.aio module. Install it with: pip install "
-                "'mariadb>=1.1.14,<2.0'. Note that 2.0 removed mariadb.aio and "
-                "is not yet a GA release."
-            ) from e
+                "The async MariaDB backend needs mariadb 2.0, which provides "
+                "asyncConnect. Install it with: pip install "
+                "'mariadb>=2.0.0rc2'. Note that 1.1 exposed the async API as "
+                "mariadb.aio instead."
+            )
 
         await self._connect_mariadb_async()
 
     async def _connect_mariadb_async(self):
         """Connect using mariadb async connector."""
-        import mariadb.aio as mariadb_async
+        import mariadb
 
         try:
             conn_params = self.config.get_connection_params()
 
-            self._connection = await mariadb_async.connect(**conn_params)
+            self._connection = await mariadb.asyncConnect(**conn_params)
 
             init_command = getattr(self.config, 'init_command', None)
             if init_command:
-                cursor = await self._connection.cursor()
+                cursor = self._connection.cursor()
                 await cursor.execute(init_command)
                 await cursor.close()
 
@@ -139,7 +138,7 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
                 f"Connected to MariaDB database: "
                 f"{self.config.host}:{self.config.port}/{self.config.database}"
             )
-        except mariadb_async.Error as e:
+        except mariadb.Error as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect to MariaDB: {str(e)}") from e
 
@@ -162,7 +161,7 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
         if not self._connection:
             await self.connect()
 
-        return await self._connection.cursor()
+        return self._connection.cursor()
 
     async def execute_many(self, sql: str, params_list: List[Tuple]) -> QueryResult:
         """Execute the same SQL statement multiple times with different parameters."""

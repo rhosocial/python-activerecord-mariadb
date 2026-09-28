@@ -1513,7 +1513,7 @@ class TestAsyncConcurrentAccess:
 
     WHY SEQUENTIAL:
     ---------------
-    aiomysql / mysql-connector-python async connections are NOT coroutine-safe
+    mariadb async connections are NOT coroutine-safe
     for concurrent access on the same connection object. Interleaving awaits
     from multiple coroutines sharing one AsyncMariaDBBackend would cause:
     - Protocol framing errors (interleaved packets)
