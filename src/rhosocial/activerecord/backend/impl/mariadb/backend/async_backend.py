@@ -20,6 +20,7 @@ from rhosocial.activerecord.backend.errors import (
     QueryError,
 )
 from rhosocial.activerecord.backend.result import QueryResult
+from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
@@ -27,7 +28,7 @@ from ..async_transaction import AsyncMariaDBTransactionManager
 from ..mixins import MariaDBBackendMixin
 
 
-class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
+class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
     """Asynchronous MariaDB-specific backend implementation.
 
     This backend uses the mariadb connector's native async support, provided by
@@ -84,6 +85,13 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
         self._register_mariadb_adapters()
 
         self.log(logging.INFO, "AsyncMariaDBBackend initialized")
+
+    def _create_introspector(self) -> Any:
+        """Create an AsyncMariaDBIntrospector backed by an AsyncIntrospectorExecutor."""
+        from rhosocial.activerecord.backend.introspection.executor import AsyncIntrospectorExecutor
+        from ..introspection import AsyncMariaDBIntrospector
+
+        return AsyncMariaDBIntrospector(self, AsyncIntrospectorExecutor(self))
 
     async def introspect_and_adapt(self) -> None:
         """Introspect backend and adapt to actual server capabilities.
