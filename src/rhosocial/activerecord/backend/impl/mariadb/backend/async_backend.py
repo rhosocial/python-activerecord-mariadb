@@ -8,6 +8,7 @@ adaptations tailored for MariaDB's specific behaviors and SQL dialect.
 
 import datetime
 import logging
+import time
 from typing import List, Optional, Tuple, Any, Dict
 
 from rhosocial.activerecord.backend.base import AsyncStorageBackend
@@ -21,14 +22,21 @@ from rhosocial.activerecord.backend.errors import (
 )
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
+from rhosocial.activerecord.backend.explain import AsyncExplainBackendMixin
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
 from ..async_transaction import AsyncMariaDBTransactionManager
-from ..mixins import MariaDBBackendMixin
+from ..mixins import AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin
 
 
-class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncStorageBackend):
+class AsyncMariaDBBackend(
+    AsyncExplainBackendMixin,
+    MariaDBBackendMixin,
+    IntrospectorBackendMixin,
+    AsyncMariaDBConcurrencyMixin,
+    AsyncStorageBackend,
+):
     """Asynchronous MariaDB-specific backend implementation.
 
     This backend uses the mariadb connector's native async support, provided by
@@ -85,6 +93,37 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, IntrospectorBackendMixin, AsyncSt
         self._register_mariadb_adapters()
 
         self.log(logging.INFO, "AsyncMariaDBBackend initialized")
+
+    async def executescript(self, sql_script: str) -> None:
+        """Execute a multi-statement SQL script asynchronously.
+
+        MariaDB accepts the whole script in a single execute(), which keeps
+        BEGIN...END blocks in triggers, procedures and functions intact.
+
+        Args:
+            sql_script: SQL script with statements separated by semicolons.
+        """
+        self.log(logging.DEBUG, "Executing SQL script")
+        start_time = time.perf_counter()
+
+        try:
+            if not self._connection:
+                self.log(logging.DEBUG, "No active connection, establishing new connection")
+                await self.connect()
+
+            cursor = self._cursor or await self._get_cursor()
+
+            await cursor.execute(sql_script)
+
+            # Consume every result set; nextset is synchronous in 2.0
+            while cursor.nextset():
+                pass
+
+            duration = time.perf_counter() - start_time
+            self.log(logging.DEBUG, f"SQL script executed successfully, duration={duration:.3f}s")
+        except Exception as e:
+            self.log(logging.ERROR, f"Error executing SQL script: {str(e)}")
+            self._handle_error(e)
 
     def _create_introspector(self) -> Any:
         """Create an AsyncMariaDBIntrospector backed by an AsyncIntrospectorExecutor."""
