@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/mixins/table.py
+# src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl_table.py
 """MariaDB table DDL mixin.
 
 MariaDB-specific features:

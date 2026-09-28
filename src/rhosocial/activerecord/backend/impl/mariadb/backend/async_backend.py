@@ -193,6 +193,7 @@ class AsyncMariaDBBackend(
                 f"{self.config.host}:{self.config.port}/{self.config.database}"
             )
             await self._fetch_concurrency_hint()
+            await self.introspect_and_adapt()
         except mariadb.Error as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect to MariaDB: {str(e)}") from e

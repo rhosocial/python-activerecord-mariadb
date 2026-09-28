@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/backend/sync.py
+# src/rhosocial/activerecord/backend/impl/mariadb/backend/backend.py
 """
 MariaDB-specific synchronous implementation of the StorageBackend.
 
