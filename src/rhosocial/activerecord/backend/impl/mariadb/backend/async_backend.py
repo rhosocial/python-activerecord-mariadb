@@ -192,6 +192,7 @@ class AsyncMariaDBBackend(
                 f"Connected to MariaDB database: "
                 f"{self.config.host}:{self.config.port}/{self.config.database}"
             )
+            await self._fetch_concurrency_hint()
         except mariadb.Error as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect to MariaDB: {str(e)}") from e
@@ -292,15 +293,28 @@ class AsyncMariaDBBackend(
                 await cursor.close()
 
     async def ping(self, reconnect: bool = True) -> bool:
-        """Ping the MariaDB server to check if the connection is alive."""
-        try:
-            if not self._connection:
-                if reconnect:
-                    await self.connect()
-                return True
-            else:
-                return False
+        """Test the MariaDB connection and optionally reconnect.
 
+        Args:
+            reconnect: If True, attempt to reconnect when the connection is dead.
+
+        Returns:
+            True if the connection answered, or was successfully reconnected.
+        """
+        if not self._connection:
+            self.log(logging.DEBUG, "No active connection during ping")
+            if reconnect:
+                try:
+                    self.log(logging.INFO, "Reconnecting during ping")
+                    await self.connect()
+                    return True
+                except ConnectionError as e:
+                    self.log(logging.WARNING, f"Reconnection failed during ping: {str(e)}")
+                    return False
+            return False
+
+        try:
+            self.log(logging.DEBUG, "Testing connection with SELECT 1")
             cursor = await self._get_cursor()
             await cursor.execute("SELECT 1")
             await cursor.fetchone()
