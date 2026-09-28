@@ -88,7 +88,7 @@ class AsyncMariaDBBackend(
 
         self._version = version
         self._dialect = None
-        self._transaction_manager = AsyncMariaDBTransactionManager(None, self.logger)
+        self._transaction_manager = AsyncMariaDBTransactionManager(self, self.logger)
 
         self._register_mariadb_adapters()
 
@@ -124,6 +124,13 @@ class AsyncMariaDBBackend(
         except Exception as e:
             self.log(logging.ERROR, f"Error executing SQL script: {str(e)}")
             self._handle_error(e)
+
+    def _parse_explain_result(self, raw_rows, sql, duration):
+        """Parse EXPLAIN result into MariaDB's typed result."""
+        from ..explain import MariaDBExplainResult, MariaDBExplainRow
+
+        rows = [MariaDBExplainRow(**r) for r in raw_rows]
+        return MariaDBExplainResult(raw_rows=raw_rows, sql=sql, duration=duration, rows=rows)
 
     def _create_introspector(self) -> Any:
         """Create an AsyncMariaDBIntrospector backed by an AsyncIntrospectorExecutor."""
