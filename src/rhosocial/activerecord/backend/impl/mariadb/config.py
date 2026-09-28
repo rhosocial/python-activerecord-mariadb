@@ -45,6 +45,36 @@ class MariaDBConnectionConfig(
             result["tls_version"] = self.tls_version
         return result
 
+    def get_connection_params(self) -> Dict[str, Any]:
+        """Build the keyword arguments the driver expects.
+
+        Shared by the synchronous and asynchronous connect paths: mariadb.connect
+        and mariadb.asyncConnect accept the same keywords, so both can be fed
+        from here rather than each assembling its own dictionary.
+        """
+        params: Dict[str, Any] = {
+            "host": self.host,
+            "port": self.port,
+            "database": self.database,
+            "user": self.username,
+            "password": self.password,
+            "autocommit": self.autocommit,
+        }
+
+        if getattr(self, "charset", None):
+            params["init_command"] = f"SET NAMES {self.charset}"
+
+        if not self.ssl_disabled:
+            params["ssl"] = True
+            if self.tls_version:
+                params["tls_version"] = self.tls_version
+            if getattr(self, "ssl_verify_cert", None):
+                params["ssl_verify_cert"] = self.ssl_verify_cert
+            if getattr(self, "ssl_verify_identity", None):
+                params["ssl_verify_identity"] = self.ssl_verify_identity
+
+        return params
+
     @classmethod
     def from_env(cls, prefix: str = "MARIADB_") -> "MariaDBConnectionConfig":
         """Create configuration from environment variables.

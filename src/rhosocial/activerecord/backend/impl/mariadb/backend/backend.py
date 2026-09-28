@@ -169,31 +169,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
                 f"Connecting to MariaDB database: {self.config.host}:{self.config.port}/{self.config.database}"
             )
 
-            conn_params = {
-                "host": self.config.host,
-                "port": self.config.port,
-                "database": self.config.database,
-                "user": self.config.username,
-                "password": self.config.password,
-            }
-
-            if hasattr(self.config, "autocommit"):
-                conn_params["autocommit"] = self.config.autocommit
-
-            if hasattr(self.config, "charset") and self.config.charset:
-                conn_params["init_command"] = f"SET NAMES {self.config.charset}"
-
-            if hasattr(self.config, "ssl_disabled"):
-                if not self.config.ssl_disabled:
-                    conn_params["ssl"] = True
-                if hasattr(self.config, "tls_version") and self.config.tls_version:
-                    conn_params["tls_version"] = self.config.tls_version
-                if hasattr(self.config, "ssl_verify_cert") and self.config.ssl_verify_cert:
-                    conn_params["ssl_verify_cert"] = self.config.ssl_verify_cert
-                if hasattr(self.config, "ssl_verify_identity") and self.config.ssl_verify_identity:
-                    conn_params["ssl_verify_identity"] = self.config.ssl_verify_identity
-
-            self._connection = mariadb.connect(**conn_params)
+            self._connection = mariadb.connect(**self.config.get_connection_params())
             self.log(logging.INFO, "Connected to MariaDB database successfully")
             self._fetch_concurrency_hint()
             self.introspect_and_adapt()
