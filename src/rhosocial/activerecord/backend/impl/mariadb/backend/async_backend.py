@@ -30,8 +30,8 @@ from ..mixins import MariaDBBackendMixin
 class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
     """Asynchronous MariaDB-specific backend implementation.
 
-    This backend uses the mariadb connector with async support or falls back
-    to aiomysql for async operations.
+    This backend uses the mariadb connector's async support, provided by
+    Connector/Python 1.1 through its ``mariadb.aio`` module.
     """
 
     def __init__(self, **kwargs):
@@ -101,18 +101,21 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
             self.log(logging.INFO, f"Adapted to MariaDB server version {actual_version}")
 
     async def connect(self):
-        """Establish async connection to MariaDB database."""
+        """Establish async connection to MariaDB database.
+
+        Connector/Python 1.1 supplies the async API. 2.0 replaced ``mariadb.aio``
+        with ``asyncConnect`` and is not yet GA, so the dependency is pinned below
+        2.0 and this is the only supported path.
+        """
         try:
-            import mariadb.aio as mariadb_async
-        except ImportError:
-            try:
-                import aiomysql
-                return await self._connect_aiomysql()
-            except ImportError:
-                raise ImportError(
-                    "Neither 'mariadb' nor 'aiomysql' is installed. "
-                    "Install one of them to use async MariaDB backend."
-                )
+            import mariadb.aio  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "The async MariaDB backend needs mariadb 1.1.x, which provides "
+                "the mariadb.aio module. Install it with: pip install "
+                "'mariadb>=1.1.14,<2.0'. Note that 2.0 removed mariadb.aio and "
+                "is not yet a GA release."
+            ) from e
 
         await self._connect_mariadb_async()
 
@@ -138,30 +141,6 @@ class AsyncMariaDBBackend(MariaDBBackendMixin, AsyncStorageBackend):
             )
         except mariadb_async.Error as e:
             self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
-            raise ConnectionError(f"Failed to connect to MariaDB: {str(e)}") from e
-
-    async def _connect_aiomysql(self):
-        """Connect using aiomysql as fallback."""
-        import aiomysql
-
-        try:
-            self._connection = await aiomysql.connect(
-                host=self.config.host,
-                port=self.config.port or 3306,
-                user=self.config.username,
-                password=self.config.password,
-                db=self.config.database,
-                charset=getattr(self.config, 'charset', 'utf8mb4'),
-                autocommit=getattr(self.config, 'autocommit', False),
-            )
-
-            self.log(
-                logging.INFO,
-                f"Connected to MariaDB database via aiomysql: "
-                f"{self.config.host}:{self.config.port}/{self.config.database}"
-            )
-        except Exception as e:
-            self.log(logging.ERROR, f"Failed to connect via aiomysql: {str(e)}")
             raise ConnectionError(f"Failed to connect to MariaDB: {str(e)}") from e
 
     async def disconnect(self):

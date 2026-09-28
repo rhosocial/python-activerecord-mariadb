@@ -3,4 +3,6 @@
 # Core dependency (rhosocial-activerecord) is installed via CI workflow from git
 
 # MariaDB driver
-mariadb>=2.0.0rc2
+# 2.0 replaced mariadb.aio with asyncConnect and is not yet a GA release, so the
+# upper bound keeps the async backend on the 1.1 API it is written against.
+mariadb>=1.1.14,<2.0
