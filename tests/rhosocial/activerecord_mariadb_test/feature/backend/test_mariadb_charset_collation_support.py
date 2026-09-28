@@ -3,11 +3,8 @@
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.mariadb import (
-    MariaDBCharset,
-    MariaDBDialect,
-    MariaDBStorageEngine,
-)
+from rhosocial.activerecord.backend.impl.mariadb.mixins import MariaDBCharset, MariaDBStorageEngine
+from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBCreateTableOptions
 from rhosocial.activerecord.backend.impl.mariadb.protocols import (
     MariaDBCharsetCollationSupport,

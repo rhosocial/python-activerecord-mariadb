@@ -57,7 +57,7 @@ pip install rhosocial-activerecord-mariadb
 
 ```python
 from rhosocial.activerecord.model import ActiveRecord
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from typing import Optional
 

@@ -16,7 +16,7 @@ from mariadb import (
     OperationalError as MariaDBOperationalError,
 )
 
-from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.errors import (
     IntegrityError,
     DatabaseError,

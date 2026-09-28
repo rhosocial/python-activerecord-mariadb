@@ -17,7 +17,7 @@ import time
 from decimal import Decimal
 from typing import Type
 
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.transaction import IsolationLevel
 from rhosocial.activerecord.backend.errors import TransactionError
 

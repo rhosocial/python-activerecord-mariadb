@@ -14,7 +14,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 from rhosocial.activerecord.backend.config import ConnectionConfig
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 
 
 def find_config_file(config_dir: Path) -> Optional[Path]:

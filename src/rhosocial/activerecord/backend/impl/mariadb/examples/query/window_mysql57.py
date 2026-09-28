@@ -18,7 +18,7 @@ This example uses user variables to emulate:
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
 import os
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 
 config = MariaDBConnectionConfig(

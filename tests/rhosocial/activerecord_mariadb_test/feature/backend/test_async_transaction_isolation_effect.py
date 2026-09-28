@@ -10,7 +10,7 @@ import pytest_asyncio
 import asyncio
 from decimal import Decimal
 
-from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 from rhosocial.activerecord.backend.errors import TransactionError
 

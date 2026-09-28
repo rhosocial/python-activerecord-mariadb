@@ -1,6 +1,6 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/introspection/test_introspection_status.py
 """Offline tests for the introspector ``status`` property (lazy creation)."""
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.introspection import (
     SyncMariaDBIntrospector,

@@ -2,10 +2,8 @@
 """Offline tests for the MariaDB backend auto-commit handlers."""
 import pytest
 
-from rhosocial.activerecord.backend.impl.mariadb import (
-    AsyncMariaDBBackend,
-    MariaDBBackend,
-)
+from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 
 

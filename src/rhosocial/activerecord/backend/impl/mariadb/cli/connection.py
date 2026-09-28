@@ -145,7 +145,7 @@ def resolve_connection_config_from_args(args):
 
 def create_backend(args):
     """Create, connect, and introspect a MariaDB backend from parsed args."""
-    from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+    from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
     config = resolve_connection_config_from_args(args)
     backend = MariaDBBackend(connection_config=config)
     backend.connect()

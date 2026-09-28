@@ -4,7 +4,8 @@
 named-procedure requires connection arguments, output arguments, and --rich-ascii.
 """
 
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend, AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.async_backend import AsyncMariaDBBackend
 
 from .connection import create_connection_parent_parser, resolve_connection_config_from_args
 from .output import create_provider

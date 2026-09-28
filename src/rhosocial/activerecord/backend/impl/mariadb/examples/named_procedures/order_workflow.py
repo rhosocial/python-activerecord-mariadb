@@ -135,7 +135,8 @@ from rhosocial.activerecord.backend.named_expression import ProcedureRunner, Tra
 if __name__ == "__main__":
     import os
 
-    from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend, MariaDBConnectionConfig
+    from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
+    from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
     from rhosocial.activerecord.backend.impl.mariadb.examples.named_expressions.order_expressions import (
         prepare_orders_demo,
     )
