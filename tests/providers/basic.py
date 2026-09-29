@@ -527,7 +527,7 @@ class BasicSyncProvider(BasicProviderBase, IBasicSyncProvider, WorkerTestProtoco
         if pooled_db:
             config_dict = {**config_dict, "database": pooled_db}
         return {
-            "backend_module": "rhosocial.activerecord.backend.impl.mariadb",
+            "backend_module": "rhosocial.activerecord.backend.impl.mariadb.backend",
             "backend_class_name": backend_class_name,
             "config_class_module": "rhosocial.activerecord.backend.impl.mariadb.config",
             "config_class_name": "MariaDBConnectionConfig",
@@ -578,7 +578,7 @@ class BasicAsyncProvider(BasicProviderBase, IBasicAsyncProvider):
     async def _setup_async_model(
         self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str
     ) -> Type[ActiveRecord]:
-        from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+        from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
         _, config = get_scenario(scenario_name)
         await model_class.configure(config, AsyncMariaDBBackend)
         backend_instance = model_class.__backend__
@@ -628,7 +628,7 @@ class BasicAsyncProvider(BasicProviderBase, IBasicAsyncProvider):
 
     async def setup_type_test_model(self, scenario_name: str) -> Type[ActiveRecord]:
         import pytest
-        from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+        from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
         _, config = get_scenario(scenario_name)
         temp_backend = AsyncMariaDBBackend(connection_config=config)
         await temp_backend.connect()

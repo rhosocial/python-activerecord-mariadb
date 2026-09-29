@@ -10,7 +10,7 @@ import pytest_asyncio
 import asyncio
 from decimal import Decimal
 
-from rhosocial.activerecord.backend.impl.mariadb import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 from rhosocial.activerecord.backend.errors import TransactionError
 
@@ -33,6 +33,44 @@ async def async_isolation_test_table(async_mariadb_backend):
     )
     yield "async_isolation_test"
     await async_mariadb_backend.execute("drop table if exists async_isolation_test")
+
+
+@pytest_asyncio.fixture(params=[None, "InnoDB", "MyISAM"], ids=["unspecified", "innodb", "myisam"])
+async def async_engine_test_table(request, async_mariadb_backend):
+    """Create an async isolation test table, with and without naming the engine.
+
+    Yields the table name, the requested engine (None when the CREATE TABLE omits
+    the clause) and the engine the server actually resolved it to, so a test can
+    assert on the difference rather than assume it.
+    """
+    engine = request.param
+    suffix = "auto" if engine is None else engine.lower()
+    table = f"async_isolation_engine_test_{suffix}"
+    clause = "" if engine is None else f" engine={engine}"
+
+    await async_mariadb_backend.execute(f"drop table if exists {table}")
+    await async_mariadb_backend.execute(f"""
+        create table {table} (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255),
+            balance DECIMAL(10, 2),
+            version INT DEFAULT 1
+        ){clause}
+    """)
+    await async_mariadb_backend.execute(
+        f"insert into {table} (name, balance) values (%s, %s)",
+        ("user1", Decimal("100.00"))
+    )
+    rows = await async_mariadb_backend.execute(
+        "select engine from information_schema.tables "
+        "where table_schema = database() and table_name = %s",
+        (table,),
+    )
+    # information_schema column labels differ in case between servers, so take
+    # the single selected value rather than indexing by name.
+    resolved = next(iter(rows.data[0].values()))
+    yield table, engine, resolved
+    await async_mariadb_backend.execute(f"drop table if exists {table}")
 
 
 @pytest_asyncio.fixture
@@ -92,45 +130,86 @@ class TestAsyncIsolationLevelEffect:
     """Test actual isolation behavior for each isolation level."""
 
     @pytest.mark.asyncio
-    async def test_read_uncommitted_allows_dirty_reads(self, async_mariadb_backend, async_mariadb_control_backend, async_isolation_test_table):
-        """Verify READ UNCOMMITTED isolation level allows dirty reads (async).
+    async def test_read_uncommitted_isolation_effect(self, async_mariadb_backend, async_mariadb_control_backend, async_engine_test_table):
+        """Verify what READ UNCOMMITTED does, for each storage engine.
 
-        A dirty read occurs when a transaction reads data written by another
-        uncommitted transaction. READ UNCOMMITTED should allow this.
+        Measured against MariaDB 10.2 through 13.1 and MySQL 5.6 through 9.7:
+        an unqualified CREATE TABLE resolves to InnoDB everywhere, and on InnoDB
+        READ UNCOMMITTED does expose the other session's uncommitted write, which
+        is then rolled back. On MyISAM the reader also sees the new value, but
+        MyISAM has no transactions, so the write is never rolled back and the
+        reader was looking at committed data rather than performing a dirty read.
+        The two cases are therefore asserted differently.
+
+        The reader waits on an event the writer sets after its UPDATE lands.
+        Sleeping a fixed interval instead made this a race: when the read ran
+        before the write landed, the reader saw the old value and the test failed
+        intermittently, which is how it presented in CI.
         """
-        dirty_read_detected = []
+        table, requested, resolved = async_engine_test_table
+        backend1 = async_mariadb_backend
+        backend2 = async_mariadb_control_backend
+
+        read_value = []
+        write_landed = asyncio.Event()
 
         async def transaction1():
-            """Transaction 1: Read uncommitted data."""
+            """Read on the first connection once the write has landed."""
             try:
-                async_mariadb_backend.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
-                async with async_mariadb_backend.transaction():
-                    await asyncio.sleep(0.1)
-                    rows = await async_mariadb_backend.fetch_all(
-                        "select balance from async_isolation_test where name = %s",
-                        ("user1",)
+                backend1.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
+                async with backend1.transaction():
+                    await asyncio.wait_for(write_landed.wait(), timeout=10)
+                    rows = await backend1.execute(
+                        f"select balance from {table} where name = %s", ("user1",)
                     )
-                    if rows and rows[0]["balance"] == Decimal("200.00"):
-                        dirty_read_detected.append(True)
-            except Exception as e:
-                dirty_read_detected.append(str(e))
+                    read_value.append(rows.data[0]["balance"] if rows.data else None)
+            except Exception as e:  # noqa: BLE001 - surfaced through the assertion below
+                read_value.append(e)
 
         async def transaction2():
-            """Transaction 2: Modify data without committing."""
+            """Write on the second connection and never commit it."""
             try:
-                async_mariadb_control_backend.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
-                async with async_mariadb_control_backend.transaction():
-                    await async_mariadb_control_backend.execute(
-                        "update async_isolation_test set balance = %s where name = %s",
-                        (Decimal("200.00"), "user1")
+                backend2.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
+                async with backend2.transaction():
+                    await backend2.execute(
+                        f"update {table} set balance = %s where name = %s",
+                        (Decimal("200.00"), "user1"),
                     )
+                    write_landed.set()
                     await asyncio.sleep(0.3)
-                    raise Exception("Force rollback for dirty read test")
+                    raise RuntimeError("force rollback")
             except Exception:
                 pass
 
         await asyncio.gather(transaction1(), transaction2())
-        assert True in dirty_read_detected, "READ UNCOMMITTED should allow dirty reads"
+
+        expected_engine = requested or "InnoDB"
+        assert resolved.lower() == expected_engine.lower(), (
+            f"create table {clause or '(no engine clause)'} resolved to {resolved}, "
+            f"expected {expected_engine}"
+        )
+
+        assert read_value and not isinstance(read_value[0], Exception), (
+            f"reader failed: {read_value[0] if read_value else 'never ran'}"
+        )
+        assert read_value[0] == Decimal("200.00"), (
+            f"READ UNCOMMITTED on {resolved} did not expose the other session's "
+            f"write; reader saw {read_value[0]}"
+        )
+
+        after = (await backend1.execute(
+            f"select balance from {table} where name = %s", ("user1",)
+        )).data[0]["balance"]
+        if resolved.lower() == "myisam":
+            assert after == Decimal("200.00"), (
+                "MyISAM has no transactions, so the write is expected to survive the "
+                f"rollback; found {after}"
+            )
+        else:
+            assert after == Decimal("100.00"), (
+                f"on {resolved} the reader saw a dirty read, so the rollback must "
+                f"restore the original value; found {after}"
+            )
 
     @pytest.mark.asyncio
     async def test_read_committed_prevents_dirty_reads(self, async_mariadb_backend, async_mariadb_control_backend, async_isolation_test_table):

@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/mixins/rename_table.py
+# src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl_rename_table.py
 """MariaDB RENAME TABLE mixin.
 
 MariaDB supports atomic multi-table renames with extensions over the

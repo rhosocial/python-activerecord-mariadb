@@ -15,7 +15,7 @@ The implementation:
 
 from typing import Optional, Tuple, TYPE_CHECKING
 
-from .expressions import (
+from ..expression.show import (
     ShowCreateTableExpression,
     ShowCreateViewExpression,
     ShowColumnsExpression,
@@ -39,7 +39,7 @@ from .expressions import (
 
 if TYPE_CHECKING:
     from ..backend import MariaDBBackend
-    from ..async_backend import AsyncMariaDBBackend
+    from ..backend.async_backend import AsyncMariaDBBackend
 
 
 class MariaDBShowFunctionality:

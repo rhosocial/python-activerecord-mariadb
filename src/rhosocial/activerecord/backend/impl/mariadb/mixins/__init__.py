@@ -38,7 +38,7 @@ Mixin Organization:
 
 from .introspection import MariaDBIntrospectionMixin
 from .transaction import MariaDBTransactionMixin
-from .backend import MariaDBBackendMixin, MARIADB_VERSION_BOUNDARIES
+from .backend import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MARIADB_VERSION_BOUNDARIES
 from .sequence import MariaDBSequenceMixin
 from .returning import MariaDBReturningMixin
 from .ddl_database import MariaDBDatabaseMixin
@@ -92,6 +92,7 @@ __all__ = [
     'MariaDBIntrospectionMixin',
     'MariaDBTransactionMixin',
     'MariaDBBackendMixin',
+    'CONNECTION_ERROR_CODES',
     'MariaDBSequenceMixin',
     'MariaDBReturningMixin',
     'MariaDBSystemVersioningMixin',

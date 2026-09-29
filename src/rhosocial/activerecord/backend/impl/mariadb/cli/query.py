@@ -9,7 +9,8 @@ import asyncio
 import logging
 import sys
 
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend, AsyncMariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
 
 from .connection import add_connection_args, resolve_connection_config_from_args

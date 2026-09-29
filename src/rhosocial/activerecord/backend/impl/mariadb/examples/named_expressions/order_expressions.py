@@ -162,7 +162,8 @@ def prepare_orders_demo(backend) -> None:
 if __name__ == "__main__":
     import os
 
-    from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend, MariaDBConnectionConfig
+    from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
+    from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 
     config = MariaDBConnectionConfig(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),

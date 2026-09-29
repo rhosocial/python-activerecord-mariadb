@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/show/expressions.py
+# src/rhosocial/activerecord/backend/impl/mariadb/expression/show.py
 """
 MariaDB SHOW command expression classes.
 

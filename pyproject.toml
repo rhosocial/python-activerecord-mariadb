@@ -37,6 +37,7 @@ classifiers = [
 ]
 dependencies = [
     "rhosocial-activerecord>=1.0.0.dev0,<2.0.0",
+    # 2.0 provides the native async API used by AsyncMariaDBBackend.
     "mariadb>=2.0.0rc2"
 ]
 

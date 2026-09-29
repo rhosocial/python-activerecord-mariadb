@@ -152,7 +152,7 @@ def handle(args):
     named_conn = getattr(args, "named_connection", None)
     if named_conn or args.database:
         try:
-            from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+            from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
             config = resolve_connection_config_from_args(args)
             backend = MariaDBBackend(connection_config=config)
             backend.connect()

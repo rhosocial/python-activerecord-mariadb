@@ -17,7 +17,7 @@ import time
 from decimal import Decimal
 from typing import Type
 
-from rhosocial.activerecord.backend.impl.mariadb import MariaDBBackend
+from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.transaction import IsolationLevel
 from rhosocial.activerecord.backend.errors import TransactionError
 
@@ -44,65 +44,128 @@ class TestIsolationLevelEffects:
         yield "isolation_test"
         mariadb_backend.execute("DROP TABLE IF EXISTS isolation_test")
 
-    def test_read_uncommitted_allows_dirty_reads(self, mariadb_backend, mariadb_control_backend, test_table):
-        """Verify READ UNCOMMITTED isolation level allows dirty reads.
+    @pytest.fixture(params=[None, "InnoDB", "MyISAM"], ids=["unspecified", "innodb", "myisam"])
+    def engine_table(self, request, mariadb_backend):
+        """Create an isolation test table, with and without naming the engine.
 
-        A dirty read occurs when a transaction reads data written by another
-        uncommitted transaction. READ UNCOMMITTED should allow this.
-
-        This test uses two separate backend connections to test isolation.
+        Yields the table name, the requested engine (None when the CREATE TABLE
+        omits the clause) and the engine the server actually resolved it to, so a
+        test can assert on the difference rather than assume it.
         """
-        # Use control backend for transaction 2 (independent connection)
+        engine = request.param
+        suffix = "auto" if engine is None else engine.lower()
+        table = f"isolation_engine_test_{suffix}"
+        clause = "" if engine is None else f" ENGINE={engine}"
+
+        mariadb_backend.execute(f"DROP TABLE IF EXISTS {table}")
+        mariadb_backend.execute(f"""
+            CREATE TABLE {table} (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255),
+                balance DECIMAL(10, 2),
+                version INT DEFAULT 1
+            ){clause}
+        """)
+        mariadb_backend.execute(
+            f"INSERT INTO {table} (name, balance) VALUES (%s, %s)",
+            ("user1", Decimal("100.00"))
+        )
+        rows = mariadb_backend.execute(
+            "SELECT engine FROM information_schema.tables "
+            "WHERE table_schema = DATABASE() AND table_name = %s",
+            (table,),
+        )
+        # information_schema column labels differ in case between servers, so take
+        # the single selected value rather than indexing by name.
+        resolved = next(iter(rows.data[0].values()))
+        yield table, engine, resolved
+        mariadb_backend.execute(f"DROP TABLE IF EXISTS {table}")
+
+    def test_read_uncommitted_isolation_effect(self, mariadb_backend, mariadb_control_backend, engine_table):
+        """Verify what READ UNCOMMITTED does, for each storage engine.
+
+        Measured against MariaDB 10.2 through 13.1 and MySQL 5.6 through 9.7:
+        an unqualified CREATE TABLE resolves to InnoDB everywhere, and on InnoDB
+        READ UNCOMMITTED does expose the other session's uncommitted write, which
+        is then rolled back. On MyISAM the reader also sees the new value, but
+        MyISAM has no transactions, so the write is never rolled back and the
+        reader was looking at committed data rather than performing a dirty read.
+        The two cases are therefore asserted differently.
+
+        The reader waits on an event the writer sets after its UPDATE lands.
+        Sleeping a fixed interval instead made this a race: when the read ran
+        before the write landed, the reader saw the old value and the test failed
+        intermittently, which is how it presented in CI.
+        """
+        table, requested, resolved = engine_table
         backend1 = mariadb_backend
         backend2 = mariadb_control_backend
 
-        dirty_read_detected = []
+        read_value = []
+        write_landed = threading.Event()
 
         def transaction1():
-            """Transaction 1: Read uncommitted data."""
+            """Read on the first connection once the write has landed."""
             try:
-                # Set isolation level before starting transaction
                 backend1.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
                 with backend1.transaction():
-                    # Wait for transaction 2 to modify
-                    time.sleep(0.15)
-                    # Read potentially uncommitted data
-                    rows = backend1.fetch_all(
-                        "SELECT balance FROM isolation_test WHERE name = %s",
-                        ("user1",)
+                    assert write_landed.wait(timeout=10), "writer never issued its UPDATE"
+                    rows = backend1.execute(
+                        f"SELECT balance FROM {table} WHERE name = %s", ("user1",)
                     )
-                    if rows and rows[0]["balance"] == Decimal("200.00"):
-                        dirty_read_detected.append(True)
-            except Exception as e:
-                dirty_read_detected.append(str(e))
+                    read_value.append(rows.data[0]["balance"] if rows.data else None)
+            except Exception as e:  # noqa: BLE001 - surfaced through the assertion below
+                read_value.append(e)
 
         def transaction2():
-            """Transaction 2: Modify data without committing."""
+            """Write on the second connection and never commit it."""
             try:
                 backend2.transaction_manager.isolation_level = IsolationLevel.READ_UNCOMMITTED
                 with backend2.transaction():
-                    # Update balance
                     backend2.execute(
-                        "UPDATE isolation_test SET balance = %s WHERE name = %s",
-                        (Decimal("200.00"), "user1")
+                        f"UPDATE {table} SET balance = %s WHERE name = %s",
+                        (Decimal("200.00"), "user1"),
                     )
-                    # Wait for transaction 1 to read
+                    write_landed.set()
                     time.sleep(0.3)
-                    # Rollback (dirty read scenario)
-                    raise Exception("Force rollback for dirty read test")
+                    raise RuntimeError("force rollback")
             except Exception:
-                pass  # Expected rollback
+                pass
 
         t1 = threading.Thread(target=transaction1)
         t2 = threading.Thread(target=transaction2)
-
         t1.start()
         t2.start()
-        t1.join(timeout=5)
-        t2.join(timeout=5)
+        t1.join(timeout=20)
+        t2.join(timeout=20)
 
-        # READ UNCOMMITTED should have detected the dirty read
-        assert True in dirty_read_detected, "READ UNCOMMITTED should allow dirty reads"
+        expected_engine = requested or "InnoDB"
+        assert resolved.lower() == expected_engine.lower(), (
+            f"CREATE TABLE {clause or '(no engine clause)'} resolved to {resolved}, "
+            f"expected {expected_engine}"
+        )
+
+        assert read_value and not isinstance(read_value[0], Exception), (
+            f"reader failed: {read_value[0] if read_value else 'never ran'}"
+        )
+        assert read_value[0] == Decimal("200.00"), (
+            f"READ UNCOMMITTED on {resolved} did not expose the other session's "
+            f"write; reader saw {read_value[0]}"
+        )
+
+        after = backend1.execute(
+            f"SELECT balance FROM {table} WHERE name = %s", ("user1",)
+        ).data[0]["balance"]
+        if resolved.lower() == "myisam":
+            assert after == Decimal("200.00"), (
+                "MyISAM has no transactions, so the write is expected to survive the "
+                f"rollback; found {after}"
+            )
+        else:
+            assert after == Decimal("100.00"), (
+                f"on {resolved} the reader saw a dirty read, so the rollback must "
+                f"restore the original value; found {after}"
+            )
 
     def test_read_committed_prevents_dirty_reads(self, mariadb_backend, mariadb_control_backend, test_table):
         """Verify READ COMMITTED isolation level prevents dirty reads.
