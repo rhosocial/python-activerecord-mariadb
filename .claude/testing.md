@@ -24,8 +24,8 @@ dependencies = [
 ```bash
 # Activate virtual environment and set PYTHONPATH
 cd /mnt/i/GitHubRepositories/rhosocial/python-activerecord-mariadb
-source .venv/bin/activate
-export PYTHONPATH=src
+source .venv3.14-ubuntu26.04/bin/activate
+export PYTHONPATH=src:tests
 
 # Run tests
 pytest
@@ -39,5 +39,5 @@ pytest
 
 ## Reference
 
-- [Core testing guide](../python-activerecord/.claude/testing.md)
-- [MariaDB backend development](../python-activerecord/.claude/backend_development.md)
+- [Core testing guide](../../python-activerecord/.claude/testing.md)
+- [MariaDB backend development](../../../python-activerecord/.claude/backend_development.md)
