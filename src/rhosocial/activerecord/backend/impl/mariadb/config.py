@@ -72,6 +72,17 @@ class MariaDBConnectionConfig(
                 params["ssl_verify_cert"] = self.ssl_verify_cert
             if getattr(self, "ssl_verify_identity", None):
                 params["ssl_verify_identity"] = self.ssl_verify_identity
+            # Certificate material for mutual TLS. The driver takes these under
+            # its own names, so map the generic SSLMixin fields onto them
+            # instead of leaving them collected but unused.
+            if self.ssl_ca:
+                params["ssl_ca"] = self.ssl_ca
+            if self.ssl_cert:
+                params["ssl_cert"] = self.ssl_cert
+            if self.ssl_key:
+                params["ssl_key"] = self.ssl_key
+            if self.ssl_ciphers:
+                params["ssl_cipher"] = self.ssl_ciphers
 
         return params
 
@@ -102,6 +113,12 @@ class MariaDBConnectionConfig(
             "AUTOCOMMIT": "autocommit",
             "SSL_DISABLED": "ssl_disabled",
             "TLS_VERSION": "tls_version",
+            "SSL_CA": "ssl_ca",
+            "SSL_CERT": "ssl_cert",
+            "SSL_KEY": "ssl_key",
+            "SSL_CIPHERS": "ssl_ciphers",
+            "SSL_VERIFY_CERT": "ssl_verify_cert",
+            "SSL_VERIFY_IDENTITY": "ssl_verify_identity",
         }
 
         for env_key, config_key in mapping.items():
@@ -117,6 +134,10 @@ class MariaDBConnectionConfig(
                 elif config_key == "autocommit":
                     value = value.lower() in ("true", "yes", "1", "on")
                 elif config_key == "ssl_disabled":
+                    value = value.lower() in ("true", "yes", "1", "on")
+                elif config_key == "ssl_verify_cert":
+                    value = value.lower() in ("true", "yes", "1", "on")
+                elif config_key == "ssl_verify_identity":
                     value = value.lower() in ("true", "yes", "1", "on")
                 env_values[config_key] = value
 
