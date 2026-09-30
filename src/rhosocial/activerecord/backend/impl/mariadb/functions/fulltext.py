@@ -8,7 +8,6 @@ Functions: match_against
 from typing import Union, List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression import bases
-from rhosocial.activerecord.backend.expression import operators
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import MariaDBDialect
@@ -34,32 +33,28 @@ def match_against(
         mode: Search mode - "NATURAL_LANGUAGE", "BOOLEAN", or "QUERY_EXPANSION"
 
     Returns:
-        A BaseExpression instance representing MATCH ... AGAINST
+        A MariaDBMatchAgainstExpression instance representing MATCH ... AGAINST
+
+    Note:
+        The search string is bound as a driver parameter by the dialect's
+        ``format_match_against``, never interpolated into the SQL text. Callers
+        may therefore pass user-supplied search terms directly.
 
     Version: All MariaDB versions (with FULLTEXT index on MyISAM, Aria, or InnoDB)
     """
-    from rhosocial.activerecord.backend.expression import core
+    from rhosocial.activerecord.backend.impl.mariadb.expression.match_against import (
+        MariaDBMatchAgainstExpression,
+    )
 
     if isinstance(columns, str):
         columns = [columns]
 
-    col_parts = []
-    for col in columns:
-        if isinstance(col, bases.BaseExpression):
-            col_parts.append(str(col))
-        else:
-            col_parts.append(dialect.format_identifier(col))
-
-    match_args = ", ".join(col_parts)
-    against_arg = f"'{search_string}'"
-
-    if mode == "BOOLEAN":
-        against_arg += " IN BOOLEAN MODE"
-    elif mode == "QUERY_EXPANSION":
-        against_arg += " WITH QUERY EXPANSION"
-
-    sql = f"MATCH ({match_args}) AGAINST({against_arg})"
-    return operators.RawSQLExpression(dialect, sql)
+    return MariaDBMatchAgainstExpression(
+        dialect,
+        columns=columns,
+        search_string=search_string,
+        mode=mode,
+    )
 
 
 __all__ = [
