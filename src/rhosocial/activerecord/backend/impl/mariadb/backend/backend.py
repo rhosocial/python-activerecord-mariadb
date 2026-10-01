@@ -520,6 +520,26 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             self.log(logging.ERROR, error_msg)
             raise OperationalError(error_msg) from e
 
+    def get_current_schema(self) -> Optional[str]:
+        """Get the namespace an unqualified reference resolves against.
+
+        Asks the server via DATABASE(). MariaDB has no schema namespace distinct
+        from the database, so this is the namespace an unqualified reference
+        resolves against. None when no database has been selected.
+        """
+        from ....expression.statements.dql import QueryExpression
+        from ..functions.schema import current_schema
+
+        query = QueryExpression(
+            dialect=self.dialect,
+            select=[current_schema(self.dialect)],
+        )
+        sql, params = query.to_sql()
+        row = self.fetch_one(sql, params)
+        if not row:
+            return None
+        return next(iter(row.values()), None)
+
     def introspect_and_adapt(self) -> None:
         """Introspect backend and adapt to actual server capabilities."""
         if not self._connection:
