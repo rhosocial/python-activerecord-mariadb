@@ -61,6 +61,16 @@ class MariaDBJSONMixin:
         """
         return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']
 
+
+    def supports_json_path(self) -> bool:
+        """Whether a JSON path can be read on this server.
+
+        Gated on the functions rather than the type: MariaDB 10.2.3 brought
+        both, but they are separate questions and the type is the one a later
+        version could drop.
+        """
+        return self.version >= (10, 2, 3)
+
     def supports_json_function(self, function_name: str) -> bool:
         """Check if specific JSON function is supported.
 
