@@ -6,6 +6,11 @@ from typing import Dict
 class MariaDBFunctionMixin:
     """MariaDB stored function DDL capability checks."""
 
+    #: MariaDB reads ``||`` as logical OR unless the server runs with
+    #: ``PIPES_AS_CONCAT``, so ``CONCAT`` is the only unconditional spelling.
+    STRING_CONCATENATION = "CONCAT"
+
+
     def supports_function(self) -> bool:
         return True
 
