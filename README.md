@@ -143,6 +143,34 @@ real JSON *column* — `CAST(x AS JSON) -> '$'` is a syntax error even on
 13.1 — so it is not used as the general rendering.
 `supports_json_arrow_operators_native()` reports whether it is available.
 
+## Schema Names
+
+In MariaDB, `schema` and `database` are the same thing under two names, so a
+`schema_name` names a **database**:
+
+```python
+class Order(ActiveRecord):
+    __schema_name__ = "app"   # this is the database
+    __tablename__ = "orders"
+```
+
+```sql
+-- generated
+SELECT * FROM `app`.`orders`
+```
+
+The server accepts both spellings and they list the same things:
+
+```sql
+CREATE SCHEMA app;   -- same as CREATE DATABASE app
+SHOW SCHEMAS;        -- same as SHOW DATABASES
+```
+
+Columns are not schema-qualified: a column reference takes at most two parts
+here, so `` `orders`.`id` `` is correct and a three-part reference is a syntax
+error. `get_current_schema()` returns the current database, and is `None` when
+no database has been selected.
+
 ## Version Gates
 
 Gates below are the versions at which this backend's own `supports_*`
