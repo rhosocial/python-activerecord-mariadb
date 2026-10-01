@@ -12,6 +12,7 @@ the SQL/PSM standard:
     CALL name([args])
 """
 from typing import TYPE_CHECKING, Tuple
+from .....expression.core import TableExpression
 
 from ..backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -141,7 +142,7 @@ class MariaDBRoutineMixin:
             if_not_exists = expr.if_not_exists
             body = expr.body
         else:
-            name_sql = self.format_identifier(expr.function_name)
+            name_sql = TableExpression(self, expr.function_name, schema_name=expr.schema_name).to_sql()[0]
             params = expr.parameters
             returns = expr.returns
             deterministic = False
@@ -213,7 +214,7 @@ class MariaDBRoutineMixin:
         if hasattr(expr, "_format_name"):
             parts.append(expr._format_name())
         else:
-            parts.append(self.format_identifier(expr.function_name))
+            parts.append(TableExpression(self, expr.function_name, schema_name=expr.schema_name).to_sql()[0])
         return " ".join(parts), ()
 
     def format_call_statement(

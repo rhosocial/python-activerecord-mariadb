@@ -7,6 +7,7 @@ MariaDB supports triggers with some differences from MySQL:
 - Multiple triggers per timing/event (MariaDB 10.4+)
 """
 from typing import Tuple, TYPE_CHECKING
+from ....expression.core import TableExpression
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
@@ -222,14 +223,14 @@ class MariaDBTriggerMixin:
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
 
-        parts.append(self.format_identifier(expr.trigger_name))
+        parts.append(TableExpression(self, expr.trigger_name, schema_name=expr.schema_name).to_sql()[0])
         parts.append(timing)
 
         if expr.events:
             parts.append(expr.events[0].value if hasattr(expr.events[0], 'value') else str(expr.events[0]))
 
         parts.append("ON")
-        parts.append(self.format_identifier(expr.table_name))
+        parts.append(TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0])
         parts.append("FOR EACH ROW")
 
         all_params = []
@@ -242,7 +243,7 @@ class MariaDBTriggerMixin:
         parts.append("BEGIN")
 
         if expr.function_name:
-            parts.append(f"CALL {self.format_identifier(expr.function_name)}();")
+            parts.append(f"CALL {TableExpression(self, expr.function_name, schema_name=expr.schema_name).to_sql()[0]}();")
         elif expr.body:
             body_sql, body_params = expr.body.to_sql()
             parts.append(body_sql)
@@ -269,7 +270,7 @@ class MariaDBTriggerMixin:
         if expr.if_exists:
             parts.append("IF EXISTS")
 
-        parts.append(self.format_identifier(expr.trigger_name))
+        parts.append(TableExpression(self, expr.trigger_name, schema_name=expr.schema_name).to_sql()[0])
 
         return " ".join(parts), ()
 

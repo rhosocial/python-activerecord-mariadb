@@ -1,5 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/truncate.py
 from typing import TYPE_CHECKING, Tuple
+from ....expression.core import TableExpression
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -60,7 +61,7 @@ class MariaDBTruncateMixin:
                 suggestion="MariaDB does not support CASCADE on TRUNCATE.",
             )
 
-        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table_name)}"
+        sql = f"TRUNCATE TABLE {TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0]}"
 
         wait = None
         if getattr(expr, "nowait", False):

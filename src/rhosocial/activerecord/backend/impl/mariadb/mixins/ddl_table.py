@@ -10,6 +10,7 @@ MariaDB-specific features:
 - CREATE TABLE ... LIKE syntax
 """
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+from ....expression.core import TableExpression
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
@@ -119,7 +120,7 @@ class MariaDBTableMixin:
         parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
+        parts.append(TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0])
 
         column_parts = []
         for col_def in expr.columns:

@@ -10,6 +10,7 @@ tbl_name RENAME INDEX old_index_name TO new_index_name``.
 """
 
 from typing import Tuple, TYPE_CHECKING
+from .....expression.core import TableExpression
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -84,7 +85,7 @@ class MariaDBAlterTableMixin:
                 )
             head += " IF EXISTS"
 
-        table_part = f"{head} {self.format_identifier(expr.table_name)}"
+        table_part = f"{head} {TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0]}"
 
         wait_value = getattr(expr, "wait", None)
         if getattr(expr, "nowait", False):
@@ -129,7 +130,7 @@ class MariaDBAlterTableMixin:
 
         return (
             "ALTER TABLE "
-            f"{self.format_identifier(expr.table_name)} RENAME INDEX "
+            f"{TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0]} RENAME INDEX "
             f"{self.format_identifier(expr.old_index_name)} TO "
             f"{self.format_identifier(expr.new_index_name)}",
             ()
