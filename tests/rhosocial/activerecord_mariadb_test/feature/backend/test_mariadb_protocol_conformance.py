@@ -152,6 +152,11 @@ class TestMariaDBDialectProtocolConformance:
 # satisfies one by accident, the negative test fails and forces a conscious
 # decision (move to MYSQL_PROTOCOLS or revert).
 MARIADB_NOT_IMPLEMENTED = [
+    # UUID value expressions (generation / nil-max constants / cast) are not
+    # implemented yet on this dialect. Listed here so the omission is a
+    # recorded decision rather than a gap; move it to the implemented list
+    # when the mixin lands.
+    dialect_protocols.UUIDSupport,
     # --- Intentional non-support ---
     # MariaDB has no standalone COMMENT ON statement; inline table/column
     # comments are rendered by CREATE TABLE instead.
