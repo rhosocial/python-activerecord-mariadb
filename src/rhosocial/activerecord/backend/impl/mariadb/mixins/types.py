@@ -16,6 +16,7 @@ from rhosocial.activerecord.backend.expression.types import (
     CharType,
     CustomType,
     DataType,
+    EnumType,
     DateType,
     DateTimeType,
     DecimalType,
@@ -172,8 +173,18 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             return f"VARBINARY({data_type.length})", ()
         return "VARBINARY", ()
 
+    def format_data_type_enum(self, data_type: EnumType) -> Tuple[str, tuple]:
+        """Render the core ``EnumType``.
+
+        MariaDB has a native ENUM, so the generic type is renderable here
+        rather than something to substitute. ``MariaDBEnumType`` stays for the
+        cases that need the charset and collation this form does not carry.
+        """
+        values_str = ",".join(self.format_literal(value) for value in data_type.values)
+        return f"ENUM({values_str})", ()
+
     def format_data_type_mariadb_enum(self, data_type: MariaDBEnumType) -> Tuple[str, tuple]:
-        values_str = ",".join(f"'{v}'" for v in data_type.values)
+        values_str = ",".join(self.format_literal(v) for v in data_type.values)
         result = f"ENUM({values_str})"
         if data_type.charset:
             result += f" CHARACTER SET {data_type.charset}"
@@ -182,7 +193,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         return result, ()
 
     def format_data_type_mariadb_set(self, data_type: MariaDBSetType) -> Tuple[str, tuple]:
-        values_str = ",".join(f"'{v}'" for v in data_type.values)
+        values_str = ",".join(self.format_literal(v) for v in data_type.values)
         result = f"SET({values_str})"
         if data_type.charset:
             result += f" CHARACTER SET {data_type.charset}"
@@ -390,6 +401,9 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         return True
 
     def supports_data_type_mariadb_varbinary(self) -> bool:
+        return True
+
+    def supports_data_type_enum(self) -> bool:
         return True
 
     def supports_data_type_mariadb_enum(self) -> bool:

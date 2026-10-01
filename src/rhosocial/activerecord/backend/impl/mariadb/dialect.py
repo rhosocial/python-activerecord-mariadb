@@ -415,7 +415,6 @@ class MariaDBDialect(
 
         return {
             "uuid": MariaDBUUIDType,
-            "enum": MariaDBEnumType,
             "binary": MariaDBBinaryType,
             "varbinary": MariaDBVarBinaryType,
         }
