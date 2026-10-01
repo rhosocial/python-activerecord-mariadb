@@ -50,6 +50,7 @@ from .trigger import MariaDBTriggerMixin
 from .json import MariaDBJSONMixin
 from .fulltext_search import MariaDBFullTextSearchMixin
 from .ddl_table import MariaDBTableMixin
+from .schema import MariaDBSchemaMixin
 from .set_type import MariaDBSetTypeMixin
 from .modify_column import MariaDBModifyColumnMixin
 from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
@@ -88,6 +89,7 @@ from .generated_column import MariaDBGeneratedColumnMixin
 from .function import MariaDBFunctionMixin
 
 __all__ = [
+    "MariaDBSchemaMixin",
     'MARIADB_VERSION_BOUNDARIES',
     'MariaDBIntrospectionMixin',
     'MariaDBTransactionMixin',
