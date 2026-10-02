@@ -13,9 +13,10 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        CreateTriggerExpression,
         DropTriggerExpression,
     )
+
+    from ..expression.trigger import MariaDBCreateTriggerExpression
 
 
 class MariaDBTriggerMixin:
@@ -155,7 +156,7 @@ class MariaDBTriggerMixin:
 
     def format_create_trigger_statement(
         self,
-        expr: "CreateTriggerExpression"
+        expr: "MariaDBCreateTriggerExpression"
     ) -> Tuple[str, tuple]:
         """Format CREATE TRIGGER statement for MariaDB.
 
@@ -169,7 +170,10 @@ class MariaDBTriggerMixin:
             trigger_body
 
         Args:
-            expr: CreateTriggerExpression instance.
+            expr: MariaDBCreateTriggerExpression instance. The MariaDB
+                options or_replace, ordering and body are read directly,
+                which is why the annotation names the MariaDB expression
+                rather than the generic one.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -215,11 +219,7 @@ class MariaDBTriggerMixin:
 
         parts = ["CREATE"]
 
-        # or_replace and ordering are MySQL-specific CREATE TRIGGER options that
-        # core's CreateTriggerExpression does not carry; only the dialect's own
-        # subclass supplies them. Read them as optional so the statement still
-        # renders on the core class.
-        if getattr(expr, "or_replace", False):
+        if expr.or_replace:
             parts.append("OR REPLACE")
 
         parts.append("TRIGGER")
@@ -239,7 +239,7 @@ class MariaDBTriggerMixin:
 
         all_params = []
 
-        ordering = getattr(expr, "ordering", None)
+        ordering = expr.ordering
         if ordering:
             order_type, order_trigger = ordering
             parts.append(order_type.upper())

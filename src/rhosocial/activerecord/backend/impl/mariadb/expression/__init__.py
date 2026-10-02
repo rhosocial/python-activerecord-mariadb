@@ -63,6 +63,7 @@ from .table_options import MariaDBRowFormat, MariaDBCreateTableOptions
 from .dml import MariaDBInsertExpression
 from .truncate import MariaDBTruncateExpression
 from .alter_table import MariaDBAlterTableExpression
+from .trigger import MariaDBCreateTriggerExpression
 from .column import (
     MariaDBColumnFormat,
     MariaDBColumnStorage,
@@ -140,6 +141,7 @@ __all__ = [
     "MariaDBRenameTableExpression",
     "MariaDBRenameIndexExpression",
     "MariaDBAlterTableExpression",
+    "MariaDBCreateTriggerExpression",
     "MariaDBTableMaintenanceExpression",
     "TableMaintenanceOperation",
     "MariaDBCreateTableOptions",
