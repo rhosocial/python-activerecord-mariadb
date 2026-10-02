@@ -9,7 +9,6 @@ MariaDB 10.5.3+ supports renaming an index with ``ALTER TABLE``:
 RENAME CONSTRAINT is not supported by MariaDB; the recommended approach is
 to drop and recreate the constraint.
 """
-from rhosocial.activerecord.backend.expression.core import _validate_schema_name
 
 from typing import Optional, TYPE_CHECKING
 
@@ -45,7 +44,7 @@ class MariaDBRenameIndexExpression(BaseExpression):
         """
         super().__init__(dialect)
         self.table_name = table_name
-        self.schema_name = _validate_schema_name(schema_name, type(self).__name__)
+        self.schema_name = schema_name
         self.old_index_name = old_index_name
         self.new_index_name = new_index_name
 
