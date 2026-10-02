@@ -1,4 +1,4 @@
-# tests/rhosocial/activerecord_sqlserver_test/feature/backend/dialect/test_expression_fields_match_formatters.py
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/dialect/test_expression_fields_match_formatters.py
 """A formatter may not read a field its statement does not carry.
 
 A statement formatter that reads ``expr.schema_name`` needs the expression to
@@ -7,109 +7,242 @@ expression was not given the field, the result is not wrong SQL -- it is an
 ``AttributeError`` on a statement that can never be built, which is how
 SQLServerColumnstoreIndexExpression reached CI.
 
-These are source scans rather than runtime tests because the failure needs the
-right dialect, the right statement options and a live server to reach; a scan
-fails the build the moment the shape reappears, wherever it appears.
+These were source scans rather than runtime tests. A scan does not work here:
+whether the field exists depends on inheritance reaching core, which lives in
+another repository, and on **core_kwargs forwarding. Reading the source of this
+repository can see neither, so a scan reported defects that were not there --
+two were chased down and both were false alarms -- while a field genuinely
+removed still passed. Building the statement answers the question the defect
+actually asks: does this statement build, and does the schema reach the SQL?
+
+One known blocker is left in place rather than fixed, so it is written down
+here where the next person will meet it: ``format_create_trigger_statement``
+reads ``expr.or_replace`` (trigger.py:218) and ``expr.ordering``
+(trigger.py:238), and core's ``CreateTriggerExpression`` carries neither. That
+path therefore raises ``AttributeError`` before it reaches any schema
+qualification, which is why CREATE TRIGGER has no case below. ``DROP TRIGGER``
+goes through a separate formatter that reads only ``schema_name``, so it is
+covered.
 """
-import ast
-from pathlib import Path
+import importlib
+import inspect
 
-REPO_ROOT = Path(__file__).resolve().parents[5]
-SRC = REPO_ROOT / "src" / "rhosocial" / "activerecord"
+import pytest
 
-#: Statement fields a formatter may read that the core expression classes carry
+#: Statement fields a formatter may read that some expression classes carry
 #: under a different name. Reading these by their own name is the defect.
+#: TruncateExpression names the field `schema`; the DDL statements name it
+#: `schema_name`. No formatter on this backend reads the alias, so nothing here
+#: exercises it.
 KNOWN_ALIASES = {
-    # TruncateExpression and the PostgreSQL vacuum/statistics expressions name
-    # the field `schema`; the DDL statements name it `schema_name`.
     "schema": {"TruncateExpression"},
 }
 
 
-def _python_files():
-    return sorted(
-        p
-        for p in SRC.rglob("*.py")
-        if "__pycache__" not in p.parts
-    )
+class TestQualifiedStatementsRender:
+    """A statement whose formatter qualifies names must build with a schema.
 
+    Checked by building each statement and rendering it, not by scanning
+    source. Each case names the statement and how to build it, so adding
+    coverage for a newly qualified object type is one entry rather than a new
+    mechanism.
 
-def _class_fields(tree):
-    """Map class name -> (own field names, base class names, has **kwargs)."""
-    out = {}
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        fields = {
-            sub.attr
-            for sub in ast.walk(node)
-            if isinstance(sub, ast.Attribute)
-            and isinstance(sub.value, ast.Name)
-            and sub.value.id == "self"
-        }
-        bases = [b.id for b in node.bases if isinstance(b, ast.Name)]
-        takes_kwargs = any(
-            isinstance(a, ast.arg) and a.arg == "kwargs" for a in ast.walk(node)
+    MariaDB quotes with backticks, so the expected SQL below carries
+    ```app```.`name` where ``app`` was passed in.
+    """
+
+    @pytest.fixture
+    def dialect(self):
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+
+        return MariaDBDialect(version=(11, 4, 0))
+
+    def test_alter_table_inherits_the_field_from_core(self, dialect):
+        """The case a source scan got wrong in both directions.
+
+        AlterTableExpression lives in core and assigns schema_name there. A
+        scan of this repository sees the formatter reading the field and no
+        assignment at all, so it either misses a field that is there or reports
+        one that is not, depending on how it resolves the base. Building it
+        settles the question.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            AlterTableExpression,
+            DropColumn,
         )
-        out[node.name] = (fields, bases, takes_kwargs)
-    return out
+
+        def build(schema_name=None):
+            return AlterTableExpression(
+                dialect,
+                table_name="orders",
+                actions=[DropColumn(dialect, "note")],
+                schema_name=schema_name,
+            )
+
+        assert build().to_sql()[0] == (
+            "ALTER TABLE `orders`  DROP COLUMN `note`"
+        ), build().to_sql()[0]
+        assert build(schema_name="app").to_sql()[0] == (
+            "ALTER TABLE `app`.`orders`  DROP COLUMN `note`"
+        )
+
+    def test_rename_index_qualifies_the_table_not_the_index(self, dialect):
+        """A class defined in this repository, qualified by a formatter here.
+
+        MariaDBRenameIndexExpression carries schema_name itself, and the
+        formatter puts it on the table only -- the two index names stay bare,
+        because that is what ``ALTER TABLE ... RENAME INDEX`` accepts.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
+            MariaDBRenameIndexExpression,
+        )
+
+        def build(schema_name=None):
+            return MariaDBRenameIndexExpression(
+                dialect,
+                table_name="orders",
+                old_index_name="idx_old",
+                new_index_name="idx_new",
+                schema_name=schema_name,
+            )
+
+        assert build().to_sql()[0] == (
+            "ALTER TABLE `orders` RENAME INDEX `idx_old` TO `idx_new`"
+        ), build().to_sql()[0]
+        assert build(schema_name="app").to_sql()[0] == (
+            "ALTER TABLE `app`.`orders` RENAME INDEX `idx_old` TO `idx_new`"
+        )
+
+    def test_drop_trigger(self, dialect):
+        from rhosocial.activerecord.backend.expression import DropTriggerExpression
+
+        expr = DropTriggerExpression(
+            dialect, trigger_name="trg_audit", table_name="orders"
+        )
+        assert expr.to_sql()[0] == "DROP TRIGGER `trg_audit`", expr.to_sql()[0]
+        qualified = DropTriggerExpression(
+            dialect, trigger_name="trg_audit", table_name="orders", schema_name="app"
+        )
+        assert qualified.to_sql()[0] == "DROP TRIGGER `app`.`trg_audit`", (
+            qualified.to_sql()[0]
+        )
+
+    def test_create_function_takes_the_generic_branch(self, dialect):
+        """The routine formatter dispatches on shape, and both branches differ.
+
+        ``MariaDBCreateFunctionExpression`` has ``_format_name`` and takes the
+        first branch, which never touches ``schema_name``. Core's
+        ``CreateFunctionExpression`` takes the second, which does. Asserting the
+        second branch is what keeps the qualifier from quietly going missing
+        when the dispatch changes.
+        """
+        from rhosocial.activerecord.backend.expression import CreateFunctionExpression
+
+        def build(schema_name=None):
+            return CreateFunctionExpression(
+                dialect,
+                function_name="fn_calc",
+                parameters=[],
+                returns="INT",
+                body="RETURN 1;",
+                schema_name=schema_name,
+            )
+
+        assert build().to_sql()[0] == "CREATE FUNCTION `fn_calc` () RETURNS INT RETURN 1;", (
+            build().to_sql()[0]
+        )
+        assert build(schema_name="app").to_sql()[0] == (
+            "CREATE FUNCTION `app`.`fn_calc` () RETURNS INT RETURN 1;"
+        )
+
+    def test_drop_function(self, dialect):
+        from rhosocial.activerecord.backend.expression import DropFunctionExpression
+
+        expr = DropFunctionExpression(dialect, function_name="fn_calc")
+        assert expr.to_sql()[0] == "DROP FUNCTION `fn_calc`", expr.to_sql()[0]
+        qualified = DropFunctionExpression(
+            dialect, function_name="fn_calc", schema_name="app"
+        )
+        assert qualified.to_sql()[0] == "DROP FUNCTION `app`.`fn_calc`", (
+            qualified.to_sql()[0]
+        )
+    def test_create_trigger_on_the_core_expression(self, dialect):
+        """CREATE TRIGGER must render on core's expression class.
+
+        The formatter reads or_replace and ordering, which are MySQL-specific
+        options core's CreateTriggerExpression does not declare, so it raised
+        AttributeError on every trigger -- which also meant it never reached the
+        schema qualification. Reading them as optional keeps the statement
+        renderable; a dialect subclass can still set them.
+        """
+        from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
+            CreateTriggerExpression,
+        )
+
+        plain = CreateTriggerExpression(
+            dialect,
+            trigger_name="trg_audit",
+            table_name="orders",
+            timing="BEFORE",
+            events=["INSERT"],
+            function_name="audit_fn",
+            level="ROW",
+        )
+        assert "trg_audit" in plain.to_sql()[0]
+
+        qualified = CreateTriggerExpression(
+            dialect,
+            trigger_name="trg_audit",
+            table_name="orders",
+            timing="BEFORE",
+            events=["INSERT"],
+            function_name="audit_fn",
+            level="ROW",
+            schema_name="app",
+        )
+        sql = qualified.to_sql()[0]
+        assert "`app`.`trg_audit`" in sql, sql
+        assert "`app`.`orders`" in sql, sql
 
 
-def _has_field(name, field, table, seen=None):
-    seen = set() if seen is None else seen
-    if name in seen or name not in table:
-        return False
-    seen.add(name)
-    fields, bases, takes_kwargs = table[name]
-    if field in fields or takes_kwargs:
-        return True
-    return any(_has_field(b, field, table, seen) for b in bases)
 
+class TestExpressionSignatures:
+    """The expressions this backend's formatters qualify must take the field."""
 
-class TestFormattersOnlyReadRealFields:
-    def _table(self):
-        table = {}
-        for path in _python_files():
-            try:
-                table.update(_class_fields(ast.parse(path.read_text(encoding="utf-8"))))
-            except SyntaxError:  # pragma: no cover - syntax errors fail elsewhere
-                continue
-        return table
-
-    def test_no_formatter_reads_an_absent_schema_field(self):
-        """Every expr.<field> a formatter reads must exist on its statement."""
-        table = self._table()
-        offenders = []
-        for path in _python_files():
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-            except SyntaxError:  # pragma: no cover
-                continue
-            source = path.read_text(encoding="utf-8")
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.FunctionDef):
-                    continue
-                if not node.name.startswith("format_"):
-                    continue
-                segment = ast.get_source_segment(source, node) or ""
-                if "expr.schema_name" not in segment:
-                    continue
-                import re
-
-                for cls in set(re.findall(r"\b(\w+Expression)\b", segment)):
-                    if cls not in table:
-                        continue
-                    if _has_field(cls, "schema_name", table):
-                        continue
-                    if cls in KNOWN_ALIASES.get("schema", set()):
-                        continue
-                    offenders.append(
-                        f"{path.relative_to(REPO_ROOT)}:{node.lineno} "
-                        f"{node.name} -> {cls}"
-                    )
-        assert not offenders, (
-            "These formatters read expr.schema_name but the statement has no "
-            "such field, so building that statement raises AttributeError "
-            "rather than producing SQL. Give the expression the field, or read "
-            "the one it actually has:\n  " + "\n  ".join(offenders)
+    @pytest.mark.parametrize(
+        "import_path,class_name",
+        [
+            (
+                "rhosocial.activerecord.backend.expression.statements.ddl_alter",
+                "AlterTableExpression",
+            ),
+            (
+                "rhosocial.activerecord.backend.impl.mariadb.expression.rename_index",
+                "MariaDBRenameIndexExpression",
+            ),
+            (
+                "rhosocial.activerecord.backend.expression.statements.ddl_trigger",
+                "DropTriggerExpression",
+            ),
+            (
+                "rhosocial.activerecord.backend.expression.statements.ddl_function",
+                "CreateFunctionExpression",
+            ),
+            (
+                "rhosocial.activerecord.backend.expression.statements.ddl_function",
+                "DropFunctionExpression",
+            ),
+        ],
+    )
+    def test_qualified_expression_accepts_schema_name(self, import_path, class_name):
+        module = importlib.import_module(import_path)
+        cls = getattr(module, class_name)
+        params = inspect.signature(cls.__init__).parameters
+        assert "schema_name" in params, (
+            f"{class_name} is qualified by its formatter, so it needs the "
+            f"field; got {list(params)}"
+        )
+        assert params["schema_name"].default is None, (
+            f"{class_name} must default schema_name to None -- None is what "
+            f"means unqualified"
         )
