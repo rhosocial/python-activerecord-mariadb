@@ -197,44 +197,44 @@ class TestQualifiedStatementsRender:
         assert qualified.to_sql()[0] == "DROP FUNCTION `app`.`fn_calc`", (
             qualified.to_sql()[0]
         )
-    def test_create_trigger_on_the_core_expression(self, dialect):
-        """CREATE TRIGGER must render on core's expression class.
+    def test_create_trigger_qualifies_schema(self, dialect):
+        """CREATE TRIGGER built on MariaDB's own expression.
 
-        The formatter reads or_replace and ordering, which are MySQL-specific
-        options core's CreateTriggerExpression does not declare, so it raised
-        AttributeError on every trigger -- which also meant it never reached the
-        schema qualification. Reading them as optional keeps the statement
-        renderable; a dialect subclass can still set them.
+        This used to be built on core's CreateTriggerExpression, with the
+        formatter reaching for or_replace and ordering through getattr because
+        core declares neither. Those options are real on MariaDB, so they now
+        live on MariaDBCreateTriggerExpression and the formatter reads them
+        directly -- which means the statement has to be built on the MariaDB
+        type, and this is that path.
+
+        Schema qualification is asserted here because the old getattr stood
+        between the formatter and the code that reaches the schema: it raised on
+        every trigger, so nothing after it was ever exercised.
         """
-        from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
-            CreateTriggerExpression,
+        from rhosocial.activerecord.backend.expression.statements import (
+            TriggerEvent,
+            TriggerTiming,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.expression import (
+            MariaDBCreateTriggerExpression,
         )
 
-        plain = CreateTriggerExpression(
-            dialect,
-            trigger_name="trg_audit",
-            table_name="orders",
-            timing="BEFORE",
-            events=["INSERT"],
-            function_name="audit_fn",
-            level="ROW",
-        )
-        assert "trg_audit" in plain.to_sql()[0]
+        def build(schema_name=None):
+            return MariaDBCreateTriggerExpression(
+                dialect,
+                trigger_name="trg_audit",
+                table_name="orders",
+                timing=TriggerTiming.BEFORE,
+                events=[TriggerEvent.INSERT],
+                function_name="audit_fn",
+                schema_name=schema_name,
+            )
 
-        qualified = CreateTriggerExpression(
-            dialect,
-            trigger_name="trg_audit",
-            table_name="orders",
-            timing="BEFORE",
-            events=["INSERT"],
-            function_name="audit_fn",
-            level="ROW",
-            schema_name="app",
-        )
-        sql = qualified.to_sql()[0]
+        assert "trg_audit" in build().to_sql()[0]
+
+        sql = build("app").to_sql()[0]
         assert "`app`.`trg_audit`" in sql, sql
         assert "`app`.`orders`" in sql, sql
-
 
 
 class TestExpressionSignatures:

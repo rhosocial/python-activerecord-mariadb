@@ -25,6 +25,7 @@ class MariaDBTruncateExpression(TruncateExpression):
         table_name: str,
         restart_identity: bool = False,
         cascade: bool = False,
+        schema_name: Optional[str] = None,
         *,
         wait: Optional[int] = None,
         nowait: bool = False,
@@ -34,6 +35,7 @@ class MariaDBTruncateExpression(TruncateExpression):
             table_name=table_name,
             restart_identity=restart_identity,
             cascade=cascade,
+            schema_name=schema_name,
         )
         self.wait = wait
         self.nowait = nowait
