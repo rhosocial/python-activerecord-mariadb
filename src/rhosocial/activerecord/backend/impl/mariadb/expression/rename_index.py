@@ -1,5 +1,5 @@
-from rhosocial.activerecord.backend.expression.core import _validate_schema_name
 # src/rhosocial/activerecord/backend/impl/mariadb/expression/rename_index.py
+
 """MariaDB RENAME INDEX expression.
 
 MariaDB 10.5.3+ supports renaming an index with ``ALTER TABLE``:
@@ -9,6 +9,7 @@ MariaDB 10.5.3+ supports renaming an index with ``ALTER TABLE``:
 RENAME CONSTRAINT is not supported by MariaDB; the recommended approach is
 to drop and recreate the constraint.
 """
+from rhosocial.activerecord.backend.expression.core import _validate_schema_name
 
 from typing import Optional, TYPE_CHECKING
 
@@ -35,6 +36,13 @@ class MariaDBRenameIndexExpression(BaseExpression):
         new_index_name: str,
         schema_name: Optional[str] = None,
     ):
+        """
+        Args:
+            schema_name: Namespace to qualify the index with, e.g. ``app``.
+                None leaves the name unqualified. An empty string raises
+                ValueError, and a dialect with no namespace raises
+                UnsupportedFeatureError.
+        """
         super().__init__(dialect)
         self.table_name = table_name
         self.schema_name = _validate_schema_name(schema_name, type(self).__name__)

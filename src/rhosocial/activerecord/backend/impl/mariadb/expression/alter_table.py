@@ -46,6 +46,13 @@ class MariaDBAlterTableExpression(AlterTableExpression):
         nowait: bool = False,
         wait: Optional[int] = None,
     ):
+        """
+        Args:
+            schema_name: Namespace to qualify the table with, e.g. ``app``.
+                None leaves the name unqualified. An empty string raises
+                ValueError, and a dialect with no namespace raises
+                UnsupportedFeatureError.
+        """
         super().__init__(dialect, table_name, actions, schema_name)
         self.if_exists = if_exists
         self.nowait = nowait
