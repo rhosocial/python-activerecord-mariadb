@@ -40,12 +40,13 @@ class MariaDBAlterTableExpression(AlterTableExpression):
         dialect: "SQLDialectBase",
         table_name: str,
         actions: List[AlterTableAction],
+        schema_name: Optional[str] = None,
         *,
         if_exists: bool = False,
         nowait: bool = False,
         wait: Optional[int] = None,
     ):
-        super().__init__(dialect, table_name, actions)
+        super().__init__(dialect, table_name, actions, schema_name)
         self.if_exists = if_exists
         self.nowait = nowait
         self.wait = wait

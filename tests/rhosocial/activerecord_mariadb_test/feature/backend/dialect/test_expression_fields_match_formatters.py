@@ -86,6 +86,37 @@ class TestQualifiedStatementsRender:
             "ALTER TABLE `app`.`orders`  DROP COLUMN `note`"
         )
 
+    def test_alter_table_subclass_qualifies_too(self, dialect):
+        """The subclass above inherited the field; this one has to pass it on.
+
+        MariaDBAlterTableExpression adds if_exists/nowait/wait, and its __init__
+        signature ends in a keyword-only marker. schema_name sits after that
+        marker in core, so forwarding it means naming the parameter here rather
+        than letting **kwargs carry it -- and forgetting to did not show up as a
+        missing attribute but as an ALTER TABLE that ignored the schema, which is
+        the failure mode this whole file exists to catch.
+        """
+        from rhosocial.activerecord.backend.expression import DropColumn
+        from rhosocial.activerecord.backend.impl.mariadb.expression import (
+            MariaDBAlterTableExpression,
+        )
+
+        def build(schema_name=None):
+            return MariaDBAlterTableExpression(
+                dialect,
+                table_name="orders",
+                actions=[DropColumn(dialect, "note")],
+                schema_name=schema_name,
+                if_exists=True,
+            )
+
+        assert build().to_sql()[0] == (
+            "ALTER TABLE IF EXISTS `orders`  DROP COLUMN `note`"
+        )
+        assert build("app").to_sql()[0] == (
+            "ALTER TABLE IF EXISTS `app`.`orders`  DROP COLUMN `note`"
+        )
+
     def test_rename_index_qualifies_the_table_not_the_index(self, dialect):
         """A class defined in this repository, qualified by a formatter here.
 
