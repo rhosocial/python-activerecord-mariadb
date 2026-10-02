@@ -10,7 +10,7 @@ tbl_name RENAME INDEX old_index_name TO new_index_name``.
 """
 
 from typing import Tuple, TYPE_CHECKING
-from .....expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 

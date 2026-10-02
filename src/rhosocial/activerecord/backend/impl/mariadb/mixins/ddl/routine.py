@@ -12,7 +12,7 @@ the SQL/PSM standard:
     CALL name([args])
 """
 from typing import TYPE_CHECKING, Tuple
-from .....expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 
 from ..backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError

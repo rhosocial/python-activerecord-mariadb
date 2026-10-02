@@ -10,7 +10,7 @@ MariaDB-specific features:
 - CREATE TABLE ... LIKE syntax
 """
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING
-from ....expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (

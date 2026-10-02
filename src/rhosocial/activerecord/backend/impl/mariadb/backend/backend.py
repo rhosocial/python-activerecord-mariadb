@@ -527,7 +527,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
         from the database, so this is the namespace an unqualified reference
         resolves against. None when no database has been selected.
         """
-        from ....expression.statements.dql import QueryExpression
+        from rhosocial.activerecord.backend.expression.statements.dql import QueryExpression
         from ..functions.schema import current_schema
 
         query = QueryExpression(

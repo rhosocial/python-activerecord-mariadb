@@ -7,7 +7,7 @@ MariaDB supports triggers with some differences from MySQL:
 - Multiple triggers per timing/event (MariaDB 10.4+)
 """
 from typing import Tuple, TYPE_CHECKING
-from ....expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
