@@ -215,7 +215,11 @@ class MariaDBTriggerMixin:
 
         parts = ["CREATE"]
 
-        if expr.or_replace:
+        # or_replace and ordering are MySQL-specific CREATE TRIGGER options that
+        # core's CreateTriggerExpression does not carry; only the dialect's own
+        # subclass supplies them. Read them as optional so the statement still
+        # renders on the core class.
+        if getattr(expr, "or_replace", False):
             parts.append("OR REPLACE")
 
         parts.append("TRIGGER")
@@ -235,8 +239,9 @@ class MariaDBTriggerMixin:
 
         all_params = []
 
-        if expr.ordering:
-            order_type, order_trigger = expr.ordering
+        ordering = getattr(expr, "ordering", None)
+        if ordering:
+            order_type, order_trigger = ordering
             parts.append(order_type.upper())
             parts.append(self.format_identifier(order_trigger))
 
