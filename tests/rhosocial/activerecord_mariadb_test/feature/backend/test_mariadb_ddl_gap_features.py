@@ -144,41 +144,50 @@ class TestMariaDBTruncate:
 
     def test_basic(self):
         dialect = _dialect((10, 6, 0))
-        expr = TruncateExpression(dialect, table_name='users')
+        expr = TruncateExpression(dialect, table=TableExpression(dialect, 'users'))
         sql, params = expr.to_sql()
         assert sql == 'TRUNCATE TABLE `users`'
         assert params == ()
 
     def test_wait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBTruncateExpression(dialect, table_name='users', wait=3)
+        expr = MariaDBTruncateExpression(
+            dialect, table=TableExpression(dialect, 'users'), wait=3
+        )
         sql, params = expr.to_sql()
         assert sql == 'TRUNCATE TABLE `users` WAIT 3'
 
     def test_nowait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBTruncateExpression(dialect, table_name='users', nowait=True)
+        expr = MariaDBTruncateExpression(
+            dialect, table=TableExpression(dialect, 'users'), nowait=True
+        )
         sql, params = expr.to_sql()
         assert sql == 'TRUNCATE TABLE `users` NOWAIT'
 
     def test_wait_version_gated(self):
         dialect = _dialect((10, 2, 0))
-        expr = MariaDBTruncateExpression(dialect, table_name='users', nowait=True)
+        expr = MariaDBTruncateExpression(
+            dialect, table=TableExpression(dialect, 'users'), nowait=True
+        )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
     def test_restart_identity_rejected(self):
         dialect = _dialect((10, 6, 0))
         assert dialect.supports_truncate_restart_identity() is False
-        expr = TruncateExpression(dialect, table_name='users',
-                                  restart_identity=True)
+        expr = TruncateExpression(
+            dialect, table=TableExpression(dialect, 'users'), restart_identity=True
+        )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
     def test_cascade_rejected(self):
         dialect = _dialect((10, 6, 0))
         assert dialect.supports_truncate_cascade() is False
-        expr = TruncateExpression(dialect, table_name='users', cascade=True)
+        expr = TruncateExpression(
+            dialect, table=TableExpression(dialect, 'users'), cascade=True
+        )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 

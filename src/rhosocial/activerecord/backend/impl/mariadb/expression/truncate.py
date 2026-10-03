@@ -3,6 +3,7 @@
 
 from typing import Optional, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
     TruncateExpression,
 )
@@ -22,20 +23,18 @@ class MariaDBTruncateExpression(TruncateExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        table_name: str,
+        table: TableExpression,
         restart_identity: bool = False,
         cascade: bool = False,
-        schema_name: Optional[str] = None,
         *,
         wait: Optional[int] = None,
         nowait: bool = False,
     ):
         super().__init__(
             dialect,
-            table_name=table_name,
+            table=table,
             restart_identity=restart_identity,
             cascade=cascade,
-            schema_name=schema_name,
         )
         self.wait = wait
         self.nowait = nowait
