@@ -64,6 +64,7 @@ backend.execute(sql, params)
 # SECTION: CREATE UNIQUE INDEX
 # ============================================================
 from rhosocial.activerecord.backend.expression import CreateIndexExpression, DropIndexExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression  # noqa: E402
 
 # Drop index first if exists (MariaDB does not support IF NOT EXISTS in CREATE INDEX)
 try:
@@ -76,7 +77,7 @@ except Exception:
 unique_idx = CreateIndexExpression(
     dialect=dialect,
     index_name='idx_users_email_unique',
-    table_name='users',
+    table=TableExpression(dialect, 'users'),
     columns=['email'],
     unique=True,
 )
@@ -99,7 +100,7 @@ except Exception:
 composite_idx = CreateIndexExpression(
     dialect=dialect,
     index_name='idx_users_name_email',
-    table_name='users',
+    table=TableExpression(dialect, 'users'),
     columns=['name', 'email'],
 )
 sql, params = composite_idx.to_sql()

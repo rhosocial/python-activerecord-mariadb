@@ -63,6 +63,7 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import CreateIndexExpression, DropIndexExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression  # noqa: E402
 
 # Drop index first if exists (MariaDB does not support IF NOT EXISTS in CREATE INDEX)
 try:
@@ -75,7 +76,7 @@ except Exception:
 create_idx = CreateIndexExpression(
     dialect=dialect,
     index_name='idx_category_price',
-    table_name='products',
+    table=TableExpression(dialect, 'products'),
     columns=['category', 'price'],
 )
 

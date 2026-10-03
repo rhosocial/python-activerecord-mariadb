@@ -69,6 +69,7 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
 from rhosocial.activerecord.backend.expression.statements.ddl_index import (  # noqa: E402
     CreateIndexExpression, DropIndexExpression,
 )
+from rhosocial.activerecord.backend.expression.core import TableExpression  # noqa: E402
 
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
@@ -76,10 +77,10 @@ snapshot_before = builder.build()
 # Drop the non-unique `idx_email` and add a unique `idx_email_unique`
 # via standalone DROP INDEX / CREATE INDEX statements.
 backend.execute(*DropIndexExpression(
-    dialect, index_name="idx_email", table_name="users"
+    dialect, index_name="idx_email", table=TableExpression(dialect, "users")
 ).to_sql())
 backend.execute(*CreateIndexExpression(
-    dialect, index_name="idx_email_unique", table_name="users",
+    dialect, index_name="idx_email_unique", table=TableExpression(dialect, "users"),
     columns=["email"], unique=True,
 ).to_sql())
 

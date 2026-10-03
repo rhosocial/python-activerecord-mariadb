@@ -73,7 +73,7 @@ backend.execute(sql, params)
 create_index = CreateIndexExpression(
     dialect=dialect,
     index_name='idx_users_email',
-    table_name='users',
+    table=TableExpression(dialect, 'users'),
     columns=['email'],
     if_not_exists=True,
 )
