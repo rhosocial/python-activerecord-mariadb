@@ -242,10 +242,6 @@ class TestExpressionSignatures:
         "import_path,class_name",
         [
             (
-                "rhosocial.activerecord.backend.expression.statements.ddl_alter",
-                "AlterTableExpression",
-            ),
-            (
                 "rhosocial.activerecord.backend.impl.mariadb.expression.rename_index",
                 "MariaDBRenameIndexExpression",
             ),
@@ -275,3 +271,38 @@ class TestExpressionSignatures:
             f"{class_name} must default schema_name to None -- None is what "
             f"means unqualified"
         )
+
+    def test_alter_table_carries_the_namespace_on_its_table(self):
+        """ALTER TABLE no longer takes a parallel schema_name.
+
+        The target is a TableExpression, so the namespace rides on that one
+        object. This is asserted separately because the parametrised list
+        above only covers expressions that still hold the field themselves.
+        """
+        from rhosocial.activerecord.backend.expression.core import TableExpression
+        from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+            AlterTableExpression,
+            DropColumn,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+
+        dialect = MariaDBDialect(version=(11, 4, 0))
+        params = inspect.signature(AlterTableExpression.__init__).parameters
+        assert "schema_name" not in params
+        assert params["table"].annotation is not inspect.Parameter.empty
+
+        plain = AlterTableExpression(dialect, TableExpression(dialect, "orders"),
+                                     [DropColumn(dialect, "legacy")])
+        qualified = AlterTableExpression(
+            dialect,
+            TableExpression(dialect, "orders", schema_name="ar_shop"),
+            [DropColumn(dialect, "legacy")],
+        )
+        assert plain.table.schema_name is None
+        assert qualified.table.schema_name == "ar_shop"
+        sql, _ = qualified.to_sql()
+        assert "ar_shop" in sql
+
+        with pytest.raises(TypeError, match="table must be a TableExpression"):
+            AlterTableExpression(dialect, "orders", [DropColumn(dialect, "legacy")])
+
