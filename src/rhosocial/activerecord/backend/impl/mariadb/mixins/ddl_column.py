@@ -45,6 +45,16 @@ class MariaDBDDLColumnMixin:
     def supports_fulltext_parser(self) -> bool:
         return True
 
+    def supports_index_schema_qualification(self) -> bool:
+        """An index belongs to its table; the grammar rejects a qualified name.
+
+        MySQL resolves an index inside the namespace of the table that owns
+        it, so ``CREATE INDEX db.idx ON db.t`` is a syntax error. Asking for
+        a qualified index name is refused rather than rendered into SQL the
+        server rejects; the namespace goes on the table instead.
+        """
+        return False
+
     def supports_fulltext_query_expansion(self) -> bool:
         return True
 
