@@ -8,7 +8,7 @@ Create an index on an existing table.
 import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
-from rhosocial.activerecord.backend.expression import CreateTableExpression, DropTableExpression
+from rhosocial.activerecord.backend.expression import CreateTableExpression, DropTableExpression, TableExpression
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -33,13 +33,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop = DropTableExpression(dialect=dialect, table_name='products', if_exists=True)
+drop = DropTableExpression(dialect=dialect, table=TableExpression(dialect, 'products'), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='products',
+    table=TableExpression(dialect, 'products'),
     columns=[
         ColumnDefinition(
             dialect,

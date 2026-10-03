@@ -29,7 +29,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
     DropTableExpression,
 )
-from rhosocial.activerecord.backend.expression.core import Literal
+from rhosocial.activerecord.backend.expression.core import Literal, TableExpression
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -41,17 +41,17 @@ from rhosocial.activerecord.backend.expression.types import (
     DecimalType,
 )
 
-drop_departments = DropTableExpression(dialect=dialect, table_name='departments', if_exists=True)
+drop_departments = DropTableExpression(dialect=dialect, table=TableExpression(dialect, 'departments'), if_exists=True)
 sql, params = drop_departments.to_sql()
 backend.execute(sql, params)
 
-drop_employees = DropTableExpression(dialect=dialect, table_name='employees', if_exists=True)
+drop_employees = DropTableExpression(dialect=dialect, table=TableExpression(dialect, 'employees'), if_exists=True)
 sql, params = drop_employees.to_sql()
 backend.execute(sql, params)
 
 create_departments = CreateTableExpression(
     dialect=dialect,
-    table_name='departments',
+    table=TableExpression(dialect, 'departments'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -72,7 +72,7 @@ backend.execute(sql, params)
 
 create_employees = CreateTableExpression(
     dialect=dialect,
-    table_name='employees',
+    table=TableExpression(dialect, 'employees'),
     columns=[
         ColumnDefinition(
             dialect,

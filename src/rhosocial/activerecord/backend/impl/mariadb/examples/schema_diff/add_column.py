@@ -38,13 +38,13 @@ from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
 )
 from rhosocial.activerecord.backend.expression.core import TableExpression  # noqa: E402
 
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, TableExpression(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 # Baseline table: id, name, email
 expr = CreateTableExpression(
-    dialect=dialect, table="users", columns=[
+    dialect=dialect, table=TableExpression(dialect, "users"), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
@@ -100,7 +100,7 @@ if "users" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, TableExpression(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

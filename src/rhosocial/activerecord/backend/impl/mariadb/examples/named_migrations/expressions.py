@@ -21,9 +21,10 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
 
 def create_users_table(dialect):
     """CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name TEXT, email TEXT)."""
+    from rhosocial.activerecord.backend.expression.core import TableExpression
     return CreateTableExpression(
         dialect,
-        table="users",
+        table=TableExpression(dialect, "users"),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -45,14 +46,16 @@ def create_users_table(dialect):
 
 def drop_users_table(dialect):
     """DROP TABLE IF EXISTS users."""
-    return DropTableExpression(dialect, table="users", if_exists=True)
+    from rhosocial.activerecord.backend.expression.core import TableExpression
+    return DropTableExpression(dialect, table=TableExpression(dialect, "users"), if_exists=True)
 
 
 def create_posts_table(dialect):
     """CREATE TABLE posts (id INT PRIMARY KEY AUTO_INCREMENT, title TEXT, user_id INT)."""
+    from rhosocial.activerecord.backend.expression.core import TableExpression
     return CreateTableExpression(
         dialect,
-        table="posts",
+        table=TableExpression(dialect, "posts"),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -74,7 +77,8 @@ def create_posts_table(dialect):
 
 def drop_posts_table(dialect):
     """DROP TABLE IF EXISTS posts."""
-    return DropTableExpression(dialect, table="posts", if_exists=True)
+    from rhosocial.activerecord.backend.expression.core import TableExpression
+    return DropTableExpression(dialect, table=TableExpression(dialect, "posts"), if_exists=True)
 
 
 def create_custom_table(dialect, table_name: str = "custom_table"):

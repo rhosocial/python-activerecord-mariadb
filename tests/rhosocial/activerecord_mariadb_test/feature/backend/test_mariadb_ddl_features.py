@@ -45,9 +45,10 @@ class TestMySQLStorageOptions:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=TableExpression(dialect, 'test_table'),
             columns=columns,
             storage_options={'ENGINE': 'InnoDB'}
         )
@@ -62,9 +63,10 @@ class TestMySQLStorageOptions:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=TableExpression(dialect, 'test_table'),
             columns=columns,
             storage_options={'DEFAULT CHARSET': 'utf8mb4'}
         )
@@ -79,9 +81,10 @@ class TestMySQLStorageOptions:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=TableExpression(dialect, 'test_table'),
             columns=columns,
             storage_options={'COLLATE': 'utf8mb4_unicode_ci'}
         )
@@ -96,9 +99,10 @@ class TestMySQLStorageOptions:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=TableExpression(dialect, 'test_table'),
             columns=columns,
             storage_options={
                 'ENGINE': 'InnoDB',
@@ -119,9 +123,10 @@ class TestMySQLStorageOptions:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=TableExpression(dialect, 'test_table'),
             columns=columns,
             if_not_exists=True,
             storage_options={'ENGINE': 'InnoDB'}
@@ -146,9 +151,10 @@ class TestMySQLTableComment:
             CreateTableOptions,
         )
 
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, '用户信息表')),
         )
@@ -167,9 +173,10 @@ class TestMySQLTableComment:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             storage_options={
                 'ENGINE': 'InnoDB',
@@ -194,9 +201,10 @@ class TestMySQLTableComment:
             CreateTableOptions,
         )
 
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test',
+            table=TableExpression(dialect, 'test'),
             columns=columns,
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, "测试's表")),
         )
@@ -216,9 +224,10 @@ class TestMySQLColumnComment:
             ], comment=ColumnCommentClause(dialect, '主键ID')),
             ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), comment=ColumnCommentClause(dialect, '用户名'))
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -238,9 +247,10 @@ class TestMySQLColumnComment:
             CreateTableOptions,
         )
 
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, '用户表')),
         )
@@ -262,9 +272,10 @@ class TestMySQLAutoIncrement:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -280,9 +291,10 @@ class TestMySQLAutoIncrement:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
             ], comment=ColumnCommentClause(dialect, '自增主键'))
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -298,9 +310,10 @@ class TestMySQLAutoIncrement:
                 ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test',
+            table=TableExpression(dialect, 'test'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -323,9 +336,10 @@ class TestMySQLInlineIndex:
         indexes = [
             IndexDefinition(dialect, 'idx_name', ['name'])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -345,9 +359,10 @@ class TestMySQLInlineIndex:
         indexes = [
             IndexDefinition(dialect, 'idx_email', ['email'], unique=True)
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -368,9 +383,10 @@ class TestMySQLInlineIndex:
         indexes = [
             IndexDefinition(dialect, 'idx_user_created', ['user_id', 'created_at'])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='orders',
+            table=TableExpression(dialect, 'orders'),
             columns=columns,
             indexes=indexes
         )
@@ -389,9 +405,10 @@ class TestMySQLInlineIndex:
         indexes = [
             IndexDefinition(dialect, 'idx_name', ['name'], type='BTREE')
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -410,9 +427,10 @@ class TestMySQLInlineIndex:
         indexes = [
             IndexDefinition(dialect, 'idx_key', ['key'], type='HASH')
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='cache',
+            table=TableExpression(dialect, 'cache'),
             columns=columns,
             indexes=indexes
         )
@@ -433,9 +451,10 @@ class TestMySQLInlineIndex:
             IndexDefinition(dialect, 'idx_email', ['email'], unique=True),
             IndexDefinition(dialect, 'idx_username', ['username'])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -514,9 +533,10 @@ class TestMySQLEnumType:
                 ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)
             ])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='articles',
+            table=TableExpression(dialect, 'articles'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -581,9 +601,10 @@ class TestMySQLTableConstraints:
         table_constraints = [
             TableConstraint(dialect, TableConstraintType.PRIMARY_KEY, columns=['id'])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             table_constraints=table_constraints
         )
@@ -602,9 +623,10 @@ class TestMySQLTableConstraints:
         table_constraints = [
             TableConstraint(dialect, TableConstraintType.UNIQUE, columns=['email'])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             table_constraints=table_constraints
         )
@@ -621,9 +643,10 @@ class TestMySQLTableConstraints:
         table_constraints = [
             TableConstraint(dialect, TableConstraintType.PRIMARY_KEY, columns=['user_id', 'role_id'])
         ]
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='user_roles',
+            table=TableExpression(dialect, 'user_roles'),
             columns=columns,
             table_constraints=table_constraints
         )
@@ -643,8 +666,9 @@ class TestMySQLTableConstraints:
             dialect, columns=["user_id"], foreign_key_table="users",
             foreign_key_columns=["id"], on_delete=ReferentialAction.CASCADE,
         )
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
-            dialect=dialect, table="orders", columns=columns, table_constraints=[fk],
+            dialect=dialect, table=TableExpression(dialect, "orders"), columns=columns, table_constraints=[fk],
         )
         sql, params = expr.to_sql()
         assert "FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)" in sql
@@ -659,8 +683,9 @@ class TestMySQLTableConstraints:
             foreign_key_columns=["id"], on_delete=ReferentialAction.NO_ACTION,
             on_update=ReferentialAction.SET_NULL,
         )
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
-            dialect=dialect, table="orders", columns=columns, table_constraints=[fk],
+            dialect=dialect, table=TableExpression(dialect, "orders"), columns=columns, table_constraints=[fk],
         )
         sql, params = expr.to_sql()
         assert "ON UPDATE SET NULL" in sql
@@ -668,7 +693,7 @@ class TestMySQLTableConstraints:
 
     def test_check_constraint(self):
         """Test CHECK table constraint."""
-        from rhosocial.activerecord.backend.expression import Column, Literal
+        from rhosocial.activerecord.backend.expression import Column, Literal, TableExpression
         from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
         dialect = MariaDBDialect()
         columns = [
@@ -682,7 +707,7 @@ class TestMySQLTableConstraints:
             ),
         )
         expr = CreateTableExpression(
-            dialect=dialect, table="users", columns=columns, table_constraints=[check],
+            dialect=dialect, table=TableExpression(dialect, "users"), columns=columns, table_constraints=[check],
         )
         sql, params = expr.to_sql()
         assert "CHECK (" in sql
@@ -694,9 +719,10 @@ class TestMySQLDropTable:
     def test_drop_table_if_exists(self):
         """Test DROP TABLE IF EXISTS."""
         dialect = MariaDBDialect()
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = DropTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=TableExpression(dialect, 'test_table'),
             if_exists=True
         )
         sql, params = expr.to_sql()
@@ -706,9 +732,10 @@ class TestMySQLDropTable:
     def test_drop_table_without_if_exists(self):
         """Test DROP TABLE without IF EXISTS."""
         dialect = MariaDBDialect()
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = DropTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=TableExpression(dialect, 'test_table'),
             if_exists=False
         )
         sql, params = expr.to_sql()
@@ -764,9 +791,10 @@ class TestMySQLCompleteTableCreation:
             IndexDefinition(dialect, 'idx_status', ['status'])
         ]
         
+        from rhosocial.activerecord.backend.expression.core import TableExpression
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=TableExpression(dialect, 'users'),
             columns=columns,
             indexes=indexes,
             if_not_exists=True,

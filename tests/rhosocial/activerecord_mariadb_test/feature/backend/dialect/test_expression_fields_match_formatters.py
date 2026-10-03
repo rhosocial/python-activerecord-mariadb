@@ -304,5 +304,5 @@ class TestExpressionSignatures:
         assert "ar_shop" in sql
 
         with pytest.raises(TypeError, match="table must be a TableExpression"):
-            AlterTableExpression(dialect, "orders", [DropColumn(dialect, "legacy")])
+            AlterTableExpression(dialect, TableExpression(dialect, "orders"), [DropColumn(dialect, "legacy")])
 

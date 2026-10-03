@@ -88,12 +88,13 @@ class TestMariaDBCreateTableOptions:
         from rhosocial.activerecord.backend.expression import (
             CreateTableExpression,
             CreateTableOptions,
+            TableExpression,
         )
 
         dialect = MariaDBDialect(version=(10, 5, 0))
         expr = CreateTableExpression(
             dialect,
-            table="t",
+            table=TableExpression(dialect, "t"),
             columns=[],
             table_options=CreateTableOptions(dialect, or_replace=True),
         )

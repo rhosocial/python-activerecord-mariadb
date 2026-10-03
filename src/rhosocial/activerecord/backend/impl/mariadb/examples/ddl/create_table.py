@@ -19,6 +19,7 @@ from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBCreate
 from rhosocial.activerecord.backend.expression import (
     DropTableExpression,
     CreateTableExpression,
+    TableExpression,
 )
 from rhosocial.activerecord.backend.expression.functions.datetime import current_timestamp
 from rhosocial.activerecord.backend.expression.statements import (
@@ -49,7 +50,7 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop if exists for clean setup
-drop = DropTableExpression(dialect=dialect, table='products', if_exists=True)
+drop = DropTableExpression(dialect=dialect, table=TableExpression(dialect, 'products'), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
@@ -117,7 +118,7 @@ indexes = [
 # Create table with MariaDB-specific ENGINE and CHARSET options
 create_expr = CreateTableExpression(
     dialect=dialect,
-    table='products',
+    table=TableExpression(dialect, 'products'),
     columns=columns,
     indexes=indexes,
     if_not_exists=True,
@@ -143,7 +144,7 @@ for col in columns_info:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table='products', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=TableExpression(dialect, 'products'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

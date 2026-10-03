@@ -29,7 +29,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
     DropTableExpression,
 )
-from rhosocial.activerecord.backend.expression.core import Literal
+from rhosocial.activerecord.backend.expression.core import Literal, TableExpression
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -41,17 +41,17 @@ from rhosocial.activerecord.backend.expression.types import (
     DecimalType,
 )
 
-drop_customers = DropTableExpression(dialect=dialect, table_name='customers', if_exists=True)
+drop_customers = DropTableExpression(dialect=dialect, table=TableExpression(dialect, 'customers'), if_exists=True)
 sql, params = drop_customers.to_sql()
 backend.execute(sql, params)
 
-drop_orders = DropTableExpression(dialect=dialect, table_name='orders', if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=TableExpression(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
 create_customers = CreateTableExpression(
     dialect=dialect,
-    table_name='customers',
+    table=TableExpression(dialect, 'customers'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -77,7 +77,7 @@ backend.execute(sql, params)
 
 create_orders = CreateTableExpression(
     dialect=dialect,
-    table_name='orders',
+    table=TableExpression(dialect, 'orders'),
     columns=[
         ColumnDefinition(
             dialect,
