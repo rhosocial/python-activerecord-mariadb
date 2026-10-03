@@ -85,7 +85,7 @@ class MariaDBAlterTableMixin:
                 )
             head += " IF EXISTS"
 
-        table_part = f"{head} {TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0]}"
+        table_part = f"{head} {expr.table.to_sql()[0]}"
 
         wait_value = getattr(expr, "wait", None)
         if getattr(expr, "nowait", False):

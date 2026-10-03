@@ -11,6 +11,7 @@ backend implementation:
 """
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
     AddColumn,
     AlterTableExpression,
@@ -193,7 +194,7 @@ class TestMariaDBAlterTableStatement:
     def test_basic_alter(self):
         dialect = _dialect((10, 6, 0))
         expr = AlterTableExpression(
-            dialect, 'users', [self._add_column_action(dialect)]
+            dialect, TableExpression(dialect, 'users'), [self._add_column_action(dialect)]
         )
         sql, params = expr.to_sql()
         assert 'ALTER TABLE `users`' in sql
@@ -202,7 +203,7 @@ class TestMariaDBAlterTableStatement:
     def test_alter_if_exists(self):
         dialect = _dialect((10, 6, 0))
         expr = MariaDBAlterTableExpression(
-            dialect, 'users', [self._add_column_action(dialect)],
+            dialect, TableExpression(dialect, 'users'), [self._add_column_action(dialect)],
             if_exists=True,
         )
         sql, params = expr.to_sql()
@@ -213,7 +214,7 @@ class TestMariaDBAlterTableStatement:
         dialect = _dialect((10, 4, 0))
         assert dialect.supports_alter_table_if_exists() is False
         expr = MariaDBAlterTableExpression(
-            dialect, 'users', [self._add_column_action(dialect)],
+            dialect, TableExpression(dialect, 'users'), [self._add_column_action(dialect)],
             if_exists=True,
         )
         with pytest.raises(UnsupportedFeatureError):
@@ -222,7 +223,7 @@ class TestMariaDBAlterTableStatement:
     def test_alter_wait(self):
         dialect = _dialect((10, 6, 0))
         expr = MariaDBAlterTableExpression(
-            dialect, 'users', [self._add_column_action(dialect)],
+            dialect, TableExpression(dialect, 'users'), [self._add_column_action(dialect)],
             wait=4,
         )
         sql, params = expr.to_sql()
@@ -232,7 +233,7 @@ class TestMariaDBAlterTableStatement:
     def test_alter_if_exists_nowait(self):
         dialect = _dialect((10, 6, 0))
         expr = MariaDBAlterTableExpression(
-            dialect, 'users', [self._add_column_action(dialect)],
+            dialect, TableExpression(dialect, 'users'), [self._add_column_action(dialect)],
             if_exists=True, nowait=True,
         )
         sql, params = expr.to_sql()

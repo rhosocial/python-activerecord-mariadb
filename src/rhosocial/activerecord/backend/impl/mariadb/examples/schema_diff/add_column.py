@@ -36,6 +36,7 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
 from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
+from rhosocial.activerecord.backend.expression.core import TableExpression  # noqa: E402
 
 expr = DropTableExpression(dialect, "users", if_exists=True)
 sql, params = expr.to_sql()
@@ -74,7 +75,7 @@ snapshot_before = builder.build()
 
 # Add `age` column — appended after the existing columns
 add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
-alter_expr = AlterTableExpression(dialect, "users", [add_col])
+alter_expr = AlterTableExpression(dialect, TableExpression(dialect, "users"), [add_col])
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)
 

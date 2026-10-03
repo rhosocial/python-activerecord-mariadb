@@ -14,6 +14,7 @@ any other backend.
 
 from typing import List, Optional, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements import (
     AlterTableAction,
     AlterTableExpression,
@@ -38,9 +39,8 @@ class MariaDBAlterTableExpression(AlterTableExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        table_name: str,
+        table: TableExpression,
         actions: List[AlterTableAction],
-        schema_name: Optional[str] = None,
         *,
         if_exists: bool = False,
         nowait: bool = False,
@@ -48,12 +48,11 @@ class MariaDBAlterTableExpression(AlterTableExpression):
     ):
         """
         Args:
-            schema_name: Namespace to qualify the table with, e.g. ``app``.
-                None leaves the name unqualified. An empty string raises
-                ValueError, and a dialect with no namespace raises
-                UnsupportedFeatureError.
+            table: The table to alter, as a TableExpression carrying its
+                optional namespace (``TableExpression(dialect, "users",
+                schema_name="app")``).
         """
-        super().__init__(dialect, table_name, actions, schema_name)
+        super().__init__(dialect, table, actions)
         self.if_exists = if_exists
         self.nowait = nowait
         self.wait = wait

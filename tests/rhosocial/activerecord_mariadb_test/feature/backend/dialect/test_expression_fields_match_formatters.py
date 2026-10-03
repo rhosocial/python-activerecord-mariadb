@@ -29,6 +29,8 @@ import inspect
 
 import pytest
 
+from rhosocial.activerecord.backend.expression.core import TableExpression
+
 #: Statement fields a formatter may read that some expression classes carry
 #: under a different name. Reading these by their own name is the defect.
 #: TruncateExpression names the field `schema`; the DDL statements name it
@@ -74,9 +76,8 @@ class TestQualifiedStatementsRender:
         def build(schema_name=None):
             return AlterTableExpression(
                 dialect,
-                table_name="orders",
+                table=TableExpression(dialect, "orders", schema_name=schema_name),
                 actions=[DropColumn(dialect, "note")],
-                schema_name=schema_name,
             )
 
         assert build().to_sql()[0] == (
@@ -104,9 +105,8 @@ class TestQualifiedStatementsRender:
         def build(schema_name=None):
             return MariaDBAlterTableExpression(
                 dialect,
-                table_name="orders",
+                table=TableExpression(dialect, "orders", schema_name=schema_name),
                 actions=[DropColumn(dialect, "note")],
-                schema_name=schema_name,
                 if_exists=True,
             )
 
