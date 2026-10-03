@@ -54,7 +54,10 @@ class MariaDBFunctionMixin:
         # Enum type functions: All versions
         "elt": (None, None),
         "field": (None, None),
-        # Math enhanced functions: All versions
+        # Math enhanced functions: all present in every version this backend
+        # targets, except TRUNC -- measured across 10.2.44 through 13.1.1,
+        # where it is absent on everything before 12.2 and present on 12.2,
+        # 12.3, 13.0 and 13.1.
         "round_": (None, None),
         "pow": (None, None),
         "power": (None, None),
@@ -62,7 +65,7 @@ class MariaDBFunctionMixin:
         "mod": (None, None),
         "ceil": (None, None),
         "floor": (None, None),
-        "trunc": (None, None),
+        "trunc": ((12, 2, 0), None),
         "max_": (None, None),
         "min_": (None, None),
         "avg": (None, None),
