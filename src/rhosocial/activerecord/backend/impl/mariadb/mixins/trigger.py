@@ -247,8 +247,8 @@ class MariaDBTriggerMixin:
 
         parts.append("BEGIN")
 
-        if expr.function is not None:
-            parts.append(f"CALL {expr.function.to_sql()[0]}();")
+        if expr.function_name is not None:
+            parts.append(f"CALL {expr.function_name.to_sql()[0]}();")
         elif expr.body:
             body_sql, body_params = expr.body.to_sql()
             parts.append(body_sql)
