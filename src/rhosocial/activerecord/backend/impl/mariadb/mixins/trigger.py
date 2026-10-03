@@ -234,7 +234,7 @@ class MariaDBTriggerMixin:
             parts.append(expr.events[0].value if hasattr(expr.events[0], 'value') else str(expr.events[0]))
 
         parts.append("ON")
-        parts.append(TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0])
+        parts.append(expr.table.to_sql()[0])
         parts.append("FOR EACH ROW")
 
         all_params = []
@@ -247,8 +247,8 @@ class MariaDBTriggerMixin:
 
         parts.append("BEGIN")
 
-        if expr.function_name:
-            parts.append(f"CALL {TableExpression(self, expr.function_name, schema_name=expr.schema_name).to_sql()[0]}();")
+        if expr.function is not None:
+            parts.append(f"CALL {expr.function.to_sql()[0]}();")
         elif expr.body:
             body_sql, body_params = expr.body.to_sql()
             parts.append(body_sql)

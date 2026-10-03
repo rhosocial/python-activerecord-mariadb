@@ -146,11 +146,11 @@ class TestQualifiedStatementsRender:
         from rhosocial.activerecord.backend.expression import DropTriggerExpression
 
         expr = DropTriggerExpression(
-            dialect, trigger_name="trg_audit", table_name="orders"
+            dialect, trigger_name="trg_audit", table=TableExpression(dialect, "orders")
         )
         assert expr.to_sql()[0] == "DROP TRIGGER `trg_audit`", expr.to_sql()[0]
         qualified = DropTriggerExpression(
-            dialect, trigger_name="trg_audit", table_name="orders", schema_name="app"
+            dialect, trigger_name="trg_audit", table=TableExpression(dialect, "orders"), schema_name="app"
         )
         assert qualified.to_sql()[0] == "DROP TRIGGER `app`.`trg_audit`", (
             qualified.to_sql()[0]
@@ -221,10 +221,10 @@ class TestQualifiedStatementsRender:
             return MariaDBCreateTriggerExpression(
                 dialect,
                 trigger_name="trg_audit",
-                table_name="orders",
+                table=TableExpression(dialect, "orders", schema_name=schema_name),
                 timing=TriggerTiming.BEFORE,
                 events=[TriggerEvent.INSERT],
-                function_name="audit_fn",
+                function_name=TableExpression(dialect, "audit_fn", schema_name=schema_name),
                 schema_name=schema_name,
             )
 

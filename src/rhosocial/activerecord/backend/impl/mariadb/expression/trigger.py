@@ -25,6 +25,7 @@ into "this statement silently omits the option the caller asked for".
 from typing import List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.predicates import SQLPredicate
 from rhosocial.activerecord.backend.expression.statements import (
     CreateTriggerExpression,
@@ -50,19 +51,19 @@ class MariaDBCreateTriggerExpression(CreateTriggerExpression):
     never has to ask whether one is present.
 
     A trigger needs either ``function_name`` (core's model, calling a stored
-    function) or ``body`` (the inline statement MariaDB normally uses); the
-    formatter emits whichever it is given.
+    function, given as a ``TableExpression``) or ``body`` (the inline statement
+    MariaDB normally uses); the formatter emits whichever it is given.
     """
 
     def __init__(
         self,
         dialect: "SQLDialectBase",
         trigger_name: str,
-        table_name: str,
+        table: TableExpression,
         timing: TriggerTiming,
         events: List[TriggerEvent],
         *,
-        function_name: Optional[str] = None,
+        function_name: Optional[TableExpression] = None,
         body: Optional[BaseExpression] = None,
         or_replace: bool = False,
         ordering: Optional[Tuple[str, str]] = None,
@@ -75,10 +76,12 @@ class MariaDBCreateTriggerExpression(CreateTriggerExpression):
     ):
         """
         Args:
-            schema_name: Namespace to qualify the trigger, its table and the
-                function it calls with, e.g. ``app``. None leaves all three
-                unqualified. An empty string raises ValueError, and a dialect
-                with no namespace raises UnsupportedFeatureError.
+            table: The table the trigger is attached to, carrying its own
+                namespace, independently of ``schema_name``.
+            schema_name: Namespace to qualify the trigger with, e.g. ``app``.
+                None leaves the name unqualified. An empty string raises
+                ValueError, and a dialect with no namespace raises
+                UnsupportedFeatureError.
             body: The inline statement to run, as an expression. Mutually
                 exclusive with function_name in practice; the formatter prefers
                 function_name when both are given.
@@ -91,7 +94,7 @@ class MariaDBCreateTriggerExpression(CreateTriggerExpression):
         super().__init__(
             dialect,
             trigger_name,
-            table_name,
+            table,
             timing,
             events,
             function_name,

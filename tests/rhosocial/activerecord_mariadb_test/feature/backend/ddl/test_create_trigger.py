@@ -20,6 +20,7 @@ the field has to exist.
 import pytest
 
 from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements import (
     TriggerEvent,
     TriggerLevel,
@@ -40,7 +41,7 @@ def _build(dialect, **kwargs):
     return MariaDBCreateTriggerExpression(
         dialect,
         trigger_name="trg_orders_ai",
-        table_name="orders",
+        table=TableExpression(dialect, "orders", schema_name=kwargs.get("schema_name")),
         timing=TriggerTiming.AFTER,
         events=[TriggerEvent.INSERT],
         **kwargs,
