@@ -16,6 +16,7 @@ from rhosocial.activerecord.backend.expression import (
     InsertExpression,
     Literal,
     OnConflictClause,
+    TableExpression,
     ValuesSource,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
