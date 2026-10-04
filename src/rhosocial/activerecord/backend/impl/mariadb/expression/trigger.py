@@ -50,9 +50,16 @@ class MariaDBCreateTriggerExpression(CreateTriggerExpression):
     attribute the MariaDB formatter reads is declared here, so the formatter
     never has to ask whether one is present.
 
-    A trigger needs either ``function_name`` (core's model, calling a stored
-    function, given as a ``TableExpression``) or ``body`` (the inline statement
-    MariaDB normally uses); the formatter emits whichever it is given.
+    A trigger needs exactly one of ``function_name`` (core's model, calling a
+    stored function, given as a ``TableExpression``) or ``body`` (the inline
+    statement MariaDB normally uses), and the constructor insists on it: with
+    neither, the statement rendered an empty ``BEGIN END``; with both, the
+    body was dropped and only the call survived. Neither is something the
+    caller could see, so both are refused here instead.
+
+    The signature is long because it mirrors core's ``CreateTriggerExpression``
+    plus three MariaDB-only options. That is safer than it looks: everything
+    past ``events`` is keyword-only, so no two parameters can be confused.
     """
 
     def __init__(
@@ -91,6 +98,11 @@ class MariaDBCreateTriggerExpression(CreateTriggerExpression):
                 ``"FOLLOWS"`` or ``"PRECEDES"``, placing this trigger after or
                 before another on the same table and event.
         """
+        if (function_name is None) == (body is None):
+            raise ValueError(
+                "a MariaDB trigger needs exactly one of function_name or body: "
+                f"got function_name={function_name!r}, body={'set' if body is not None else None}"
+            )
         super().__init__(
             dialect,
             trigger_name,

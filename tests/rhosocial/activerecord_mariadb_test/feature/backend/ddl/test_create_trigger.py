@@ -37,7 +37,11 @@ def dialect():
     return MariaDBDialect(version=(11, 4, 0))
 
 
+#: A trigger needs a body or a function; these tests are about the options
+#: around it, so give them an inline body and let the body-specific test
+#: override it.
 def _build(dialect, **kwargs):
+    kwargs.setdefault("body", Column(dialect, "NEW.id") + Literal(dialect, 1))
     return MariaDBCreateTriggerExpression(
         dialect,
         trigger_name="trg_orders_ai",
@@ -48,11 +52,43 @@ def _build(dialect, **kwargs):
     )
 
 
+class TestExactlyOneBody:
+    """A trigger runs a function or an inline statement, never neither or both.
+
+    Both mistakes used to render successfully. With neither, the statement
+    came out as an empty BEGIN END, which the server rejects at execution --
+    long after the call that built it. With both, the formatter preferred
+    function_name and the body was dropped without a word, so a caller who
+    wrote a body could get SQL that never referenced it.
+    """
+
+    def _kwargs(self, dialect):
+        return dict(
+            trigger_name="trg_orders_ai",
+            table=TableExpression(dialect, "orders"),
+            timing=TriggerTiming.AFTER,
+            events=[TriggerEvent.INSERT],
+        )
+
+    def test_neither_is_refused(self, dialect):
+        with pytest.raises(ValueError, match="exactly one of function_name or body"):
+            MariaDBCreateTriggerExpression(dialect, **self._kwargs(dialect))
+
+    def test_both_is_refused(self, dialect):
+        with pytest.raises(ValueError, match="exactly one of function_name or body"):
+            MariaDBCreateTriggerExpression(
+                dialect,
+                function_name=TableExpression(dialect, "log_order"),
+                body=Column(dialect, "n") + Literal(dialect, 1),
+                **self._kwargs(dialect),
+            )
+
+
 class TestMariaDBOptionsRender:
     def test_minimal(self, dialect):
         assert _build(dialect).to_sql()[0] == (
             "CREATE TRIGGER `trg_orders_ai` AFTER INSERT ON `orders` "
-            "FOR EACH ROW BEGIN END"
+            "FOR EACH ROW BEGIN `NEW.id` + %s END"
         )
 
     def test_or_replace(self, dialect):
@@ -99,10 +135,14 @@ class TestFieldsExist:
     """
 
     def test_defaults_are_declared_not_absent(self, dialect):
+        # body and function_name are no longer part of this: exactly one is
+        # required, so there is no default to assert. The rest still opt out.
         expr = _build(dialect)
         assert expr.or_replace is False
         assert expr.ordering is None
-        assert expr.body is None
+        assert expr.condition is None
+        assert expr.update_columns is None
+        assert expr.referencing is None
 
     def test_inherited_fields_are_present(self, dialect):
         expr = _build(dialect)
