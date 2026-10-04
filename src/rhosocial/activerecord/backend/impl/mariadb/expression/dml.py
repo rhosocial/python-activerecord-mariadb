@@ -3,6 +3,7 @@
 
 from typing import TYPE_CHECKING
 
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements import InsertExpression
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -21,7 +22,7 @@ class MariaDBInsertExpression(InsertExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        into,
+        into: TableExpression,
         source,
         columns=None,
         *,

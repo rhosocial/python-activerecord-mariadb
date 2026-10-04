@@ -85,13 +85,13 @@ class TestMariaDBOnConflictRendering:
         source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
 
         expr = MariaDBInsertExpression(
-            dialect, into="users", columns=["id"], source=source, replace=True
+            dialect, into=TableExpression(dialect, "users"), columns=["id"], source=source, replace=True
         )
         sql, _ = expr.to_sql()
         assert sql.startswith('REPLACE INTO `users`')
 
         expr = MariaDBInsertExpression(
-            dialect, into="users", columns=["id"], source=source, ignore=True
+            dialect, into=TableExpression(dialect, "users"), columns=["id"], source=source, ignore=True
         )
         sql, _ = expr.to_sql()
         assert sql.startswith('INSERT IGNORE INTO `users`')

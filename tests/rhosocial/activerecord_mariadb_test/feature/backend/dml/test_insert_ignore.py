@@ -13,6 +13,7 @@ import pytest_asyncio
 
 from rhosocial.activerecord.backend.expression.statements import ValuesSource
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression import core
 
 
@@ -43,7 +44,7 @@ class TestMariaDBInsertIgnore:
 
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
@@ -82,7 +83,7 @@ class TestMariaDBInsertIgnore:
         # Try to insert duplicate with IGNORE
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
@@ -121,7 +122,7 @@ class TestMariaDBInsertIgnore:
         # Insert multiple rows, one conflicts
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
@@ -161,7 +162,7 @@ class TestMariaDBInsertIgnore:
         # Regular insert without IGNORE should fail
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
@@ -210,7 +211,7 @@ class TestMariaDBAsyncInsertIgnore:
         # Try to insert duplicate with IGNORE
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
