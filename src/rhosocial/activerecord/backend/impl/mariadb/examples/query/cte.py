@@ -76,7 +76,7 @@ backend.execute(delete_sql)
 
 insert_expr = InsertExpression(
     dialect=dialect,
-    into='employees',
+    into=TableExpression(dialect, 'employees'),
     columns=['id', 'name', 'manager_id'],
     source=ValuesSource(dialect, [
         [Literal(dialect, 1), Literal(dialect, 'CEO'), Literal(dialect, None)],

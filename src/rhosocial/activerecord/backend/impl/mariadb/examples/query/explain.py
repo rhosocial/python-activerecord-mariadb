@@ -88,7 +88,7 @@ users = [
 for name, email in users:
     insert_expr = InsertExpression(
         dialect=dialect,
-        into='users',
+        into=TableExpression(dialect, 'users'),
         columns=['name', 'email'],
         source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
     )

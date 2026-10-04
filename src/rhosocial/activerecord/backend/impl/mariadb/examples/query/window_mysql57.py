@@ -79,7 +79,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='sales_data',
+    into=TableExpression(dialect, 'sales_data'),
     columns=['salesperson', 'region', 'amount'],
     source=ValuesSource(
         dialect,

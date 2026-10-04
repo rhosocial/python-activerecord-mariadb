@@ -76,7 +76,7 @@ backend.execute(sql, params)
 # 1. Insert a row
 insert_expr = InsertExpression(
     dialect=dialect,
-    into='users',
+    into=TableExpression(dialect, 'users'),
     columns=['name', 'email'],
     source=ValuesSource(dialect, [
         [Literal(dialect, 'Alice'), Literal(dialect, 'alice@example.com')],
