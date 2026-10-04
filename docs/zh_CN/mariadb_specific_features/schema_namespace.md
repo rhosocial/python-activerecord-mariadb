@@ -58,16 +58,34 @@ class Order(ActiveRecord):
 `__table_name__` 与 `__schema_name__` 是分开的两个属性。把两者并成一个
 （`__table_name__ = "app.orders"`）只会得到一个内部含点号的被引用标识符，那不是限定引用。
 
-**DDL 不读取 `__schema_name__`。** 建表的迁移必须自己写出数据库名：
+**DDL 不读取 `__schema_name__`。** 建表的迁移必须自己写出数据库名，而且是通过一个
+`TableExpression` 写出的——这条语句本身没有 `schema_name` 参数：
 
 ```python
 CreateTableExpression(
     dialect,
     TableExpression(dialect, "orders", schema_name="app"),
     columns,
-).to_sql()
+).to_sql()[0]
 # CREATE TABLE `app`.`orders` (`id` INT PRIMARY KEY)
 ```
+
+凡是目标是一个表的语句，收的都是 `TableExpression` 而不是表名，传裸字符串会在构造期
+报错：
+
+```
+TypeError: table must be a TableExpression, got str
+```
+
+这覆盖了 `CreateTableExpression`、`DropTableExpression`、`TruncateExpression`、
+`AlterTableExpression`、`CreateIndexExpression`、`DropIndexExpression`、
+`CreateFulltextIndexExpression`、`DropFulltextIndexExpression`、
+`CreateTriggerExpression` 与 `DropTriggerExpression`。它们之中，限定表的都不是
+`schema_name`，而是那个 `TableExpression`。`CREATE TABLE`、`DROP TABLE`、
+`TRUNCATE`、`ALTER TABLE` 干脆没有 `schema_name` 参数；索引类与触发器类语句则保留了一个，
+但那里它限定的是索引名或触发器名——索引见第 4 节，触发器见第 6 节。完全不是表的对象
+——视图、序列、类型、函数、域，以及语句要创建或删除的 schema / database 本身——同样保留
+`schema_name`，第 5 节的 `CREATE SCHEMA` 就是这样。
 
 `schema_name` 默认是 `None`，含义是「不限定」，与表达式层其它位置一致。
 
@@ -94,7 +112,8 @@ Order.query().select(Order.c.id).to_sql()[0]
 ```
 
 `FROM` 中的范围没有别名，database 就一路限定到列上。这一点要与 MySQL 后端对照：后者覆写了
-`format_column`，只输出两段 `table`.`column`，完全不读 `schema_name`。MariaDB 保留了第三段：
+`format_column`，只输出两段 `table`.`column`，把 `schema_name` 整个丢掉。MariaDB 保留了
+第三段：
 
 | 后端 | `Column(dialect, "id", table="orders", schema_name="app")` 渲染为 |
 |---|---|
@@ -173,8 +192,43 @@ Column(dialect, "id", table="orders", schema_name=123).to_sql()
 # ValueError: Column.schema_name must be a string or None, not int
 ```
 
-这项检查在 core 方言层集中实现，而不是分散到每条语句里，因此接受 `schema_name` 的四十多个
-表达式会以完全一致的方式拒绝同一批取值。
+这项检查在 core 方言层集中实现，而不是分散到每条语句里，因此凡是接受 `schema_name` 的
+表达式（core 表达式包里约二十多个）都会以完全一致的方式拒绝同一批取值；报错信息指的是
+**带着这个值的那个表达式**，而不是调用方写下的那条语句。所以同一个 `""`，`TableExpression`
+与 `Column` 报出的措辞并不相同：
+
+```python
+Column(dialect, "id", table="orders", schema_name="").to_sql()
+# ValueError: Column.schema_name must be a non-empty string;
+#              use None for an unqualified reference
+```
+
+**索引根本无法被限定。** 这里和 MySQL 一样，`supports_index_schema_qualification()` 为
+`False`——索引就在它那张表所在的 database 里——因此 `CreateIndexExpression` 与
+`DropIndexExpression` 上的 `schema_name` 只限定索引名，而提出这个要求会被直接拒绝，而不是
+渲染出来：
+
+```python
+CreateIndexExpression(
+    dialect, "idx_orders_total",
+    TableExpression(dialect, "orders", schema_name="app"),
+    ["total"], schema_name="app",
+).to_sql()
+# UnsupportedFeatureError: 'MariaDB' dialect does not support a namespace-qualified
+# index name. Suggestion: MariaDB places an index in the namespace of its table
+# and rejects a qualified index name. Qualify the table instead by passing it as a
+# TableExpression with schema_name set.
+
+CreateIndexExpression(
+    dialect, "idx_orders_total",
+    TableExpression(dialect, "orders", schema_name="app"),
+    ["total"],
+).to_sql()[0]
+# CREATE INDEX `idx_orders_total` ON `app`.`orders` (`total`)
+```
+
+也正因为这个拒绝，模型层的 `build_create_index_statement()` 在带 `__schema_name__` 的模型上
+同样用不了——它把索引的命名空间默认成模型的 `schema_name()`；请手工构造该表达式。
 
 ## 5. `CREATE SCHEMA` 与 `DROP SCHEMA`
 
@@ -216,23 +270,54 @@ MariaDB 对「同一 timing 与 event 上可以有多个触发器」的答案，
 方言没有这个选项」变成「本语句静默丢弃了调用方要求的东西」，所以 MariaDB 格式化器读到的
 每一个属性都声明在它所读取的那个表达式上。
 
-**`schema_name` 同时限定三处**——触发器名、它绑定的表、以及它调用的函数：
+**`schema_name` 限定触发器名；表与函数各自带自己的命名空间。** 语句的 `table` 与
+`function_name` 都是 `TableExpression`，三个名字互相独立选取，传裸字符串在构造期就报错：
 
 ```python
 MariaDBCreateTriggerExpression(
     dialect, "audit_ins", "orders", TriggerTiming.BEFORE, [TriggerEvent.INSERT],
-    function_name="log_order", or_replace=True,
-    ordering=("FOLLOWS", "other_trg"), schema_name="app",
+)
+# TypeError: table must be a TableExpression, got str
+
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders"), TriggerTiming.BEFORE,
+    [TriggerEvent.INSERT], function_name="log_order",
+)
+# TypeError: function_name must be a TableExpression, got str
+```
+
+三处都给上命名空间，就得到 MariaDB 服务端期望的形状：
+
+```python
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders", schema_name="app"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    function_name=TableExpression(dialect, "log_order", schema_name="app"),
+    or_replace=True, ordering=("FOLLOWS", "other_trg"), schema_name="app",
 ).to_sql()[0]
 # CREATE OR REPLACE TRIGGER `app`.`audit_ins` BEFORE INSERT ON `app`.`orders`
 #   FOR EACH ROW FOLLOWS `other_trg` BEGIN CALL `app`.`log_order`(); END
 ```
 
-内联语句体渲染在同一位置：
+只限定其中一部分也会渲染出来，然后由服务端来挑毛病：
 
 ```python
 MariaDBCreateTriggerExpression(
-    dialect, "audit_ins", "orders", TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    dialect, "audit_ins", TableExpression(dialect, "orders", schema_name="app"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    function_name=TableExpression(dialect, "log_order"), or_replace=True,
+    schema_name="app",
+).to_sql()[0]
+# CREATE OR REPLACE TRIGGER `app`.`audit_ins` BEFORE INSERT ON `app`.`orders`
+#   FOR EACH ROW BEGIN CALL `log_order`(); END
+```
+
+内联语句体渲染在同一位置，而且完全不需要 `function_name`：
+
+```python
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders", schema_name="app"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
     body=RawSQLExpression(dialect, "SET NEW.n = NEW.n + 1"),
     or_replace=True, schema_name="app",
 ).to_sql()[0]
@@ -247,7 +332,7 @@ CREATE TRIGGER `t` BEFORE INSERT ON `other_db`.`t1` FOR EACH ROW ...
 ERROR 1435 (HY000): Trigger in wrong schema
 ```
 
-只限定表、或只限定触发器名，都会得到这个错误。
+只限定表、或只限定触发器名，都会得到这个错误。框架并不检查这三处是否一致，那是服务端的事。
 
 `FOLLOWS` / `PRECEDES` 后面那个名字是渲染器唯一不加限定的名字，因为 MariaDB 会在触发器
 所属的 database 内解析它。一个裸写的 `FOLLOWS` 引用旁边即使存在连接默认 database 中的同名
@@ -259,17 +344,32 @@ ERROR 1435 (HY000): Trigger in wrong schema
 `OR REPLACE` 记在 10.1（MDEV-7286，即统一补齐 `IF EXISTS` / `IF NOT EXISTS` / `OR REPLACE`
 的那一批改动），把 `FOLLOWS`/`PRECEDES` 与同 timing/event 多触发器一起记在 10.2
 （MDEV-6112）。方言把 `supports_trigger_order()` 的门槛设在 10.2.3，
-`supports_or_replace_trigger()` 则无条件返回真。三个选项都在 MariaDB 13.1.1 上实际执行过；
-具体最低版本以官方文档为准，不以本页为准。
+`supports_or_replace_trigger()` 则无条件返回真。注意 `supports_trigger_order()` 只是一个
+探针、没有任何地方去查它：即使方言低于该门槛，传 `ordering=` 照样会渲染出
+`FOLLOWS`/`PRECEDES`。三个选项都在 MariaDB 13.1.1 上实际执行过；具体最低版本以官方文档
+为准，不以本页为准。
 
-在 MariaDB 上为 `False` 的能力探针，传入对应参数时都会抛出 `UnsupportedFeatureError`：
+在 MariaDB 上为 `False` 的四个探针里，三个会在传入对应参数时抛出 `UnsupportedFeatureError`：
 
 | 探针 | 原因 |
 |---|---|
-| `supports_trigger_if_not_exists()` | 方言引导调用方改用 `or_replace` |
 | `supports_trigger_when()` | MariaDB 触发器没有 `WHEN` 条件 |
 | `supports_trigger_referencing()` | 没有 `REFERENCING` 子句；直接使用 `OLD` 与 `NEW` |
 | `supports_statement_trigger()` | 只有 `FOR EACH ROW` |
+
+第四个 `supports_trigger_if_not_exists()` 是例外：探针为 `False`，并且引导调用方改用
+`or_replace`，但传 `if_not_exists=True` 仍然会被渲染出来，最终由 MariaDB 自己拒绝这条
+`IF NOT EXISTS`：
+
+```python
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    function_name=TableExpression(dialect, "log_order"), if_not_exists=True,
+).to_sql()[0]
+# CREATE TRIGGER IF NOT EXISTS `audit_ins` BEFORE INSERT ON `orders`
+#   FOR EACH ROW BEGIN CALL `log_order`(); END
+```
 
 `FOR EACH ROW` 无条件输出；`supports_instead_of_trigger()` 从 10.4 起为真。
 
@@ -280,14 +380,16 @@ ERROR 1435 (HY000): Trigger in wrong schema
 
 ```python
 MariaDBAlterTableExpression(
-    dialect, "orders", [RenameObject(dialect, "old_c", "new_c")],
-    schema_name="app", wait=5,
+    dialect, TableExpression(dialect, "orders", schema_name="app"),
+    [RenameObject(dialect, "old_c", "new_c")],
+    wait=5,
 ).to_sql()[0]
 # ALTER TABLE `app`.`orders` WAIT 5  RENAME COLUMN `old_c` TO `new_c`
 
 MariaDBAlterTableExpression(
-    dialect, "orders", [RenameObject(dialect, "old_c", "new_c")],
-    schema_name="app", nowait=True,
+    dialect, TableExpression(dialect, "orders", schema_name="app"),
+    [RenameObject(dialect, "old_c", "new_c")],
+    nowait=True,
 ).to_sql()[0]
 # ALTER TABLE `app`.`orders` NOWAIT  RENAME COLUMN `old_c` TO `new_c`
 ```
@@ -298,24 +400,46 @@ MariaDBAlterTableExpression(
 `if_exists=True` 与两者都可组合，得到
 ``ALTER TABLE IF EXISTS `app`.`orders` WAIT 3  RENAME COLUMN ...``。
 
-这两个限定符控制的是**元数据锁**的等待，与命名空间无关。两者互相正交：`schema_name` 说明
-表在哪个 database，`WAIT n` / `NOWAIT` 说明在它上面等锁等多久。`WAIT 0` 等价于 `NOWAIT`。
-官方语法为
+这两个限定符控制的是**元数据锁**的等待，与命名空间无关。两者互相正交：`TableExpression`
+上的 `schema_name` 说明表在哪个 database，`WAIT n` / `NOWAIT` 说明在它上面等锁等多久。
+`WAIT 0` 等价于 `NOWAIT`。官方语法为
 `ALTER [ONLINE] [IGNORE] TABLE [IF EXISTS] tbl_name [WAIT n | NOWAIT] alter_specification ...`。
+
+`MariaDBAlterTableExpression` 没有 `schema_name` 参数——传一个是 `TypeError`，把表写成裸
+字符串也是：
+
+```python
+MariaDBAlterTableExpression(
+    dialect, "orders", [RenameObject(dialect, "old_c", "new_c")], wait=5,
+)
+# TypeError: table must be a TableExpression, got str
+
+MariaDBAlterTableExpression(
+    dialect, TableExpression(dialect, "orders", schema_name="app"),
+    [RenameObject(dialect, "old_c", "new_c")], wait=5, schema_name="app",
+)
+# TypeError: MariaDBAlterTableExpression.__init__() got an unexpected keyword
+#             argument 'schema_name'
+```
 
 `WAIT n` / `NOWAIT` 作为「DDL Fast Fail」在 MariaDB 10.3 引入（MDEV-11379、MDEV-11388），
 方言把 `supports_alter_table_wait()` 的门槛设在 10.3.0。在更旧的方言上这两个限定符会被
 拒绝：
 
 ```python
-MariaDBAlterTableExpression(dialect_10_2, "orders", [action], nowait=True).to_sql()
+MariaDBAlterTableExpression(
+    dialect_10_2, TableExpression(dialect_10_2, "orders", schema_name="app"),
+    [action], nowait=True,
+).to_sql()
 # UnsupportedFeatureError: 'MariaDB' dialect does not support ALTER TABLE
 # WAIT/NOWAIT. Suggestion: WAIT/NOWAIT lock wait timeout requires MariaDB 10.3
 # or later.
 ```
 
-本后端的 `RENAME TABLE` 与 `TRUNCATE TABLE` 也带这两个选项。三种 `ALTER TABLE` 形态均在
-MariaDB 13.1.1 上执行通过。
+本后端的 `RENAME TABLE` 与 `TRUNCATE TABLE` 也带这两个选项。注意
+`MariaDBRenameTableExpression` 把表名写成 `(旧名, 新名)` 的字符串对，没有承载命名空间的
+位置；而 `MariaDBTruncateExpression` 与通用的 `TruncateExpression` 一样收
+`TableExpression`。三种 `ALTER TABLE` 形态均在 MariaDB 13.1.1 上执行通过。
 
 ## 8. 读取当前 database
 
@@ -345,7 +469,11 @@ current_schema(dialect).to_sql()
 判定。
 
 **触发器名与表只限定其中一个。** MariaDB 要求触发器与其表同库，不匹配的一对会得到错误
-1435。
+1435。三个名字互相独立选取——触发器名来自语句的 `schema_name`，表与函数各自来自一个
+`TableExpression`——因此框架不会阻止你只限定其中一部分。
+
+**限定索引名。** MariaDB 拒绝这样做，所以 `CreateIndexExpression` 与
+`DropIndexExpression` 上的 `schema_name` 会抛 `UnsupportedFeatureError`。请改为限定表。
 
 **用 `""` 表示「没有 database」。** 它渲染出的是一次报错，而不是一个不限定引用。请用
 `None`，或者干脆不设该属性。
@@ -367,14 +495,19 @@ Connections using insecure transport are prohibited while
 ## 交叉引用
 
 core 仓库的 `docs/modeling/schema_namespace.md` 覆盖与后端无关的部分：如何声明
-`__schema_name__`、限定符在什么时候被读取、为什么 DDL 需要自己的 `schema_name`，以及后端
-支持矩阵。
+`__schema_name__`、限定符在什么时候被读取、哪些语句收 `TableExpression` 而哪些收
+`schema_name`，以及后端支持矩阵。
 
 ## 这些结论的核对方式
 
-渲染相关的结论来自 `MariaDBDialect(version=(13, 1, 1))`，验证命令为
-`PYTHONPATH=src .venv3.14-ubuntu26.04/bin/python`。服务器侧行为——`SELECT DATABASE()`、
-`SELECT SCHEMA()`、以 schema 新建的库同时出现在 `SHOW DATABASES` 与 `SHOW SCHEMAS`、
+渲染相关的结论来自 `MariaDBDialect(version=(13, 1, 1))`，运行在本分支的核心库上：
+
+```
+PYTHONPATH=/mnt/i/GitHubRepositories/rhosocial/.worktrees/core-schema-name/src \
+  .venv3.14-ubuntu26.04/bin/python
+```
+服务器侧行为——`SELECT DATABASE()`、`SELECT SCHEMA()`、以 schema 新建的库同时出现在
+`SHOW DATABASES` 与 `SHOW SCHEMAS`、
 「生成 SQL 的样子」一节的四种查询形态、创建并执行 `CREATE OR REPLACE TRIGGER`、
 `FOLLOWS` 与 `PRECEDES` 及其对 `INFORMATION_SCHEMA.TRIGGERS.ACTION_ORDER` 的影响、错误
 1435 的拒绝，以及「`ALTER TABLE ... WAIT n` / `NOWAIT`」一节的三种 `ALTER TABLE`

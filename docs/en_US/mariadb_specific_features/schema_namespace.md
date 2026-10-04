@@ -65,16 +65,37 @@ class Order(ActiveRecord):
 which is not a qualified reference.
 
 **DDL does not read `__schema_name__`.** A migration that creates the table has to
-name the database itself:
+name the database itself, and it names it through a `TableExpression` — the
+statement has no `schema_name` parameter of its own:
 
 ```python
 CreateTableExpression(
     dialect,
     TableExpression(dialect, "orders", schema_name="app"),
     columns,
-).to_sql()
+).to_sql()[0]
 # CREATE TABLE `app`.`orders` (`id` INT PRIMARY KEY)
 ```
+
+Every table-targeted statement takes a `TableExpression` rather than a name, and
+refuses a bare string at construction:
+
+```
+TypeError: table must be a TableExpression, got str
+```
+
+That covers `CreateTableExpression`, `DropTableExpression`,
+`TruncateExpression`, `AlterTableExpression`, `CreateIndexExpression`,
+`DropIndexExpression`, `CreateFulltextIndexExpression`,
+`DropFulltextIndexExpression`, `CreateTriggerExpression` and
+`DropTriggerExpression`. On none of them is `schema_name` what qualifies the
+table — the `TableExpression` is. `CREATE TABLE`, `DROP TABLE`, `TRUNCATE` and
+`ALTER TABLE` have no `schema_name` parameter at all; the index and trigger
+statements do keep one, and there it qualifies the index or trigger *name* — §4
+covers the index case and §6 the trigger case. Objects that are not tables at
+all — a view, a sequence, a type, a function, a domain, and the schema or
+database a statement creates or drops — keep a `schema_name` as well, as §5
+shows for `CREATE SCHEMA`.
 
 `schema_name` defaults to `None`, which means unqualified — the same default as
 everywhere else in the expression layer.
@@ -104,8 +125,8 @@ Order.query().select(Order.c.id).to_sql()[0]
 
 The database qualifies the column all the way through, because the range in
 `FROM` names no alias. This is worth comparing with the MySQL backend, which
-overrides `format_column` and emits only two parts — `table`.`column` — without
-reading `schema_name` at all. MariaDB keeps the third segment:
+overrides `format_column` and emits only two parts — `table`.`column` — dropping
+`schema_name` entirely. MariaDB keeps the third segment:
 
 | Backend | `Column(dialect, "id", table="orders", schema_name="app")` renders |
 |---|---|
@@ -194,8 +215,46 @@ Column(dialect, "id", table="orders", schema_name=123).to_sql()
 ```
 
 The check lives in one place in the core dialect layer rather than in each
-statement, so all forty-odd expressions that accept a `schema_name` reject the
-same values identically.
+statement, so every expression that accepts a `schema_name` — two dozen of them
+across the core expression package — rejects the same values identically, and
+the message names the expression that carried the value rather than the
+statement the caller wrote. `TableExpression` and `Column` therefore produce
+different wording for the same `""`:
+
+```python
+Column(dialect, "id", table="orders", schema_name="").to_sql()
+# ValueError: Column.schema_name must be a non-empty string;
+#              use None for an unqualified reference
+```
+
+**An index cannot be qualified at all.** `supports_index_schema_qualification()`
+is `False` here for the same reason it is on MySQL — an index lives in the
+database of its table — so `schema_name` on `CreateIndexExpression` or
+`DropIndexExpression` qualifies the index name only, and asking for that is
+refused rather than rendered:
+
+```python
+CreateIndexExpression(
+    dialect, "idx_orders_total",
+    TableExpression(dialect, "orders", schema_name="app"),
+    ["total"], schema_name="app",
+).to_sql()
+# UnsupportedFeatureError: 'MariaDB' dialect does not support a namespace-qualified
+# index name. Suggestion: MariaDB places an index in the namespace of its table
+# and rejects a qualified index name. Qualify the table instead by passing it as a
+# TableExpression with schema_name set.
+
+CreateIndexExpression(
+    dialect, "idx_orders_total",
+    TableExpression(dialect, "orders", schema_name="app"),
+    ["total"],
+).to_sql()[0]
+# CREATE INDEX `idx_orders_total` ON `app`.`orders` (`total`)
+```
+
+Because the model-level `build_create_index_statement()` defaults the index's
+namespace to the model's `schema_name()`, it cannot be used on a schema-bound
+model here either; build the expression by hand.
 
 ## 5. `CREATE SCHEMA` and `DROP SCHEMA`
 
@@ -241,24 +300,58 @@ formatter that reached for these with `getattr(expr, name, default)` would turn
 caller asked for", so every attribute the MariaDB formatter reads is declared on
 the expression it is read from.
 
-**`schema_name` qualifies three things at once** — the trigger name, the table it
-is bound to, and the function it calls:
+**`schema_name` qualifies the trigger name; the table and the function each carry
+their own namespace.** The statement's `table` and `function_name` are both
+`TableExpression`s, so all three are chosen independently and a bare string is a
+`TypeError` at construction:
 
 ```python
 MariaDBCreateTriggerExpression(
     dialect, "audit_ins", "orders", TriggerTiming.BEFORE, [TriggerEvent.INSERT],
-    function_name="log_order", or_replace=True,
-    ordering=("FOLLOWS", "other_trg"), schema_name="app",
+)
+# TypeError: table must be a TableExpression, got str
+
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders"), TriggerTiming.BEFORE,
+    [TriggerEvent.INSERT], function_name="log_order",
+)
+# TypeError: function_name must be a TableExpression, got str
+```
+
+Qualifying all three is what the MariaDB server expects, and the renderer emits
+it when each of the three is given a namespace:
+
+```python
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders", schema_name="app"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    function_name=TableExpression(dialect, "log_order", schema_name="app"),
+    or_replace=True, ordering=("FOLLOWS", "other_trg"), schema_name="app",
 ).to_sql()[0]
 # CREATE OR REPLACE TRIGGER `app`.`audit_ins` BEFORE INSERT ON `app`.`orders`
 #   FOR EACH ROW FOLLOWS `other_trg` BEGIN CALL `app`.`log_order`(); END
 ```
 
-An inline body renders in the same position:
+Qualifying only some of them renders, and the server is what objects:
 
 ```python
 MariaDBCreateTriggerExpression(
-    dialect, "audit_ins", "orders", TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    dialect, "audit_ins", TableExpression(dialect, "orders", schema_name="app"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    function_name=TableExpression(dialect, "log_order"), or_replace=True,
+    schema_name="app",
+).to_sql()[0]
+# CREATE OR REPLACE TRIGGER `app`.`audit_ins` BEFORE INSERT ON `app`.`orders`
+#   FOR EACH ROW BEGIN CALL `log_order`(); END
+```
+
+An inline body renders in the same position, and needs no `function_name` at
+all:
+
+```python
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders", schema_name="app"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
     body=RawSQLExpression(dialect, "SET NEW.n = NEW.n + 1"),
     or_replace=True, schema_name="app",
 ).to_sql()[0]
@@ -274,7 +367,8 @@ CREATE TRIGGER `t` BEFORE INSERT ON `other_db`.`t1` FOR EACH ROW ...
 ERROR 1435 (HY000): Trigger in wrong schema
 ```
 
-Qualifying only the table, or only the trigger name, produces that error.
+Qualifying only the table, or only the trigger name, produces that error. The
+renderer does not check that the three agree with each other; the server does.
 
 The `FOLLOWS` / `PRECEDES` reference is the one name the renderer leaves bare,
 because MariaDB resolves it in the trigger's own database. A bare `FOLLOWS`
@@ -289,19 +383,34 @@ place `OR REPLACE` on `CREATE TRIGGER` in 10.1 (MDEV-7286, the batch that added
 consistent `IF EXISTS` / `IF NOT EXISTS` / `OR REPLACE` support) and
 `FOLLOWS`/`PRECEDES` together with multiple triggers per event in 10.2 (MDEV-6112).
 The dialect gates `supports_trigger_order()` at 10.2.3 and reports
-`supports_or_replace_trigger()` unconditionally. All three options were executed
-against MariaDB 13.1.1; treat the exact minimum version as governed by the
-official documentation rather than by this page.
+`supports_or_replace_trigger()` unconditionally. Note that
+`supports_trigger_order()` is a probe and nothing consults it: supplying
+`ordering=` renders `FOLLOWS`/`PRECEDES` even on a dialect below the boundary.
+All three options were executed against MariaDB 13.1.1; treat the exact minimum
+version as governed by the official documentation rather than by this page.
 
-The capability probes that are `False` on MariaDB, each raising
+Three of the four probes that are `False` on MariaDB raise
 `UnsupportedFeatureError` when the corresponding argument is supplied:
 
 | Probe | Why |
 |---|---|
-| `supports_trigger_if_not_exists()` | the dialect points callers at `or_replace` instead |
 | `supports_trigger_when()` | no `WHEN` condition on a MariaDB trigger |
 | `supports_trigger_referencing()` | no `REFERENCING` clause; use `OLD` and `NEW` directly |
 | `supports_statement_trigger()` | `FOR EACH ROW` only |
+
+The fourth, `supports_trigger_if_not_exists()`, is the exception: the probe is
+`False` and points callers at `or_replace` instead, but `if_not_exists=True` is
+still rendered, and MariaDB rejects the resulting `IF NOT EXISTS` itself:
+
+```python
+MariaDBCreateTriggerExpression(
+    dialect, "audit_ins", TableExpression(dialect, "orders"),
+    TriggerTiming.BEFORE, [TriggerEvent.INSERT],
+    function_name=TableExpression(dialect, "log_order"), if_not_exists=True,
+).to_sql()[0]
+# CREATE TRIGGER IF NOT EXISTS `audit_ins` BEFORE INSERT ON `orders`
+#   FOR EACH ROW BEGIN CALL `log_order`(); END
+```
 
 `FOR EACH ROW` is emitted unconditionally, and `supports_instead_of_trigger()`
 reports `True` from 10.4 onward.
@@ -314,14 +423,16 @@ qualified table name and before the alter specifications:
 
 ```python
 MariaDBAlterTableExpression(
-    dialect, "orders", [RenameObject(dialect, "old_c", "new_c")],
-    schema_name="app", wait=5,
+    dialect, TableExpression(dialect, "orders", schema_name="app"),
+    [RenameObject(dialect, "old_c", "new_c")],
+    wait=5,
 ).to_sql()[0]
 # ALTER TABLE `app`.`orders` WAIT 5  RENAME COLUMN `old_c` TO `new_c`
 
 MariaDBAlterTableExpression(
-    dialect, "orders", [RenameObject(dialect, "old_c", "new_c")],
-    schema_name="app", nowait=True,
+    dialect, TableExpression(dialect, "orders", schema_name="app"),
+    [RenameObject(dialect, "old_c", "new_c")],
+    nowait=True,
 ).to_sql()[0]
 # ALTER TABLE `app`.`orders` NOWAIT  RENAME COLUMN `old_c` TO `new_c`
 ```
@@ -333,24 +444,47 @@ alter specification; the two spaces above are what it produces.)
 ``ALTER TABLE IF EXISTS `app`.`orders` WAIT 3  RENAME COLUMN ...``.
 
 These qualifiers control the **metadata lock** wait, not the namespace. They are
-orthogonal to `schema_name`: `schema_name` says which database the table is in,
-`WAIT n` / `NOWAIT` says how long to wait for a lock on it. `WAIT 0` is equivalent
-to `NOWAIT`. The official syntax is
+orthogonal to it: the `TableExpression`'s `schema_name` says which database the
+table is in, `WAIT n` / `NOWAIT` says how long to wait for a lock on it. `WAIT 0`
+is equivalent to `NOWAIT`. The official syntax is
 `ALTER [ONLINE] [IGNORE] TABLE [IF EXISTS] tbl_name [WAIT n | NOWAIT] alter_specification ...`.
+
+`MariaDBAlterTableExpression` has no `schema_name` parameter — passing one is a
+`TypeError`, and so is passing the table as a bare string:
+
+```python
+MariaDBAlterTableExpression(
+    dialect, "orders", [RenameObject(dialect, "old_c", "new_c")], wait=5,
+)
+# TypeError: table must be a TableExpression, got str
+
+MariaDBAlterTableExpression(
+    dialect, TableExpression(dialect, "orders", schema_name="app"),
+    [RenameObject(dialect, "old_c", "new_c")], wait=5, schema_name="app",
+)
+# TypeError: MariaDBAlterTableExpression.__init__() got an unexpected keyword
+#             argument 'schema_name'
+```
 
 `WAIT n` / `NOWAIT` arrived in MariaDB 10.3 as "DDL Fast Fail" (MDEV-11379,
 MDEV-11388), and the dialect gates `supports_alter_table_wait()` at 10.3.0. On an
 older dialect the qualifiers are refused:
 
 ```python
-MariaDBAlterTableExpression(dialect_10_2, "orders", [action], nowait=True).to_sql()
+MariaDBAlterTableExpression(
+    dialect_10_2, TableExpression(dialect_10_2, "orders", schema_name="app"),
+    [action], nowait=True,
+).to_sql()
 # UnsupportedFeatureError: 'MariaDB' dialect does not support ALTER TABLE
 # WAIT/NOWAIT. Suggestion: WAIT/NOWAIT lock wait timeout requires MariaDB 10.3
 # or later.
 ```
 
 The same two options exist on `RENAME TABLE` and `TRUNCATE TABLE` in this
-backend. All three forms were executed against MariaDB 13.1.1.
+backend. Note that `MariaDBRenameTableExpression` names its tables as
+`(old, new)` string pairs and has no namespace to carry, while
+`MariaDBTruncateExpression` takes a `TableExpression` like the generic
+`TruncateExpression` does. All three forms were executed against MariaDB 13.1.1.
 
 ## 8. Reading the current database
 
@@ -386,7 +520,14 @@ decided by the server, when the statement runs.
 
 **Leaving the trigger name or table unqualified while qualifying the other.**
 MariaDB requires a trigger and its table to share a database, and answers a
-mismatched pair with error 1435.
+mismatched pair with error 1435. The three names are chosen independently — the
+renderer's `schema_name` for the trigger, and a `TableExpression` each for the
+table and the function — so nothing in the framework stops you from qualifying
+only some of them.
+
+**Qualifying the index name.** MariaDB rejects it, so `schema_name` on
+`CreateIndexExpression` or `DropIndexExpression` raises
+`UnsupportedFeatureError`. Qualify the table instead.
 
 **Using `""` to mean "no database".** It renders an error rather than an
 unqualified reference. Use `None`, or leave the attribute unset.
@@ -410,12 +551,20 @@ Pass `tls_version` alongside `ssl` to pin the protocol version.
 
 `docs/modeling/schema_namespace.md` in the core repository covers the parts that
 do not vary by backend: declaring `__schema_name__`, when the qualifier is read,
-why DDL takes a `schema_name` of its own, and the backend support matrix.
+which statement carries a `TableExpression` and which carries a `schema_name`,
+and the backend support matrix.
 
 ## How these statements were checked
 
-Rendering claims come from `MariaDBDialect(version=(13, 1, 1))` with
-`PYTHONPATH=src .venv3.14-ubuntu26.04/bin/python`. Server behaviour —
+Rendering claims come from `MariaDBDialect(version=(13, 1, 1))` run against the
+core library on this branch:
+
+```
+PYTHONPATH=/mnt/i/GitHubRepositories/rhosocial/.worktrees/core-schema-name/src \
+  .venv3.14-ubuntu26.04/bin/python
+```
+
+Server behaviour —
 `SELECT DATABASE()`, `SELECT SCHEMA()`, `CREATE SCHEMA` appearing in both
 `SHOW DATABASES` and `SHOW SCHEMAS`, the four query shapes in §3, `CREATE OR
 REPLACE TRIGGER`, `FOLLOWS` and `PRECEDES` with their effect on
