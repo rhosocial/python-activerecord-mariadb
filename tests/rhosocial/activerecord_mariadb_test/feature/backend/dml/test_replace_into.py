@@ -13,6 +13,7 @@ import pytest_asyncio
 
 from rhosocial.activerecord.backend.expression.statements import ValuesSource
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression import core
 
 
@@ -43,7 +44,7 @@ class TestMariaDBReplaceInto:
 
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
@@ -89,7 +90,7 @@ class TestMariaDBReplaceInto:
         # REPLACE with new data
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
@@ -129,7 +130,7 @@ class TestMariaDBReplaceInto:
         # REPLACE multiple rows, one conflicts
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
@@ -170,7 +171,7 @@ class TestMariaDBReplaceInto:
         with pytest.raises(ValueError, match="REPLACE INTO does not support ON CONFLICT"):
             expr = MariaDBInsertExpression(
                 dialect=dialect,
-                into=test_table,
+                into=TableExpression(dialect, test_table),
                 source=ValuesSource(
                     dialect,
                     [[core.Literal(dialect, "test@example.com"), core.Literal(dialect, "Test")]]
@@ -188,7 +189,7 @@ class TestMariaDBReplaceInto:
         with pytest.raises(ValueError, match="Cannot use both 'replace' and 'ignore'"):
             expr = MariaDBInsertExpression(
                 dialect=dialect,
-                into=test_table,
+                into=TableExpression(dialect, test_table),
                 source=ValuesSource(
                     dialect,
                     [[core.Literal(dialect, "test@example.com"), core.Literal(dialect, "Test")]]
@@ -230,7 +231,7 @@ class TestMySQLAsyncReplaceInto:
         # REPLACE with new data
         expr = MariaDBInsertExpression(
             dialect=dialect,
-            into=test_table,
+            into=TableExpression(dialect, test_table),
             source=ValuesSource(
                 dialect,
                 [
