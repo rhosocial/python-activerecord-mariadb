@@ -32,6 +32,9 @@ from rhosocial.activerecord.backend.expression.types import (
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.types import MariaDBEnumType, MariaDBSetType
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
 
 
 class TestMySQLStorageOptions:
@@ -47,7 +50,7 @@ class TestMySQLStorageOptions:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=Table(dialect, 'test_table'),
             columns=columns,
             storage_options={'ENGINE': 'InnoDB'}
         )
@@ -64,7 +67,7 @@ class TestMySQLStorageOptions:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=Table(dialect, 'test_table'),
             columns=columns,
             storage_options={'DEFAULT CHARSET': 'utf8mb4'}
         )
@@ -81,7 +84,7 @@ class TestMySQLStorageOptions:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=Table(dialect, 'test_table'),
             columns=columns,
             storage_options={'COLLATE': 'utf8mb4_unicode_ci'}
         )
@@ -98,7 +101,7 @@ class TestMySQLStorageOptions:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=Table(dialect, 'test_table'),
             columns=columns,
             storage_options={
                 'ENGINE': 'InnoDB',
@@ -121,7 +124,7 @@ class TestMySQLStorageOptions:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=Table(dialect, 'test_table'),
             columns=columns,
             if_not_exists=True,
             storage_options={'ENGINE': 'InnoDB'}
@@ -148,7 +151,7 @@ class TestMySQLTableComment:
 
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, '用户信息表')),
         )
@@ -169,7 +172,7 @@ class TestMySQLTableComment:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             storage_options={
                 'ENGINE': 'InnoDB',
@@ -196,7 +199,7 @@ class TestMySQLTableComment:
 
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test',
+            table=Table(dialect, 'test'),
             columns=columns,
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, "测试's表")),
         )
@@ -218,7 +221,7 @@ class TestMySQLColumnComment:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -240,7 +243,7 @@ class TestMySQLColumnComment:
 
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, '用户表')),
         )
@@ -264,7 +267,7 @@ class TestMySQLAutoIncrement:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -282,7 +285,7 @@ class TestMySQLAutoIncrement:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -300,7 +303,7 @@ class TestMySQLAutoIncrement:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='test',
+            table=Table(dialect, 'test'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -325,7 +328,7 @@ class TestMySQLInlineIndex:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -347,7 +350,7 @@ class TestMySQLInlineIndex:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -370,7 +373,7 @@ class TestMySQLInlineIndex:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='orders',
+            table=Table(dialect, 'orders'),
             columns=columns,
             indexes=indexes
         )
@@ -391,7 +394,7 @@ class TestMySQLInlineIndex:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -412,7 +415,7 @@ class TestMySQLInlineIndex:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='cache',
+            table=Table(dialect, 'cache'),
             columns=columns,
             indexes=indexes
         )
@@ -435,7 +438,7 @@ class TestMySQLInlineIndex:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             indexes=indexes
         )
@@ -516,7 +519,7 @@ class TestMySQLEnumType:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='articles',
+            table=Table(dialect, 'articles'),
             columns=columns
         )
         sql, params = expr.to_sql()
@@ -583,7 +586,7 @@ class TestMySQLTableConstraints:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             table_constraints=table_constraints
         )
@@ -604,7 +607,7 @@ class TestMySQLTableConstraints:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             table_constraints=table_constraints
         )
@@ -623,7 +626,7 @@ class TestMySQLTableConstraints:
         ]
         expr = CreateTableExpression(
             dialect=dialect,
-            table='user_roles',
+            table=Table(dialect, 'user_roles'),
             columns=columns,
             table_constraints=table_constraints
         )
@@ -640,11 +643,11 @@ class TestMySQLTableConstraints:
             ColumnDefinition(dialect, "user_id", IntegerType(dialect)),
         ]
         fk = ForeignKeyConstraint(
-            dialect, columns=["user_id"], foreign_key_table="users",
+            dialect, columns=["user_id"], foreign_key_table=Table(dialect, "users"),
             foreign_key_columns=["id"], on_delete=ReferentialAction.CASCADE,
         )
         expr = CreateTableExpression(
-            dialect=dialect, table="orders", columns=columns, table_constraints=[fk],
+            dialect=dialect, table=Table(dialect, "orders"), columns=columns, table_constraints=[fk],
         )
         sql, params = expr.to_sql()
         assert "FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)" in sql
@@ -655,12 +658,12 @@ class TestMySQLTableConstraints:
         dialect = MariaDBDialect()
         columns = [ColumnDefinition(dialect, "user_id", IntegerType(dialect))]
         fk = ForeignKeyConstraint(
-            dialect, columns=["user_id"], foreign_key_table="users",
+            dialect, columns=["user_id"], foreign_key_table=Table(dialect, "users"),
             foreign_key_columns=["id"], on_delete=ReferentialAction.NO_ACTION,
             on_update=ReferentialAction.SET_NULL,
         )
         expr = CreateTableExpression(
-            dialect=dialect, table="orders", columns=columns, table_constraints=[fk],
+            dialect=dialect, table=Table(dialect, "orders"), columns=columns, table_constraints=[fk],
         )
         sql, params = expr.to_sql()
         assert "ON UPDATE SET NULL" in sql
@@ -682,7 +685,7 @@ class TestMySQLTableConstraints:
             ),
         )
         expr = CreateTableExpression(
-            dialect=dialect, table="users", columns=columns, table_constraints=[check],
+            dialect=dialect, table=Table(dialect, "users"), columns=columns, table_constraints=[check],
         )
         sql, params = expr.to_sql()
         assert "CHECK (" in sql
@@ -696,7 +699,7 @@ class TestMySQLDropTable:
         dialect = MariaDBDialect()
         expr = DropTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=Table(dialect, 'test_table'),
             if_exists=True
         )
         sql, params = expr.to_sql()
@@ -708,7 +711,7 @@ class TestMySQLDropTable:
         dialect = MariaDBDialect()
         expr = DropTableExpression(
             dialect=dialect,
-            table='test_table',
+            table=Table(dialect, 'test_table'),
             if_exists=False
         )
         sql, params = expr.to_sql()
@@ -766,7 +769,7 @@ class TestMySQLCompleteTableCreation:
         
         expr = CreateTableExpression(
             dialect=dialect,
-            table='users',
+            table=Table(dialect, 'users'),
             columns=columns,
             indexes=indexes,
             if_not_exists=True,

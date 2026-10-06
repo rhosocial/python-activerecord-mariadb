@@ -269,35 +269,123 @@ Every dialect inherits from:
 
 ##### Current Protocols and Mixins (Main Package)
 
+Not every protocol has a mixin of its own. Several are rendered by a broader mixin
+that already owns the statement around them, and those are marked below rather
+than given an invented mixin name: the protocol declares the contract, and the
+dialect's `format_*` method for it comes from wherever the surrounding statement
+is rendered. A protocol with no separate mixin is still worth listing -- what it
+declares is the contract a third-party dialect must satisfy.
+
 | Protocol | Mixin | Description |
 |----------|-------|-------------|
 | `WindowFunctionSupport` | `WindowFunctionMixin` | Window functions (OVER, PARTITION BY) |
 | `CTESupport` | `CTEMixin` | Common Table Expressions (WITH clause) |
-| `AdvancedGroupingSupport` | `AdvancedGroupingMixin` | ROLLUP, CUBE, GROUPING SETS |
-| `ReturningSupport` | `ReturningMixin` | RETURNING clause |
+| `GraphTableSupport` | `GraphTableMixin` | GRAPH_TABLE and property-graph DDL |
+| `GraphSupport` | `GraphMixin` | Graph queries (MATCH) |
+| `AdvancedGroupingSupport` | `DQLMixin` | ROLLUP, CUBE, GROUPING SETS |
+| `ReturningSupport` | `DMLMixin` | RETURNING clause |
 | `UpsertSupport` | `UpsertMixin` | UPSERT operations (ON CONFLICT) |
 | `LateralJoinSupport` | `LateralJoinMixin` | LATERAL joins |
 | `ArraySupport` | `ArrayMixin` | Array types and operations |
 | `JSONSupport` | `JSONMixin` | JSON types and operations |
 | `ExplainSupport` | `ExplainMixin` | EXPLAIN statement |
-| `FilterClauseSupport` | `FilterClauseMixin` | FILTER clause for aggregates |
-| `OrderedSetAggregationSupport` | `OrderedSetAggregationMixin` | WITHIN GROUP (ORDER BY) |
+| `FilterClauseSupport` | `ExpressionMixin` | FILTER clause for aggregates |
+| `OrderedSetAggregationSupport` | `ExpressionMixin` | WITHIN GROUP (ORDER BY) |
 | `MergeSupport` | `MergeMixin` | MERGE statement |
 | `TemporalTableSupport` | `TemporalTableMixin` | FOR SYSTEM_TIME queries |
-| `QualifyClauseSupport` | `QualifyClauseMixin` | QUALIFY clause |
-| `LockingSupport` | `LockingMixin` | FOR UPDATE, SKIP LOCKED |
-| `GraphSupport` | `GraphMixin` | Graph queries (MATCH) |
+| `QualifyClauseSupport` | `DQLMixin` | QUALIFY clause |
+| `LockingSupport` | `DQLMixin` | FOR UPDATE, SKIP LOCKED |
 | `JoinSupport` | `JoinMixin` | JOIN operations |
 | `SetOperationSupport` | `SetOperationMixin` | UNION, INTERSECT, EXCEPT |
 | `ILIKESupport` | `ILIKEMixin` | Case-insensitive LIKE |
-| `TableSupport` | `TableMixin` | CREATE/DROP/ALTER TABLE |
-| `ViewSupport` | `ViewMixin` | CREATE/DROP VIEW |
+| `CollationSupport` | `CollationMixin` | COLLATE |
+| `WildcardSupport` | `ExpressionMixin` | Qualified `*` expansion |
+| `DataTypeSupport` | *(dialect implements directly)* | `format_data_type_*` dispatch |
+| `SQLFunctionSupport` | `FunctionCallMixin` | Built-in function calls |
+| `SQLXMLSupport` | `SQLXMLMixin` | SQL/XML, overall |
+| `SQLXMLParsingSupport` | `SQLXMLParsingMixin` | XMLPARSE, XMLTABLE |
+| `SQLXMLSerializationSupport` | `SQLXMLSerializationMixin` | XMLSERIALIZE |
+| `SQLXMLConstructionSupport` | `SQLXMLConstructionMixin` | XMLELEMENT, XMLCONCAT |
+| `SQLXMLAggregationSupport` | `SQLXMLAggregationMixin` | XMLAGG |
+| `SQLXMLQueryingSupport` | `SQLXMLQueryingMixin` | XMLQUERY, XMLFOREST |
+| `TransactionControlSupport` | `TransactionControlMixin` | BEGIN / COMMIT / SAVEPOINT |
+| `IntrospectionSupport` | `IntrospectionMixin` | Catalogue queries |
+| `PivotSupport` | `PivotMixin` | PIVOT / UNPIVOT |
+| `GeneratedColumnSupport` | `GeneratedColumnMixin` | Generated columns |
+| `AutoIncrementSupport` | `AutoIncrementMixin` | AUTO_INCREMENT / IDENTITY |
+| `ColumnAttributeSupport` | `DDLColumnMixin` | Per-column attributes |
+| `ConstraintSupport` | `ConstraintMixin` | Table and column constraints |
+| `PartitionSupport` | `PartitionMixin` | Table partitioning |
+| `CommentSupport` | `CommentOnMixin` | COMMENT ON |
+| `DateTimeSupport` | `DateTimeMixin` | Temporal expressions |
+| `DqlOrderSupport` | `DQLMixin` | ORDER BY / LIMIT / OFFSET |
+
+The DDL protocols are named after the statement they declare rather than after the
+feature, and one feature is several statements:
+
+| Protocol | Mixin | Description |
+|----------|-------|-------------|
+| `CreateTableSupport` | `TableMixin` | CREATE TABLE |
+| `CreateTableLikeSupport` | `TableMixin` | CREATE TABLE ... LIKE |
+| `CreateTableCloneSupport` | `TableMixin` | CREATE TABLE ... CLONE |
+| `CreateTableAsSupport` | `TableMixin` | CREATE TABLE AS |
+| `CreateTableUsingTemplateSupport` | `TableMixin` | CREATE TABLE ... TEMPLATE |
+| `AlterTableSupport` | `TableMixin` | ALTER TABLE |
+| `AlterTableModifierSupport` | `DDLColumnMixin` | Per-action ALTER TABLE modifiers |
+| `DropTableSupport` | `TableMixin` | DROP TABLE |
+| `CreateViewSupport` | `ViewMixin` | CREATE VIEW |
+| `DropViewSupport` | `ViewMixin` | DROP VIEW |
+| `MaterializedViewSupport` | `ViewMixin` | Materialized views |
 | `TruncateSupport` | `TruncateMixin` | TRUNCATE TABLE |
-| `SchemaSupport` | `SchemaMixin` | CREATE/DROP SCHEMA |
-| `IndexSupport` | `IndexMixin` | CREATE/DROP INDEX |
-| `SequenceSupport` | `SequenceMixin` | CREATE/DROP/ALTER SEQUENCE |
-| `TriggerSupport` | `TriggerMixin` | CREATE/DROP TRIGGER (SQL:1999) |
-| `FunctionSupport` | `FunctionMixin` | CREATE/DROP FUNCTION (SQL/PSM) |
+| `CreateSchemaSupport` | `SchemaMixin` | CREATE SCHEMA |
+| `DropSchemaSupport` | `SchemaMixin` | DROP SCHEMA |
+| `CreateIndexSupport` | `IndexMixin` | CREATE INDEX |
+| `DropIndexSupport` | `IndexMixin` | DROP INDEX |
+| `FulltextIndexSupport` | `IndexMixin` | Full-text and spatial indexes |
+| `CreateSequenceSupport` | `SequenceMixin` | CREATE SEQUENCE |
+| `AlterSequenceSupport` | `SequenceMixin` | ALTER SEQUENCE |
+| `DropSequenceSupport` | `SequenceMixin` | DROP SEQUENCE |
+| `CreateTriggerSupport` | `TriggerMixin` | CREATE TRIGGER |
+| `DropTriggerSupport` | `TriggerMixin` | DROP TRIGGER |
+| `CreateRoutineSupport` | `FunctionMixin` | CREATE FUNCTION / PROCEDURE |
+| `DropRoutineSupport` | `FunctionMixin` | DROP FUNCTION / PROCEDURE |
+| `CreateTypeSupport` | `UserDefinedTypeMixin` | CREATE TYPE |
+| `AlterTypeSupport` | `UserDefinedTypeMixin` | ALTER TYPE |
+| `DropTypeSupport` | `UserDefinedTypeMixin` | DROP TYPE |
+| `CreateDomainSupport` | `DomainMixin` | CREATE DOMAIN |
+| `AlterDomainSupport` | `DomainMixin` | ALTER DOMAIN |
+| `DropDomainSupport` | `DomainMixin` | DROP DOMAIN |
+| `CreateDatabaseSupport` | `DatabaseMixin` | CREATE DATABASE |
+| `AlterDatabaseSupport` | `DatabaseMixin` | ALTER DATABASE |
+| `DropDatabaseSupport` | `DatabaseMixin` | DROP DATABASE |
+
+The object-naming protocols are a separate family, and they are **not** DDL ones.
+Each answers how a catalogue entry is *spelled*, never how it is created, which is
+what lets a statement hold a `Table` as an ordinary child:
+
+| Protocol | Mixin | Description |
+|----------|-------|-------------|
+| `TableObjectSupport` | `TableNameMixin` | How a table is named |
+| `ViewObjectSupport` | `ViewNameMixin` | How a view is named |
+| `MaterializedViewObjectSupport` | `MaterializedViewNameMixin` | How a materialized view is named |
+| `ForeignTableObjectSupport` | `ForeignTableNameMixin` | How a foreign table is named |
+| `IndexObjectSupport` | `IndexNameMixin` | How an index is named |
+| `SequenceObjectSupport` | `SequenceNameMixin` | How a sequence is named |
+| `TriggerObjectSupport` | `TriggerNameMixin` | How a trigger is named |
+| `RoutineObjectSupport` | `FunctionNameMixin` / `ProcedureNameMixin` | How a routine is named |
+| `TypeObjectSupport` | `TypeNameMixin` / `DomainNameMixin` | How a type or domain is named |
+| `SynonymObjectSupport` | `SynonymNameMixin` | How a synonym is named |
+| `NamespaceSupport` | `NamespaceMixin` | Which levels a name may carry, and how they are spelled |
+
+`NamespaceSupport` is where a dialect says it has one namespace level and not
+two. `supports_catalog` and `supports_catalog_qualification` answer whether a
+name may carry a database at all and whether that database is rendered onto the
+name; `supports_schema_qualification` answers the inner level. The spelling
+itself is `format_qualified_name`, which joins the levels the object carries with
+the dialect's `separator`, and the check that a level is expressible at all is
+`validate_namespace`. MariaDB is the one-level case: it has a database and no
+inner schema, so its `format_qualified_name` never reads `schema_name`, and a
+name carrying one is refused rather than silently qualified.
 
 ##### Principles for Adding New Protocols/Mixins
 
@@ -315,8 +403,8 @@ Every dialect inherits from:
 
 | Feature | SQL Standard? | Location |
 |---------|---------------|----------|
-| `CREATE TRIGGER` | Yes (SQL:1999) | Main Package (`TriggerSupport`) |
-| `CREATE FUNCTION` | Yes (SQL/PSM) | Main Package (`FunctionSupport`) |
+| `CREATE TRIGGER` | Yes (SQL:1999) | Main Package (`CreateTriggerSupport`) |
+| `CREATE FUNCTION` | Yes (SQL/PSM) | Main Package (`CreateRoutineSupport`) |
 | `COMMENT ON` | No (PostgreSQL/Oracle) | PostgreSQL Extension |
 | `CREATE TYPE ... AS ENUM` | No (PostgreSQL-specific) | PostgreSQL Extension |
 | `AUTO_INCREMENT` | No (MySQL-specific) | MySQL Extension |

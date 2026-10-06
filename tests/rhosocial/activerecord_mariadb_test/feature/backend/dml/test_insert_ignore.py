@@ -14,6 +14,7 @@ import pytest_asyncio
 from rhosocial.activerecord.backend.expression.statements import ValuesSource
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
 from rhosocial.activerecord.backend.expression import core
+from rhosocial.activerecord.backend.expression.objects import Table
 
 
 class TestMariaDBInsertIgnore:
@@ -30,7 +31,7 @@ class TestMariaDBInsertIgnore:
                 name VARCHAR(255)
             ) ENGINE=InnoDB
         """)
-        yield "test_insert_ignore"
+        yield Table(mariadb_backend.dialect, "test_insert_ignore")
         mariadb_backend.execute("DROP TABLE IF EXISTS test_insert_ignore")
 
     def test_supports_insert_ignore(self, mariadb_backend):
@@ -194,7 +195,7 @@ class TestMariaDBAsyncInsertIgnore:
                 name VARCHAR(255)
             ) ENGINE=InnoDB
         """)
-        yield "test_insert_ignore_async"
+        yield Table(async_mariadb_backend.dialect, "test_insert_ignore_async")
         await async_mariadb_backend.execute("DROP TABLE IF EXISTS test_insert_ignore_async")
 
     async def test_insert_ignore_async(self, async_mariadb_backend, test_table):

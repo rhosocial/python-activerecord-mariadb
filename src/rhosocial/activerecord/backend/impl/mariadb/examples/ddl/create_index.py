@@ -19,6 +19,11 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
     DecimalType,
 )
+from rhosocial.activerecord.backend.expression.objects import (
+    Index,
+    Table,
+)
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -33,13 +38,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop = DropTableExpression(dialect=dialect, table_name='products', if_exists=True)
+drop = DropTableExpression(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='products',
+    table=Table(dialect, 'products'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -63,10 +68,9 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import CreateIndexExpression, DropIndexExpression
-
 # Drop index first if exists (MariaDB does not support IF NOT EXISTS in CREATE INDEX)
 try:
-    drop_idx = DropIndexExpression(dialect=dialect, index_name='idx_category_price')
+    drop_idx = DropIndexExpression(dialect=dialect, index=Index(dialect, 'idx_category_price'))
     sql, params = drop_idx.to_sql()
     backend.execute(sql, params)
 except Exception:
@@ -74,8 +78,8 @@ except Exception:
 
 create_idx = CreateIndexExpression(
     dialect=dialect,
-    index_name='idx_category_price',
-    table_name='products',
+    index=Index(dialect, 'idx_category_price'),
+    table=Table(dialect, 'products'),
     columns=['category', 'price'],
 )
 

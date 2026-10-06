@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -55,7 +56,10 @@ class MariaDBLoadDataExpression(BaseExpression):
 
     Attributes:
         file_path: Path to the data file
-        table: Target table name
+        table: The target relation, as a :class:`Table`. MariaDB can load into a
+            table in another database, so the database is a named slot on the
+            object rather than something the caller has to splice into a
+            string.
         options: Load options
     """
 
@@ -63,7 +67,7 @@ class MariaDBLoadDataExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         file_path: str,
-        table: str,
+        table: Table,
         options: Optional[LoadDataOptions] = None
     ):
         """Initialize LOAD DATA expression.
@@ -71,12 +75,12 @@ class MariaDBLoadDataExpression(BaseExpression):
         Args:
             dialect: SQL dialect
             file_path: Path to the data file
-            table: Target table name
+            table: Target table, as a :class:`Table`
             options: Load options (default: LoadDataOptions())
         """
         super().__init__(dialect)
         self.file_path = file_path
-        self.table = table
+        self.table: Table = table
         self.options = options or LoadDataOptions()
 
     def validate(self, strict: bool = True) -> None:
@@ -95,8 +99,10 @@ class MariaDBLoadDataExpression(BaseExpression):
         if not isinstance(self.file_path, str):
             raise TypeError(f"file_path must be str, got {type(self.file_path)}")
 
-        if not isinstance(self.table, str):
-            raise TypeError(f"table must be str, got {type(self.table)}")
+        if not isinstance(self.table, Table):
+            raise TypeError(
+                f"table must be a Table, got {type(self.table).__name__}"
+            )
 
         if not isinstance(self.options, LoadDataOptions):
             raise TypeError(f"options must be LoadDataOptions, got {type(self.options)}")

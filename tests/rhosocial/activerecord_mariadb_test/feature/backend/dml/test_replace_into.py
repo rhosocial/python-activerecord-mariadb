@@ -14,6 +14,7 @@ import pytest_asyncio
 from rhosocial.activerecord.backend.expression.statements import ValuesSource
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
 from rhosocial.activerecord.backend.expression import core
+from rhosocial.activerecord.backend.expression.objects import Table
 
 
 class TestMariaDBReplaceInto:
@@ -30,7 +31,7 @@ class TestMariaDBReplaceInto:
                 name VARCHAR(255)
             ) ENGINE=InnoDB
         """)
-        yield "test_replace_into"
+        yield Table(mariadb_backend.dialect, "test_replace_into")
         mariadb_backend.execute("DROP TABLE IF EXISTS test_replace_into")
 
     def test_supports_replace_into(self, mariadb_backend):
@@ -214,7 +215,7 @@ class TestMySQLAsyncReplaceInto:
                 name VARCHAR(255)
             ) ENGINE=InnoDB
         """)
-        yield "test_replace_into_async"
+        yield Table(async_mariadb_backend.dialect, "test_replace_into_async")
         await async_mariadb_backend.execute("DROP TABLE IF EXISTS test_replace_into_async")
 
     async def test_replace_into_async(self, async_mariadb_backend, test_table):

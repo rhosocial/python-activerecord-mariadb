@@ -14,6 +14,9 @@ import pytest_asyncio
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBLoadDataExpression, LoadDataOptions
 )
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
 
 
 class TestMariaDBLoadData:
@@ -31,7 +34,7 @@ class TestMariaDBLoadData:
                 age INT
             ) ENGINE=InnoDB
         """)
-        yield "test_load_data"
+        yield Table(mariadb_backend.dialect, "test_load_data")
         mariadb_backend.execute("DROP TABLE IF EXISTS test_load_data")
 
     def test_supports_load_data(self, mariadb_backend):
@@ -43,7 +46,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users'
+            table=Table(mariadb_backend.dialect, 'users')
         )
 
         sql, params = expr.to_sql()
@@ -57,7 +60,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(local=True)
         )
 
@@ -69,7 +72,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 fields_terminated_by=','
@@ -84,7 +87,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 ignore_lines=1
@@ -99,7 +102,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 replace=True
@@ -114,7 +117,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 ignore=True
@@ -130,7 +133,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 replace=True,
@@ -146,7 +149,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 column_list=['name', 'email', 'age']
@@ -161,7 +164,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 lines_terminated_by='\n'
@@ -176,7 +179,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/test.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 character_set='utf8mb4'
@@ -191,7 +194,7 @@ class TestMariaDBLoadData:
         expr = MariaDBLoadDataExpression(
             dialect=mariadb_backend.dialect,
             file_path='/tmp/data.csv',
-            table='users',
+            table=Table(mariadb_backend.dialect, 'users'),
             options=LoadDataOptions(
                 local=True,
                 fields_terminated_by=',',
@@ -227,7 +230,7 @@ class TestMariaDBAsyncLoadData:
                 age INT
             ) ENGINE=InnoDB
         """)
-        yield "test_load_data_async"
+        yield Table(async_mariadb_backend.dialect, "test_load_data_async")
         await async_mariadb_backend.execute("DROP TABLE IF EXISTS test_load_data_async")
 
     async def test_load_data_expression_async(self, async_mariadb_backend, test_table):

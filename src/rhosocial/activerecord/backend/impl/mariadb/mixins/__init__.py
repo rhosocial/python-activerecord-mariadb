@@ -34,6 +34,7 @@ Mixin Organization:
 - view.py: View DDL support
 - generated_column.py: Generated column support
 - function.py: SQL function version checks
+- namespace.py: which namespace levels a MariaDB name may carry
 """
 
 from .introspection import MariaDBIntrospectionMixin
@@ -86,6 +87,7 @@ from .ddl_column import MariaDBDDLColumnMixin
 from .ddl_view import MariaDBViewMixin
 from .generated_column import MariaDBGeneratedColumnMixin
 from .function import MariaDBFunctionMixin
+from .namespace import MariaDBNamespaceMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -138,4 +140,5 @@ __all__ = [
     'MariaDBViewMixin',
     'MariaDBGeneratedColumnMixin',
     'MariaDBFunctionMixin',
+    'MariaDBNamespaceMixin',
 ]

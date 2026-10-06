@@ -54,13 +54,20 @@ class MariaDBDatabaseMixin:
     def format_create_database_statement(
         self, expr: CreateDatabaseExpression
     ) -> Tuple[str, tuple]:
+        from rhosocial.activerecord.backend.expression.objects import Database
+
+        if not isinstance(expr.database, Database):
+            raise TypeError(
+                f"CreateDatabaseExpression.database must be a Database, "
+                f"got {type(expr.database).__name__}"
+            )
         parts = ["CREATE"]
         if expr.or_replace:
             parts.append("OR REPLACE")
         parts.append("DATABASE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.database_name))
+        parts.append(expr.database.to_sql()[0])
         if expr.encoding:
             parts.append(f"CHARACTER SET {expr.encoding}")
         if expr.collation:
@@ -70,18 +77,32 @@ class MariaDBDatabaseMixin:
     def format_drop_database_statement(
         self, expr: DropDatabaseExpression
     ) -> Tuple[str, tuple]:
+        from rhosocial.activerecord.backend.expression.objects import Database
+
+        if not isinstance(expr.database, Database):
+            raise TypeError(
+                f"DropDatabaseExpression.database must be a Database, "
+                f"got {type(expr.database).__name__}"
+            )
         parts = ["DROP DATABASE"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        parts.append(self.format_identifier(expr.database_name))
+        parts.append(expr.database.to_sql()[0])
         return " ".join(parts), ()
 
     def format_alter_database_statement(
         self, expr: AlterDatabaseExpression
     ) -> Tuple[str, tuple]:
+        from rhosocial.activerecord.backend.expression.objects import Database
         from rhosocial.activerecord.backend.expression.statements.ddl_database import AlterDatabaseAction
+
+        if not isinstance(expr.database, Database):
+            raise TypeError(
+                f"AlterDatabaseExpression.database must be a Database, "
+                f"got {type(expr.database).__name__}"
+            )
         parts = ["ALTER DATABASE"]
-        parts.append(self.format_identifier(expr.database_name))
+        parts.append(expr.database.to_sql()[0])
         if expr.action == AlterDatabaseAction.RENAME_TO:
             parts.append(f"RENAME TO {self.format_identifier(expr.target)}")
         elif expr.action == AlterDatabaseAction.CHARACTER_SET:

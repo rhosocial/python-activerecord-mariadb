@@ -3,14 +3,18 @@
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect import (
-    DomainMixin,
-    DomainSupport,
-    UserDefinedTypeMixin,
-    UserDefinedTypeSupport,
+from rhosocial.activerecord.backend.dialect import DomainMixin, UserDefinedTypeMixin
+from rhosocial.activerecord.backend.dialect.protocols import (
+    AlterDomainSupport,
+    AlterTypeSupport,
+    CreateDomainSupport,
+    CreateTypeSupport,
+    DropDomainSupport,
+    DropTypeSupport,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Literal
+from rhosocial.activerecord.backend.expression.objects import Domain, Type
 from rhosocial.activerecord.backend.expression.statements import (
     AlterDomainExpression,
     AlterTypeExpression,
@@ -112,18 +116,32 @@ def test_type_and_domain_definition_support_is_empty(dialect):
 
 
 def test_type_and_domain_protocols_are_composed(dialect):
-    assert isinstance(dialect, UserDefinedTypeSupport)
-    assert isinstance(dialect, DomainSupport)
     assert isinstance(dialect, UserDefinedTypeMixin)
     assert isinstance(dialect, DomainMixin)
 
+    # Core splits these per statement rather than declaring one protocol for
+    # the whole family, so the contract is that each statement's protocol is
+    # satisfied and that the mixin supplying it comes first in the MRO.
+    for protocol in (
+        CreateTypeSupport,
+        AlterTypeSupport,
+        DropTypeSupport,
+        CreateDomainSupport,
+        AlterDomainSupport,
+        DropDomainSupport,
+    ):
+        assert isinstance(dialect, protocol), protocol.__name__
+
     for mixin, protocol in (
-        (UserDefinedTypeMixin, UserDefinedTypeSupport),
-        (DomainMixin, DomainSupport),
+        (UserDefinedTypeMixin, CreateTypeSupport),
+        (UserDefinedTypeMixin, AlterTypeSupport),
+        (UserDefinedTypeMixin, DropTypeSupport),
+        (DomainMixin, CreateDomainSupport),
+        (DomainMixin, AlterDomainSupport),
+        (DomainMixin, DropDomainSupport),
     ):
         assert mixin in MariaDBDialect.__mro__
-        assert protocol in MariaDBDialect.__mro__
-        assert MariaDBDialect.__mro__.index(mixin) < MariaDBDialect.__mro__.index(protocol)
+        assert isinstance(dialect, protocol), protocol.__name__
 
 
 def test_core_type_and_domain_formatters_own_the_mro():
@@ -149,24 +167,26 @@ def test_type_and_domain_formatters_and_expressions_fail_fast(dialect):
         inline_literals=True,
     )
     check = DomainCheckConstraint(dialect, condition)
+    status_type = Type(dialect, "status")
+    positive_domain = Domain(dialect, "positive")
     expressions = (
-        ("format_create_type_statement", CreateTypeExpression(dialect, "status", definition)),
+        ("format_create_type_statement", CreateTypeExpression(dialect, status_type, definition)),
         (
             "format_alter_type_statement",
-            AlterTypeExpression(dialect, "status", [alter_action]),
+            AlterTypeExpression(dialect, status_type, [alter_action]),
         ),
-        ("format_drop_type_statement", DropTypeExpression(dialect, "status")),
+        ("format_drop_type_statement", DropTypeExpression(dialect, status_type)),
         ("format_type_definition", definition),
         ("format_type_alter_action", alter_action),
         (
             "format_create_domain_statement",
-            CreateDomainExpression(dialect, "positive", IntegerType(dialect)),
+            CreateDomainExpression(dialect, positive_domain, IntegerType(dialect)),
         ),
         (
             "format_alter_domain_statement",
-            AlterDomainExpression(dialect, "positive", [domain_action]),
+            AlterDomainExpression(dialect, positive_domain, [domain_action]),
         ),
-        ("format_drop_domain_statement", DropDomainExpression(dialect, "positive")),
+        ("format_drop_domain_statement", DropDomainExpression(dialect, positive_domain)),
         ("format_domain_value_expression", DomainValueExpression(dialect)),
         ("format_domain_check_constraint", check),
         ("format_domain_alter_action", domain_action),
@@ -190,6 +210,8 @@ def test_enum_and_set_remain_column_data_types(dialect):
 
 
 def test_sequence_support_remains_independent(dialect):
+    # MariaDB's sequence formatters take named parameters rather than an
+    # expression; that divergence is recorded in the conformance exclusions.
     assert dialect.supports_sequence() is True
     assert dialect.format_create_sequence_statement("job_ids") == (
         "CREATE SEQUENCE `job_ids`",

@@ -35,6 +35,9 @@ from rhosocial.activerecord.backend.expression.statements import (
 from rhosocial.activerecord.backend.expression.types import IntegerType, TimestampType
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
 
 
 DQL_OPTIONS = ExecutionOptions(stmt_type=StatementType.DQL)
@@ -115,12 +118,12 @@ class TestMySQLNiladicDDLContext:
 
         # Clean up
         mariadb_backend.execute(*DropTableExpression(
-            dialect=dialect, table=table_name, if_exists=True
+            dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
         create = CreateTableExpression(
             dialect=dialect,
-            table=table_name,
+            table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
@@ -145,7 +148,7 @@ class TestMySQLNiladicDDLContext:
             assert 'ts' in col_names
         finally:
             mariadb_backend.execute(*DropTableExpression(
-                dialect=dialect, table=table_name, if_exists=True
+                dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())
 
     def test_ddl_default_current_timestamp_with_parens(self, mariadb_backend):
@@ -155,12 +158,12 @@ class TestMySQLNiladicDDLContext:
 
         # Clean up
         mariadb_backend.execute(*DropTableExpression(
-            dialect=dialect, table=table_name, if_exists=True
+            dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
         create = CreateTableExpression(
             dialect=dialect,
-            table=table_name,
+            table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
@@ -184,7 +187,7 @@ class TestMySQLNiladicDDLContext:
             assert 'ts' in col_names
         finally:
             mariadb_backend.execute(*DropTableExpression(
-                dialect=dialect, table=table_name, if_exists=True
+                dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())
 
     def test_ddl_default_current_timestamp_with_precision(self, mariadb_backend):
@@ -194,12 +197,12 @@ class TestMySQLNiladicDDLContext:
 
         # Clean up
         mariadb_backend.execute(*DropTableExpression(
-            dialect=dialect, table=table_name, if_exists=True
+            dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
         create = CreateTableExpression(
             dialect=dialect,
-            table=table_name,
+            table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
@@ -223,7 +226,7 @@ class TestMySQLNiladicDDLContext:
             assert 'ts' in col_names
         finally:
             mariadb_backend.execute(*DropTableExpression(
-                dialect=dialect, table=table_name, if_exists=True
+                dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())
 
 
@@ -255,12 +258,12 @@ class TestAsyncMySQLNiladicDDLContext:
 
         # Clean up
         await async_mariadb_backend.execute(*DropTableExpression(
-            dialect=dialect, table=table_name, if_exists=True
+            dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
         create = CreateTableExpression(
             dialect=dialect,
-            table=table_name,
+            table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
                     ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
@@ -282,5 +285,5 @@ class TestAsyncMySQLNiladicDDLContext:
             assert 'ts' in col_names
         finally:
             await async_mariadb_backend.execute(*DropTableExpression(
-                dialect=dialect, table=table_name, if_exists=True
+                dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())

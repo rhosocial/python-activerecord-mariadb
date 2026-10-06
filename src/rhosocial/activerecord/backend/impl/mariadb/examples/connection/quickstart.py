@@ -18,7 +18,6 @@ from rhosocial.activerecord.backend.expression import (
     DropTableExpression,
     InsertExpression,
     QueryExpression,
-    TableExpression,
     ValuesSource,
     WhereClause,
 )
@@ -37,6 +36,7 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import Table
 
 # Create connection configuration
 config = MariaDBConnectionConfig(
@@ -66,7 +66,7 @@ def execute_expression(expression, options=None):
 def create_demo_tables():
     users_table = CreateTableExpression(
         dialect=dialect,
-        table_name='quickstart_users',
+        table=Table(dialect, 'quickstart_users'),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -91,7 +91,7 @@ def create_demo_tables():
 
     logs_table = CreateTableExpression(
         dialect=dialect,
-        table_name='quickstart_logs',
+        table=Table(dialect, 'quickstart_logs'),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -117,7 +117,7 @@ def create_demo_tables():
 def seed_demo_data():
     insert_users = InsertExpression(
         dialect=dialect,
-        into='quickstart_users',
+        into=Table(dialect, 'quickstart_users'),
         columns=['name', 'status'],
         source=ValuesSource(
             dialect,
@@ -150,7 +150,7 @@ query = QueryExpression(
         Column(dialect, 'name'),
         Column(dialect, 'status'),
     ],
-    from_=TableExpression(dialect, 'quickstart_users'),
+    from_=Table(dialect, 'quickstart_users'),
     where=WhereClause(
         dialect,
         condition=ComparisonPredicate(
@@ -185,7 +185,7 @@ filtered_query = QueryExpression(
         Column(dialect, 'name'),
         Column(dialect, 'status'),
     ],
-    from_=TableExpression(dialect, 'quickstart_users'),
+    from_=Table(dialect, 'quickstart_users'),
     where=WhereClause(
         dialect,
         condition=ComparisonPredicate(
@@ -210,7 +210,7 @@ print(f"Parameterized query result: {result.data}")
 with backend.transaction():
     insert_log = InsertExpression(
         dialect=dialect,
-        into='quickstart_logs',
+        into=Table(dialect, 'quickstart_logs'),
         columns=['message'],
         source=ValuesSource(dialect, [[Literal(dialect, 'quickstart transaction')]]),
     )
@@ -219,7 +219,7 @@ with backend.transaction():
 logs_query = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, 'id'), Column(dialect, 'message')],
-    from_=TableExpression(dialect, 'quickstart_logs'),
+    from_=Table(dialect, 'quickstart_logs'),
 )
 result = execute_expression(logs_query, dql_options)
 print(f"Transaction result: {result.data}")
@@ -231,7 +231,7 @@ try:
     invalid_query = QueryExpression(
         dialect=dialect,
         select=[Column(dialect, 'id')],
-        from_=TableExpression(dialect, 'nonexistent_table'),
+        from_=Table(dialect, 'nonexistent_table'),
     )
     execute_expression(invalid_query, dql_options)
 except Exception as error:
@@ -240,10 +240,10 @@ except Exception as error:
 # ============================================================
 # SECTION: Disconnect
 # ============================================================
-drop_logs = DropTableExpression(dialect=dialect, table_name='quickstart_logs', if_exists=True)
+drop_logs = DropTableExpression(dialect=dialect, table=Table(dialect, 'quickstart_logs'), if_exists=True)
 execute_expression(drop_logs, ddl_options)
 
-drop_users = DropTableExpression(dialect=dialect, table_name='quickstart_users', if_exists=True)
+drop_users = DropTableExpression(dialect=dialect, table=Table(dialect, 'quickstart_users'), if_exists=True)
 execute_expression(drop_users, ddl_options)
 
 backend.disconnect()

@@ -8,6 +8,15 @@ class MariaDBViewMixin:
     def supports_or_replace_view(self) -> bool:
         return True
 
+    def supports_create_or_replace_view(self) -> bool:
+        """MariaDB spells the form ``CREATE OR REPLACE VIEW``.
+
+        Core keeps this apart from :meth:`supports_or_replace_view` and gates
+        ``CreateViewExpression.replace`` on it, so answering only the former
+        leaves the flag refused as unsupported.
+        """
+        return True
+
     def supports_temporary_view(self) -> bool:
         return True
 

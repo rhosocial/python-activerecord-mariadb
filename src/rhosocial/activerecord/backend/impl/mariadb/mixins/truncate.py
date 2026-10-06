@@ -46,7 +46,20 @@ class MariaDBTruncateMixin:
         return self.version >= MARIADB_VERSION_BOUNDARIES['TRUNCATE_WAIT']
 
     def format_truncate_statement(self, expr: "TruncateExpression") -> Tuple[str, tuple]:
-        """Format MariaDB ``TRUNCATE [TABLE] tbl_name [WAIT n | NOWAIT]``."""
+        """Format MariaDB ``TRUNCATE [TABLE] tbl_name [WAIT n | NOWAIT]``.
+
+        Raises:
+            TypeError: ``expr.table`` is not a Table.
+            UnsupportedFeatureError: If the dialect does not support
+                ``TRUNCATE ... RESTART IDENTITY`` or ``... CASCADE``.
+        """
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"TruncateExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
         if expr.restart_identity:
             raise UnsupportedFeatureError(
                 self.name,
@@ -60,7 +73,11 @@ class MariaDBTruncateMixin:
                 suggestion="MariaDB does not support CASCADE on TRUNCATE.",
             )
 
-        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table_name)}"
+        # TRUNCATE can address a table in another database, and that database is
+        # a catalog slot on the object the statement holds rather than a
+        # hand-built `db`.`tbl` string.
+        table_sql, _ = expr.table.to_sql()
+        sql = f"TRUNCATE TABLE {table_sql}"
 
         wait = None
         if getattr(expr, "nowait", False):

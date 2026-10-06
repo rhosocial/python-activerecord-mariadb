@@ -12,6 +12,25 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 class MariaDBSequenceMixin:
     """MariaDB SEQUENCE support mixin.
 
+    **These three statement formatters do not take the expression.** Core's
+    ``CreateSequenceExpression.to_sql()`` and its two siblings dispatch on
+    ``format_create_sequence_statement`` / ``_drop_`` / ``_alter_`` with
+    *themselves* as the single argument, because the sequence they name is a
+    :class:`~...expression.objects.Sequence` whose own ``format_method``
+    applies the namespace. The formatters below instead take a bare name string
+    plus loose option parameters, which is the older core signature.
+
+    So a sequence expression handed to MariaDB cannot render: the dispatch puts
+    the expression where a ``str`` is expected. The three methods say so
+    explicitly with a ``TypeError`` naming what they wanted, rather than failing
+    further in with ``AttributeError`` on ``.replace``. The same divergence is
+    recorded in ``_SIGNATURE_MISMATCH_EXCLUSIONS`` in the protocol conformance
+    test, and
+    ``test_sequence_support_remains_independent`` in the type/DDL tests asserts
+    the string form directly. Bringing these onto the object API is a behaviour
+    change and is deliberately not done in this pass; this mixin's docstring is
+    where a reader should learn it.
+
     MariaDB 10.3+ supports SEQUENCE storage engine for generating
     sequential numbers.
 
@@ -162,7 +181,17 @@ class MariaDBSequenceMixin:
 
         Returns:
             Tuple of (SQL string, parameters tuple).
+
+        Raises:
+            TypeError: ``sequence_name`` is not a string. This formatter takes a
+                bare name, while the expression API dispatches with a
+                :class:`CreateSequenceExpression`; see the class docstring.
         """
+        if not isinstance(sequence_name, str):
+            raise TypeError(
+                f"format_create_sequence_statement takes a sequence name, "
+                f"got {type(sequence_name).__name__}"
+            )
         if not self.supports_create_sequence():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
             raise UnsupportedFeatureError(
@@ -208,7 +237,17 @@ class MariaDBSequenceMixin:
 
         Returns:
             Tuple of (SQL string, parameters tuple).
+
+        Raises:
+            TypeError: ``sequence_name`` is not a string. This formatter takes a
+                bare name, while the expression API dispatches with a
+                :class:`DropSequenceExpression`; see the class docstring.
         """
+        if not isinstance(sequence_name, str):
+            raise TypeError(
+                f"format_drop_sequence_statement takes a sequence name, "
+                f"got {type(sequence_name).__name__}"
+            )
         if not self.supports_drop_sequence():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
             raise UnsupportedFeatureError(
@@ -247,7 +286,17 @@ class MariaDBSequenceMixin:
 
         Returns:
             Tuple of (SQL string, parameters tuple).
+
+        Raises:
+            TypeError: ``sequence_name`` is not a string. This formatter takes a
+                bare name, while the expression API dispatches with an
+                :class:`AlterSequenceExpression`; see the class docstring.
         """
+        if not isinstance(sequence_name, str):
+            raise TypeError(
+                f"format_alter_sequence_statement takes a sequence name, "
+                f"got {type(sequence_name).__name__}"
+            )
         if not self.supports_alter_sequence():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
             raise UnsupportedFeatureError(

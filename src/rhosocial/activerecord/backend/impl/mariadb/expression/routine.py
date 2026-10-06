@@ -14,6 +14,11 @@ MariaDB supports:
 from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import (
+    Function,
+    Procedure,
+    RoutineObject,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -23,7 +28,13 @@ class MariaDBRoutineExpression(BaseExpression):
     """Base class for MariaDB stored routine DDL statements.
 
     Attributes:
-        name: Routine name (may be schema-qualified).
+        routine: The routine this statement names, as a
+            :class:`~...expression.objects.Procedure` or
+            :class:`~...expression.objects.Function`. MariaDB has no
+            inner schema, so a qualified routine name is
+            ``catalog`.`name`` and the catalog slot is the database;
+            which of the two kinds is expected is the subclass's
+            :attr:`routine_kind`.
         params: Parameter definitions list (strings or ``(mode, name, type)``
             tuples).
         body: Routine body SQL text (for CREATE statements).
@@ -32,10 +43,15 @@ class MariaDBRoutineExpression(BaseExpression):
             (MariaDB 10.1.3+).
     """
 
+    #: The object class this statement names. Subclasses that name a function
+    #: narrow it, so CREATE FUNCTION holds a :class:`Function` rather than a
+    #: :class:`Procedure`.
+    routine_kind: type = Procedure
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: RoutineObject,
         *,
         params: Optional[List[Any]] = None,
         body: Optional[str] = None,
@@ -43,7 +59,7 @@ class MariaDBRoutineExpression(BaseExpression):
         if_not_exists: bool = False,
     ):
         super().__init__(dialect)
-        self.name: Any = name
+        self.routine: RoutineObject = routine
         self.params: List[Any] = list(params or [])
         self.body: Optional[str] = body
         self.or_replace: bool = or_replace
@@ -52,22 +68,11 @@ class MariaDBRoutineExpression(BaseExpression):
     def validate(self, strict: bool = True) -> None:
         if not strict:
             return
-        if isinstance(self.name, tuple):
-            if len(self.name) != 2 or not all(isinstance(part, str) for part in self.name):
-                raise ValueError(f"Invalid schema-qualified routine name: {self.name!r}")
-        elif not isinstance(self.name, str):
+        if not isinstance(self.routine, self.routine_kind):
             raise TypeError(
-                f"name must be str or (schema, name) tuple, got {type(self.name)}"
+                f"routine must be a {self.routine_kind.__name__}, "
+                f"got {type(self.routine).__name__}"
             )
-
-    def _format_name(self) -> str:
-        if isinstance(self.name, tuple):
-            schema, name = self.name
-            return (
-                f"{self.dialect.format_identifier(schema)}."
-                f"{self.dialect.format_identifier(name)}"
-            )
-        return self.dialect.format_identifier(self.name)
 
 
 class MariaDBCreateProcedureExpression(MariaDBRoutineExpression):
@@ -83,11 +88,11 @@ class MariaDBDropProcedureExpression(MariaDBRoutineExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: Procedure,
         *,
         if_exists: bool = False,
     ):
-        super().__init__(dialect, name)
+        super().__init__(dialect, routine)
         self.if_exists: bool = if_exists
 
     def to_sql(self) -> Tuple[str, tuple]:
@@ -97,10 +102,12 @@ class MariaDBDropProcedureExpression(MariaDBRoutineExpression):
 class MariaDBCreateFunctionExpression(MariaDBRoutineExpression):
     """Represent ``CREATE [OR REPLACE] [AGGREGATE] FUNCTION`` (stored function)."""
 
+    routine_kind = Function
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: Function,
         *,
         returns: str,
         params: Optional[List[Any]] = None,
@@ -112,7 +119,7 @@ class MariaDBCreateFunctionExpression(MariaDBRoutineExpression):
     ):
         super().__init__(
             dialect,
-            name,
+            routine,
             params=params,
             body=body,
             or_replace=or_replace,
@@ -129,14 +136,16 @@ class MariaDBCreateFunctionExpression(MariaDBRoutineExpression):
 class MariaDBDropFunctionExpression(MariaDBRoutineExpression):
     """Represent ``DROP FUNCTION [IF EXISTS]`` (stored / aggregate function)."""
 
+    routine_kind = Function
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: Function,
         *,
         if_exists: bool = False,
     ):
-        super().__init__(dialect, name)
+        super().__init__(dialect, routine)
         self.if_exists: bool = if_exists
 
     def to_sql(self) -> Tuple[str, tuple]:
@@ -147,29 +156,29 @@ class MariaDBCallExpression(BaseExpression):
     """Represent ``CALL procedure_name([args])``.
 
     Attributes:
-        name: Stored procedure name (may be schema-qualified).
+        procedure: The procedure being called, as a
+            :class:`~...expression.objects.Procedure`. The database a
+            procedure lives in is a named slot on the object, so
+            ``app`.`get_user`` needs no second spelling here.
         args: Positional argument list.
     """
 
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        procedure: Procedure,
         args: Optional[List[Any]] = None,
     ):
         super().__init__(dialect)
-        self.name: Any = name
+        self.procedure: Procedure = procedure
         self.args: List[Any] = list(args or [])
 
     def validate(self, strict: bool = True) -> None:
         if not strict:
             return
-        if isinstance(self.name, tuple):
-            if len(self.name) != 2 or not all(isinstance(part, str) for part in self.name):
-                raise ValueError(f"Invalid schema-qualified procedure name: {self.name!r}")
-        elif not isinstance(self.name, str):
+        if not isinstance(self.procedure, Procedure):
             raise TypeError(
-                f"name must be str or (schema, name) tuple, got {type(self.name)}"
+                f"procedure must be a Procedure, got {type(self.procedure).__name__}"
             )
 
     def to_sql(self) -> Tuple[str, tuple]:

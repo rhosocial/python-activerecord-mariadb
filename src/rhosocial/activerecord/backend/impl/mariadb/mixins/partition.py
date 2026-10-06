@@ -439,10 +439,17 @@ class MariaDBPartitionMixin:
             LogicalPredicate,
             OrderByClause,
             QueryExpression,
-            TableExpression,
         )
+        from rhosocial.activerecord.backend.expression.objects import Table
 
-        partitions = TableExpression(expr.dialect, "PARTITIONS", schema_name="information_schema")
+        # `information_schema` is a database, so it belongs in the catalog
+        # slot: that is the one namespace MariaDB has, and saying so is what
+        # makes ``information_schema`.`PARTITIONS`` render from the shared
+        # object path rather than from a hardcoded prefix. `from_` takes the
+        # object itself, so no row-source adapter is needed.
+        partitions = Table(
+            expr.dialect, "PARTITIONS", catalog_name="information_schema"
+        )
         query = QueryExpression(
             expr.dialect,
             select=[

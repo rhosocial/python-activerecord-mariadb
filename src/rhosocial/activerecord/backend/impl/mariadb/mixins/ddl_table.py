@@ -42,6 +42,10 @@ class MariaDBTableMixin:
         ``CREATE [TEMPORARY] TABLE [IF NOT EXISTS] <t> LIKE <src>`` provided by
         the core ``TableMixin``; this override only forwards to it so that the
         MariaDB-specific mixin satisfies the protocol it advertises.
+
+        No object-kind check here, and that is deliberate rather than an
+        oversight: the check belongs to the renderer that reads the slots, and
+        this one is core's. Delegating keeps it.
         """
         return super().format_create_table_like_statement(expr)
 
@@ -89,9 +93,21 @@ class MariaDBTableMixin:
         - Storage options (ENGINE, CHARSET, COLLATE)
         - Table-level comments
         - AUTO_INCREMENT in column definitions
+
+        Raises:
+            TypeError: ``expr.table`` is not a Table. A view would render as a
+                well-formed CREATE TABLE over that view's name.
+            UnsupportedFeatureError: If the dialect does not support a
+                MariaDB-refused option.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.objects import Table
 
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"CreateTableExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
         if expr.tablespace:
             raise UnsupportedFeatureError(
                 self.name, "TABLESPACE",
@@ -119,7 +135,13 @@ class MariaDBTableMixin:
         parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
+        # ``expr.table`` is the row-source reference the core statement
+        # already built; it renders through the dialect's qualified-name
+        # path, so a schema-qualified CREATE TABLE keeps its database
+        # instead of being flattened to a bare name here.
+        table_sql, table_params = expr.table.to_sql()
+        parts.append(table_sql)
+        all_params.extend(table_params)
 
         column_parts = []
         for col_def in expr.columns:
@@ -294,7 +316,7 @@ class MariaDBTableMixin:
                 ref_cols_str = ', '.join(
                     self.format_identifier(c) for c in t_const.foreign_key_columns
                 )
-                ref_table = self.format_identifier(t_const.foreign_key_table)
+                ref_table = t_const.foreign_key_table.to_sql()[0]
                 parts.append(
                     f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
                 )

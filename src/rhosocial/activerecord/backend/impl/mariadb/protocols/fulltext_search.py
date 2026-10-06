@@ -8,7 +8,7 @@ from typing import Any, List, Optional, Protocol, Tuple, runtime_checkable
 class MariaDBFullTextSearchSupport(Protocol):
     """MariaDB full-text search protocol.
 
-    Note: Most interfaces are defined in generic IndexSupport protocol.
+    Note: Most interfaces are defined in generic IndexObjectSupport protocol.
     This protocol only defines MariaDB-specific interfaces.
 
     Feature Source: MariaDB 10.0+ (with MyISAM/Aria/InnoDB)

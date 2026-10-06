@@ -26,6 +26,8 @@ from rhosocial.activerecord.backend.expression.types import (
 )
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import Table
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -40,13 +42,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table_name='logs', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'logs'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='logs',
+    table=Table(dialect, 'logs'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -83,15 +85,13 @@ backend.execute(sql, params)
 from rhosocial.activerecord.backend.expression import (
     InsertExpression,
     ValuesSource,
-    TableExpression,
     QueryExpression,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, WildcardExpression, Column
 from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
-
 insert_expr = InsertExpression(
     dialect=dialect,
-    into=TableExpression(dialect, 'logs'),
+    into=Table(dialect, 'logs'),
     source=ValuesSource(
         dialect,
         [
@@ -117,7 +117,7 @@ print(f"Affected rows: {result.affected_rows}")
 verify_query = QueryExpression(
     dialect=dialect,
     select=[WildcardExpression(dialect)],
-    from_=TableExpression(dialect, 'logs'),
+    from_=Table(dialect, 'logs'),
     order_by=OrderByClause(dialect, [Column(dialect, 'id')]),
 )
 options = ExecutionOptions(stmt_type=StatementType.DQL)

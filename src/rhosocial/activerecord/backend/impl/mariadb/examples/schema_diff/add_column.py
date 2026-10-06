@@ -14,6 +14,10 @@ Supported versions: MariaDB 10.2+
 import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv("MARIADB_HOST", "localhost"),
@@ -37,13 +41,13 @@ from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
 
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 # Baseline table: id, name, email
 expr = CreateTableExpression(
-    dialect=dialect, table="users", columns=[
+    dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
@@ -68,13 +72,12 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
     AlterTableExpression, AddColumn,
 )
-
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column — appended after the existing columns
 add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
-alter_expr = AlterTableExpression(dialect, "users", [add_col])
+alter_expr = AlterTableExpression(dialect, Table(dialect, "users"), [add_col])
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)
 
@@ -99,7 +102,7 @@ if "users" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

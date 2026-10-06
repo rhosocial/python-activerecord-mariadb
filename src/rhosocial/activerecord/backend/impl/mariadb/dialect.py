@@ -21,12 +21,22 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
+    # Named-object protocols: how each kind of catalogue entry is spelled.
+    # MariaDB's spelling is core's default -- `catalog`.`name` -- so none of
+    # these needs a method of its own here.
+    TableObjectSupport,
+    ViewObjectSupport,
+    IndexObjectSupport,
+    SequenceObjectSupport,
+    TriggerObjectSupport,
+    RoutineObjectSupport,
+    TypeObjectSupport,
+    NamespaceSupport,
     CollationSupport,
     CTESupport,
     WindowFunctionSupport,
     ReturningSupport,
     SetOperationSupport,
-    SequenceSupport,
     UpsertSupport,
     ExplainSupport,
     JoinSupport,
@@ -43,19 +53,13 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     GraphSupport,
     # DDL Protocols (non-overlapping with MariaDB-specific)
     TruncateSupport,
-    SchemaSupport,
-    IndexSupport,
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
     GeneratedColumnSupport,
-    ViewSupport,
-    FunctionSupport,
     # Additional Protocols
     SQLFunctionSupport,
     DataTypeSupport,
-    UserDefinedTypeSupport,
-    DomainSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
     CollationMixin,
@@ -76,6 +80,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     TemporalTableMixin,
 
     GraphMixin,
+    RelationSourceMixin,
     # DDL Mixins
     TableMixin,
     TruncateMixin,
@@ -97,6 +102,26 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
+    # Naming. Each of these is core's default renderer for one kind of
+    # object, placed ahead of NamespaceMixin so that C3 keeps the per-kind
+    # formatter in front of the shared namespace prefix. MariaDB's spelling
+    # differs from none of them, so none of them is overridden here.
+    TableNameMixin,
+    ViewNameMixin,
+    MaterializedViewNameMixin,
+    ForeignTableNameMixin,
+    IndexNameMixin,
+    SequenceNameMixin,
+    TriggerNameMixin,
+    FunctionNameMixin,
+    ProcedureNameMixin,
+    TypeNameMixin,
+    DomainNameMixin,
+    SynonymNameMixin,
+    SchemaNameMixin,
+    DatabaseNameMixin,
+    PropertyGraphNameMixin,
+    NamespaceMixin,
 )
 
 # Import MariaDB-specific mixins
@@ -144,6 +169,7 @@ from .mixins import (
     MariaDBViewMixin,
     MariaDBGeneratedColumnMixin,
     MariaDBFunctionMixin,
+    MariaDBNamespaceMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -187,6 +213,37 @@ _SUGGESTION_TEMPORAL = "MariaDB system-versioned tables require specific table c
 
 class MariaDBDialect(
     SQLDialectBase,
+    # Namespaces: MariaDB qualifies by database (the catalog) and has no
+    # inner schema, so `MariaDBNamespaceMixin` is the one declaration of which
+    # levels a name may carry, and the `*NameMixin` group above it renders
+    # each kind through core's default spelling. The inner schema is
+    # deliberately absent from the *naming* side:
+    # `supports_schema_qualification` stays False because no name here is ever
+    # qualified by a schema. `supports_schema` is a different question, owned
+    # by core's `SchemaMixin`: MariaDB's `CREATE SCHEMA` is a synonym for
+    # `CREATE DATABASE` rather than a second namespace layer, so the DDL
+    # switch answers False too.
+    TableNameMixin,
+    ViewNameMixin,
+    MaterializedViewNameMixin,
+    ForeignTableNameMixin,
+    IndexNameMixin,
+    SequenceNameMixin,
+    TriggerNameMixin,
+    FunctionNameMixin,
+    ProcedureNameMixin,
+    TypeNameMixin,
+    DomainNameMixin,
+    SynonymNameMixin,
+    SchemaNameMixin,
+    DatabaseNameMixin,
+    PropertyGraphNameMixin,
+    # Ahead of NamespaceMixin, which supplies a default `supports_catalog()`
+    # of False: plain mixins are resolved by position rather than by
+    # inheritance, so the one that answers for MariaDB has to come first.
+    MariaDBNamespaceMixin,
+    NamespaceMixin,
+    RelationSourceMixin,
     MariaDBIntrospectionMixin,
     MariaDBShowDialectMixin,
     MariaDBSequenceMixin,
@@ -273,7 +330,6 @@ class MariaDBDialect(
     WindowFunctionSupport,
     ReturningSupport,
     SetOperationSupport,
-    SequenceSupport,
     UpsertSupport,
     ExplainSupport,
     JoinSupport,
@@ -289,18 +345,12 @@ class MariaDBDialect(
     OrderedSetAggregationSupport,
     GraphSupport,
     TruncateSupport,
-    SchemaSupport,
-    IndexSupport,
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
     GeneratedColumnSupport,
-    ViewSupport,
-    FunctionSupport,
     SQLFunctionSupport,
     DataTypeSupport,
-    UserDefinedTypeSupport,
-    DomainSupport,
     MariaDBDMLOperationSupport,
     MariaDBTriggerSupport,
     MariaDBTableSupport,
@@ -322,6 +372,21 @@ class MariaDBDialect(
     MariaDBMaintenanceSupport,
     MariaDBRoutineSupport,
     MariaDBAdminSupport,
+    # Named-object protocols come after the MariaDB-specific ones, and
+    # `NamespaceSupport` trails them, on purpose. `MariaDBTableSupport` and
+    # `MariaDBTriggerSupport` derive from `TableObjectSupport` and
+    # `TriggerObjectSupport`, and every object protocol derives from
+    # `NamespaceSupport`: C3 requires a subclass to precede its base, so
+    # listing a base ahead of one of its subclasses is an MRO error rather
+    # than a precedence question.
+    TableObjectSupport,
+    ViewObjectSupport,
+    IndexObjectSupport,
+    SequenceObjectSupport,
+    TriggerObjectSupport,
+    RoutineObjectSupport,
+    TypeObjectSupport,
+    NamespaceSupport,
 ):
     """MariaDB dialect implementation that adapts to the MariaDB version.
 
@@ -607,7 +672,7 @@ class MariaDBDialect(
                 ref_cols_str = ', '.join(
                     self.format_identifier(c) for c in t_const.foreign_key_columns
                 )
-                ref_table = self.format_identifier(t_const.foreign_key_table)
+                ref_table = t_const.foreign_key_table.to_sql()[0]
                 parts.append(
                     f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
                 )

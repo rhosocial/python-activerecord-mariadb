@@ -148,13 +148,13 @@ class TestUpdateReturning:
         from rhosocial.activerecord.backend.expression import (
             Column,
             Literal,
-            TableExpression,
             UpdateExpression,
         )
+        from rhosocial.activerecord.backend.expression.objects import Table
         from rhosocial.activerecord.backend.expression.statements import ReturningClause
 
         dialect = _dialect(LTS_123)
-        table = TableExpression(dialect, "t")
+        table = Table(dialect, "t")
         expr = UpdateExpression(
             dialect,
             table=table,
@@ -168,13 +168,13 @@ class TestUpdateReturning:
         from rhosocial.activerecord.backend.expression import (
             Column,
             Literal,
-            TableExpression,
             UpdateExpression,
         )
+        from rhosocial.activerecord.backend.expression.objects import Table
         from rhosocial.activerecord.backend.expression.statements import ReturningClause
 
         dialect = _dialect(GA_130)
-        table = TableExpression(dialect, "t")
+        table = Table(dialect, "t")
         expr = UpdateExpression(
             dialect,
             table=table,

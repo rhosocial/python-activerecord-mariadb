@@ -25,6 +25,17 @@ class MariaDBSequenceSupport(Protocol):
 
     Version Requirements:
     - MariaDB 10.3+
+
+    .. note::
+
+       The three statement formatters declared here take a sequence *name*,
+       not the expression. Every other statement protocol in core takes the
+       expression whose ``format_method`` names this hook, which is what lets a
+       ``Sequence`` object apply its own namespace. The divergence is recorded
+       in ``test_mariadb_protocol_conformance.py`` under
+       ``_SIGNATURE_MISMATCH_EXCLUSIONS``, described in full in
+       ``mixins/sequence.py``, and pinned in the round-trip matrix. Its effect
+       is that a core ``CreateSequenceExpression`` cannot reach this backend.
     """
 
     def supports_sequence(self) -> bool:

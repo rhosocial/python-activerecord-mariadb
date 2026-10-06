@@ -119,9 +119,19 @@ class MariaDBDMLOperationMixin:
             Tuple of (SQL string, parameters tuple).
 
         Raises:
+            TypeError: ``expr.into`` is not a Table. It carries its own
+                format_method, so an Index would render as a well-formed
+                INSERT over that index's name.
             ValueError: If both 'ignore' and 'replace' are specified,
                        or if 'replace' is used with 'on_conflict'.
         """
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        if not isinstance(expr.into, Table):
+            raise TypeError(
+                f"InsertExpression.into must be a Table, "
+                f"got {type(expr.into).__name__}"
+            )
         if self.strict_validation:
             expr.validate(strict=True)
 
@@ -233,7 +243,19 @@ class MariaDBDMLOperationMixin:
 
         Returns:
             Tuple of (SQL string, parameters tuple).
+
+        Raises:
+            TypeError: ``expr.table`` is not a Table. LOAD DATA writes rows
+                into a relation, so an Index here would render as a well-formed
+                statement over that index's name.
         """
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"MariaDBLoadDataExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
         expr.validate(strict=self.strict_validation)
 
         parts = ["LOAD DATA"]
@@ -252,7 +274,12 @@ class MariaDBDMLOperationMixin:
             parts.append("IGNORE")
 
         parts.append("INTO TABLE")
-        parts.append(self.format_identifier(expr.table))
+        # LOAD DATA writes into a relation, and MariaDB can load into a table in
+        # another database. The target is therefore a schema object whose
+        # catalog slot says which one; as a bare identifier it could not.
+        table_sql, table_params = expr.table.to_sql()
+        parts.append(table_sql)
+        all_params = list(table_params)
 
         if expr.options.character_set:
             parts.append(f"CHARACTER SET {expr.options.character_set}")
@@ -288,7 +315,7 @@ class MariaDBDMLOperationMixin:
                 set_parts.append(f"{self.format_identifier(col)} = {val}")
             parts.append("SET " + ", ".join(set_parts))
 
-        return ' '.join(parts), ()
+        return ' '.join(parts), tuple(all_params)
 
     def format_replace_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
         """Format REPLACE INTO statement.
@@ -304,7 +331,17 @@ class MariaDBDMLOperationMixin:
 
         Returns:
             Tuple of (SQL string, parameters tuple).
+
+        Raises:
+            TypeError: ``expr.into`` is not a Table.
         """
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        if not isinstance(expr.into, Table):
+            raise TypeError(
+                f"InsertExpression.into must be a Table, "
+                f"got {type(expr.into).__name__}"
+            )
         all_params: List[Any] = []
         table_sql, table_params = expr.into.to_sql()
         all_params.extend(table_params)

@@ -57,6 +57,20 @@ class ShowMixin:
         """Get the SQL dialect from the backend."""
         return self._backend.dialect
 
+    def _show_relation(self, expression_cls, relation, schema):
+        """Build one of the relation-named SHOW expressions.
+
+        A table and a view are both relations and are named the same way,
+        so the four relation-targeted SHOW commands share this rather than
+        each repeating the ``schema``-then-``table_name`` sequence. The
+        database is folded into the object; nothing concatenates a
+        qualified name by hand.
+        """
+        expr = expression_cls(self.dialect, relation)
+        if schema:
+            expr.schema(schema)
+        return expr
+
     # ------------------------------------------------------------------ #
     # Pure parse helpers (shared by sync and async, no I/O)
     # ------------------------------------------------------------------ #
@@ -68,7 +82,7 @@ class ShowMixin:
             return None
         row = rows[0]
         return ShowCreateTableResult(
-            table_name=row.get("Table", row.get("TABLE", table_name)),
+            relation_name=row.get("Table", row.get("TABLE", table_name)),
             create_statement=row.get("Create Table", row.get("CREATE TABLE", "")),
         )
 
@@ -79,7 +93,7 @@ class ShowMixin:
             return None
         row = rows[0]
         return ShowCreateViewResult(
-            view_name=row.get("View", row.get("VIEW", view_name)),
+            relation_name=row.get("View", row.get("VIEW", view_name)),
             create_statement=row.get("Create View", row.get("CREATE VIEW", "")),
             character_set_client=row.get("character_set_client"),
             collation_connection=row.get("collation_connection"),
@@ -336,17 +350,13 @@ class SyncShowIntrospector(ShowMixin):
 
     def create_table(self, table_name: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = ShowCreateTableExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowCreateTableExpression, table_name, schema)
         sql, params = expr.to_sql()
         return self._parse_create_table(self._exec(sql, params), table_name)
 
     def create_view(self, view_name: str, schema: Optional[str] = None):
         """Get CREATE VIEW statement for a view."""
-        expr = ShowCreateViewExpression(self.dialect, view_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowCreateViewExpression, view_name, schema)
         sql, params = expr.to_sql()
         return self._parse_create_view(self._exec(sql, params), view_name)
 
@@ -358,9 +368,7 @@ class SyncShowIntrospector(ShowMixin):
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = ShowColumnsExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowColumnsExpression, table_name, schema)
         if full:
             expr.full()
         if like:
@@ -370,9 +378,7 @@ class SyncShowIntrospector(ShowMixin):
 
     def indexes(self, table_name: str, schema: Optional[str] = None):
         """Get index information for a table."""
-        expr = ShowIndexExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowIndexExpression, table_name, schema)
         sql, params = expr.to_sql()
         return self._parse_indexes(self._exec(sql, params))
 
@@ -537,17 +543,13 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def create_table(self, table_name: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = ShowCreateTableExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowCreateTableExpression, table_name, schema)
         sql, params = expr.to_sql()
         return self._parse_create_table(await self._exec(sql, params), table_name)
 
     async def create_view(self, view_name: str, schema: Optional[str] = None):
         """Get CREATE VIEW statement for a view."""
-        expr = ShowCreateViewExpression(self.dialect, view_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowCreateViewExpression, view_name, schema)
         sql, params = expr.to_sql()
         return self._parse_create_view(await self._exec(sql, params), view_name)
 
@@ -559,9 +561,7 @@ class AsyncShowIntrospector(ShowMixin):
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = ShowColumnsExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowColumnsExpression, table_name, schema)
         if full:
             expr.full()
         if like:
@@ -571,9 +571,7 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def indexes(self, table_name: str, schema: Optional[str] = None):
         """Get index information for a table."""
-        expr = ShowIndexExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowIndexExpression, table_name, schema)
         sql, params = expr.to_sql()
         return self._parse_indexes(await self._exec(sql, params))
 

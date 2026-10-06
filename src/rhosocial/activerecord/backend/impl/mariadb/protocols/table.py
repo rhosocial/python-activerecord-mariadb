@@ -3,7 +3,7 @@
 
 from typing import Any, Protocol, Tuple, TYPE_CHECKING, runtime_checkable
 
-from rhosocial.activerecord.backend.dialect.protocols import TableSupport
+from rhosocial.activerecord.backend.dialect.protocols import TableObjectSupport
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 @runtime_checkable
-class MariaDBTableSupport(TableSupport, Protocol):
+class MariaDBTableSupport(TableObjectSupport, Protocol):
     """MariaDB table DDL protocol.
 
     Feature Source: Native support (no extension required)
@@ -67,11 +67,19 @@ class MariaDBTableSupport(TableSupport, Protocol):
     def format_create_table_statement(self, expr) -> Tuple[str, tuple]:
         """Format CREATE TABLE statement.
 
-        Note: The generic TableSupport protocol defines this interface.
+        Note: core's ``CreateTableSupport`` declares this interface too.
         MariaDB-specific table options (``engine`` / ``charset`` /
         ``collate``) are typed fields on ``MariaDBCreateTableOptions``,
         not a ``dialect_options`` bag.
         """
+        ...
+
+    def supports_inline_index(self) -> bool:
+        """Whether an index may be declared inside CREATE TABLE (MariaDB: yes)."""
+        ...
+
+    def supports_table_comment(self) -> bool:
+        """Whether a table-level COMMENT may be given (MariaDB: yes)."""
         ...
 
     def format_create_table_like_statement(

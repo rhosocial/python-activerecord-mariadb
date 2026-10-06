@@ -174,6 +174,26 @@ class MariaDBTriggerMixin:
             Tuple of (SQL string, parameters tuple).
         """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.objects import Function, Table, Trigger
+
+        # Three objects, each with its own format_method, so each needs its kind
+        # checked here: a Function where the table belongs renders as valid SQL
+        # over the function's name.
+        for attribute, kind in (
+            ("trigger", Trigger),
+            ("table", Table),
+        ):
+            value = getattr(expr, attribute)
+            if not isinstance(value, kind):
+                raise TypeError(
+                    f"CreateTriggerExpression.{attribute} must be a "
+                    f"{kind.__name__}, got {type(value).__name__}"
+                )
+        if expr.function is not None and not isinstance(expr.function, Function):
+            raise TypeError(
+                f"CreateTriggerExpression.function must be a Function, "
+                f"got {type(expr.function).__name__}"
+            )
 
         timing = expr.timing.value if hasattr(expr.timing, 'value') else str(expr.timing)
 
@@ -222,27 +242,35 @@ class MariaDBTriggerMixin:
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
 
-        parts.append(self.format_identifier(expr.trigger_name))
+        # The trigger's own name, the table it fires on, and -- when this
+        # trigger is ordered against another -- a sibling trigger. Each is a
+        # schema object and each renders itself, so a trigger created in
+        # another database can say ``app`.`trg` without a second spelling of that.
+        trigger_sql, _ = expr.trigger.to_sql()
+        parts.append(trigger_sql)
         parts.append(timing)
 
         if expr.events:
             parts.append(expr.events[0].value if hasattr(expr.events[0], 'value') else str(expr.events[0]))
 
         parts.append("ON")
-        parts.append(self.format_identifier(expr.table_name))
+        table_sql, _ = expr.table.to_sql()
+        parts.append(table_sql)
         parts.append("FOR EACH ROW")
 
         all_params = []
 
         if expr.ordering:
             order_type, order_trigger = expr.ordering
+            order_sql, _ = order_trigger.to_sql()
             parts.append(order_type.upper())
-            parts.append(self.format_identifier(order_trigger))
+            parts.append(order_sql)
 
         parts.append("BEGIN")
 
-        if expr.function_name:
-            parts.append(f"CALL {self.format_identifier(expr.function_name)}();")
+        if expr.function:
+            procedure_sql, _ = expr.function.to_sql()
+            parts.append(f"CALL {procedure_sql}();")
         elif expr.body:
             body_sql, body_params = expr.body.to_sql()
             parts.append(body_sql)
@@ -263,13 +291,26 @@ class MariaDBTriggerMixin:
 
         Returns:
             Tuple of (SQL string, parameters tuple).
+
+        Raises:
+            TypeError: ``expr.trigger`` is not a Trigger.
         """
+        from rhosocial.activerecord.backend.expression.objects import Trigger
+
+        if not isinstance(expr.trigger, Trigger):
+            raise TypeError(
+                f"DropTriggerExpression.trigger must be a Trigger, "
+                f"got {type(expr.trigger).__name__}"
+            )
         parts = ["DROP TRIGGER"]
 
         if expr.if_exists:
             parts.append("IF EXISTS")
 
-        parts.append(self.format_identifier(expr.trigger_name))
+        # MariaDB drops a trigger by its own name; the database is part of
+        # that name, so it comes from the object rather than the connection.
+        trigger_sql, _ = expr.trigger.to_sql()
+        parts.append(trigger_sql)
 
         return " ".join(parts), ()
 

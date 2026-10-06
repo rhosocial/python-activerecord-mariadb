@@ -31,11 +31,20 @@ class MariaDBSystemVersioningSupport(Protocol):
         """
         ...
 
-    def format_system_time_as_of(
+    def format_for_system_time_as_of(
         self,
         timestamp: Any
     ) -> Tuple[str, tuple]:
         """Format FOR SYSTEM_TIME AS OF clause.
+
+        Named with the ``for_`` prefix because that is what
+        :class:`~...mixins.system_versioning.MariaDBSystemVersioningMixin`
+        implements and what its callers use. This protocol used to declare
+        ``format_system_time_as_of`` instead: no mixin implemented that name, no
+        expression dispatched to it, and because a protocol is satisfied by its
+        own ellipsis bodies it answered the lookup with ``None`` -- a formatter
+        that could not render anything, sitting in the dialect's base list
+        waiting for an expression to name it.
 
         Args:
             timestamp: Point in time to query
@@ -45,12 +54,15 @@ class MariaDBSystemVersioningSupport(Protocol):
         """
         ...
 
-    def format_system_time_between(
+    def format_for_system_time_between(
         self,
         start: Any,
         end: Any
     ) -> Tuple[str, tuple]:
         """Format FOR SYSTEM_TIME BETWEEN clause.
+
+        Named to match the mixin, for the reason given on
+        :meth:`format_for_system_time_as_of`.
 
         Args:
             start: Start timestamp

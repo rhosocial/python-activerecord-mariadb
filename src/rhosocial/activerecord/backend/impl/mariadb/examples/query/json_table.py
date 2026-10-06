@@ -11,6 +11,9 @@ a SELECT query that flattens JSON array data into relational rows.
 import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.query_parts import NamedRelationRef
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv("MYSQL_HOST", "localhost"),
@@ -41,13 +44,13 @@ from rhosocial.activerecord.backend.expression.types import (
     JsonType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table_name="orders", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name="orders",
+    table=Table(dialect, 'orders'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -67,7 +70,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into="orders",
+    into=Table(dialect, 'orders'),
     columns=["order_data"],
     source=ValuesSource(
         dialect,
@@ -92,14 +95,12 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
     QueryExpression,
-    TableExpression,
     Column,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
     MariaDBJSONTableExpression,
     JSONTableColumn,
 )
-
 json_table = MariaDBJSONTableExpression(
     dialect=dialect,
     json_doc="o.order_data",
@@ -128,7 +129,7 @@ query = QueryExpression(
         Column(dialect, "price", table="items"),
     ],
     from_=[
-        TableExpression(dialect, "orders", alias="o"),
+        NamedRelationRef(dialect, Table(dialect, "orders"), alias="o"),
         json_table,
     ],
 )

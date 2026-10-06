@@ -12,6 +12,7 @@ to drop and recreate the constraint.
 from typing import TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import Index, Table
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -21,34 +22,45 @@ class MariaDBRenameIndexExpression(BaseExpression):
     """Represent a MariaDB ``ALTER TABLE ... RENAME INDEX`` statement.
 
     Attributes:
-        table_name: Name of the table holding the index.
-        old_index_name: Current index name.
-        new_index_name: New index name.
+        table: The table holding the index, as a
+            :class:`~...expression.objects.Table`. The database a table
+            lives in is a named slot on the object rather than a string
+            spliced into both halves of the statement, which is what makes
+            ``ALTER TABLE app.users RENAME INDEX ...`` expressible.
+        old_index: The index as it is now.
+        new_index: The index as it will be known.
     """
 
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        table_name: str,
-        old_index_name: str,
-        new_index_name: str,
+        table: Table,
+        old_index: Index,
+        new_index: Index,
     ):
         super().__init__(dialect)
-        self.table_name = table_name
-        self.old_index_name = old_index_name
-        self.new_index_name = new_index_name
+        self.table = table
+        self.old_index = old_index
+        self.new_index = new_index
 
     def validate(self, strict: bool = True) -> None:
-        """Validate index names.
+        """Validate the three objects this statement names.
 
         Raises:
-            TypeError: If index names are not strings.
+            TypeError: If any of the three is not the kind of object the
+                statement acts on.
         """
         if not strict:
             return
-        for name in (self.table_name, self.old_index_name, self.new_index_name):
-            if not isinstance(name, str):
-                raise TypeError("Table and index names must be strings")
+        if not isinstance(self.table, Table):
+            raise TypeError(
+                f"table must be a Table, got {type(self.table).__name__}"
+            )
+        for name, value in (("old_index", self.old_index), ("new_index", self.new_index)):
+            if not isinstance(value, Index):
+                raise TypeError(
+                    f"{name} must be an Index, got {type(value).__name__}"
+                )
 
     def to_sql(self):
         """Generate SQL by delegating to the dialect."""
