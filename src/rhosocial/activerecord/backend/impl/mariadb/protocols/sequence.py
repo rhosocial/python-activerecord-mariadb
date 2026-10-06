@@ -70,6 +70,14 @@ class MariaDBSequenceSupport(Protocol):
         """Whether ALTER SEQUENCE is supported."""
         ...
 
+    def supports_alter_sequence_start(self) -> bool:
+        """Whether the START option is accepted on ALTER SEQUENCE.
+
+        A different clause from :meth:`supports_sequence_start`; MariaDB
+        accepts both, spelling the ALTER form ``START = value``.
+        """
+        ...
+
     def supports_sequence_if_not_exists(self) -> bool:
         """Whether CREATE SEQUENCE IF NOT EXISTS is supported."""
         ...

@@ -94,6 +94,22 @@ class MariaDBSequenceMixin:
         """
         return self.supports_sequence()
 
+    def supports_alter_sequence_start(self) -> bool:
+        """Whether the START option is accepted on ALTER SEQUENCE.
+
+        This is a different clause from the ``CREATE SEQUENCE ... START`` one
+        :meth:`supports_sequence_start` describes, so ``True`` there does not
+        imply ``True`` here. MariaDB accepts both, spelling the ALTER form
+        ``START = value``, so this answers True.
+
+        The default is ``False``, which is the safe side: Oracle, SQL Server,
+        Firebird and Snowflake reject ``START`` on ``ALTER SEQUENCE``, and a
+        probe answering ``True`` by default would let them emit SQL their
+        server rejects. A dialect that does accept the clause must therefore
+        say so explicitly, as this one does.
+        """
+        return True
+
     def supports_sequence_if_not_exists(self) -> bool:
         """Whether CREATE SEQUENCE IF NOT EXISTS is supported.
 
