@@ -350,11 +350,14 @@ class TestProtocolNonOverlap:
             ('DropTriggerSupport', 'MariaDBTriggerSupport'),
             ('MariaDBTriggerSupport', 'DropTriggerSupport'),
             # MariaDB's sequence protocol restates the CREATE/ALTER/DROP
-            # SEQUENCE surface core declares per statement.
+            # SEQUENCE surface core declares per statement, including the
+            # per-option probes.
             ('CreateSequenceSupport', 'MariaDBSequenceSupport'),
             ('MariaDBSequenceSupport', 'CreateSequenceSupport'),
             ('DropSequenceSupport', 'MariaDBSequenceSupport'),
             ('MariaDBSequenceSupport', 'DropSequenceSupport'),
+            ('AlterSequenceSupport', 'MariaDBSequenceSupport'),
+            ('MariaDBSequenceSupport', 'AlterSequenceSupport'),
             # MariaDB's routine protocol restates the CREATE/DROP FUNCTION
             # surface core declares per statement.
             ('CreateRoutineSupport', 'MariaDBRoutineSupport'),
@@ -479,6 +482,7 @@ MYSQL_PROTOCOL_MIXIN_PAIRS = [
     (mysql_protocols.MariaDBFullTextSearchSupport, mysql_mixins.MariaDBFullTextSearchMixin),
     (mysql_protocols.MariaDBLockingSupport, mysql_mixins.MariaDBLockingMixin),
     (mysql_protocols.MariaDBModifyColumnSupport, mysql_mixins.MariaDBModifyColumnMixin),
+    (mysql_protocols.MariaDBSequenceSupport, mysql_mixins.MariaDBSequenceMixin),
 ]
 
 
@@ -510,24 +514,6 @@ class TestProtocolMethodSignatureConformance:
         ('ExplainSupport', 'format_explain_statement'),
         # QualifyClauseSupport: MariaDB doesn't support QUALIFY, param name differs
         ('QualifyClauseSupport', 'format_qualify_clause'),
-        # SequenceObjectSupport: MariaDB uses named params instead of expr object.
-        # The three formatters take a bare sequence name where core's expression
-        # API dispatches with the expression itself, so a core
-        # CreateSequenceExpression cannot reach this backend. Recorded in
-        # mixins/sequence.py's docstring and in MariaDBSequenceSupport's, and
-        # pinned per class in the round-trip matrix so the three places cannot
-        # drift apart silently.
-        ('SequenceObjectSupport', 'format_create_sequence_statement'),
-        ('SequenceObjectSupport', 'format_drop_sequence_statement'),
-        ('SequenceObjectSupport', 'format_alter_sequence_statement'),
-        ('MariaDBSequenceSupport', 'format_create_sequence_statement'),
-        ('MariaDBSequenceSupport', 'format_drop_sequence_statement'),
-        ('MariaDBSequenceSupport', 'format_alter_sequence_statement'),
-        # ... and core declares the same three formatters per statement, one
-        # protocol for each of CREATE / ALTER / DROP.
-        ('CreateSequenceSupport', 'format_create_sequence_statement'),
-        ('AlterSequenceSupport', 'format_alter_sequence_statement'),
-        ('DropSequenceSupport', 'format_drop_sequence_statement'),
         # MariaDBLockingSupport: format_lock_in_share_mode uses different param name
         ('MariaDBLockingSupport', 'format_lock_in_share_mode'),
         # GraphSupport: format_match_clause uses a different param name (_clause)

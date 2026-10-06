@@ -1071,33 +1071,6 @@ LEGITIMATE_NON_RENDERS = {
         TypeError, "does not declare a valid generic type name"
     ),
 
-    # ---- MariaDB formatters that do not accept the expression -------------
-    # These three are a known divergence rather than a missing feature, and it
-    # is recorded in three places: ``MariaDBSequenceMixin``'s docstring, the
-    # ``_SIGNATURE_MISMATCH_EXCLUSIONS`` set in the protocol conformance test,
-    # and ``test_sequence_support_remains_independent`` in the type/DDL tests.
-    # In short: core's ``CreateSequenceExpression.to_sql()`` dispatches on
-    # ``format_create_sequence_statement`` passing *itself*, because the sequence
-    # is a ``Sequence`` object whose own ``format_method`` applies the
-    # namespace. MariaDB's three formatters take a bare name string instead, so
-    # a sequence expression cannot render here at all.
-    #
-    # The formatters now raise a ``TypeError`` naming what they wanted rather
-    # than failing later with ``AttributeError`` on ``.replace``. That is the
-    # improvement this pass makes; bringing the formatters onto the object API
-    # is a behaviour change and is deliberately not done here.
-    #
-    # SEQUENCE is a MariaDB capability: ``supports_sequence()`` is ``True`` from
-    # 10.3, and the string form renders. What is missing is the object dispatch.
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.CreateSequenceExpression": (
-        TypeError, "format_create_sequence_statement takes a sequence name"
-    ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.DropSequenceExpression": (
-        TypeError, "format_drop_sequence_statement takes a sequence name"
-    ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.AlterSequenceExpression": (
-        TypeError, "format_alter_sequence_statement takes a sequence name"
-    ),
     # MariaDB's trigger formatter reads ``or_replace``, ``ordering`` and
     # ``body``, none of which core's ``CreateTriggerExpression`` carries -- it
     # has ``if_not_exists`` and ``update_columns`` instead. So the MariaDB

@@ -4,32 +4,39 @@
 MariaDB 10.3+ supports SEQUENCE objects for generating sequential numbers.
 This is a MariaDB-specific feature not available in MySQL.
 """
-from typing import Optional, Tuple
+from typing import Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
+
+if TYPE_CHECKING:  # pragma: no cover
+    from rhosocial.activerecord.backend.expression.statements.ddl_sequence import (
+        CreateSequenceExpression,
+        DropSequenceExpression,
+        AlterSequenceExpression,
+    )
 
 
 class MariaDBSequenceMixin:
     """MariaDB SEQUENCE support mixin.
 
-    **These three statement formatters do not take the expression.** Core's
-    ``CreateSequenceExpression.to_sql()`` and its two siblings dispatch on
-    ``format_create_sequence_statement`` / ``_drop_`` / ``_alter_`` with
-    *themselves* as the single argument, because the sequence they name is a
-    :class:`~...expression.objects.Sequence` whose own ``format_method``
-    applies the namespace. The formatters below instead take a bare name string
-    plus loose option parameters, which is the older core signature.
+    The three statement formatters below take the expression core dispatches
+    with, exactly like ``format_create_table_statement`` does. Core's
+    ``CreateSequenceExpression.to_sql()`` and its two siblings pass *themselves*
+    to ``format_create_sequence_statement`` / ``_drop_`` / ``_alter_``, because
+    the sequence they name is a :class:`~...expression.objects.Sequence` whose
+    own ``format_method`` applies the namespace. MariaDB keeps its own
+    formatters only because its spelling differs from core's: MariaDB accepts
+    ``START =``, ``INCREMENT =``, ``MINVALUE =``, ``MAXVALUE =`` and ``CACHE =``
+    (the ``=`` is an alternative to ``WITH`` / ``BY`` in the synopsis, never an
+    addition to it), where core emits ``START WITH``, ``INCREMENT BY``,
+    ``MINVALUE`` and so on without it. The ``START WITH =`` and
+    ``INCREMENT BY =`` forms the synopsis might suggest are rejected by the
+    server, so the dialect does not emit them.
 
-    So a sequence expression handed to MariaDB cannot render: the dispatch puts
-    the expression where a ``str`` is expected. The three methods say so
-    explicitly with a ``TypeError`` naming what they wanted, rather than failing
-    further in with ``AttributeError`` on ``.replace``. The same divergence is
-    recorded in ``_SIGNATURE_MISMATCH_EXCLUSIONS`` in the protocol conformance
-    test, and
-    ``test_sequence_support_remains_independent`` in the type/DDL tests asserts
-    the string form directly. Bringing these onto the object API is a behaviour
-    change and is deliberately not done in this pass; this mixin's docstring is
-    where a reader should learn it.
+    ``ORDER`` and ``OWNED BY`` are Oracle/SQL Server forms that MariaDB's
+    ``CREATE SEQUENCE`` / ``ALTER SEQUENCE`` synopsis does not carry, so the
+    matching probes answer ``False`` and a requested clause raises rather than
+    being silently dropped. ``IF NOT EXISTS`` / ``IF EXISTS`` are supported.
 
     MariaDB 10.3+ supports SEQUENCE storage engine for generating
     sequential numbers.
@@ -45,6 +52,7 @@ class MariaDBSequenceMixin:
     Official Documentation:
     - https://mariadb.com/kb/en/sequence-storage-engine/
     - https://mariadb.com/kb/en/create-sequence/
+    - https://mariadb.com/kb/en/alter-sequence/
 
     Version Requirements:
     - MariaDB 10.3+
@@ -53,7 +61,9 @@ class MariaDBSequenceMixin:
     def supports_sequence(self) -> bool:
         """Whether SEQUENCE objects are supported.
 
-        MariaDB 10.3+ supports SEQUENCE storage engine.
+        This is the master switch and the one place the version boundary is
+        read; the per-statement switches below delegate to it, and the option
+        probes answer for a version that has sequences.
 
         Returns:
             True if MariaDB version >= 10.3.0.
@@ -66,7 +76,7 @@ class MariaDBSequenceMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SEQUENCE']
+        return self.supports_sequence()
 
     def supports_drop_sequence(self) -> bool:
         """Whether DROP SEQUENCE is supported.
@@ -74,7 +84,7 @@ class MariaDBSequenceMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SEQUENCE']
+        return self.supports_sequence()
 
     def supports_alter_sequence(self) -> bool:
         """Whether ALTER SEQUENCE is supported.
@@ -82,7 +92,78 @@ class MariaDBSequenceMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SEQUENCE']
+        return self.supports_sequence()
+
+    def supports_sequence_if_not_exists(self) -> bool:
+        """Whether CREATE SEQUENCE IF NOT EXISTS is supported.
+
+        MariaDB spells the clause ``IF NOT EXISTS``.
+        """
+        return True
+
+    def supports_sequence_if_exists(self) -> bool:
+        """Whether DROP SEQUENCE IF EXISTS is supported.
+
+        MariaDB spells the clause ``IF EXISTS``.
+        """
+        return True
+
+    def supports_sequence_start(self) -> bool:
+        """Whether the START WITH sequence option is supported.
+
+        MariaDB also accepts the ``START =`` spelling.
+        """
+        return True
+
+    def supports_sequence_increment(self) -> bool:
+        """Whether the INCREMENT BY sequence option is supported.
+
+        MariaDB also accepts the ``INCREMENT =`` spelling.
+        """
+        return True
+
+    def supports_sequence_minvalue(self) -> bool:
+        """Whether the MINVALUE sequence option is supported.
+
+        MariaDB also accepts the ``MINVALUE =`` spelling.
+        """
+        return True
+
+    def supports_sequence_maxvalue(self) -> bool:
+        """Whether the MAXVALUE sequence option is supported.
+
+        MariaDB also accepts the ``MAXVALUE =`` spelling.
+        """
+        return True
+
+    def supports_sequence_cycle(self) -> bool:
+        """Whether the CYCLE option is supported.
+
+        MariaDB spells the negative form ``NOCYCLE``.
+        """
+        return True
+
+    def supports_sequence_cache(self) -> bool:
+        """Whether the CACHE option is supported.
+
+        MariaDB spells the negative form ``NOCACHE``.
+        """
+        return True
+
+    def supports_sequence_order(self) -> bool:
+        """Whether the ORDER option is supported.
+
+        ``ORDER`` / ``NO ORDER`` is Oracle/SQL Server syntax. MariaDB's
+        ``CREATE SEQUENCE`` / ``ALTER SEQUENCE`` synopsis has no such clause.
+        """
+        return False
+
+    def supports_sequence_owned_by(self) -> bool:
+        """Whether the OWNED BY clause is supported.
+
+        MariaDB has no ``OWNED BY`` clause; a sequence is owned by its database.
+        """
+        return False
 
     def format_nextval(self, sequence_name: str) -> Tuple[str, tuple]:
         """Format NEXTVAL expression.
@@ -149,75 +230,131 @@ class MariaDBSequenceMixin:
 
     def format_create_sequence_statement(
         self,
-        sequence_name: str,
-        start_with: Optional[int] = None,
-        increment_by: Optional[int] = None,
-        minvalue: Optional[int] = None,
-        maxvalue: Optional[int] = None,
-        cache: Optional[int] = None,
-        cycle: bool = False,
-        if_not_exists: bool = False
+        expr: "CreateSequenceExpression",
     ) -> Tuple[str, tuple]:
         """Format CREATE SEQUENCE statement.
 
         Syntax:
             CREATE SEQUENCE [IF NOT EXISTS] seq_name
-            [START WITH = value]
-            [INCREMENT BY = value]
-            [MINVALUE = value | NO MINVALUE]
-            [MAXVALUE = value | NO MAXVALUE]
-            [CACHE = value | NOCACHE]
-            [CYCLE | NOCYCLE]
+            [START = value]
+            [INCREMENT = value]
+            [MINVALUE = value]
+            [MAXVALUE = value]
+            [CACHE = value]
+            [CYCLE]
 
         Args:
-            sequence_name: Name of the sequence.
-            start_with: Starting value (default: 1).
-            increment_by: Increment value (default: 1).
-            minvalue: Minimum value (default: 1 for ascending, -9223372036854775807 for descending).
-            maxvalue: Maximum value (default: 9223372036854775806 for ascending, -1 for descending).
-            cache: Number of values to cache.
-            cycle: Whether to cycle when reaching limits.
-            if_not_exists: Whether to use IF NOT EXISTS.
+            expr: CreateSequenceExpression carrying the sequence name and the
+                optional start, increment, min/max value, cache, cycle,
+                if-not-exists, order and owned-by options.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
 
         Raises:
-            TypeError: ``sequence_name`` is not a string. This formatter takes a
-                bare name, while the expression API dispatches with a
-                :class:`CreateSequenceExpression`; see the class docstring.
+            TypeError: ``expr.sequence`` is not a Sequence. A table would render
+                as a well-formed CREATE SEQUENCE over that table's name.
+            UnsupportedFeatureError: The MariaDB version is below 10.3, or the
+                expression asked for ``ORDER`` / ``OWNED BY``, which MariaDB has
+                no clause for.
         """
-        if not isinstance(sequence_name, str):
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.objects import Sequence
+
+        if not isinstance(expr.sequence, Sequence):
             raise TypeError(
-                f"format_create_sequence_statement takes a sequence name, "
-                f"got {type(sequence_name).__name__}"
+                f"CreateSequenceExpression.sequence must be a Sequence, "
+                f"got {type(expr.sequence).__name__}"
             )
-        if not self.supports_create_sequence():
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        if not self.supports_sequence():
             raise UnsupportedFeatureError(
                 self.name,
                 "CREATE SEQUENCE",
                 "SEQUENCE storage engine requires MariaDB 10.3 or later."
             )
+        if not self.supports_create_sequence():
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE SEQUENCE",
+                "CREATE SEQUENCE requires MariaDB 10.3 or later."
+            )
 
         parts = ["CREATE SEQUENCE"]
-        if if_not_exists:
+        if expr.if_not_exists:
+            if not self.supports_sequence_if_not_exists():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CREATE SEQUENCE IF NOT EXISTS",
+                    f"{self.name} does not support CREATE SEQUENCE IF NOT EXISTS."
+                )
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(sequence_name))
+        parts.append(expr.sequence.to_sql()[0])
 
         options = []
-        if start_with is not None:
-            options.append(f"START WITH = {start_with}")
-        if increment_by is not None:
-            options.append(f"INCREMENT BY = {increment_by}")
-        if minvalue is not None:
-            options.append(f"MINVALUE = {minvalue}")
-        if maxvalue is not None:
-            options.append(f"MAXVALUE = {maxvalue}")
-        if cache is not None:
-            options.append(f"CACHE = {cache}")
-        if cycle:
+        if expr.start is not None:
+            if not self.supports_sequence_start():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE START",
+                    f"{self.name} does not support the START WITH sequence option."
+                )
+            options.append(f"START = {expr.start}")
+        if expr.increment is not None:
+            if not self.supports_sequence_increment():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE INCREMENT",
+                    f"{self.name} does not support the INCREMENT BY sequence option."
+                )
+            options.append(f"INCREMENT = {expr.increment}")
+        if expr.minvalue is not None:
+            if not self.supports_sequence_minvalue():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE MINVALUE",
+                    f"{self.name} does not support the MINVALUE sequence option."
+                )
+            options.append(f"MINVALUE = {expr.minvalue}")
+        if expr.maxvalue is not None:
+            if not self.supports_sequence_maxvalue():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE MAXVALUE",
+                    f"{self.name} does not support the MAXVALUE sequence option."
+                )
+            options.append(f"MAXVALUE = {expr.maxvalue}")
+        if expr.cache is not None:
+            if not self.supports_sequence_cache():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE CACHE",
+                    f"{self.name} does not support the CACHE sequence option."
+                )
+            options.append(f"CACHE = {expr.cache}")
+        if expr.cycle:
+            if not self.supports_sequence_cycle():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE CYCLE",
+                    f"{self.name} does not support the CYCLE sequence option."
+                )
             options.append("CYCLE")
+        if expr.order:
+            if not self.supports_sequence_order():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE ORDER",
+                    f"{self.name} does not support the ORDER sequence option."
+                )
+            options.append("ORDER")
+        if expr.owned_by:
+            if not self.supports_sequence_owned_by():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE OWNED BY",
+                    f"{self.name} does not support the OWNED BY sequence option."
+                )
+            options.append(f"OWNED BY {expr.owned_by}")
 
         if options:
             parts.append(" ".join(options))
@@ -226,100 +363,167 @@ class MariaDBSequenceMixin:
 
     def format_drop_sequence_statement(
         self,
-        sequence_name: str,
-        if_exists: bool = False
+        expr: "DropSequenceExpression",
     ) -> Tuple[str, tuple]:
         """Format DROP SEQUENCE statement.
 
         Args:
-            sequence_name: Name of the sequence.
-            if_exists: Whether to use IF EXISTS.
+            expr: DropSequenceExpression carrying the sequence name and the
+                optional if-exists flag.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
 
         Raises:
-            TypeError: ``sequence_name`` is not a string. This formatter takes a
-                bare name, while the expression API dispatches with a
-                :class:`DropSequenceExpression`; see the class docstring.
+            TypeError: ``expr.sequence`` is not a Sequence. A table would render
+                as a well-formed DROP SEQUENCE over that table's name.
+            UnsupportedFeatureError: The MariaDB version is below 10.3.
         """
-        if not isinstance(sequence_name, str):
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.objects import Sequence
+
+        if not isinstance(expr.sequence, Sequence):
             raise TypeError(
-                f"format_drop_sequence_statement takes a sequence name, "
-                f"got {type(sequence_name).__name__}"
+                f"DropSequenceExpression.sequence must be a Sequence, "
+                f"got {type(expr.sequence).__name__}"
             )
-        if not self.supports_drop_sequence():
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        if not self.supports_sequence():
             raise UnsupportedFeatureError(
                 self.name,
                 "DROP SEQUENCE",
                 "SEQUENCE storage engine requires MariaDB 10.3 or later."
             )
+        if not self.supports_drop_sequence():
+            raise UnsupportedFeatureError(
+                self.name,
+                "DROP SEQUENCE",
+                "DROP SEQUENCE requires MariaDB 10.3 or later."
+            )
 
         parts = ["DROP SEQUENCE"]
-        if if_exists:
+        if expr.if_exists:
+            if not self.supports_sequence_if_exists():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "DROP SEQUENCE IF EXISTS",
+                    f"{self.name} does not support DROP SEQUENCE IF EXISTS."
+                )
             parts.append("IF EXISTS")
-        parts.append(self.format_identifier(sequence_name))
+        parts.append(expr.sequence.to_sql()[0])
 
         return " ".join(parts), ()
 
     def format_alter_sequence_statement(
         self,
-        sequence_name: str,
-        restart_with: Optional[int] = None,
-        increment_by: Optional[int] = None,
-        minvalue: Optional[int] = None,
-        maxvalue: Optional[int] = None,
-        cache: Optional[int] = None,
-        cycle: Optional[bool] = None
+        expr: "AlterSequenceExpression",
     ) -> Tuple[str, tuple]:
         """Format ALTER SEQUENCE statement.
 
         Args:
-            sequence_name: Name of the sequence.
-            restart_with: Value to restart the sequence at.
-            increment_by: New increment value.
-            minvalue: New minimum value.
-            maxvalue: New maximum value.
-            cache: New cache size.
-            cycle: Whether to cycle.
+            expr: AlterSequenceExpression carrying the sequence name and the
+                options to change (restart, start, increment, min/max value,
+                cycle, cache, order and owned-by).
 
         Returns:
             Tuple of (SQL string, parameters tuple).
 
         Raises:
-            TypeError: ``sequence_name`` is not a string. This formatter takes a
-                bare name, while the expression API dispatches with an
-                :class:`AlterSequenceExpression`; see the class docstring.
+            TypeError: ``expr.sequence`` is not a Sequence. A table would render
+                as a well-formed ALTER SEQUENCE over that table's name.
+            UnsupportedFeatureError: The MariaDB version is below 10.3, or the
+                expression asked for ``ORDER`` / ``OWNED BY``, which MariaDB has
+                no clause for.
         """
-        if not isinstance(sequence_name, str):
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.objects import Sequence
+
+        if not isinstance(expr.sequence, Sequence):
             raise TypeError(
-                f"format_alter_sequence_statement takes a sequence name, "
-                f"got {type(sequence_name).__name__}"
+                f"AlterSequenceExpression.sequence must be a Sequence, "
+                f"got {type(expr.sequence).__name__}"
             )
-        if not self.supports_alter_sequence():
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        if not self.supports_sequence():
             raise UnsupportedFeatureError(
                 self.name,
                 "ALTER SEQUENCE",
                 "SEQUENCE storage engine requires MariaDB 10.3 or later."
             )
+        if not self.supports_alter_sequence():
+            raise UnsupportedFeatureError(
+                self.name,
+                "ALTER SEQUENCE",
+                "ALTER SEQUENCE requires MariaDB 10.3 or later."
+            )
 
-        parts = ["ALTER SEQUENCE", self.format_identifier(sequence_name)]
+        parts = [f"ALTER SEQUENCE {expr.sequence.to_sql()[0]}"]
 
         options = []
-        if restart_with is not None:
-            options.append(f"RESTART WITH {restart_with}")
-        if increment_by is not None:
-            options.append(f"INCREMENT BY = {increment_by}")
-        if minvalue is not None:
-            options.append(f"MINVALUE = {minvalue}")
-        if maxvalue is not None:
-            options.append(f"MAXVALUE = {maxvalue}")
-        if cache is not None:
-            options.append(f"CACHE = {cache}")
-        if cycle is not None:
-            options.append("CYCLE" if cycle else "NOCYCLE")
+        if expr.restart is not None:
+            options.append(f"RESTART WITH {expr.restart}")
+        if expr.start is not None:
+            if not self.supports_sequence_start():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE START",
+                    f"{self.name} does not support the START WITH sequence option."
+                )
+            options.append(f"START = {expr.start}")
+        if expr.increment is not None:
+            if not self.supports_sequence_increment():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE INCREMENT",
+                    f"{self.name} does not support the INCREMENT BY sequence option."
+                )
+            options.append(f"INCREMENT = {expr.increment}")
+        if expr.minvalue is not None:
+            if not self.supports_sequence_minvalue():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE MINVALUE",
+                    f"{self.name} does not support the MINVALUE sequence option."
+                )
+            options.append(f"MINVALUE = {expr.minvalue}")
+        if expr.maxvalue is not None:
+            if not self.supports_sequence_maxvalue():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE MAXVALUE",
+                    f"{self.name} does not support the MAXVALUE sequence option."
+                )
+            options.append(f"MAXVALUE = {expr.maxvalue}")
+        if expr.cache is not None:
+            if not self.supports_sequence_cache():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE CACHE",
+                    f"{self.name} does not support the CACHE sequence option."
+                )
+            options.append(f"CACHE = {expr.cache}")
+        if expr.cycle is not None:
+            if not self.supports_sequence_cycle():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE CYCLE",
+                    f"{self.name} does not support the CYCLE sequence option."
+                )
+            options.append("CYCLE" if expr.cycle else "NOCYCLE")
+        if expr.order is not None:
+            if not self.supports_sequence_order():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE ORDER",
+                    f"{self.name} does not support the ORDER sequence option."
+                )
+            options.append("ORDER" if expr.order else "NO ORDER")
+        if expr.owned_by is not None:
+            if not self.supports_sequence_owned_by():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE OWNED BY",
+                    f"{self.name} does not support the OWNED BY sequence option."
+                )
+            options.append(f"OWNED BY {expr.owned_by}")
 
         if options:
             parts.append(" ".join(options))

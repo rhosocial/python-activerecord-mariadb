@@ -210,10 +210,58 @@ def test_enum_and_set_remain_column_data_types(dialect):
 
 
 def test_sequence_support_remains_independent(dialect):
-    # MariaDB's sequence formatters take named parameters rather than an
-    # expression; that divergence is recorded in the conformance exclusions.
+    # The sequence formatters take the expression core dispatches with, exactly
+    # like every other statement formatter, so the statement renders through
+    # ``to_sql()``. MariaDB's own spelling -- the ``=`` sign in START =,
+    # INCREMENT =, MINVALUE =, MAXVALUE = and CACHE = -- is the reason this
+    # backend keeps a formatter rather than inheriting core's. (START WITH =
+    # and INCREMENT BY = are refused by the server; the ``=`` replaces the
+    # keyword, it does not follow it.)
+    from rhosocial.activerecord.backend.expression.objects import Sequence
+    from rhosocial.activerecord.backend.expression.statements.ddl_sequence import (
+        AlterSequenceExpression,
+        CreateSequenceExpression,
+        DropSequenceExpression,
+    )
+
     assert dialect.supports_sequence() is True
-    assert dialect.format_create_sequence_statement("job_ids") == (
+    assert dialect.supports_sequence_start() is True
+    assert dialect.supports_sequence_order() is False
+    assert dialect.supports_sequence_owned_by() is False
+
+    assert CreateSequenceExpression(dialect, Sequence(dialect, "job_ids")).to_sql() == (
         "CREATE SEQUENCE `job_ids`",
+        (),
+    )
+    assert CreateSequenceExpression(
+        dialect,
+        Sequence(dialect, "job_ids"),
+        if_not_exists=True,
+        start=100,
+        increment=5,
+        minvalue=1,
+        maxvalue=9999,
+        cache=20,
+        cycle=True,
+    ).to_sql() == (
+        "CREATE SEQUENCE IF NOT EXISTS `job_ids` START = 100 "
+        "INCREMENT = 5 MINVALUE = 1 MAXVALUE = 9999 CACHE = 20 CYCLE",
+        (),
+    )
+    assert DropSequenceExpression(
+        dialect, Sequence(dialect, "job_ids"), if_exists=True
+    ).to_sql() == ("DROP SEQUENCE IF EXISTS `job_ids`", ())
+    assert AlterSequenceExpression(
+        dialect,
+        Sequence(dialect, "job_ids"),
+        restart=100,
+        increment=2,
+        minvalue=1,
+        maxvalue=500,
+        cache=10,
+        cycle=False,
+    ).to_sql() == (
+        "ALTER SEQUENCE `job_ids` RESTART WITH 100 INCREMENT = 2 "
+        "MINVALUE = 1 MAXVALUE = 500 CACHE = 10 NOCYCLE",
         (),
     )
