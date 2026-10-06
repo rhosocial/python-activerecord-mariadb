@@ -119,7 +119,11 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.AlterTableModifierSupport,
     dialect_protocols.AlterTableSupport,
     dialect_protocols.AlterTypeSupport,
-    dialect_protocols.AutoIncrementSupport,
+    # One protocol per mechanism: the parameterless marker and the
+    # parameterised standard clause. MariaDB declares both interfaces; its
+    # probes answer True and False respectively.
+    dialect_protocols.AutoIncrementColumnSupport,
+    dialect_protocols.IdentityColumnSupport,
     dialect_protocols.ConstraintSupport,
     dialect_protocols.CreateDomainSupport,
     dialect_protocols.CreateIndexSupport,

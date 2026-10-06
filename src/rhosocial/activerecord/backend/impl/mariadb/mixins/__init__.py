@@ -32,7 +32,7 @@ Mixin Organization:
 - array.py: Array support (not natively supported)
 - ddl_column.py: DDL column/table capability checks
 - view.py: View DDL support
-- generated_column.py: Generated column support
+- generated_column.py: Generated column, identity and auto-increment support
 - function.py: SQL function version checks
 - namespace.py: which namespace levels a MariaDB name may carry
 """

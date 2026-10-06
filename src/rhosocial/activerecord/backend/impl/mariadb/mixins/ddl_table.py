@@ -243,7 +243,18 @@ class MariaDBTableMixin:
                 constraint_parts.append("NULL")
 
             if constraint.is_auto_increment:
-                constraint_parts.append("AUTO_INCREMENT")
+                # Route the legacy constraint flag through the node, so the
+                # marker the server sees is the one ``supports_auto_increment_column``
+                # answered for -- not a string appended behind the probe's back.
+                from rhosocial.activerecord.backend.expression.statements import (
+                    AutoIncrementClause,
+                )
+
+                marker_sql, marker_params = self.format_auto_increment_clause(
+                    AutoIncrementClause(self)
+                )
+                constraint_parts.append(marker_sql.strip())
+                params.extend(marker_params)
 
         if constraint_parts:
             parts.append(' '.join(constraint_parts))

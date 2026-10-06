@@ -57,6 +57,11 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     IntrospectionSupport,
     TransactionControlSupport,
     GeneratedColumnSupport,
+    # One protocol per mechanism: MariaDB accepts the parameterless
+    # AUTO_INCREMENT marker and refuses the parameterised standard identity
+    # clause, so both interfaces are declared and the probes carry the answer.
+    AutoIncrementColumnSupport,
+    IdentityColumnSupport,
     # Additional Protocols
     SQLFunctionSupport,
     DataTypeSupport,
@@ -88,6 +93,11 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     IndexMixin,
     TriggerMixin,
     GeneratedColumnMixin,
+    # The formatters for the two identity mechanisms; MariaDB's own answers
+    # for their probes live on MariaDBGeneratedColumnMixin, which precedes
+    # these in the MRO.
+    AutoIncrementMixin,
+    IdentityColumnMixin,
     ViewMixin,
     FunctionMixin,
     IntrospectionMixin,
@@ -311,6 +321,11 @@ class MariaDBDialect(
     IndexMixin,
     TriggerMixin,
     GeneratedColumnMixin,
+    # The formatters for the two identity mechanisms; MariaDB's own answers
+    # for their probes live on MariaDBGeneratedColumnMixin, which precedes
+    # these in the MRO.
+    AutoIncrementMixin,
+    IdentityColumnMixin,
     ViewMixin,
     FunctionMixin,
     IntrospectionMixin,
@@ -349,6 +364,11 @@ class MariaDBDialect(
     IntrospectionSupport,
     TransactionControlSupport,
     GeneratedColumnSupport,
+    # One protocol per mechanism: MariaDB accepts the parameterless
+    # AUTO_INCREMENT marker and refuses the parameterised standard identity
+    # clause, so both interfaces are declared and the probes carry the answer.
+    AutoIncrementColumnSupport,
+    IdentityColumnSupport,
     SQLFunctionSupport,
     DataTypeSupport,
     MariaDBDMLOperationSupport,

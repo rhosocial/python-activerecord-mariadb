@@ -312,7 +312,8 @@ declares is the contract a third-party dialect must satisfy.
 | `IntrospectionSupport` | `IntrospectionMixin` | Catalogue queries |
 | `PivotSupport` | `PivotMixin` | PIVOT / UNPIVOT |
 | `GeneratedColumnSupport` | `GeneratedColumnMixin` | Generated columns |
-| `AutoIncrementSupport` | `AutoIncrementMixin` | AUTO_INCREMENT / IDENTITY |
+| `AutoIncrementColumnSupport` | `AutoIncrementMixin` | Parameterless `AUTO_INCREMENT` marker |
+| `IdentityColumnSupport` | `IdentityColumnMixin` | Standard `GENERATED ... AS IDENTITY` clause |
 | `ColumnAttributeSupport` | `DDLColumnMixin` | Per-column attributes |
 | `ConstraintSupport` | `ConstraintMixin` | Table and column constraints |
 | `PartitionSupport` | `PartitionMixin` | Table partitioning |
