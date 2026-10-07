@@ -477,7 +477,11 @@ class MariaDBSequenceMixin:
         if expr.restart is not None:
             options.append(f"RESTART WITH {expr.restart}")
         if expr.start is not None:
-            if not self.supports_sequence_start():
+            # The ALTER-side clause has its own probe: whether the initial
+            # value can be *changed* is a different question from whether it
+            # can be set at CREATE time (``supports_sequence_start``), which
+            # the CREATE formatter above consults.
+            if not self.supports_alter_sequence_start():
                 raise UnsupportedFeatureError(
                     self.name,
                     "ALTER SEQUENCE START",
