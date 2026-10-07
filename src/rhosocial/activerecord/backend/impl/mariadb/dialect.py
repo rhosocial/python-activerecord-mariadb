@@ -592,6 +592,21 @@ class MariaDBDialect(
     def supports_deferrable_transaction(self) -> bool:
         return False
 
+    def supports_transaction_wait(self) -> bool:
+        """Whether the ``WAIT`` / ``NO WAIT`` transaction clause is supported.
+
+        Measured False on all 19 configured servers (10.2.44 ... 13.1.1):
+        ``START TRANSACTION WAIT`` / ``NO WAIT`` / ``NOWAIT`` / ``WAIT 5``
+        and ``BEGIN WAIT`` are syntax errors (errno 1064) everywhere;
+        ``SET TRANSACTION WAIT`` / ``NO WAIT`` are rejected everywhere too
+        (errno 1193 on 10.2, 1064 from 10.3). Every connection and group
+        carried a sentinel that came back rejected. MariaDB does have
+        ``WAIT n`` / ``NOWAIT`` on TRUNCATE, ALTER TABLE and LOCK TABLES,
+        but not on the transaction statements this pair selects -- those are
+        separate clauses with their own parameters, not this one.
+        """
+        return False
+
     def supports_savepoint(self) -> bool:
         return True
 
@@ -636,6 +651,16 @@ class MariaDBDialect(
                 )
             begin_sql += " DEFERRABLE" if expr._deferrable else " NOT DEFERRABLE"
 
+        if expr._wait or expr._no_wait:
+            if not self.supports_transaction_wait():
+                spelling = "WAIT" if expr._wait else "NO WAIT"
+                raise UnsupportedFeatureError(
+                    self.name,
+                    f"TRANSACTION {spelling}",
+                    f"{self.name} does not support the {spelling} transaction clause.",
+                )
+            begin_sql += " WAIT" if expr._wait else " NO WAIT"
+
         return f"{set_isolation}{begin_sql}", ()
 
     def format_set_transaction(self, expr) -> Tuple[str, tuple]:
@@ -676,6 +701,16 @@ class MariaDBDialect(
                     f"{self.name} does not support DEFERRABLE transactions.",
                 )
             parts.append("DEFERRABLE" if expr._deferrable else "NOT DEFERRABLE")
+
+        if expr._wait or expr._no_wait:
+            if not self.supports_transaction_wait():
+                spelling = "WAIT" if expr._wait else "NO WAIT"
+                raise UnsupportedFeatureError(
+                    self.name,
+                    f"TRANSACTION {spelling}",
+                    f"{self.name} does not support the {spelling} transaction clause.",
+                )
+            parts.append("WAIT" if expr._wait else "NO WAIT")
 
         return " ".join(parts), ()
 

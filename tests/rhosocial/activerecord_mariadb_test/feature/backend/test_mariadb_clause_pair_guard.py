@@ -76,6 +76,9 @@ from rhosocial.activerecord.backend.expression.transaction import (
     SetTransactionExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+    MariaDBExchangePartitionExpression,
+)
 
 VERSION = (10, 6, 0)
 
@@ -312,6 +315,20 @@ PAIR_CASES = (
         ("refused", "TRANSACTION DEFERRABLE"),
         ("refused", "TRANSACTION NOT DEFERRABLE"),
     ),
+    PairCase(
+        "MariaDBExchangePartitionExpression.with_validation",
+        lambda d, **kw: MariaDBExchangePartitionExpression(
+            d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), **kw
+        ),
+        "with_validation",
+        "without_validation",
+        {"with_validation": True},
+        {"without_validation": True},
+        r"WITH VALIDATION\b",
+        r"WITHOUT VALIDATION\b",
+        ("refused", "EXCHANGE PARTITION WITH VALIDATION"),
+        ("refused", "EXCHANGE PARTITION WITHOUT VALIDATION"),
+    ),
 )
 
 PAIR_IDS = [case.case_id for case in PAIR_CASES]
@@ -411,6 +428,69 @@ class TestFourStatesArePairwiseDistinguishable:
         assert dialect.supports_deferrable_constraint() is False
 
 
+class TestExchangePartitionValidationBoundary:
+    """The two validation spellings parse from MariaDB 11.4; bare from 10.2.
+
+    Measured live (direct connections, TLSv1.2, fresh tables per case and a
+    sentinel on every connection): the bare form is accepted from 10.2.44
+    through 13.1.1, with a mismatching row failing at runtime with errno 1737
+    (so the statement parsed); ``WITH VALIDATION`` and ``WITHOUT VALIDATION``
+    are syntax errors (errno 1064) on 10.2.44 / 10.3.39 / 10.4.34 / 10.5.29 /
+    10.6.28 / 10.11.19 / 11.0.6 / 11.1.6 / 11.2.6 / 11.3.2 and accepted from
+    11.4.13 onward. 11.3.2 is the last version seen rejecting both spellings
+    and 11.4.13 the first accepting them, so the boundary is ``11.4``.
+    """
+
+    def _expr(self, version, **kw):
+        dialect = MariaDBDialect(version)
+        return MariaDBExchangePartitionExpression(
+            dialect, _table(dialect, "probe_part"), "p0", _table(dialect, "probe_exch"), **kw
+        )
+
+    def test_probes_answer_the_measured_boundary(self):
+        for version in ((10, 2, 0), (10, 6, 0), (10, 11, 0), (11, 3, 2)):
+            dialect = MariaDBDialect(version)
+            assert dialect.supports_exchange_partition_with_validation() is False, version
+            assert dialect.supports_exchange_partition_without_validation() is False, version
+        for version in ((11, 4, 0), (11, 4, 13), (13, 1, 1)):
+            dialect = MariaDBDialect(version)
+            assert dialect.supports_exchange_partition_with_validation() is True, version
+            assert dialect.supports_exchange_partition_without_validation() is True, version
+
+    def test_last_rejecting_version_refuses_both_by_name(self):
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            self._expr((11, 3, 2), with_validation=True).to_sql()
+        assert "EXCHANGE PARTITION WITH VALIDATION" in str(excinfo.value)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            self._expr((11, 3, 2), without_validation=True).to_sql()
+        assert "EXCHANGE PARTITION WITHOUT VALIDATION" in str(excinfo.value)
+
+    def test_first_accepting_version_renders_each_spelling(self):
+        bare, params = self._expr((11, 4, 0)).to_sql()
+        assert bare == "ALTER TABLE `probe_part` EXCHANGE PARTITION `p0` WITH TABLE `probe_exch`"
+        assert params == ()
+        with_validation, _ = self._expr((11, 4, 0), with_validation=True).to_sql()
+        assert with_validation.endswith(" WITH VALIDATION")
+        without_validation, _ = self._expr((11, 4, 0), without_validation=True).to_sql()
+        assert without_validation.endswith(" WITHOUT VALIDATION")
+
+    def test_bare_form_renders_on_the_oldest_measured_version(self):
+        sql, _ = self._expr((10, 2, 0)).to_sql()
+        assert sql == "ALTER TABLE `probe_part` EXCHANGE PARTITION `p0` WITH TABLE `probe_exch`"
+
+    def test_both_spellings_raise_at_construction_on_every_version(self):
+        for version in ((10, 6, 0), (11, 4, 0)):
+            with pytest.raises(ValueError, match="mutually exclusive"):
+                self._expr(version, with_validation=True, without_validation=True)
+
+    def test_exchange_table_must_be_a_table(self):
+        dialect = _dialect()
+        with pytest.raises(TypeError, match="exchange_table"):
+            MariaDBExchangePartitionExpression(
+                dialect, _table(dialect, "probe_part"), "p0", "probe_exch"
+            )
+
+
 class TestTheGuardCanSeeADroppedSpelling:
     """The guard is live: a formatter that ignores the second parameter fails.
 
@@ -454,6 +534,18 @@ class TestPairParametersSurviveSerialization:
             (lambda d: _fk(d, deferrable=True), "deferrable"),
             (lambda d: BeginTransactionExpression(d, deferrable=True), "_deferrable"),
             (lambda d: SetTransactionExpression(d, not_deferrable=True), "_not_deferrable"),
+            (
+                lambda d: MariaDBExchangePartitionExpression(
+                    d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), with_validation=True
+                ),
+                "with_validation",
+            ),
+            (
+                lambda d: MariaDBExchangePartitionExpression(
+                    d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), without_validation=True
+                ),
+                "without_validation",
+            ),
         ],
         ids=[
             "CreateSequenceExpression.no_cycle",
@@ -465,11 +557,23 @@ class TestPairParametersSurviveSerialization:
             "TableConstraint.deferrable",
             "BeginTransactionExpression.deferrable",
             "SetTransactionExpression.not_deferrable",
+            "MariaDBExchangePartitionExpression.with_validation",
+            "MariaDBExchangePartitionExpression.without_validation",
         ],
     )
     def test_second_spelling_survives_the_round_trip(self, factory, field):
+        from rhosocial.activerecord.backend.expression.serialization import (
+            ExpressionRegistry,
+        )
+
         dialect = _dialect()
-        decoded = deserialize_json(serialize_json(factory(dialect)), dialect)
+        expr = factory(dialect)
+        # Backend-local classes are not in core's auto-registry (that walk
+        # covers ``backend/expression`` only); the roundtrip matrix registers
+        # them via ``collect_expression_classes``. Registering here lets this
+        # focused round-trip deserialize MariaDB-owned expressions too.
+        ExpressionRegistry.register(type(expr))
+        decoded = deserialize_json(serialize_json(expr), dialect)
         assert getattr(decoded, field) is True
 
 

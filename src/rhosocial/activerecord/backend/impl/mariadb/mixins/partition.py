@@ -7,6 +7,8 @@ HASH, KEY, RANGE COLUMNS, LIST COLUMNS, LINEAR variants, and subpartitioning).
 
 from typing import Any, Optional, Sequence, Tuple, TYPE_CHECKING
 
+from .backend import MARIADB_VERSION_BOUNDARIES
+
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import PartitionClause
@@ -85,7 +87,38 @@ class MariaDBPartitionMixin:
         return True
 
     def supports_exchange_partition(self) -> bool:
+        """Whether ALTER TABLE ... EXCHANGE PARTITION is supported.
+
+        The bare statement is accepted from 10.2 (the oldest measured
+        version); this probe answers for the statement itself, not for the
+        validation options, which have their own probes below.
+        """
         return True
+
+    def supports_exchange_partition_with_validation(self) -> bool:
+        """Whether ``EXCHANGE PARTITION ... WITH VALIDATION`` parses.
+
+        Measured live (direct connections, TLSv1.2, fresh tables per case,
+        a sentinel on every connection): ``WITH VALIDATION`` is a syntax
+        error (errno 1064) on 10.2.44 / 10.3.39 / 10.4.34 / 10.5.29 / 10.6.28
+        / 10.11.19 / 11.0.6 / 11.1.6 / 11.2.6 / 11.3.2, and parses from
+        11.4.13 (empty exchange accepted; a mismatching row fails at runtime
+        with errno 1737, which proves the statement parsed). 11.3.2 is the
+        last measured rejection and 11.4.13 the first acceptance, so the
+        boundary is 11.4.0.
+        """
+        return self.version >= MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION']
+
+    def supports_exchange_partition_without_validation(self) -> bool:
+        """Whether ``EXCHANGE PARTITION ... WITHOUT VALIDATION`` parses.
+
+        Same measured boundary as :meth:`supports_exchange_partition_with_validation`
+        (syntax error through 11.3.2, parsed from 11.4.13). The option is
+        honored rather than parsed-and-ignored: on 11.4+ a mismatching row is
+        exchanged successfully under ``WITHOUT VALIDATION``, while the bare
+        form and ``WITH VALIDATION`` fail with errno 1737.
+        """
+        return self.version >= MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION']
 
     def supports_analyze_partition(self) -> bool:
         return True
@@ -405,7 +438,60 @@ class MariaDBPartitionMixin:
         raise NotImplementedError("Partition expression formatting requires MariaDB-specific expression classes")
 
     def format_exchange_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
-        raise NotImplementedError("Partition expression formatting requires MariaDB-specific expression classes")
+        """Format ``ALTER TABLE ... EXCHANGE PARTITION ... WITH TABLE ...``.
+
+        The validation clause is a two-spelling alternative; each requested
+        spelling is consumed through its own probe: refused by name when the
+        configured version's grammar does not accept it (measured boundary:
+        11.4), rendered when it does. Neither parameter set renders no clause.
+
+        The objects are checked before they are rendered because a partition
+        statement names tables and only tables: a View or a Sequence in either
+        slot would render through its own formatter and produce a well-formed
+        ALTER TABLE against the wrong kind of object.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        if not self.supports_exchange_partition():
+            raise UnsupportedFeatureError(self.name, "EXCHANGE PARTITION")
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                "MariaDBExchangePartitionExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
+        if not isinstance(expr.exchange_table, Table):
+            raise TypeError(
+                "MariaDBExchangePartitionExpression.exchange_table must be a Table, "
+                f"got {type(expr.exchange_table).__name__}"
+            )
+        if expr.with_validation:
+            if not self.supports_exchange_partition_with_validation():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "EXCHANGE PARTITION WITH VALIDATION",
+                    f"{self.name} does not support EXCHANGE PARTITION WITH VALIDATION.",
+                )
+            validation = " WITH VALIDATION"
+        elif expr.without_validation:
+            if not self.supports_exchange_partition_without_validation():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "EXCHANGE PARTITION WITHOUT VALIDATION",
+                    f"{self.name} does not support EXCHANGE PARTITION WITHOUT VALIDATION.",
+                )
+            validation = " WITHOUT VALIDATION"
+        else:
+            # The pair is unspecified; the caller did not ask for either
+            # spelling, so no clause is picked on their behalf.
+            validation = ""
+        table_sql, table_params = expr.table.to_sql()
+        exchange_table_sql, exchange_table_params = expr.exchange_table.to_sql()
+        sql = (
+            f"ALTER TABLE {table_sql} EXCHANGE PARTITION "
+            f"{self.format_identifier(expr.partition)} WITH TABLE {exchange_table_sql}{validation}"
+        )
+        return sql, tuple(table_params) + tuple(exchange_table_params)
 
     def format_partition_name_list(self, partitions: Sequence[str]) -> Tuple[str, tuple]:
         return ", ".join(self.format_identifier(partition) for partition in partitions), ()

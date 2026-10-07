@@ -168,6 +168,9 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.json import (
 from rhosocial.activerecord.backend.impl.mariadb.expression.match_against import (
     MariaDBMatchAgainstExpression,
 )
+from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+    MariaDBExchangePartitionExpression,
+)
 from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
     MariaDBSTDistanceExpression,
 )
@@ -747,6 +750,12 @@ def register_specials():
     register_special_constructor(
         "spatial.MariaDBSTDistanceExpression",
         lambda d: MariaDBSTDistanceExpression(d, "g1", "g2"),
+    )
+    register_special_constructor(
+        "partition.MariaDBExchangePartitionExpression",
+        lambda d: MariaDBExchangePartitionExpression(
+            d, _table_obj(d, "probe_part"), "p0", _table_obj(d, "probe_exch")
+        ),
     )
 
 

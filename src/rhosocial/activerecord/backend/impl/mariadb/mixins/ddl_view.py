@@ -40,5 +40,19 @@ class MariaDBViewMixin:
         """
         return True
 
+    def supports_with_data_clause(self) -> bool:
+        """Whether ``WITH [NO] DATA`` exists as a clause.
+
+        Measured False on all 19 configured servers: ``CREATE TABLE t AS
+        SELECT 1 AS x WITH DATA`` and ``... WITH NO DATA`` are syntax errors
+        (errno 1064) everywhere while the plain ``CREATE TABLE ... AS
+        SELECT`` is accepted (the control that isolates the clause as the
+        rejected part; sentinel rejected). Core's CTAS renderer consults this
+        probe -- and so do the materialized-view create and refresh renderers,
+        which MariaDB refuses earlier because it has no materialized views --
+        so a requested spelling is refused by name; it never renders it.
+        """
+        return False
+
 
 __all__ = ['MariaDBViewMixin']

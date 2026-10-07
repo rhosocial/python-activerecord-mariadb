@@ -46,6 +46,22 @@ class MariaDBPartitionSupport(PartitionSupport, Protocol):
         """Whether ALTER TABLE ... EXCHANGE PARTITION is supported."""
         ...
 
+    def supports_exchange_partition_with_validation(self) -> bool:
+        """Whether ``EXCHANGE PARTITION ... WITH VALIDATION`` parses.
+
+        The option joins the grammar in MariaDB 11.4; every measured earlier
+        version rejects the spelling as a syntax error.
+        """
+        ...
+
+    def supports_exchange_partition_without_validation(self) -> bool:
+        """Whether ``EXCHANGE PARTITION ... WITHOUT VALIDATION`` parses.
+
+        Same 11.4 boundary as the ``WITH VALIDATION`` spelling. The option is
+        honored on versions that accept it, not parsed-and-ignored.
+        """
+        ...
+
     def format_partition_definition(self, definition: Any) -> Tuple[str, tuple]:
         """Format a MariaDB PARTITION definition."""
         ...
