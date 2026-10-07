@@ -8,6 +8,7 @@ MariaDB Transaction Behavior:
 - SetTransactionExpression is used for isolation level settings
 """
 import pytest
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.transaction import (
     BeginTransactionExpression,
     CommitTransactionExpression,
@@ -16,6 +17,7 @@ from rhosocial.activerecord.backend.expression.transaction import (
     ReleaseSavepointExpression,
     SetTransactionExpression,
 )
+from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 
 
@@ -174,3 +176,51 @@ class TestMariaDBTransactionCapabilities:
     def test_supports_savepoint(self, mariadb_dialect):
         """Test MariaDB supports savepoints."""
         assert mariadb_dialect.supports_savepoint() == True
+
+
+class TestMariaDBDeferrableIsConsumed:
+    """Both deferrable spellings are refused by name, never dropped.
+
+    ``[NOT] DEFERRABLE`` was previously an ``Optional[bool]`` on the
+    expression; now each spelling is its own parameter, and the transaction
+    formatters read both. MariaDB answers ``supports_deferrable_transaction()``
+    False, so each requested spelling must raise ``UnsupportedFeatureError``
+    naming it.
+    """
+
+    def test_begin_deferrable_refused_by_name(self, mariadb_dialect):
+        expr = BeginTransactionExpression(mariadb_dialect, deferrable=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "TRANSACTION DEFERRABLE" in str(excinfo.value)
+
+    def test_begin_not_deferrable_refused_by_name(self, mariadb_dialect):
+        expr = BeginTransactionExpression(mariadb_dialect, not_deferrable=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "TRANSACTION NOT DEFERRABLE" in str(excinfo.value)
+
+    def test_set_transaction_deferrable_refused_by_name(self, mariadb_dialect):
+        expr = SetTransactionExpression(mariadb_dialect, deferrable=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "TRANSACTION DEFERRABLE" in str(excinfo.value)
+
+    def test_set_transaction_not_deferrable_refused_by_name(self, mariadb_dialect):
+        expr = SetTransactionExpression(mariadb_dialect, not_deferrable=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "TRANSACTION NOT DEFERRABLE" in str(excinfo.value)
+
+    def test_begin_deferrable_renders_when_probe_declares_it(self):
+        """A subclass that declares the capability gets the spelling it asked for."""
+
+        class DeclaringDialect(MariaDBDialect):
+            def supports_deferrable_transaction(self) -> bool:
+                return True
+
+        dialect = DeclaringDialect((10, 6, 0))
+        sql, _ = BeginTransactionExpression(dialect, deferrable=True).to_sql()
+        assert sql.endswith(" DEFERRABLE"), sql
+        sql, _ = BeginTransactionExpression(dialect, not_deferrable=True).to_sql()
+        assert sql.endswith(" NOT DEFERRABLE"), sql

@@ -45,7 +45,7 @@ class MariaDBGeneratedColumnMixin:
         """
         return False
 
-    # The six option probes answer for options of a clause MariaDB refuses
+    # The seven option probes answer for options of a clause MariaDB refuses
     # outright, so no option can be accepted either. They are declared rather
     # than left to core's ``False`` default so the measurement is recorded
     # where the next reader will look; a future MariaDB that grows the clause
@@ -73,6 +73,14 @@ class MariaDBGeneratedColumnMixin:
 
     def supports_identity_cycle(self) -> bool:
         """``CYCLE`` / ``NO CYCLE``; measured False (the clause is refused)."""
+        return False
+
+    def supports_identity_order(self) -> bool:
+        """``ORDER`` / ``NO ORDER``; measured False (the clause is refused)."""
+        return False
+
+    def supports_identity_cache(self) -> bool:
+        """``CACHE`` / ``NO CACHE``; measured False (the clause is refused)."""
         return False
 
 

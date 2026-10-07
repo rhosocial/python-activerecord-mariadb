@@ -29,6 +29,23 @@ if TYPE_CHECKING:  # pragma: no cover
 class MariaDBRoutineMixin:
     """MariaDB stored routine (procedure / function / CALL) support."""
 
+    def supports_drop_function_cascade(self) -> bool:
+        """Whether ``DROP FUNCTION ... CASCADE`` is supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        rejects ``DROP FUNCTION f CASCADE`` with errno 1064, sentinel rejected.
+        """
+        return False
+
+    def supports_drop_function_restrict(self) -> bool:
+        """Whether ``DROP FUNCTION ... RESTRICT`` is supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        rejects ``DROP FUNCTION f RESTRICT`` with errno 1064, sentinel
+        rejected.
+        """
+        return False
+
     def _require_routine_kind(self, label: str, value, kind: type) -> None:
         """Refuse a routine object of the wrong kind before it renders.
 
@@ -307,6 +324,27 @@ class MariaDBRoutineMixin:
             )
             function_sql, _ = expr.function.to_sql()
         parts.append(function_sql)
+        # The DROP FUNCTION form has no dependent-object behavior on MariaDB:
+        # both spellings of the cascade pair are measured rejected (errno 1064
+        # on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, sentinel rejected), so each is
+        # refused by name through its own probe rather than dropped.
+        if getattr(expr, "cascade", False) or getattr(expr, "restrict", False):
+            if getattr(expr, "cascade", False):
+                if not self.supports_drop_function_cascade():
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "DROP FUNCTION CASCADE",
+                        f"{self.name} does not support DROP FUNCTION CASCADE.",
+                    )
+                parts.append("CASCADE")
+            else:
+                if not self.supports_drop_function_restrict():
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "DROP FUNCTION RESTRICT",
+                        f"{self.name} does not support DROP FUNCTION RESTRICT.",
+                    )
+                parts.append("RESTRICT")
         return " ".join(parts), ()
 
     def format_call_statement(

@@ -16,6 +16,9 @@ from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
     AlterTableExpression,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import ColumnDefinition
+from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+    DropFunctionExpression,
+)
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import TruncateExpression
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBTruncateExpression
 from rhosocial.activerecord.backend.expression.types import TextType
@@ -180,12 +183,31 @@ class TestMariaDBTruncate:
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
+    def test_continue_identity_rejected(self):
+        """The negative spelling is its own parameter and is refused by name."""
+        dialect = _dialect((10, 6, 0))
+        assert dialect.supports_truncate_restart_identity() is False
+        expr = TruncateExpression(dialect, table=Table(dialect, 'users'),
+                                  continue_identity=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "CONTINUE IDENTITY" in str(excinfo.value)
+
     def test_cascade_rejected(self):
         dialect = _dialect((10, 6, 0))
         assert dialect.supports_truncate_cascade() is False
         expr = TruncateExpression(dialect, table=Table(dialect, 'users'), cascade=True)
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
+
+    def test_restrict_rejected(self):
+        """The negative spelling is its own parameter and is refused by name."""
+        dialect = _dialect((10, 6, 0))
+        assert dialect.supports_truncate_restrict() is False
+        expr = TruncateExpression(dialect, table=Table(dialect, 'users'), restrict=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "RESTRICT" in str(excinfo.value)
 
 
 class TestMariaDBAlterTableStatement:
@@ -571,6 +593,24 @@ class TestMariaDBRoutine:
         expr = MariaDBDropFunctionExpression(dialect, Function(dialect, 'add_one'), if_exists=True)
         sql, params = expr.to_sql()
         assert sql == 'DROP FUNCTION IF EXISTS `add_one`'
+
+    def test_drop_function_cascade_rejected(self):
+        """The core node's cascade spelling is refused by name, not dropped."""
+        dialect = _dialect((10, 6, 0))
+        assert dialect.supports_drop_function_cascade() is False
+        expr = DropFunctionExpression(dialect, Function(dialect, 'add_one'), cascade=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "CASCADE" in str(excinfo.value)
+
+    def test_drop_function_restrict_rejected(self):
+        """The core node's restrict spelling is refused by name, not dropped."""
+        dialect = _dialect((10, 6, 0))
+        assert dialect.supports_drop_function_restrict() is False
+        expr = DropFunctionExpression(dialect, Function(dialect, 'add_one'), restrict=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        assert "RESTRICT" in str(excinfo.value)
 
     def test_call_basic(self):
         dialect = _dialect((10, 6, 0))

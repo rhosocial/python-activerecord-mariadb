@@ -29,5 +29,16 @@ class MariaDBViewMixin:
     def supports_cascade_view(self) -> bool:
         return True
 
+    def supports_restrict_view(self) -> bool:
+        """Whether ``DROP VIEW ... RESTRICT`` is supported.
+
+        Measured True on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        accepts ``DROP VIEW v RESTRICT`` (sentinel ``... BOGUS`` rejected with
+        errno 1064). Core's ``format_drop_view_statement`` consults this probe;
+        before this declaration the default ``False`` refused a spelling the
+        server accepts.
+        """
+        return True
+
 
 __all__ = ['MariaDBViewMixin']

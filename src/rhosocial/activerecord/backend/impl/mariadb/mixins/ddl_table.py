@@ -290,6 +290,7 @@ class MariaDBTableMixin:
         t_const: "TableConstraint",
     ) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.statements import (
             ForeignKeyConstraint,
             ReferentialAction,
@@ -313,7 +314,6 @@ class MariaDBTableMixin:
         elif t_const.constraint_type == TableConstraintType.CHECK:
             if t_const.check_condition is not None:
                 if not self.supports_check_constraint():
-                    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
                     raise UnsupportedFeatureError(
                         self.name, "CHECK constraint",
                         f"{self.name} does not support CHECK constraints."
@@ -338,12 +338,48 @@ class MariaDBTableMixin:
                         parts.append(f"ON UPDATE {t_const.on_update.value}")
                     if t_const.match_type is not None:
                         if not self.supports_fk_match():
-                            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
                             raise UnsupportedFeatureError(
                                 self.name, "FOREIGN KEY MATCH",
                                 f"{self.name} does not support MATCH for foreign keys."
                             )
                         parts.append(f"MATCH {t_const.match_type}")
+
+        # The constraint-option pairs: each requested spelling is consumed or
+        # refused by name -- never dropped. This copy shadows
+        # ``MariaDBDialect.format_table_constraint`` (a class-body method wins
+        # in the MRO); it carries the same consumption so the two cannot drift.
+        if t_const.deferrable or t_const.not_deferrable:
+            if not self.supports_deferrable_constraint():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT DEFERRABLE" if t_const.deferrable else "CONSTRAINT NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE constraints.",
+                )
+            parts.append("DEFERRABLE" if t_const.deferrable else "NOT DEFERRABLE")
+        if t_const.initially_deferred or t_const.initially_immediate:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CONSTRAINT INITIALLY DEFERRED"
+                if t_const.initially_deferred
+                else "CONSTRAINT INITIALLY IMMEDIATE",
+                f"{self.name} does not support the INITIALLY constraint attribute.",
+            )
+        if t_const.enforced or t_const.not_enforced:
+            if t_const.constraint_type not in (
+                TableConstraintType.CHECK,
+                TableConstraintType.FOREIGN_KEY,
+            ):
+                raise ValueError(
+                    "ENFORCED/NOT ENFORCED is only valid for CHECK and "
+                    "FOREIGN KEY constraints"
+                )
+            if not self.supports_constraint_enforced():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT ENFORCED" if t_const.enforced else "CONSTRAINT NOT ENFORCED",
+                    f"{self.name} does not support ENFORCED constraints.",
+                )
+            parts.append("ENFORCED" if t_const.enforced else "NOT ENFORCED")
 
         return ' '.join(parts), tuple(params)
 

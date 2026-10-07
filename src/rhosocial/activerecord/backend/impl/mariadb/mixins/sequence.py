@@ -256,8 +256,16 @@ class MariaDBSequenceMixin:
             [INCREMENT = value]
             [MINVALUE = value]
             [MAXVALUE = value]
-            [CACHE = value]
-            [CYCLE]
+            [CACHE = value | NOCACHE]
+            [CYCLE | NOCYCLE]
+
+        Each two-spelling option carries one parameter per spelling --
+        ``cycle`` / ``no_cycle``, ``cache`` / ``no_cache``, ``order`` /
+        ``no_order`` -- and an unset pair renders nothing. The parameter
+        selects the spelling; the option's probe answers whether MariaDB can
+        express the option at all, and an explicit spelling whose probe is
+        False is refused by name rather than dropped. MariaDB spells the
+        negative forms ``NOCYCLE`` and ``NOCACHE``.
 
         Args:
             expr: CreateSequenceExpression carrying the sequence name and the
@@ -271,8 +279,8 @@ class MariaDBSequenceMixin:
             TypeError: ``expr.sequence`` is not a Sequence. A table would render
                 as a well-formed CREATE SEQUENCE over that table's name.
             UnsupportedFeatureError: The MariaDB version is below 10.3, or the
-                expression asked for ``ORDER`` / ``OWNED BY``, which MariaDB has
-                no clause for.
+                expression asked for ``ORDER`` / ``NO ORDER`` / ``OWNED BY``,
+                which MariaDB has no clause for.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.objects import Sequence
@@ -347,22 +355,30 @@ class MariaDBSequenceMixin:
                     f"{self.name} does not support the CACHE sequence option."
                 )
             options.append(f"CACHE = {expr.cache}")
-        if expr.cycle:
+        if expr.no_cache:
+            if not self.supports_sequence_cache():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "SEQUENCE NO CACHE",
+                    f"{self.name} does not support the NO CACHE sequence option."
+                )
+            options.append("NOCACHE")
+        if expr.cycle or expr.no_cycle:
             if not self.supports_sequence_cycle():
                 raise UnsupportedFeatureError(
                     self.name,
-                    "SEQUENCE CYCLE",
+                    "SEQUENCE CYCLE" if expr.cycle else "SEQUENCE NO CYCLE",
                     f"{self.name} does not support the CYCLE sequence option."
                 )
-            options.append("CYCLE")
-        if expr.order:
+            options.append("CYCLE" if expr.cycle else "NOCYCLE")
+        if expr.order or expr.no_order:
             if not self.supports_sequence_order():
                 raise UnsupportedFeatureError(
                     self.name,
-                    "SEQUENCE ORDER",
+                    "SEQUENCE ORDER" if expr.order else "SEQUENCE NO ORDER",
                     f"{self.name} does not support the ORDER sequence option."
                 )
-            options.append("ORDER")
+            options.append("ORDER" if expr.order else "NO ORDER")
         if expr.owned_by:
             if not self.supports_sequence_owned_by():
                 raise UnsupportedFeatureError(
@@ -435,6 +451,14 @@ class MariaDBSequenceMixin:
     ) -> Tuple[str, tuple]:
         """Format ALTER SEQUENCE statement.
 
+        Each two-spelling option carries one parameter per spelling --
+        ``cycle`` / ``no_cycle``, ``cache`` / ``no_cache``, ``order`` /
+        ``no_order`` -- and an unset pair renders nothing. The parameter
+        selects the spelling; the option's probe answers whether MariaDB can
+        express the option at all, and an explicit spelling whose probe is
+        False is refused by name rather than dropped. MariaDB spells the
+        negative forms ``NOCYCLE`` and ``NOCACHE``.
+
         Args:
             expr: AlterSequenceExpression carrying the sequence name and the
                 options to change (restart, start, increment, min/max value,
@@ -447,8 +471,8 @@ class MariaDBSequenceMixin:
             TypeError: ``expr.sequence`` is not a Sequence. A table would render
                 as a well-formed ALTER SEQUENCE over that table's name.
             UnsupportedFeatureError: The MariaDB version is below 10.3, or the
-                expression asked for ``ORDER`` / ``OWNED BY``, which MariaDB has
-                no clause for.
+                expression asked for ``ORDER`` / ``NO ORDER`` / ``OWNED BY``,
+                which MariaDB has no clause for.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.objects import Sequence
@@ -520,19 +544,27 @@ class MariaDBSequenceMixin:
                     f"{self.name} does not support the CACHE sequence option."
                 )
             options.append(f"CACHE = {expr.cache}")
-        if expr.cycle is not None:
+        if expr.no_cache:
+            if not self.supports_sequence_cache():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "ALTER SEQUENCE NO CACHE",
+                    f"{self.name} does not support the NO CACHE sequence option."
+                )
+            options.append("NOCACHE")
+        if expr.cycle or expr.no_cycle:
             if not self.supports_sequence_cycle():
                 raise UnsupportedFeatureError(
                     self.name,
-                    "ALTER SEQUENCE CYCLE",
+                    "ALTER SEQUENCE CYCLE" if expr.cycle else "ALTER SEQUENCE NO CYCLE",
                     f"{self.name} does not support the CYCLE sequence option."
                 )
             options.append("CYCLE" if expr.cycle else "NOCYCLE")
-        if expr.order is not None:
+        if expr.order or expr.no_order:
             if not self.supports_sequence_order():
                 raise UnsupportedFeatureError(
                     self.name,
-                    "ALTER SEQUENCE ORDER",
+                    "ALTER SEQUENCE ORDER" if expr.order else "ALTER SEQUENCE NO ORDER",
                     f"{self.name} does not support the ORDER sequence option."
                 )
             options.append("ORDER" if expr.order else "NO ORDER")

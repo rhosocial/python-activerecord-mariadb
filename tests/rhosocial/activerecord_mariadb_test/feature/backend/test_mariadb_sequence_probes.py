@@ -25,6 +25,12 @@ the dialect's in both cases -- flipping exactly one probe in a subclass each
 time. The ``start`` case is the one that caught the defect: before the gate was
 fixed, the ``alter-start`` case stayed green while the probe was flipped, and
 the guard reported it decorative.
+
+Core's clause-pair split (``cycle`` / ``no_cycle``, ``cache`` / ``no_cache``,
+``order`` / ``no_order``) is what the ``-no-`` cases cover: each negative
+spelling is a separate parameter, so it must reach its own branch and its own
+refusal name, and the probe must be load-bearing for it exactly as for the
+positive spelling.
 """
 
 from typing import NamedTuple
@@ -99,14 +105,29 @@ SEQUENCE_OPTION_PROBES = [
         "supports_sequence_cycle", {"cycle": True},
     ),
     _ProbeCase(
+        "create-no-cycle", "CREATE", CreateSequenceExpression,
+        "no-cycle", "SEQUENCE NO CYCLE",
+        "supports_sequence_cycle", {"no_cycle": True},
+    ),
+    _ProbeCase(
         "create-cache", "CREATE", CreateSequenceExpression,
         "cache", "SEQUENCE CACHE",
         "supports_sequence_cache", {"cache": 10},
     ),
     _ProbeCase(
+        "create-no-cache", "CREATE", CreateSequenceExpression,
+        "no-cache", "SEQUENCE NO CACHE",
+        "supports_sequence_cache", {"no_cache": True},
+    ),
+    _ProbeCase(
         "create-order", "CREATE", CreateSequenceExpression,
         "order", "SEQUENCE ORDER",
         "supports_sequence_order", {"order": True},
+    ),
+    _ProbeCase(
+        "create-no-order", "CREATE", CreateSequenceExpression,
+        "no-order", "SEQUENCE NO ORDER",
+        "supports_sequence_order", {"no_order": True},
     ),
     _ProbeCase(
         "create-owned-by", "CREATE", CreateSequenceExpression,
@@ -139,9 +160,9 @@ SEQUENCE_OPTION_PROBES = [
         "supports_sequence_cycle", {"cycle": True},
     ),
     _ProbeCase(
-        "alter-cycle-default", "ALTER", AlterSequenceExpression,
-        "cycle-default", "ALTER SEQUENCE CYCLE",
-        "supports_sequence_cycle", {"cycle": False},
+        "alter-no-cycle", "ALTER", AlterSequenceExpression,
+        "no-cycle", "ALTER SEQUENCE NO CYCLE",
+        "supports_sequence_cycle", {"no_cycle": True},
     ),
     _ProbeCase(
         "alter-cache", "ALTER", AlterSequenceExpression,
@@ -149,9 +170,19 @@ SEQUENCE_OPTION_PROBES = [
         "supports_sequence_cache", {"cache": 10},
     ),
     _ProbeCase(
+        "alter-no-cache", "ALTER", AlterSequenceExpression,
+        "no-cache", "ALTER SEQUENCE NO CACHE",
+        "supports_sequence_cache", {"no_cache": True},
+    ),
+    _ProbeCase(
         "alter-order", "ALTER", AlterSequenceExpression,
         "order", "ALTER SEQUENCE ORDER",
         "supports_sequence_order", {"order": True},
+    ),
+    _ProbeCase(
+        "alter-no-order", "ALTER", AlterSequenceExpression,
+        "no-order", "ALTER SEQUENCE NO ORDER",
+        "supports_sequence_order", {"no_order": True},
     ),
     _ProbeCase(
         "alter-owned-by", "ALTER", AlterSequenceExpression,

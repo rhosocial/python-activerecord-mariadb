@@ -30,9 +30,32 @@ class MariaDBTruncateMixin:
         return True
 
     def supports_truncate_restart_identity(self) -> bool:
+        """Whether ``RESTART IDENTITY`` / ``CONTINUE IDENTITY`` is supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        rejects ``TRUNCATE TABLE t RESTART IDENTITY`` and ``... CONTINUE
+        IDENTITY`` with errno 1064, sentinel rejected. A successful MariaDB
+        ``TRUNCATE`` always resets the counter, so there is no identity clause
+        to request.
+        """
         return False
 
     def supports_truncate_cascade(self) -> bool:
+        """Whether ``CASCADE`` is supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        rejects ``TRUNCATE TABLE t CASCADE`` with errno 1064, sentinel
+        rejected.
+        """
+        return False
+
+    def supports_truncate_restrict(self) -> bool:
+        """Whether ``RESTRICT`` is supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        rejects ``TRUNCATE TABLE t RESTRICT`` with errno 1064, sentinel
+        rejected.
+        """
         return False
 
     def supports_truncate_wait(self) -> bool:
@@ -48,10 +71,19 @@ class MariaDBTruncateMixin:
     def format_truncate_statement(self, expr: "TruncateExpression") -> Tuple[str, tuple]:
         """Format MariaDB ``TRUNCATE [TABLE] tbl_name [WAIT n | NOWAIT]``.
 
+        Each two-spelling modifier carries one parameter per spelling --
+        ``restart_identity`` / ``continue_identity``, ``cascade`` /
+        ``restrict`` -- and an unset pair renders nothing. The parameter
+        selects the spelling; the modifier's probe answers whether MariaDB
+        accepts it at all, and an explicit spelling whose probe is False is
+        refused by name rather than dropped. All four spellings are measured
+        rejected (see the probes above), so both pairs refuse; a subclass that
+        declares a probe True renders the spelling it declared.
+
         Raises:
             TypeError: ``expr.table`` is not a Table.
-            UnsupportedFeatureError: If the dialect does not support
-                ``TRUNCATE ... RESTART IDENTITY`` or ``... CASCADE``.
+            UnsupportedFeatureError: If the dialect does not support the
+                requested identity or dependent-table behavior.
         """
         from rhosocial.activerecord.backend.expression.objects import Table
 
@@ -60,24 +92,40 @@ class MariaDBTruncateMixin:
                 f"TruncateExpression.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
-        if expr.restart_identity:
-            raise UnsupportedFeatureError(
-                self.name,
-                "TRUNCATE ... RESTART IDENTITY",
-                suggestion="MariaDB TRUNCATE always resets AUTO_INCREMENT; drop the option.",
+        identity = ""
+        if expr.restart_identity or expr.continue_identity:
+            if not self.supports_truncate_restart_identity():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "TRUNCATE RESTART IDENTITY"
+                    if expr.restart_identity
+                    else "TRUNCATE CONTINUE IDENTITY",
+                    suggestion="MariaDB TRUNCATE always resets AUTO_INCREMENT; drop the option.",
+                )
+            identity = (
+                " RESTART IDENTITY" if expr.restart_identity else " CONTINUE IDENTITY"
             )
-        if expr.cascade:
-            raise UnsupportedFeatureError(
-                self.name,
-                "TRUNCATE ... CASCADE",
-                suggestion="MariaDB does not support CASCADE on TRUNCATE.",
-            )
+        behavior = ""
+        if expr.cascade or expr.restrict:
+            if expr.cascade and not self.supports_truncate_cascade():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "TRUNCATE CASCADE",
+                    suggestion="MariaDB does not support CASCADE on TRUNCATE.",
+                )
+            if expr.restrict and not self.supports_truncate_restrict():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "TRUNCATE RESTRICT",
+                    suggestion="MariaDB does not support RESTRICT on TRUNCATE.",
+                )
+            behavior = " CASCADE" if expr.cascade else " RESTRICT"
 
         # TRUNCATE can address a table in another database, and that database is
         # a catalog slot on the object the statement holds rather than a
         # hand-built `db`.`tbl` string.
         table_sql, _ = expr.table.to_sql()
-        sql = f"TRUNCATE TABLE {table_sql}"
+        sql = f"TRUNCATE TABLE {table_sql}{identity}{behavior}"
 
         wait = None
         if getattr(expr, "nowait", False):

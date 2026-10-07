@@ -248,6 +248,17 @@ def test_sequence_support_remains_independent(dialect):
         "INCREMENT = 5 MINVALUE = 1 MAXVALUE = 9999 CACHE = 20 CYCLE",
         (),
     )
+    # The negative spellings are separate parameters now; MariaDB spells them
+    # NOCYCLE / NOCACHE (measured accepted on 10.3+; 10.2 has no SEQUENCE).
+    assert CreateSequenceExpression(
+        dialect,
+        Sequence(dialect, "job_ids"),
+        no_cache=True,
+        no_cycle=True,
+    ).to_sql() == (
+        "CREATE SEQUENCE `job_ids` NOCACHE NOCYCLE",
+        (),
+    )
     assert DropSequenceExpression(
         dialect, Sequence(dialect, "job_ids"), if_exists=True
     ).to_sql() == ("DROP SEQUENCE IF EXISTS `job_ids`", ())
@@ -259,7 +270,7 @@ def test_sequence_support_remains_independent(dialect):
         minvalue=1,
         maxvalue=500,
         cache=10,
-        cycle=False,
+        no_cycle=True,
     ).to_sql() == (
         "ALTER SEQUENCE `job_ids` RESTART WITH 100 INCREMENT = 2 "
         "MINVALUE = 1 MAXVALUE = 500 CACHE = 10 NOCYCLE",

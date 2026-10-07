@@ -549,10 +549,26 @@ class MariaDBDialect(
         return False
 
     def supports_deferrable_constraint(self) -> bool:
+        """Whether ``DEFERRABLE`` / ``INITIALLY ...`` constraints are supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, and MariaDB
+        10.6's grammar (``sql_yacc.yy``) has no ``DEFERRABLE`` or ``INITIALLY``
+        token. Both spellings of the deferral pair are refused by name rather
+        than dropped.
+        """
         return False
 
     def supports_constraint_enforced(self) -> bool:
-        return self.version >= (10, 2, 22)
+        """Whether ``CHECK ... [NOT] ENFORCED`` is supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        rejects ``CHECK (a > 0) ENFORCED`` and ``... NOT ENFORCED`` in CREATE
+        TABLE and in ``ALTER TABLE ... ADD CONSTRAINT`` with errno 1064
+        (sentinel rejected), and MariaDB 10.6's grammar has no ``ENFORCED``
+        token. The previous declaration (``version >= (10, 2, 22)``) was never
+        measured; the version belongs to MySQL's clause, not MariaDB's.
+        """
+        return False
 
     def supports_add_constraint(self) -> bool:
         return True
@@ -580,7 +596,14 @@ class MariaDBDialect(
         return True
 
     def format_begin_transaction(self, expr) -> Tuple[str, tuple]:
-        """Format BEGIN TRANSACTION statement for MariaDB."""
+        """Format BEGIN TRANSACTION statement for MariaDB.
+
+        ``DEFERRABLE`` / ``NOT DEFERRABLE`` is consumed through the transaction
+        probe: MariaDB answers ``supports_deferrable_transaction()`` False, so
+        an explicit spelling is refused by name rather than dropped; a subclass
+        that declares the probe True renders the spelling it declared.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 
         set_isolation = ""
@@ -602,10 +625,26 @@ class MariaDBDialect(
         else:
             begin_sql = "START TRANSACTION"
 
+        if expr._deferrable or expr._not_deferrable:
+            if not self.supports_deferrable_transaction():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "TRANSACTION DEFERRABLE"
+                    if expr._deferrable
+                    else "TRANSACTION NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE transactions.",
+                )
+            begin_sql += " DEFERRABLE" if expr._deferrable else " NOT DEFERRABLE"
+
         return f"{set_isolation}{begin_sql}", ()
 
     def format_set_transaction(self, expr) -> Tuple[str, tuple]:
-        """Format SET TRANSACTION statement for MariaDB."""
+        """Format SET TRANSACTION statement for MariaDB.
+
+        ``DEFERRABLE`` / ``NOT DEFERRABLE`` is consumed through the transaction
+        probe, exactly as in :meth:`format_begin_transaction`.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 
         parts = ["SET TRANSACTION"]
@@ -626,6 +665,17 @@ class MariaDBDialect(
                 parts.append("READ ONLY")
             elif expr._mode == TransactionMode.READ_WRITE:
                 parts.append("READ WRITE")
+
+        if expr._deferrable or expr._not_deferrable:
+            if not self.supports_deferrable_transaction():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "TRANSACTION DEFERRABLE"
+                    if expr._deferrable
+                    else "TRANSACTION NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE transactions.",
+                )
+            parts.append("DEFERRABLE" if expr._deferrable else "NOT DEFERRABLE")
 
         return " ".join(parts), ()
 
@@ -668,6 +718,7 @@ class MariaDBDialect(
         self,
         t_const: "TableConstraint"
     ) -> Tuple[str, tuple]:
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.statements import (
             TableConstraintType, ForeignKeyConstraint, ReferentialAction,
         )
@@ -708,8 +759,45 @@ class MariaDBDialect(
             parts.append(f"CHECK ({check_sql})")
             params.extend(check_params)
 
-            if getattr(t_const, 'enforced', None) is False:
-                parts.append("NOT ENFORCED")
+        # The constraint-option pairs: each requested spelling is consumed or
+        # refused by name -- never dropped. MariaDB's grammar has no [NOT]
+        # ENFORCED, no [NOT] DEFERRABLE and no INITIALLY clause (measured on
+        # 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, sentinels rejected; 10.6's
+        # sql_yacc.yy has none of the tokens), so the probes answer False and
+        # every spelling is refused. A subclass that flips a probe True renders
+        # the spelling it declared.
+        if t_const.deferrable or t_const.not_deferrable:
+            if not self.supports_deferrable_constraint():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT DEFERRABLE" if t_const.deferrable else "CONSTRAINT NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE constraints.",
+                )
+            parts.append("DEFERRABLE" if t_const.deferrable else "NOT DEFERRABLE")
+        if t_const.initially_deferred or t_const.initially_immediate:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CONSTRAINT INITIALLY DEFERRED"
+                if t_const.initially_deferred
+                else "CONSTRAINT INITIALLY IMMEDIATE",
+                f"{self.name} does not support the INITIALLY constraint attribute.",
+            )
+        if t_const.enforced or t_const.not_enforced:
+            if t_const.constraint_type not in (
+                TableConstraintType.CHECK,
+                TableConstraintType.FOREIGN_KEY,
+            ):
+                raise ValueError(
+                    "ENFORCED/NOT ENFORCED is only valid for CHECK and "
+                    "FOREIGN KEY constraints"
+                )
+            if not self.supports_constraint_enforced():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT ENFORCED" if t_const.enforced else "CONSTRAINT NOT ENFORCED",
+                    f"{self.name} does not support ENFORCED constraints.",
+                )
+            parts.append("ENFORCED" if t_const.enforced else "NOT ENFORCED")
 
         return ' '.join(parts), tuple(params)
 
