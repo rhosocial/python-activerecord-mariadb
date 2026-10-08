@@ -8,6 +8,7 @@ for the dialect's ``format_show_*`` methods.
 """
 import pytest
 
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
     ShowCharsetExpression,
@@ -48,18 +49,23 @@ class TestShowExpressionBase:
 
 class TestShowColumnsExpression:
     def test_keyword_params(self, dialect):
-        expr = ShowColumnsExpression(dialect, "users", full=True, like_pattern="%a%")
+        expr = ShowColumnsExpression(
+            dialect, Table(dialect, "users"), full=True, like_pattern="%a%"
+        )
+        # get_params() introspects __init__, so the parameter is named after
+        # the slot rather than after a table specifically: a SHOW COLUMNS
+        # target is a relation, and get_params() reports it as one.
         assert expr.get_params() == {
-            "table_name": "users",
+            "relation": Table(dialect, "users"),
             "full": True,
             "like_pattern": "%a%",
         }
         assert expr.to_sql() == ("SHOW FULL COLUMNS FROM `users` LIKE %s", ("%a%",))
 
     def test_default_params(self, dialect):
-        expr = ShowColumnsExpression(dialect, "users")
+        expr = ShowColumnsExpression(dialect, Table(dialect, "users"))
         assert expr.get_params() == {
-            "table_name": "users", "full": False, "like_pattern": None
+            "relation": Table(dialect, "users"), "full": False, "like_pattern": None
         }
         assert expr.to_sql() == ("SHOW COLUMNS FROM `users`", ())
 

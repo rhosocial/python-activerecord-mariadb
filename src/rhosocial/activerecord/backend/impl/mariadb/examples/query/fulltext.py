@@ -8,6 +8,10 @@ MariaDB-specific full-text search using MATCH...AGAINST.
 import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -39,13 +43,13 @@ from rhosocial.activerecord.backend.expression.types import (
     TextType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table_name='articles', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'articles'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='articles',
+    table=Table(dialect, 'articles'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -66,7 +70,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='articles',
+    into=Table(dialect, 'articles'),
     columns=['title', 'content'],
     source=ValuesSource(
         dialect,
@@ -92,9 +96,8 @@ backend.execute(sql)
 # ============================================================
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
-from rhosocial.activerecord.backend.expression import QueryExpression, Column, TableExpression
+from rhosocial.activerecord.backend.expression import QueryExpression, Column
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBMatchAgainstExpression, MatchAgainstMode
-
 # Use MariaDBMatchAgainstExpression for full-text search
 match_expr = MariaDBMatchAgainstExpression(
     dialect=dialect,
@@ -127,7 +130,7 @@ query = QueryExpression(
         Column(dialect, 'title'),
         match_with_alias,
     ],
-    from_=TableExpression(dialect, 'articles'),
+    from_=Table(dialect, 'articles'),
     where=(match_for_where > 0),
 )
 

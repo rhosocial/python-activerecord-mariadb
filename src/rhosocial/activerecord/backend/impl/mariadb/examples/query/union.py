@@ -15,6 +15,8 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import Table
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -45,13 +47,13 @@ from rhosocial.activerecord.backend.expression.types import (
 )
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='users',
+    table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
             ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
@@ -67,7 +69,7 @@ backend.execute(sql, params)
 # Insert data into table_a
 insert = InsertExpression(
     dialect=dialect,
-    into='users',
+    into=Table(dialect, 'users'),
     columns=['id', 'name'],
     source=ValuesSource(dialect, [
         [Literal(dialect, 1), Literal(dialect, 'Alice')],
@@ -83,15 +85,13 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
     QueryExpression,
-    TableExpression,
     SetOperationExpression,
 )
-
 # First query
 query1 = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, 'name')],
-    from_=TableExpression(dialect, 'users'),
+    from_=Table(dialect, 'users'),
 )
 
 query2 = QueryExpression(
@@ -132,7 +132,7 @@ print(f"UNION ALL result: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_expr = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_expr = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

@@ -52,55 +52,51 @@ class MariaDBShowDialectMixin:
 
     # ========== SHOW CREATE Statements ==========
 
+    def _show_relation_target(self, expr) -> str:
+        """Render the relation a SHOW statement names.
+
+        A table and a view are one concept for this purpose: both are
+        relations in a namespace, and MariaDB's qualified name is
+        ``database`.`name``. The database is a named slot on the object,
+        which is why ``SHOW COLUMNS FROM app`.`users`` is expressible
+        here at all -- a bare identifier plus a hand-written ``schema.``
+        prefix could not carry it.
+
+        The statement keeps its own formatter: only the *name* is shared,
+        because only the name is one thing.
+        """
+        relation_sql, _ = expr.relation.to_sql()
+        return relation_sql
+
     def format_show_create_table(
         self, expr: "ShowCreateTableExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW CREATE TABLE statement."""
-        params = expr.get_params()
-        table_name = params["table_name"]
-        schema = params.get("schema")
-
-        if schema:
-            sql = f"SHOW CREATE TABLE {self.format_identifier(schema)}.{self.format_identifier(table_name)}"
-        else:
-            sql = f"SHOW CREATE TABLE {self.format_identifier(table_name)}"
-        return sql, ()
+        return f"SHOW CREATE TABLE {self._show_relation_target(expr)}", ()
 
     def format_show_create_view(
         self, expr: "ShowCreateViewExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW CREATE VIEW statement."""
-        params = expr.get_params()
-        view_name = params["view_name"]
-        schema = params.get("schema")
-
-        if schema:
-            sql = f"SHOW CREATE VIEW {self.format_identifier(schema)}.{self.format_identifier(view_name)}"
-        else:
-            sql = f"SHOW CREATE VIEW {self.format_identifier(view_name)}"
-        return sql, ()
+        return f"SHOW CREATE VIEW {self._show_relation_target(expr)}", ()
 
     def format_show_create_trigger(
         self, expr: "ShowCreateTriggerExpression"
     ) -> Tuple[str, tuple]:
-        """Format SHOW CREATE TRIGGER statement."""
-        params = expr.get_params()
-        trigger_name = params["trigger_name"]
-        schema = params.get("schema")
+        """Format SHOW CREATE TRIGGER statement.
 
-        if schema:
-            sql = f"SHOW CREATE TRIGGER {self.format_identifier(schema)}.{self.format_identifier(trigger_name)}"
-        else:
-            sql = f"SHOW CREATE TRIGGER {self.format_identifier(trigger_name)}"
-        return sql, ()
+        A trigger is not a relation, but its *name* is qualified the same
+        way -- the database is part of it -- so it goes through the same
+        renderer with the object kind that says so.
+        """
+        trigger_sql, _ = expr.trigger.to_sql()
+        return f"SHOW CREATE TRIGGER {trigger_sql}", ()
 
     # ========== SHOW COLUMNS/INDEX ==========
 
     def format_show_columns(self, expr: "ShowColumnsExpression") -> Tuple[str, tuple]:
         """Format SHOW [FULL] COLUMNS statement."""
         params = expr.get_params()
-        table_name = params["table_name"]
-        schema = params.get("schema")
         full = params.get("full", False)
         like_pattern = params.get("like_pattern")
 
@@ -108,9 +104,7 @@ class MariaDBShowDialectMixin:
         if full:
             parts.append("FULL")
         parts.append("COLUMNS FROM")
-        if schema:
-            parts.append(f"{self.format_identifier(schema)}.")
-        parts.append(self.format_identifier(table_name))
+        parts.append(self._show_relation_target(expr))
 
         sql_params = ()
         if like_pattern:
@@ -121,15 +115,7 @@ class MariaDBShowDialectMixin:
 
     def format_show_index(self, expr: "ShowIndexExpression") -> Tuple[str, tuple]:
         """Format SHOW INDEX statement."""
-        params = expr.get_params()
-        table_name = params["table_name"]
-        schema = params.get("schema")
-
-        if schema:
-            sql = f"SHOW INDEX FROM {self.format_identifier(schema)}.{self.format_identifier(table_name)}"
-        else:
-            sql = f"SHOW INDEX FROM {self.format_identifier(table_name)}"
-        return sql, ()
+        return f"SHOW INDEX FROM {self._show_relation_target(expr)}", ()
 
     # ========== SHOW TABLES/DATABASES ==========
 

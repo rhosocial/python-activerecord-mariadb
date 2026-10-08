@@ -38,7 +38,34 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class MariaDBAdminMixin:
-    """MariaDB administrative / account management command support."""
+    """MariaDB administrative / account management command support.
+
+    An account is ``'user'@'host'`` and a privilege list may carry column
+    lists. Neither is a qualified database name, so neither goes through
+    the qualified-name renderer -- but both *do* format identifiers, and
+    only a dialect may do that. They are therefore methods here rather
+    than module-level helpers taking a dialect argument: the behaviour is
+    unchanged and the identifier formatting stays on the dialect.
+    """
+
+    def _format_accounts(self, accounts) -> str:
+        """Format account specifications as ``'user'@'host'``."""
+        parts = []
+        for acct in accounts:
+            host = acct.host if acct.host else "%"
+            parts.append(f"'{acct.user}'@'{host}'")
+        return ", ".join(parts)
+
+    def _format_privileges(self, privileges) -> str:
+        """Format a privilege list, optionally with column lists."""
+        priv_parts = []
+        for p in privileges:
+            if p.columns:
+                cols = ", ".join(self.format_identifier(c) for c in p.columns)
+                priv_parts.append(f"{p.privilege} ({cols})")
+            else:
+                priv_parts.append(p.privilege)
+        return ", ".join(priv_parts)
 
     # --- FLUSH ---
 
@@ -98,7 +125,7 @@ class MariaDBAdminMixin:
         parts = ["CREATE USER"]
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(self._format_accounts(expr.accounts))
         if expr.identified_by:
             parts.append(f"IDENTIFIED BY '{expr.identified_by}'")
         return " ".join(parts), ()
@@ -114,7 +141,7 @@ class MariaDBAdminMixin:
         parts = ["ALTER USER"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(self._format_accounts(expr.accounts))
         if expr.identified_by:
             parts.append(f"IDENTIFIED BY '{expr.identified_by}'")
         return " ".join(parts), ()
@@ -130,7 +157,7 @@ class MariaDBAdminMixin:
         parts = ["DROP USER"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(self._format_accounts(expr.accounts))
         return " ".join(parts), ()
 
     def supports_create_role(self) -> bool:
@@ -208,11 +235,11 @@ class MariaDBAdminMixin:
                     "GRANT IF EXISTS requires MariaDB 10.1.4 or later."
                 )
             parts.append("IF EXISTS")
-        parts.append(_format_privileges(self, expr.privileges))
+        parts.append(self._format_privileges(expr.privileges))
         parts.append("ON")
         parts.append(expr.on_object or "*.*")
         parts.append("TO")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(self._format_accounts(expr.accounts))
         if expr.with_grant_option:
             parts.append("WITH GRANT OPTION")
         return " ".join(parts), ()
@@ -234,11 +261,11 @@ class MariaDBAdminMixin:
                     "REVOKE IF EXISTS requires MariaDB 10.1.4 or later."
                 )
             parts.append("IF EXISTS")
-        parts.append(_format_privileges(self, expr.privileges))
+        parts.append(self._format_privileges(expr.privileges))
         parts.append("ON")
         parts.append(expr.on_object or "*.*")
         parts.append("FROM")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(self._format_accounts(expr.accounts))
         return " ".join(parts), ()
 
     def format_deny_statement(
@@ -253,30 +280,12 @@ class MariaDBAdminMixin:
                 "DENY requires MariaDB 13.1 or later."
             )
         parts = ["DENY"]
-        parts.append(_format_privileges(self, expr.privileges))
+        parts.append(self._format_privileges(expr.privileges))
         parts.append("ON")
         parts.append(expr.on_object or "*.*")
         parts.append("TO")
-        parts.append(_format_accounts(self, expr.accounts))
+        parts.append(self._format_accounts(expr.accounts))
         return " ".join(parts), ()
 
 
-def _format_accounts(dialect, accounts) -> str:
-    """Format account specifications as ``'user'@'host'``."""
-    parts = []
-    for acct in accounts:
-        host = acct.host if acct.host else "%"
-        parts.append(f"'{acct.user}'@'{host}'")
-    return ", ".join(parts)
-
-
-def _format_privileges(dialect, privileges) -> str:
-    """Format a privilege list, optionally with column lists."""
-    priv_parts = []
-    for p in privileges:
-        if p.columns:
-            cols = ", ".join(dialect.format_identifier(c) for c in p.columns)
-            priv_parts.append(f"{p.privilege} ({cols})")
-        else:
-            priv_parts.append(p.privilege)
-    return ", ".join(priv_parts)
+__all__ = ["MariaDBAdminMixin"]

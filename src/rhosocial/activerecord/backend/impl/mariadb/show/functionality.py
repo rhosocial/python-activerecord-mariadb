@@ -71,7 +71,7 @@ class MariaDBShowFunctionality:
 
         row = result.data[0]
         return ShowCreateTableResult(
-            table_name=row.get("Table", row.get("TABLE", table_name)),
+            relation_name=row.get("Table", row.get("TABLE", table_name)),
             create_statement=row.get("Create Table", row.get("CREATE TABLE", "")),
         )
 
@@ -84,11 +84,24 @@ class MariaDBShowFunctionality:
 
         row = result.data[0]
         return ShowCreateViewResult(
-            view_name=row.get("View", row.get("VIEW", view_name)),
+            relation_name=row.get("View", row.get("VIEW", view_name)),
             create_statement=row.get("Create View", row.get("CREATE VIEW", "")),
             character_set_client=row.get("character_set_client"),
             collation_connection=row.get("collation_connection"),
         )
+
+    def _show_relation(self, expression_cls, relation, schema):
+        """Build one of the relation-named SHOW expressions.
+
+        Table and view differ in which verb the statement carries, not in
+        how the target is named, so both call sites share this and the
+        database is folded into the object rather than concatenated onto a
+        string by each.
+        """
+        expr = expression_cls(self.dialect, relation)
+        if schema:
+            expr.schema(schema)
+        return expr
 
     def _parse_columns_result(self, result):
         """Parse SHOW COLUMNS result."""
@@ -382,9 +395,7 @@ class MariaDBShowFunctionality:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = ShowCreateTableExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowCreateTableExpression, table_name, schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_table_result(result, table_name)
@@ -403,9 +414,7 @@ class MariaDBShowFunctionality:
         Returns:
             ShowCreateViewResult with view details, or None if view doesn't exist.
         """
-        expr = ShowCreateViewExpression(self.dialect, view_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowCreateViewExpression, view_name, schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_view_result(result, view_name)
@@ -430,9 +439,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowColumnResult objects.
         """
-        expr = ShowColumnsExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowColumnsExpression, table_name, schema)
         if full:
             expr.full()
         if like:
@@ -456,9 +463,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowIndexResult objects.
         """
-        expr = ShowIndexExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._show_relation(ShowIndexExpression, table_name, schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_indexes_result(result)
@@ -798,9 +803,7 @@ class AsyncMariaDBShowFunctionality:
         self, table_name: str, schema: Optional[str] = None
     ):
         """Async version of create_table."""
-        expr = ShowCreateTableExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._sync_impl._show_relation(ShowCreateTableExpression, table_name, schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_create_table_result(result, table_name)
@@ -811,9 +814,7 @@ class AsyncMariaDBShowFunctionality:
         self, view_name: str, schema: Optional[str] = None
     ):
         """Async version of create_view."""
-        expr = ShowCreateViewExpression(self.dialect, view_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._sync_impl._show_relation(ShowCreateViewExpression, view_name, schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_create_view_result(result, view_name)
@@ -828,9 +829,7 @@ class AsyncMariaDBShowFunctionality:
         like: Optional[str] = None,
     ):
         """Async version of columns."""
-        expr = ShowColumnsExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._sync_impl._show_relation(ShowColumnsExpression, table_name, schema)
         if full:
             expr.full()
         if like:
@@ -845,9 +844,7 @@ class AsyncMariaDBShowFunctionality:
         self, table_name: str, schema: Optional[str] = None
     ):
         """Async version of indexes."""
-        expr = ShowIndexExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
+        expr = self._sync_impl._show_relation(ShowIndexExpression, table_name, schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_indexes_result(result)

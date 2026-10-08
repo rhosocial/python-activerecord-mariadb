@@ -11,21 +11,57 @@ from typing import Any, Dict, List, Optional
 
 
 @dataclass
-class ShowCreateTableResult:
-    """Result of SHOW CREATE TABLE command."""
+class ShowCreateRelationResult:
+    """The one shape a ``SHOW CREATE`` row has, whatever relation it names.
 
-    table_name: str
+    ``SHOW CREATE TABLE`` and ``SHOW CREATE VIEW`` read the same
+    relation and report the same two facts about it: what it is called and
+    how it is defined. Keeping those in one dataclass is what stops the two
+    statements from drifting into two shapes for one concept; each concrete
+    result below keeps the field name its callers already read and adds only
+    what is genuinely specific to it.
+    """
+
+    relation_name: str
     create_statement: str
+
+    @property
+    def object_name(self) -> str:
+        """The relation's name, unqualified.
+
+        The name is one attribute with one meaning. ``table_name`` and
+        ``view_name`` below are two spellings of *this*, not two kinds of
+        thing to keep in step.
+        """
+        return self.relation_name
 
 
 @dataclass
-class ShowCreateViewResult:
-    """Result of SHOW CREATE VIEW command."""
+class ShowCreateTableResult(ShowCreateRelationResult):
+    """Result of SHOW CREATE TABLE command."""
 
-    view_name: str
-    create_statement: str
+    @property
+    def table_name(self) -> str:
+        """The relation's name -- a table's, for this statement."""
+        return self.relation_name
+
+
+@dataclass
+class ShowCreateViewResult(ShowCreateRelationResult):
+    """Result of SHOW CREATE VIEW command.
+
+    A view's ``SHOW CREATE`` additionally reports the session settings the
+    definition was recorded under, because a view body is stored as text
+    and those settings change how it reads back.
+    """
+
     character_set_client: Optional[str] = None
     collation_connection: Optional[str] = None
+
+    @property
+    def view_name(self) -> str:
+        """The relation's name -- a view's, for this statement."""
+        return self.relation_name
 
 
 @dataclass

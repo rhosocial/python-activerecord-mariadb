@@ -88,6 +88,7 @@ from .partition import (
     MariaDBPartitionByListColumns,
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
+    MariaDBExchangePartitionExpression,
 )
 
 # DataType subclasses for DDL
@@ -164,6 +165,7 @@ __all__ = [
     "MariaDBPartitionByListColumns",
     "MariaDBPartitionByHash",
     "MariaDBPartitionByKey",
+    "MariaDBExchangePartitionExpression",
     "MariaDBCallExpression",
     "MariaDBCreateFunctionExpression",
     "MariaDBCreateProcedureExpression",

@@ -17,6 +17,10 @@ import json
 import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv("MARIADB_HOST", "localhost"),
@@ -40,12 +44,12 @@ from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
 
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 expr = CreateTableExpression(
-    dialect=dialect, table="users", columns=[
+    dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
@@ -66,7 +70,6 @@ from rhosocial.activerecord.backend.schema import (  # noqa: E402
 from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa: E402
     MariaDBSchemaDiffer,
 )
-
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot = builder.build()
 
@@ -91,7 +94,7 @@ print(f"Round-trip diff empty: {diff.is_empty}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

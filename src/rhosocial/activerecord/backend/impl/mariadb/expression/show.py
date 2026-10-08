@@ -18,9 +18,15 @@ Key design:
 - Dialect handles actual SQL generation
 """
 
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING, Union
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
+from rhosocial.activerecord.backend.expression.objects import (
+    RelationObject,
+    Table,
+    Trigger,
+    View,
+)
 
 if TYPE_CHECKING:
     from ..dialect import MariaDBDialect
@@ -54,35 +60,95 @@ class ShowExpression(BaseExpression):
         raise NotImplementedError("Subclasses must implement to_sql() method")
 
 
-class ShowCreateTableExpression(ShowExpression):
-    """Expression for SHOW CREATE TABLE command."""
+class ShowRelationExpression(ShowExpression):
+    """Base for the SHOW commands that name one relation.
 
-    def __init__(self, dialect: "MariaDBDialect", table_name: str):
+    ``SHOW CREATE TABLE``, ``SHOW CREATE VIEW``, ``SHOW COLUMNS`` and
+    ``SHOW INDEX`` all name a single relation, and a relation is one
+    concept: it lives in a namespace and has a name inside it. Treating
+    the table and the view as two separate things here duplicated the
+    same identity four times over and left nowhere for the database to
+    live, which is why a ``SHOW COLUMNS FROM app.users`` could not be
+    written without hand-building the qualified name.
+
+    The relation is therefore one attribute, :attr:`relation`, and the
+    ``schema()`` setter above folds the database into it. A bare string
+    is accepted as shorthand for an unqualified relation; a
+    ``(database, name)`` tuple is refused, because an ordered pair cannot
+    say which part is which.
+
+    Each concrete statement keeps its own dialect formatter: what differs
+    between them is the verb and the options, not the name.
+    """
+
+    #: The relation kind a bare name is read as. ``ShowCreateTableExpression``
+    #: and the table-shaped statements leave this as :class:`Table`;
+    #: ``ShowCreateViewExpression`` narrows it to :class:`View`. Both are
+    #: relations, so both render through the same qualified-name path.
+    relation_kind: type = Table
+
+    def __init__(self, dialect: "MariaDBDialect", relation: Union[RelationObject, str]):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._relation: RelationObject = self._as_relation(relation)
+
+    def _as_relation(self, relation: Union[RelationObject, str]) -> RelationObject:
+        """Return *relation* as a relation object of this statement's kind.
+
+        Raises:
+            TypeError: *relation* is neither a relation object nor a
+                string.
+        """
+        if isinstance(relation, RelationObject):
+            return relation
+        if isinstance(relation, str):
+            return self.relation_kind(self._dialect, relation)
+        if isinstance(relation, tuple):
+            raise TypeError(
+                "SHOW targets are schema objects, not (database, name) "
+                f"tuples: pass {self.relation_kind.__name__}({relation[-1]!r}, "
+                f"catalog_name={relation[0]!r}) instead of {relation!r}"
+            )
+        raise TypeError(
+            f"relation must be a {self.relation_kind.__name__} or a name string, "
+            f"got {type(relation).__name__}"
+        )
+
+    def schema(self, name: str) -> "ShowRelationExpression":
+        """Set the database the relation lives in."""
+        super().schema(name)
+        self._relation.catalog_name = name
+        return self
+
+    @property
+    def relation(self) -> RelationObject:
+        """The relation this statement names, database included."""
+        return self._relation
+
+
+class ShowCreateTableExpression(ShowRelationExpression):
+    """Expression for SHOW CREATE TABLE command."""
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_create_table(self)
 
 
-class ShowCreateViewExpression(ShowExpression):
+class ShowCreateViewExpression(ShowRelationExpression):
     """Expression for SHOW CREATE VIEW command."""
 
-    def __init__(self, dialect: "MariaDBDialect", view_name: str):
-        super().__init__(dialect)
-        self._view_name = view_name
+    #: A view is a relation; naming it as one is what lets the same
+    #: qualified-name renderer serve both SHOW CREATE forms.
+    relation_kind = View
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_create_view(self)
 
 
-class ShowColumnsExpression(ShowExpression):
+class ShowColumnsExpression(ShowRelationExpression):
     """Expression for SHOW [FULL] COLUMNS command."""
 
-    def __init__(self, dialect: "MariaDBDialect", table_name: str,
+    def __init__(self, dialect: "MariaDBDialect", relation: Union[RelationObject, str],
                  *, full: bool = False, like_pattern: Optional[str] = None):
-        super().__init__(dialect)
-        self._table_name = table_name
+        super().__init__(dialect, relation)
         self._full = full
         self._like_pattern = like_pattern
 
@@ -100,12 +166,8 @@ class ShowColumnsExpression(ShowExpression):
         return self._dialect.format_show_columns(self)
 
 
-class ShowIndexExpression(ShowExpression):
+class ShowIndexExpression(ShowRelationExpression):
     """Expression for SHOW INDEX command."""
-
-    def __init__(self, dialect: "MariaDBDialect", table_name: str):
-        super().__init__(dialect)
-        self._table_name = table_name
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_index(self)
@@ -169,7 +231,14 @@ class ShowTableStatusExpression(ShowExpression):
 
 
 class ShowTriggersExpression(ShowExpression):
-    """Expression for SHOW TRIGGERS command."""
+    """Expression for SHOW TRIGGERS command.
+
+    ``table_name`` here is a **LIKE pattern**, not a relation reference:
+    MariaDB's ``SHOW TRIGGERS`` filters on the name it prints, not on a
+    resolved object. It is therefore kept as a plain string and never
+    qualified -- a trigger's database comes from ``schema()`` above,
+    which is the ``FROM`` clause.
+    """
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, table_name: Optional[str] = None):
@@ -177,7 +246,7 @@ class ShowTriggersExpression(ShowExpression):
         self._table_name = table_name
 
     def for_table(self, table_name: str) -> "ShowTriggersExpression":
-        """Filter triggers for a specific table."""
+        """Filter triggers by table name pattern."""
         self._table_name = table_name
         return self
 
@@ -188,9 +257,41 @@ class ShowTriggersExpression(ShowExpression):
 class ShowCreateTriggerExpression(ShowExpression):
     """Expression for SHOW CREATE TRIGGER command."""
 
-    def __init__(self, dialect: "MariaDBDialect", trigger_name: str):
+    def __init__(self, dialect: "MariaDBDialect", trigger: Union[Trigger, str]):
         super().__init__(dialect)
-        self._trigger_name = trigger_name
+        self._trigger: Trigger = self._as_trigger(trigger)
+
+    def _as_trigger(self, trigger: Union[Trigger, str]) -> Trigger:
+        """Return *trigger* as a :class:`Trigger`.
+
+        Raises:
+            TypeError: *trigger* is neither a trigger object nor a string.
+        """
+        if isinstance(trigger, Trigger):
+            return trigger
+        if isinstance(trigger, str):
+            return Trigger(self._dialect, trigger)
+        if isinstance(trigger, tuple):
+            raise TypeError(
+                "a trigger name is a schema object, not a (database, name) "
+                f"tuple: pass Trigger({trigger[-1]!r}, "
+                f"catalog_name={trigger[0]!r}) instead of {trigger!r}"
+            )
+        raise TypeError(
+            f"trigger must be a Trigger or a name string, "
+            f"got {type(trigger).__name__}"
+        )
+
+    def schema(self, name: str) -> "ShowCreateTriggerExpression":
+        """Set the database the trigger lives in."""
+        super().schema(name)
+        self._trigger.catalog_name = name
+        return self
+
+    @property
+    def trigger(self) -> Trigger:
+        """The trigger this statement names, database included."""
+        return self._trigger
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_create_trigger(self)

@@ -35,9 +35,21 @@ SYSTEM_SCHEMAS_SQL_PREDICATE = (
     "TABLE_SCHEMA NOT IN ('" + "', '".join(SYSTEM_SCHEMAS) + "')"
 )
 
+#: The catalogue these queries read. `information_schema` is a *database*
+#: on MariaDB like any other, so it belongs in the catalog slot of a schema
+#: object rather than being spelled into each query as a literal prefix.
+INFORMATION_SCHEMA_DATABASE = "information_schema"
+
 
 class MariaDBIntrospectionMixin:
     """MariaDB introspection capability declaration and query formatting.
+
+    Every query here reads ``information_schema``, which on MariaDB is a
+    database like any other. Naming it therefore means qualifying a
+    relation, and that goes through the one qualified-name renderer via
+    :meth:`_information_schema` -- so ``information_schema`` does not
+    become a second, hand-spelled way of naming a namespace that the rest
+    of the backend spells as a catalog slot.
 
     This mixin implements the IntrospectionSupport protocol by:
     1. Declaring which introspection features MariaDB supports (supports_* methods)
@@ -105,6 +117,17 @@ class MariaDBIntrospectionMixin:
 
     # ========== Query Formatting ==========
 
+    def _information_schema(self, name: str) -> str:
+        """Render ``information_schema`.`name``` as a qualified relation.
+
+        The catalogue is a catalog slot on a schema object rather than a
+        literal prefix in a string, so the qualified name renders through
+        exactly one place.
+        """
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        return Table(self, name, catalog_name=INFORMATION_SCHEMA_DATABASE).to_sql()[0]
+
     def format_database_info_query(
         self, expr: "DatabaseInfoExpression"
     ) -> Tuple[str, tuple]:
@@ -123,7 +146,7 @@ class MariaDBIntrospectionMixin:
 
         sql = (
             "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME "
-            "FROM information_schema.SCHEMATA "
+            f"FROM {self._information_schema('SCHEMATA')} "
             f"WHERE SCHEMA_NAME = {self.p()}"
         )
         return (sql, (schema,))
@@ -162,7 +185,7 @@ class MariaDBIntrospectionMixin:
         sql = (
             "SELECT TABLE_NAME, TABLE_TYPE, TABLE_COMMENT, TABLE_ROWS, "
             "DATA_LENGTH, AUTO_INCREMENT, CREATE_TIME, UPDATE_TIME "
-            f"FROM information_schema.TABLES WHERE {where}"
+            f"FROM {self._information_schema('TABLES')} WHERE {where}"
         )
         return (sql, tuple(sql_params))
 
@@ -188,7 +211,7 @@ class MariaDBIntrospectionMixin:
             "DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, "
             "COLUMN_TYPE, COLUMN_KEY, EXTRA, COLUMN_COMMENT, "
             "CHARACTER_SET_NAME, COLLATION_NAME "
-            "FROM information_schema.COLUMNS "
+            f"FROM {self._information_schema('COLUMNS')} "
             f"WHERE TABLE_SCHEMA = {self.p()} AND TABLE_NAME = {self.p()} "
             "ORDER BY ORDINAL_POSITION"
         )
@@ -214,7 +237,7 @@ class MariaDBIntrospectionMixin:
         sql = (
             "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, "
             "INDEX_TYPE, SUB_PART, NULLABLE "
-            "FROM information_schema.STATISTICS "
+            f"FROM {self._information_schema('STATISTICS')} "
             f"WHERE TABLE_SCHEMA = {self.p()} AND TABLE_NAME = {self.p()} "
             "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
         )
@@ -238,12 +261,14 @@ class MariaDBIntrospectionMixin:
         table_name = params.get("table_name", "")
         schema = params.get("schema", "")
 
+        key_column_usage = self._information_schema("KEY_COLUMN_USAGE")
+        referential_constraints = self._information_schema("REFERENTIAL_CONSTRAINTS")
         sql = (
             "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu.ORDINAL_POSITION, "
             "kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME, "
             "rc.UPDATE_RULE, rc.DELETE_RULE "
-            "FROM information_schema.KEY_COLUMN_USAGE kcu "
-            "JOIN information_schema.REFERENTIAL_CONSTRAINTS rc "
+            f"FROM {key_column_usage} kcu "
+            f"JOIN {referential_constraints} rc "
             " ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME "
             " AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA "
             f"WHERE kcu.TABLE_SCHEMA = {self.p()} AND kcu.TABLE_NAME = {self.p()} "
@@ -278,7 +303,7 @@ class MariaDBIntrospectionMixin:
         where = " AND ".join(conditions)
         sql = (
             "SELECT TABLE_NAME, VIEW_DEFINITION, CHECK_OPTION, IS_UPDATABLE "
-            f"FROM information_schema.VIEWS WHERE {where} "
+            f"FROM {self._information_schema('VIEWS')} WHERE {where} "
             "ORDER BY TABLE_NAME"
         )
         return (sql, tuple(sql_params))
@@ -302,7 +327,7 @@ class MariaDBIntrospectionMixin:
 
         sql = (
             "SELECT TABLE_NAME, VIEW_DEFINITION, CHECK_OPTION, IS_UPDATABLE "
-            "FROM information_schema.VIEWS "
+            f"FROM {self._information_schema('VIEWS')} "
             f"WHERE TABLE_SCHEMA = {self.p()} AND TABLE_NAME = {self.p()}"
         )
         return (sql, (schema, view_name))
@@ -335,7 +360,7 @@ class MariaDBIntrospectionMixin:
         sql = (
             "SELECT TRIGGER_NAME, EVENT_MANIPULATION, EVENT_OBJECT_TABLE, "
             "ACTION_TIMING, ACTION_STATEMENT, CREATED "
-            f"FROM information_schema.TRIGGERS WHERE {where} "
+            f"FROM {self._information_schema('TRIGGERS')} WHERE {where} "
             "ORDER BY TRIGGER_NAME"
         )
         return (sql, tuple(sql_params))

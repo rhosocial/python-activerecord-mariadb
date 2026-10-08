@@ -17,6 +17,10 @@ from rhosocial.activerecord.backend.expression.statements.fulltext_match import 
     FulltextMatchExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBMatchAgainstExpression
+from rhosocial.activerecord.backend.expression.objects import (
+    Index,
+    Table,
+)
 
 
 class TestFullTextProtocol:
@@ -141,8 +145,8 @@ class TestFullTextProtocol:
 
         expr = CreateFulltextIndexExpression(
             dialect=dialect,
-            index_name='idx_content',
-            table_name='articles',
+            index=Index(dialect, 'idx_content'),
+            table=Table(dialect, 'articles'),
             columns=['title', 'content']
         )
         sql, params = expr.to_sql()
@@ -159,8 +163,8 @@ class TestFullTextProtocol:
 
         expr = CreateFulltextIndexExpression(
             dialect=dialect,
-            index_name='idx_content',
-            table_name='articles',
+            index=Index(dialect, 'idx_content'),
+            table=Table(dialect, 'articles'),
             columns=['content'],
             parser='ngram'
         )

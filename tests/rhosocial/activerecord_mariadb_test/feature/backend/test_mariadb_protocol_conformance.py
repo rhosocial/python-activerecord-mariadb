@@ -69,63 +69,111 @@ def get_own_protocol_methods(proto: type) -> set:
 
 
 MYSQL_PROTOCOLS = [
-    dialect_protocols.CTESupport,
-    dialect_protocols.ColumnAttributeSupport,
-    dialect_protocols.FilterClauseSupport,
-    dialect_protocols.WindowFunctionSupport,
-    dialect_protocols.JSONSupport,
-    dialect_protocols.ReturningSupport,
+    # --- Named objects: how each kind of catalogue entry is spelled ---
+    dialect_protocols.NamespaceSupport,
+    dialect_protocols.TableObjectSupport,
+    dialect_protocols.ViewObjectSupport,
+    dialect_protocols.MaterializedViewObjectSupport,
+    dialect_protocols.ForeignTableObjectSupport,
+    dialect_protocols.IndexObjectSupport,
+    dialect_protocols.SequenceObjectSupport,
+    dialect_protocols.TriggerObjectSupport,
+    dialect_protocols.RoutineObjectSupport,
+    dialect_protocols.TypeObjectSupport,
+    dialect_protocols.SynonymObjectSupport,
+    # --- Query features ---
     dialect_protocols.AdvancedGroupingSupport,
     dialect_protocols.ArraySupport,
-    dialect_protocols.ExplainSupport,
-    dialect_protocols.LockingSupport,
-    dialect_protocols.MergeSupport,
-    dialect_protocols.QualifyClauseSupport,
-    dialect_protocols.TemporalTableSupport,
-    dialect_protocols.LateralJoinSupport,
-    dialect_protocols.WildcardSupport,
-    dialect_protocols.JoinSupport,
-    dialect_protocols.ViewSupport,
-    dialect_protocols.SchemaSupport,
-    dialect_protocols.IndexSupport,
-    dialect_protocols.SequenceSupport,
-    dialect_protocols.TableSupport,
-    dialect_protocols.ConstraintSupport,
-    dialect_protocols.IntrospectionSupport,
-    dialect_protocols.TransactionControlSupport,
-    dialect_protocols.SQLFunctionSupport,
-    # Generic protocols MariaDB also satisfies (previously omitted from this list).
-    dialect_protocols.AutoIncrementSupport,
-    dialect_protocols.AlterTableModifierSupport,
+    dialect_protocols.CTESupport,
     dialect_protocols.CollationSupport,
+    dialect_protocols.ColumnAttributeSupport,
     dialect_protocols.DataTypeSupport,
-    dialect_protocols.UserDefinedTypeSupport,
-    dialect_protocols.DomainSupport,
-    dialect_protocols.FunctionSupport,
+    dialect_protocols.DateTimeSupport,
+    dialect_protocols.DqlOrderSupport,
+    dialect_protocols.ExplainSupport,
+    dialect_protocols.FilterClauseSupport,
+    dialect_protocols.FulltextIndexSupport,
     dialect_protocols.GeneratedColumnSupport,
     dialect_protocols.GraphSupport,
     dialect_protocols.ILIKESupport,
+    dialect_protocols.JSONSupport,
+    dialect_protocols.JoinSupport,
+    dialect_protocols.LateralJoinSupport,
+    dialect_protocols.LockingSupport,
+    dialect_protocols.MaterializedViewSupport,
+    dialect_protocols.MergeSupport,
     dialect_protocols.OrderedSetAggregationSupport,
     dialect_protocols.PartitionSupport,
+    dialect_protocols.QualifyClauseSupport,
+    dialect_protocols.ReturningSupport,
     dialect_protocols.SetOperationSupport,
-    dialect_protocols.TriggerSupport,
-    dialect_protocols.TruncateSupport,
+    dialect_protocols.SQLFunctionSupport,
+    dialect_protocols.TemporalTableSupport,
     dialect_protocols.UpsertSupport,
-    # MariaDB-specific protocols
-    mysql_protocols.MariaDBDMLOperationSupport,
-    mysql_protocols.MariaDBTriggerSupport,
-    mysql_protocols.MariaDBTableSupport,
-    mysql_protocols.MariaDBSetTypeSupport,
-    mysql_protocols.MariaDBJSONFunctionSupport,
-    mysql_protocols.MariaDBSpatialSupport,
-    mysql_protocols.MariaDBFullTextSearchSupport,
-    mysql_protocols.MariaDBLockingSupport,
-    mysql_protocols.MariaDBModifyColumnSupport,
-    mysql_protocols.MariaDBRenameTableSupport,
-    mysql_protocols.MariaDBAlterTableSupport,
-    mysql_protocols.MariaDBMaintenanceSupport,
-    mysql_protocols.MariaDBRoutineSupport,
+    dialect_protocols.WildcardSupport,
+    dialect_protocols.WindowFunctionSupport,
+    # --- DDL, one protocol per statement ---
+    dialect_protocols.AlterDatabaseSupport,
+    dialect_protocols.AlterDomainSupport,
+    dialect_protocols.AlterSequenceSupport,
+    dialect_protocols.AlterTableModifierSupport,
+    dialect_protocols.AlterTableSupport,
+    dialect_protocols.AlterTypeSupport,
+    # One protocol per mechanism: the parameterless marker and the
+    # parameterised standard clause. MariaDB declares both interfaces; its
+    # probes answer True and False respectively.
+    dialect_protocols.AutoIncrementColumnSupport,
+    dialect_protocols.IdentityColumnSupport,
+    dialect_protocols.ConstraintSupport,
+    dialect_protocols.CreateDomainSupport,
+    dialect_protocols.CreateIndexSupport,
+    dialect_protocols.CreateRoutineSupport,
+    dialect_protocols.CreateSchemaSupport,
+    dialect_protocols.CreateSequenceSupport,
+    dialect_protocols.CreateTableAsSupport,
+    dialect_protocols.CreateTableCloneSupport,
+    dialect_protocols.CreateTableLikeSupport,
+    dialect_protocols.CreateTableSupport,
+    dialect_protocols.CreateTableUsingTemplateSupport,
+    dialect_protocols.CreateTriggerSupport,
+    dialect_protocols.CreateTypeSupport,
+    dialect_protocols.CreateViewSupport,
+    dialect_protocols.DropDomainSupport,
+    dialect_protocols.DropIndexSupport,
+    dialect_protocols.DropRoutineSupport,
+    dialect_protocols.DropSchemaSupport,
+    dialect_protocols.DropSequenceSupport,
+    dialect_protocols.DropTableSupport,
+    dialect_protocols.DropTriggerSupport,
+    dialect_protocols.DropTypeSupport,
+    dialect_protocols.DropViewSupport,
+    dialect_protocols.TruncateSupport,
+    # --- Introspection and sessions ---
+    dialect_protocols.IntrospectionSupport,
+    dialect_protocols.TransactionControlSupport,
+    # --- MariaDB-specific protocols ---
     mysql_protocols.MariaDBAdminSupport,
+    mysql_protocols.MariaDBAlterTableSupport,
+    mysql_protocols.MariaDBCTESupport,
+    mysql_protocols.MariaDBCharsetCollationSupport,
+    mysql_protocols.MariaDBDMLOperationSupport,
+    mysql_protocols.MariaDBFullTextSearchSupport,
+    mysql_protocols.MariaDBIntersectExceptSupport,
+    mysql_protocols.MariaDBJSONFunctionSupport,
+    mysql_protocols.MariaDBLockingSupport,
+    mysql_protocols.MariaDBMaintenanceSupport,
+    mysql_protocols.MariaDBModifyColumnSupport,
+    mysql_protocols.MariaDBPartitionSupport,
+    mysql_protocols.MariaDBRenameTableSupport,
+    mysql_protocols.MariaDBReturningSupport,
+    mysql_protocols.MariaDBRoutineSupport,
+    mysql_protocols.MariaDBSequenceSupport,
+    mysql_protocols.MariaDBSetTypeSupport,
+    mysql_protocols.MariaDBSpatialSupport,
+    mysql_protocols.MariaDBSystemVersioningSupport,
+    mysql_protocols.MariaDBTableSupport,
+    mysql_protocols.MariaDBTriggerSupport,
+    mysql_protocols.MariaDBWindowFunctionSupport,
 ]
 
 
@@ -156,8 +204,10 @@ MARIADB_NOT_IMPLEMENTED = [
     # MariaDB has no standalone COMMENT ON statement; inline table/column
     # comments are rendered by CREATE TABLE instead.
     dialect_protocols.CommentSupport,
-    # The generic DatabaseSupport protocol is not composed by MariaDBDialect.
-    dialect_protocols.DatabaseSupport,
+    # MariaDB has no SQL/PGQ property-graph tables.
+    dialect_protocols.GraphTableSupport,
+    # MariaDB has no PIVOT / UNPIVOT.
+    dialect_protocols.PivotSupport,
     # MariaDB has no SQL/XML support.
     dialect_protocols.SQLXMLSupport,
     dialect_protocols.SQLXMLParsingSupport,
@@ -165,8 +215,13 @@ MARIADB_NOT_IMPLEMENTED = [
     dialect_protocols.SQLXMLConstructionSupport,
     dialect_protocols.SQLXMLAggregationSupport,
     dialect_protocols.SQLXMLQueryingSupport,
-    # MariaDB has no SQL/PGQ property-graph tables.
-    dialect_protocols.GraphTableSupport,
+    # CREATE/DROP DATABASE are answered by MariaDBDatabaseMixin, which declares
+    # the MariaDB-only capabilities (OR REPLACE, encoding, collation) rather
+    # than core's full set (owner, tablespace, template, connection limit).
+    # MariaDB has none of those, so declaring the generic protocol would be a
+    # claim the dialect cannot keep.
+    dialect_protocols.CreateDatabaseSupport,
+    dialect_protocols.DropDatabaseSupport,
 ]
 
 
@@ -204,17 +259,20 @@ class TestMariaDBDialectNegativeProtocolConformance:
 
     def test_positive_and_negative_lists_partition_all_protocols(self):
         """Every generic protocol must be classified for MariaDB."""
-        all_protos = set(get_all_generic_protocols())
+        all_protos = get_all_generic_protocols()
+        # Match on the class rather than on ``__module__``: core now gives each
+        # protocol its own module under ``protocols/``, so every one of them
+        # reports a ``__module__`` that differs from the package's.
         positive = {
             p.__name__ for p in MYSQL_PROTOCOLS
-            if p.__module__ == dialect_protocols.__name__
+            if all_protos.get(p.__name__) is p
         }
         negative = {p.__name__ for p in MARIADB_NOT_IMPLEMENTED}
 
         overlap = positive & negative
         assert not overlap, f"Protocols in BOTH lists: {sorted(overlap)}"
 
-        unclassified = all_protos - positive - negative
+        unclassified = set(all_protos) - positive - negative
         assert not unclassified, (
             f"Generic protocols not classified for MariaDB: {sorted(unclassified)}. "
             f"Add each to MYSQL_PROTOCOLS or MARIADB_NOT_IMPLEMENTED."
@@ -225,7 +283,15 @@ class TestProtocolNonOverlap:
     """Assert protocols do not have overlapping method names."""
 
     def test_no_interface_overlap_between_protocols(self):
-        """No two protocols should share the same method name."""
+        """No two protocols should share the same method name.
+
+        One shared group is not an overlap: every named-object protocol
+        inherits the namespace switches from ``NamespaceSupport``, because
+        catalog, schema and name are one question about every kind of object.
+        Core says so once, on the base, and the per-kind protocols inherit it;
+        enumerating those pairs here would be noise, so a pair whose shared
+        members are all namespace switches passes.
+        """
         member_map = {
             proto.__name__: get_all_protocol_methods(proto)
             for proto in MYSQL_PROTOCOLS
@@ -235,43 +301,88 @@ class TestProtocolNonOverlap:
             assert len(members) > 0, f"Protocol {name} has no members defined"
 
         excluded_overlaps = {
-            # MariaDB-specific protocols extend generic protocols (intentional inheritance)
+            # MariaDB-specific protocols extend generic protocols, so they
+            # inherit the base's methods as well as declaring their own.
             ('JSONSupport', 'MariaDBJSONFunctionSupport'),
             ('MariaDBJSONFunctionSupport', 'JSONSupport'),
             ('LockingSupport', 'MariaDBLockingSupport'),
             ('MariaDBLockingSupport', 'LockingSupport'),
-            ('TableSupport', 'MariaDBTableSupport'),
-            ('MariaDBTableSupport', 'TableSupport'),
+            ('PartitionSupport', 'MariaDBPartitionSupport'),
+            ('MariaDBPartitionSupport', 'PartitionSupport'),
+            ('TableObjectSupport', 'MariaDBTableSupport'),
+            ('MariaDBTableSupport', 'TableObjectSupport'),
+            ('TriggerObjectSupport', 'MariaDBTriggerSupport'),
+            ('MariaDBTriggerSupport', 'TriggerObjectSupport'),
             # MySQL DML includes upsert capabilities (ON DUPLICATE KEY UPDATE)
             ('UpsertSupport', 'MariaDBDMLOperationSupport'),
             ('MariaDBDMLOperationSupport', 'UpsertSupport'),
-            # MySQL fulltext search includes index capabilities
-            ('IndexSupport', 'MariaDBFullTextSearchSupport'),
-            ('MariaDBFullTextSearchSupport', 'IndexSupport'),
-            # Rename table shares capability detection with generic TableSupport
-            ('TableSupport', 'MariaDBRenameTableSupport'),
-            ('MariaDBRenameTableSupport', 'TableSupport'),
-            # ... including the MariaDB-specific table protocol
+            # MySQL fulltext search restates the generic fulltext capabilities
+            ('FulltextIndexSupport', 'MariaDBFullTextSearchSupport'),
+            ('MariaDBFullTextSearchSupport', 'FulltextIndexSupport'),
+            # MariaDB's CTE protocol restates the recursive-CTE switch.
+            ('CTESupport', 'MariaDBCTESupport'),
+            ('MariaDBCTESupport', 'CTESupport'),
+            # MariaDB's INTERSECT/EXCEPT protocol restates two set-operation switches.
+            ('SetOperationSupport', 'MariaDBIntersectExceptSupport'),
+            ('MariaDBIntersectExceptSupport', 'SetOperationSupport'),
+            # MariaDB's window protocol restates the window-functions switch.
+            ('WindowFunctionSupport', 'MariaDBWindowFunctionSupport'),
+            ('MariaDBWindowFunctionSupport', 'WindowFunctionSupport'),
+            # MariaDB's RETURNING protocol restates the clause renderer.
+            ('ReturningSupport', 'MariaDBReturningSupport'),
+            ('MariaDBReturningSupport', 'ReturningSupport'),
+            # Rename table shares capability detection with ALTER TABLE
+            ('AlterTableSupport', 'MariaDBRenameTableSupport'),
+            ('MariaDBRenameTableSupport', 'AlterTableSupport'),
+            # ... and with the MariaDB-specific table protocol
             ('MariaDBTableSupport', 'MariaDBRenameTableSupport'),
             ('MariaDBRenameTableSupport', 'MariaDBTableSupport'),
-            # Rename index is an ALTER TABLE capability overlapping generic TableSupport
-            ('TableSupport', 'MariaDBAlterTableSupport'),
-            ('MariaDBAlterTableSupport', 'TableSupport'),
-            # MariaDB routine protocol restates the generic SQL/PSM function capability.
-            ('FunctionSupport', 'MariaDBRoutineSupport'),
-            ('MariaDBRoutineSupport', 'FunctionSupport'),
-            # MariaDB trigger protocol restates the generic trigger capability.
-            ('TriggerSupport', 'MariaDBTriggerSupport'),
-            ('MariaDBTriggerSupport', 'TriggerSupport'),
+            # MariaDB's table protocol restates CREATE TABLE and
+            # CREATE TABLE ... LIKE, which core now declares separately.
+            ('CreateTableSupport', 'MariaDBTableSupport'),
+            ('MariaDBTableSupport', 'CreateTableSupport'),
+            ('CreateTableLikeSupport', 'MariaDBTableSupport'),
+            ('MariaDBTableSupport', 'CreateTableLikeSupport'),
+            # ... and the column-comment switch, which core declares on
+            # ConstraintSupport.
+            ('ConstraintSupport', 'MariaDBTableSupport'),
+            ('MariaDBTableSupport', 'ConstraintSupport'),
+            # MariaDB's trigger protocol restates the whole CREATE/DROP
+            # TRIGGER surface core declares per statement.
+            ('CreateTriggerSupport', 'MariaDBTriggerSupport'),
+            ('MariaDBTriggerSupport', 'CreateTriggerSupport'),
+            ('DropTriggerSupport', 'MariaDBTriggerSupport'),
+            ('MariaDBTriggerSupport', 'DropTriggerSupport'),
+            # MariaDB's sequence protocol restates the CREATE/ALTER/DROP
+            # SEQUENCE surface core declares per statement, including the
+            # per-option probes.
+            ('CreateSequenceSupport', 'MariaDBSequenceSupport'),
+            ('MariaDBSequenceSupport', 'CreateSequenceSupport'),
+            ('DropSequenceSupport', 'MariaDBSequenceSupport'),
+            ('MariaDBSequenceSupport', 'DropSequenceSupport'),
+            ('AlterSequenceSupport', 'MariaDBSequenceSupport'),
+            ('MariaDBSequenceSupport', 'AlterSequenceSupport'),
+            # MariaDB's routine protocol restates the CREATE/DROP FUNCTION
+            # surface core declares per statement.
+            ('CreateRoutineSupport', 'MariaDBRoutineSupport'),
+            ('MariaDBRoutineSupport', 'CreateRoutineSupport'),
+            ('DropRoutineSupport', 'MariaDBRoutineSupport'),
+            ('MariaDBRoutineSupport', 'DropRoutineSupport'),
         }
+
+        namespace_members = get_all_protocol_methods(dialect_protocols.NamespaceSupport)
 
         violations = []
         for (name_a, members_a), (name_b, members_b) in combinations(member_map.items(), 2):
+            overlap = members_a & members_b
+            if not overlap:
+                continue
             if (name_a, name_b) in excluded_overlaps:
                 continue
-            overlap = members_a & members_b
-            if overlap:
-                violations.append(f"{name_a} ∩ {name_b} = {overlap}")
+            # The namespace switches are shared by design, by inheritance.
+            if overlap <= namespace_members:
+                continue
+            violations.append(f"{name_a} ∩ {name_b} = {overlap}")
 
         assert not violations, (
             "The following protocols have overlapping interfaces, need to merge or rename:\n"
@@ -375,6 +486,7 @@ MYSQL_PROTOCOL_MIXIN_PAIRS = [
     (mysql_protocols.MariaDBFullTextSearchSupport, mysql_mixins.MariaDBFullTextSearchMixin),
     (mysql_protocols.MariaDBLockingSupport, mysql_mixins.MariaDBLockingMixin),
     (mysql_protocols.MariaDBModifyColumnSupport, mysql_mixins.MariaDBModifyColumnMixin),
+    (mysql_protocols.MariaDBSequenceSupport, mysql_mixins.MariaDBSequenceMixin),
 ]
 
 
@@ -406,13 +518,6 @@ class TestProtocolMethodSignatureConformance:
         ('ExplainSupport', 'format_explain_statement'),
         # QualifyClauseSupport: MariaDB doesn't support QUALIFY, param name differs
         ('QualifyClauseSupport', 'format_qualify_clause'),
-        # SequenceSupport: MariaDB uses named params instead of expr object
-        ('SequenceSupport', 'format_create_sequence_statement'),
-        ('SequenceSupport', 'format_drop_sequence_statement'),
-        ('SequenceSupport', 'format_alter_sequence_statement'),
-        ('MariaDBSequenceSupport', 'format_create_sequence_statement'),
-        ('MariaDBSequenceSupport', 'format_drop_sequence_statement'),
-        ('MariaDBSequenceSupport', 'format_alter_sequence_statement'),
         # MariaDBLockingSupport: format_lock_in_share_mode uses different param name
         ('MariaDBLockingSupport', 'format_lock_in_share_mode'),
         # GraphSupport: format_match_clause uses a different param name (_clause)

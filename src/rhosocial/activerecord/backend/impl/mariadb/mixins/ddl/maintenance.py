@@ -61,7 +61,11 @@ class MariaDBMaintenanceMixin:
         expr.validate(strict=self.strict_validation)
 
         operation = expr.operation.value
-        tables = ", ".join(self.format_identifier(t) for t in expr.table_names)
+        # Maintenance targets are relations and arrive as objects, so each one
+        # is rendered by `format_table_object`. That is what makes
+        # ``ANALYZE TABLE app`.`users`` expressible: the database is a slot on
+        # the object, not a string this method would have to assemble.
+        tables = ", ".join(table.to_sql()[0] for table in expr.tables)
 
         parts = [operation]
 

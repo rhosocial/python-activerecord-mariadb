@@ -20,6 +20,9 @@ from rhosocial.activerecord.backend.expression import (
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
 
 
 @pytest.fixture
@@ -41,7 +44,7 @@ class TestMariaDBOnConflictCapabilities:
         source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
         clause1 = OnConflictClause(dialect, conflict_target=["col_a"], do_nothing=True)
         clause2 = OnConflictClause(dialect, conflict_target=["col_b"], do_nothing=True)
-        expr = InsertExpression(dialect, into="t", source=source, on_conflict=[clause1, clause2])
+        expr = InsertExpression(dialect, into=Table(dialect, "t"), source=source, on_conflict=[clause1, clause2])
 
         with pytest.raises(UnsupportedFeatureError, match="multiple ON CONFLICT clauses"):
             expr.to_sql()
@@ -58,7 +61,7 @@ class TestMariaDBOnConflictRendering:
             update_assignments={"name": Column(dialect, "name", "excluded")},
         )
         expr = InsertExpression(
-            dialect, into="users", columns=["id", "name"], source=source, on_conflict=clause
+            dialect, into=Table(dialect, "users"), columns=["id", "name"], source=source, on_conflict=clause
         )
         sql, params = expr.to_sql()
         assert sql == (
@@ -71,7 +74,7 @@ class TestMariaDBOnConflictRendering:
         """do_nothing renders the MariaDB no-op UPDATE id = id."""
         source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
         clause = OnConflictClause(dialect, conflict_target=["id"], do_nothing=True)
-        expr = InsertExpression(dialect, into="users", columns=["id"], source=source, on_conflict=clause)
+        expr = InsertExpression(dialect, into=Table(dialect, "users"), columns=["id"], source=source, on_conflict=clause)
         sql, params = expr.to_sql()
         assert sql == (
             'INSERT INTO `users` (`id`) VALUES (%s) '
@@ -84,13 +87,13 @@ class TestMariaDBOnConflictRendering:
         source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
 
         expr = MariaDBInsertExpression(
-            dialect, into="users", columns=["id"], source=source, replace=True
+            dialect, into=Table(dialect, "users"), columns=["id"], source=source, replace=True
         )
         sql, _ = expr.to_sql()
         assert sql.startswith('REPLACE INTO `users`')
 
         expr = MariaDBInsertExpression(
-            dialect, into="users", columns=["id"], source=source, ignore=True
+            dialect, into=Table(dialect, "users"), columns=["id"], source=source, ignore=True
         )
         sql, _ = expr.to_sql()
         assert sql.startswith('INSERT IGNORE INTO `users`')

@@ -15,6 +15,8 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import Table
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -43,13 +45,13 @@ from rhosocial.activerecord.backend.expression.types import (
 )
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='users',
+    table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect)),
         ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
@@ -62,7 +64,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='users',
+    into=Table(dialect, 'users'),
     columns=['id', 'name'],
     source=ValuesSource(dialect, [
         [Literal(dialect, 1), Literal(dialect, 'Alice')],
@@ -81,14 +83,12 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
     QueryExpression,
-    TableExpression,
     LimitOffsetClause,
 )
-
 query = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, 'id'), Column(dialect, 'name')],
-    from_=TableExpression(dialect, 'users'),
+    from_=Table(dialect, 'users'),
     limit_offset=LimitOffsetClause(dialect, limit=3),
 )
 sql, params = query.to_sql()
@@ -105,7 +105,7 @@ print(f"LIMIT result: {result.data}")
 query_offset = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, 'id'), Column(dialect, 'name')],
-    from_=TableExpression(dialect, 'users'),
+    from_=Table(dialect, 'users'),
     limit_offset=LimitOffsetClause(dialect, limit=2, offset=2),
 )
 sql, params = query_offset.to_sql()
@@ -116,7 +116,7 @@ print(f"Pagination result: {result.data}")
 # ============================================================
 # SECTION: Teardown
 # ============================================================
-drop_expr = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_expr = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

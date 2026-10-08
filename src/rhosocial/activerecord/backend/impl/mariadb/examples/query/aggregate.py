@@ -10,6 +10,8 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import Table
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -41,13 +43,13 @@ from rhosocial.activerecord.backend.expression.types import (
     DecimalType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table_name='sales', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'sales'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='sales',
+    table=Table(dialect, 'sales'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -70,7 +72,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='sales',
+    into=Table(dialect, 'sales'),
     columns=['product', 'quantity', 'price', 'region'],
     source=ValuesSource(
         dialect,
@@ -91,13 +93,11 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
     QueryExpression,
-    TableExpression,
     Column,
     GroupByHavingClause,
 )
 from rhosocial.activerecord.backend.expression.core import FunctionCall
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
-
 query = QueryExpression(
     dialect=dialect,
     select=[
@@ -105,7 +105,7 @@ query = QueryExpression(
         FunctionCall(dialect, 'SUM', Column(dialect, 'quantity')).as_('total_qty'),
         FunctionCall(dialect, 'AVG', Column(dialect, 'price')).as_('avg_price'),
     ],
-    from_=TableExpression(dialect, 'sales'),
+    from_=Table(dialect, 'sales'),
     group_by_having=GroupByHavingClause(
         dialect,
         group_by=[Column(dialect, 'product')],

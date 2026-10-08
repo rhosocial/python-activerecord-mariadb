@@ -10,6 +10,7 @@ Design principle: Sync and Async are separate and cannot coexist.
 
 from ..expression.show import (
     ShowExpression,
+    ShowRelationExpression,
     ShowCreateTableExpression,
     ShowCreateViewExpression,
     ShowColumnsExpression,
@@ -31,6 +32,7 @@ from ..expression.show import (
     ShowPluginsExpression,
 )
 from .types import (
+    ShowCreateRelationResult,
     ShowCreateTableResult,
     ShowCreateViewResult,
     ShowCreateTriggerResult,
@@ -55,8 +57,10 @@ from .functionality import MariaDBShowFunctionality, AsyncMariaDBShowFunctionali
 from .backend_mixin import MariaDBShowMixin, AsyncMariaDBShowMixin
 
 __all__ = [
-    # Base expression
+    # Base expressions
     "ShowExpression",
+    # Base for the SHOW commands that name one relation (table or view)
+    "ShowRelationExpression",
     # Expressions
     "ShowCreateTableExpression",
     "ShowCreateViewExpression",
@@ -78,6 +82,9 @@ __all__ = [
     "ShowGrantsExpression",
     "ShowPluginsExpression",
     # Types
+    # Shared base of the two SHOW CREATE results; a table and a view
+    # report the same two facts about the one relation they name.
+    "ShowCreateRelationResult",
     "ShowCreateTableResult",
     "ShowCreateViewResult",
     "ShowCreateTriggerResult",

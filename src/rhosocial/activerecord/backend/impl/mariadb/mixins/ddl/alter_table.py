@@ -73,7 +73,22 @@ class MariaDBAlterTableMixin:
         (10.5+) and ``WAIT n | NOWAIT`` (10.3+) from the typed fields of
         ``MariaDBAlterTableExpression``, then falls back to the generic action
         rendering.
+
+        Raises:
+            TypeError: ``expr.table`` is not a Table, or an entry of
+                ``expr.actions`` is not an AlterTableAction. A view or an index
+                would otherwise be named as if it were the table being altered.
         """
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+            AlterTableAction,
+        )
+
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"AlterTableExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
         head = "ALTER TABLE"
         if getattr(expr, "if_exists", False):
             if not self.supports_alter_table_if_exists():
@@ -84,7 +99,11 @@ class MariaDBAlterTableMixin:
                 )
             head += " IF EXISTS"
 
-        table_part = f"{head} {self.format_identifier(expr.table_name)}"
+        # The statement holds the table as a schema object, so a caller that knows
+        # the database can say so and the namespace survives into the SQL
+        # instead of being retyped as a bare name.
+        table_sql, _ = expr.table.to_sql()
+        table_part = f"{head} {table_sql}"
 
         wait_value = getattr(expr, "wait", None)
         if getattr(expr, "nowait", False):
@@ -105,7 +124,17 @@ class MariaDBAlterTableMixin:
         all_params = []
         parts = [table_part]
         action_parts = []
-        for action in expr.actions:
+        # AlterTableAction is an abstract base and cannot be instantiated, so
+        # this reports that the entry is not an implementation of it rather
+        # than naming a concrete type. Checked here because the loop below
+        # calls `action.to_sql()` directly, and a non-action carrying the
+        # wrong `format_method` would render as valid SQL.
+        for position, action in enumerate(expr.actions):
+            if not isinstance(action, AlterTableAction):
+                raise TypeError(
+                    f"AlterTableExpression.actions must hold AlterTableAction implementations, "
+                    f"got {type(action).__name__} at position {position}"
+                )
             action_part, action_params = action.to_sql()
             action_parts.append(action_part)
             all_params.extend(action_params)
@@ -117,7 +146,26 @@ class MariaDBAlterTableMixin:
         self,
         expr: "MariaDBRenameIndexExpression",
     ) -> Tuple[str, tuple]:
-        """Format MariaDB ``ALTER TABLE ... RENAME INDEX``."""
+        """Format MariaDB ``ALTER TABLE ... RENAME INDEX``.
+
+        Raises:
+            TypeError: One of the three objects is the wrong kind. Each carries
+                its own ``format_method``, so a table passed where an index
+                belongs would render as valid SQL naming the table.
+        """
+        from rhosocial.activerecord.backend.expression.objects import Index, Table
+
+        for attribute, kind in (
+            ("table", Table),
+            ("old_index", Index),
+            ("new_index", Index),
+        ):
+            value = getattr(expr, attribute)
+            if not isinstance(value, kind):
+                raise TypeError(
+                    f"MariaDBRenameIndexExpression.{attribute} must be a "
+                    f"{kind.__name__}, got {type(value).__name__}"
+                )
         expr.validate(strict=self.strict_validation)
 
         if not self.supports_rename_index():
@@ -127,10 +175,12 @@ class MariaDBAlterTableMixin:
                 "ALTER TABLE ... RENAME INDEX requires MariaDB 10.5.3 or later."
             )
 
+        # Three schema objects, each rendered by its own `format_*_object`:
+        # the table it lives on, and the index before and after its rename.
+        table_sql, _ = expr.table.to_sql()
+        old_sql, _ = expr.old_index.to_sql()
+        new_sql, _ = expr.new_index.to_sql()
         return (
-            "ALTER TABLE "
-            f"{self.format_identifier(expr.table_name)} RENAME INDEX "
-            f"{self.format_identifier(expr.old_index_name)} TO "
-            f"{self.format_identifier(expr.new_index_name)}",
+            f"ALTER TABLE {table_sql} RENAME INDEX {old_sql} TO {new_sql}",
             ()
         )

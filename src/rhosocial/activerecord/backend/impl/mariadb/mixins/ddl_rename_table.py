@@ -88,14 +88,22 @@ class MariaDBRenameTableMixin:
                 "WAIT/NOWAIT lock wait timeout requires MariaDB 10.3 or later."
             )
 
+        # Each side of every pair is a relation and renders through
+        # `format_table_object`. That is what makes `RENAME TABLE app.a TO
+        # app.b` expressible: the database is a slot on the object rather than
+        # something spliced into a string on both sides.
+        #
+        # `WAIT`/`NOWAIT` attaches to the first pair's source table only, so
+        # it is placed while that pair is being built. Splicing it in by
+        # splitting a finished string on " TO " used to work by accident and
+        # would break on any table whose name contained those characters.
         pairs = []
-        for old_name, new_name in expr.renames:
-            pair = f"{self.format_identifier(old_name)} TO {self.format_identifier(new_name)}"
-            pairs.append(pair)
-
-        if wait is not None:
-            first_old, first_new = pairs[0].split(" TO ", 1)
-            pairs[0] = f"{first_old} {wait} TO {first_new}"
+        for position, (old_table, new_table) in enumerate(expr.renames):
+            old_sql, _ = old_table.to_sql()
+            new_sql, _ = new_table.to_sql()
+            if wait is not None and position == 0:
+                old_sql = f"{old_sql} {wait}"
+            pairs.append(f"{old_sql} TO {new_sql}")
 
         parts = [head]
         parts.append(", ".join(pairs))

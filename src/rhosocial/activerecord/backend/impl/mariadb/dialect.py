@@ -21,12 +21,22 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
+    # Named-object protocols: how each kind of catalogue entry is spelled.
+    # MariaDB's spelling is core's default -- `catalog`.`name` -- so none of
+    # these needs a method of its own here.
+    TableObjectSupport,
+    ViewObjectSupport,
+    IndexObjectSupport,
+    SequenceObjectSupport,
+    TriggerObjectSupport,
+    RoutineObjectSupport,
+    TypeObjectSupport,
+    NamespaceSupport,
     CollationSupport,
     CTESupport,
     WindowFunctionSupport,
     ReturningSupport,
     SetOperationSupport,
-    SequenceSupport,
     UpsertSupport,
     ExplainSupport,
     JoinSupport,
@@ -43,19 +53,18 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     GraphSupport,
     # DDL Protocols (non-overlapping with MariaDB-specific)
     TruncateSupport,
-    SchemaSupport,
-    IndexSupport,
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
     GeneratedColumnSupport,
-    ViewSupport,
-    FunctionSupport,
+    # One protocol per mechanism: MariaDB accepts the parameterless
+    # AUTO_INCREMENT marker and refuses the parameterised standard identity
+    # clause, so both interfaces are declared and the probes carry the answer.
+    AutoIncrementColumnSupport,
+    IdentityColumnSupport,
     # Additional Protocols
     SQLFunctionSupport,
     DataTypeSupport,
-    UserDefinedTypeSupport,
-    DomainSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
     CollationMixin,
@@ -76,6 +85,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     TemporalTableMixin,
 
     GraphMixin,
+    RelationSourceMixin,
     # DDL Mixins
     TableMixin,
     TruncateMixin,
@@ -83,6 +93,11 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     IndexMixin,
     TriggerMixin,
     GeneratedColumnMixin,
+    # The formatters for the two identity mechanisms; MariaDB's own answers
+    # for their probes live on MariaDBGeneratedColumnMixin, which precedes
+    # these in the MRO.
+    AutoIncrementMixin,
+    IdentityColumnMixin,
     ViewMixin,
     FunctionMixin,
     IntrospectionMixin,
@@ -97,6 +112,26 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
+    # Naming. Each of these is core's default renderer for one kind of
+    # object, placed ahead of NamespaceMixin so that C3 keeps the per-kind
+    # formatter in front of the shared namespace prefix. MariaDB's spelling
+    # differs from none of them, so none of them is overridden here.
+    TableNameMixin,
+    ViewNameMixin,
+    MaterializedViewNameMixin,
+    ForeignTableNameMixin,
+    IndexNameMixin,
+    SequenceNameMixin,
+    TriggerNameMixin,
+    FunctionNameMixin,
+    ProcedureNameMixin,
+    TypeNameMixin,
+    DomainNameMixin,
+    SynonymNameMixin,
+    SchemaNameMixin,
+    DatabaseNameMixin,
+    PropertyGraphNameMixin,
+    NamespaceMixin,
 )
 
 # Import MariaDB-specific mixins
@@ -144,6 +179,7 @@ from .mixins import (
     MariaDBViewMixin,
     MariaDBGeneratedColumnMixin,
     MariaDBFunctionMixin,
+    MariaDBNamespaceMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -187,6 +223,37 @@ _SUGGESTION_TEMPORAL = "MariaDB system-versioned tables require specific table c
 
 class MariaDBDialect(
     SQLDialectBase,
+    # Namespaces: MariaDB qualifies by database (the catalog) and has no
+    # inner schema, so `MariaDBNamespaceMixin` is the one declaration of which
+    # levels a name may carry, and the `*NameMixin` group above it renders
+    # each kind through core's default spelling. The inner schema is
+    # deliberately absent from the *naming* side:
+    # `supports_schema_qualification` stays False because no name here is ever
+    # qualified by a schema. `supports_schema` is a different question, owned
+    # by core's `SchemaMixin`: MariaDB's `CREATE SCHEMA` is a synonym for
+    # `CREATE DATABASE` rather than a second namespace layer, so the DDL
+    # switch answers False too.
+    TableNameMixin,
+    ViewNameMixin,
+    MaterializedViewNameMixin,
+    ForeignTableNameMixin,
+    IndexNameMixin,
+    SequenceNameMixin,
+    TriggerNameMixin,
+    FunctionNameMixin,
+    ProcedureNameMixin,
+    TypeNameMixin,
+    DomainNameMixin,
+    SynonymNameMixin,
+    SchemaNameMixin,
+    DatabaseNameMixin,
+    PropertyGraphNameMixin,
+    # Ahead of NamespaceMixin, which supplies a default `supports_catalog()`
+    # of False: plain mixins are resolved by position rather than by
+    # inheritance, so the one that answers for MariaDB has to come first.
+    MariaDBNamespaceMixin,
+    NamespaceMixin,
+    RelationSourceMixin,
     MariaDBIntrospectionMixin,
     MariaDBShowDialectMixin,
     MariaDBSequenceMixin,
@@ -254,6 +321,11 @@ class MariaDBDialect(
     IndexMixin,
     TriggerMixin,
     GeneratedColumnMixin,
+    # The formatters for the two identity mechanisms; MariaDB's own answers
+    # for their probes live on MariaDBGeneratedColumnMixin, which precedes
+    # these in the MRO.
+    AutoIncrementMixin,
+    IdentityColumnMixin,
     ViewMixin,
     FunctionMixin,
     IntrospectionMixin,
@@ -273,7 +345,6 @@ class MariaDBDialect(
     WindowFunctionSupport,
     ReturningSupport,
     SetOperationSupport,
-    SequenceSupport,
     UpsertSupport,
     ExplainSupport,
     JoinSupport,
@@ -289,18 +360,17 @@ class MariaDBDialect(
     OrderedSetAggregationSupport,
     GraphSupport,
     TruncateSupport,
-    SchemaSupport,
-    IndexSupport,
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
     GeneratedColumnSupport,
-    ViewSupport,
-    FunctionSupport,
+    # One protocol per mechanism: MariaDB accepts the parameterless
+    # AUTO_INCREMENT marker and refuses the parameterised standard identity
+    # clause, so both interfaces are declared and the probes carry the answer.
+    AutoIncrementColumnSupport,
+    IdentityColumnSupport,
     SQLFunctionSupport,
     DataTypeSupport,
-    UserDefinedTypeSupport,
-    DomainSupport,
     MariaDBDMLOperationSupport,
     MariaDBTriggerSupport,
     MariaDBTableSupport,
@@ -322,6 +392,21 @@ class MariaDBDialect(
     MariaDBMaintenanceSupport,
     MariaDBRoutineSupport,
     MariaDBAdminSupport,
+    # Named-object protocols come after the MariaDB-specific ones, and
+    # `NamespaceSupport` trails them, on purpose. `MariaDBTableSupport` and
+    # `MariaDBTriggerSupport` derive from `TableObjectSupport` and
+    # `TriggerObjectSupport`, and every object protocol derives from
+    # `NamespaceSupport`: C3 requires a subclass to precede its base, so
+    # listing a base ahead of one of its subclasses is an MRO error rather
+    # than a precedence question.
+    TableObjectSupport,
+    ViewObjectSupport,
+    IndexObjectSupport,
+    SequenceObjectSupport,
+    TriggerObjectSupport,
+    RoutineObjectSupport,
+    TypeObjectSupport,
+    NamespaceSupport,
 ):
     """MariaDB dialect implementation that adapts to the MariaDB version.
 
@@ -464,10 +549,26 @@ class MariaDBDialect(
         return False
 
     def supports_deferrable_constraint(self) -> bool:
+        """Whether ``DEFERRABLE`` / ``INITIALLY ...`` constraints are supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, and MariaDB
+        10.6's grammar (``sql_yacc.yy``) has no ``DEFERRABLE`` or ``INITIALLY``
+        token. Both spellings of the deferral pair are refused by name rather
+        than dropped.
+        """
         return False
 
     def supports_constraint_enforced(self) -> bool:
-        return self.version >= (10, 2, 22)
+        """Whether ``CHECK ... [NOT] ENFORCED`` is supported.
+
+        Measured False on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc: every version
+        rejects ``CHECK (a > 0) ENFORCED`` and ``... NOT ENFORCED`` in CREATE
+        TABLE and in ``ALTER TABLE ... ADD CONSTRAINT`` with errno 1064
+        (sentinel rejected), and MariaDB 10.6's grammar has no ``ENFORCED``
+        token. The previous declaration (``version >= (10, 2, 22)``) was never
+        measured; the version belongs to MySQL's clause, not MariaDB's.
+        """
+        return False
 
     def supports_add_constraint(self) -> bool:
         return True
@@ -491,11 +592,33 @@ class MariaDBDialect(
     def supports_deferrable_transaction(self) -> bool:
         return False
 
+    def supports_transaction_wait(self) -> bool:
+        """Whether the ``WAIT`` / ``NO WAIT`` transaction clause is supported.
+
+        Measured False on all 19 configured servers (10.2.44 ... 13.1.1):
+        ``START TRANSACTION WAIT`` / ``NO WAIT`` / ``NOWAIT`` / ``WAIT 5``
+        and ``BEGIN WAIT`` are syntax errors (errno 1064) everywhere;
+        ``SET TRANSACTION WAIT`` / ``NO WAIT`` are rejected everywhere too
+        (errno 1193 on 10.2, 1064 from 10.3). Every connection and group
+        carried a sentinel that came back rejected. MariaDB does have
+        ``WAIT n`` / ``NOWAIT`` on TRUNCATE, ALTER TABLE and LOCK TABLES,
+        but not on the transaction statements this pair selects -- those are
+        separate clauses with their own parameters, not this one.
+        """
+        return False
+
     def supports_savepoint(self) -> bool:
         return True
 
     def format_begin_transaction(self, expr) -> Tuple[str, tuple]:
-        """Format BEGIN TRANSACTION statement for MariaDB."""
+        """Format BEGIN TRANSACTION statement for MariaDB.
+
+        ``DEFERRABLE`` / ``NOT DEFERRABLE`` is consumed through the transaction
+        probe: MariaDB answers ``supports_deferrable_transaction()`` False, so
+        an explicit spelling is refused by name rather than dropped; a subclass
+        that declares the probe True renders the spelling it declared.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 
         set_isolation = ""
@@ -517,10 +640,36 @@ class MariaDBDialect(
         else:
             begin_sql = "START TRANSACTION"
 
+        if expr._deferrable or expr._not_deferrable:
+            if not self.supports_deferrable_transaction():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "TRANSACTION DEFERRABLE"
+                    if expr._deferrable
+                    else "TRANSACTION NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE transactions.",
+                )
+            begin_sql += " DEFERRABLE" if expr._deferrable else " NOT DEFERRABLE"
+
+        if expr._wait or expr._no_wait:
+            if not self.supports_transaction_wait():
+                spelling = "WAIT" if expr._wait else "NO WAIT"
+                raise UnsupportedFeatureError(
+                    self.name,
+                    f"TRANSACTION {spelling}",
+                    f"{self.name} does not support the {spelling} transaction clause.",
+                )
+            begin_sql += " WAIT" if expr._wait else " NO WAIT"
+
         return f"{set_isolation}{begin_sql}", ()
 
     def format_set_transaction(self, expr) -> Tuple[str, tuple]:
-        """Format SET TRANSACTION statement for MariaDB."""
+        """Format SET TRANSACTION statement for MariaDB.
+
+        ``DEFERRABLE`` / ``NOT DEFERRABLE`` is consumed through the transaction
+        probe, exactly as in :meth:`format_begin_transaction`.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 
         parts = ["SET TRANSACTION"]
@@ -541,6 +690,27 @@ class MariaDBDialect(
                 parts.append("READ ONLY")
             elif expr._mode == TransactionMode.READ_WRITE:
                 parts.append("READ WRITE")
+
+        if expr._deferrable or expr._not_deferrable:
+            if not self.supports_deferrable_transaction():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "TRANSACTION DEFERRABLE"
+                    if expr._deferrable
+                    else "TRANSACTION NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE transactions.",
+                )
+            parts.append("DEFERRABLE" if expr._deferrable else "NOT DEFERRABLE")
+
+        if expr._wait or expr._no_wait:
+            if not self.supports_transaction_wait():
+                spelling = "WAIT" if expr._wait else "NO WAIT"
+                raise UnsupportedFeatureError(
+                    self.name,
+                    f"TRANSACTION {spelling}",
+                    f"{self.name} does not support the {spelling} transaction clause.",
+                )
+            parts.append("WAIT" if expr._wait else "NO WAIT")
 
         return " ".join(parts), ()
 
@@ -583,6 +753,7 @@ class MariaDBDialect(
         self,
         t_const: "TableConstraint"
     ) -> Tuple[str, tuple]:
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.statements import (
             TableConstraintType, ForeignKeyConstraint, ReferentialAction,
         )
@@ -607,7 +778,7 @@ class MariaDBDialect(
                 ref_cols_str = ', '.join(
                     self.format_identifier(c) for c in t_const.foreign_key_columns
                 )
-                ref_table = self.format_identifier(t_const.foreign_key_table)
+                ref_table = t_const.foreign_key_table.to_sql()[0]
                 parts.append(
                     f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
                 )
@@ -623,8 +794,45 @@ class MariaDBDialect(
             parts.append(f"CHECK ({check_sql})")
             params.extend(check_params)
 
-            if getattr(t_const, 'enforced', None) is False:
-                parts.append("NOT ENFORCED")
+        # The constraint-option pairs: each requested spelling is consumed or
+        # refused by name -- never dropped. MariaDB's grammar has no [NOT]
+        # ENFORCED, no [NOT] DEFERRABLE and no INITIALLY clause (measured on
+        # 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, sentinels rejected; 10.6's
+        # sql_yacc.yy has none of the tokens), so the probes answer False and
+        # every spelling is refused. A subclass that flips a probe True renders
+        # the spelling it declared.
+        if t_const.deferrable or t_const.not_deferrable:
+            if not self.supports_deferrable_constraint():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT DEFERRABLE" if t_const.deferrable else "CONSTRAINT NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE constraints.",
+                )
+            parts.append("DEFERRABLE" if t_const.deferrable else "NOT DEFERRABLE")
+        if t_const.initially_deferred or t_const.initially_immediate:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CONSTRAINT INITIALLY DEFERRED"
+                if t_const.initially_deferred
+                else "CONSTRAINT INITIALLY IMMEDIATE",
+                f"{self.name} does not support the INITIALLY constraint attribute.",
+            )
+        if t_const.enforced or t_const.not_enforced:
+            if t_const.constraint_type not in (
+                TableConstraintType.CHECK,
+                TableConstraintType.FOREIGN_KEY,
+            ):
+                raise ValueError(
+                    "ENFORCED/NOT ENFORCED is only valid for CHECK and "
+                    "FOREIGN KEY constraints"
+                )
+            if not self.supports_constraint_enforced():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT ENFORCED" if t_const.enforced else "CONSTRAINT NOT ENFORCED",
+                    f"{self.name} does not support ENFORCED constraints.",
+                )
+            parts.append("ENFORCED" if t_const.enforced else "NOT ENFORCED")
 
         return ' '.join(parts), tuple(params)
 

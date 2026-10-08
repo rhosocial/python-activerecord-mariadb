@@ -10,6 +10,8 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import Table
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -41,13 +43,13 @@ from rhosocial.activerecord.backend.expression.types import (
     DecimalType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table_name='sales_data', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='sales_data',
+    table=Table(dialect, 'sales_data'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -69,7 +71,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='sales_data',
+    into=Table(dialect, 'sales_data'),
     columns=['salesperson', 'region', 'amount'],
     source=ValuesSource(
         dialect,
@@ -90,13 +92,11 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
     QueryExpression,
-    TableExpression,
     Column,
     WindowSpecification,
     OrderByClause,
 )
 from rhosocial.activerecord.backend.expression.advanced_functions import WindowFunctionCall
-
 query = QueryExpression(
     dialect=dialect,
     select=[
@@ -124,7 +124,7 @@ query = QueryExpression(
             alias='region_total',
         ),
     ],
-    from_=TableExpression(dialect, 'sales_data'),
+    from_=Table(dialect, 'sales_data'),
 )
 
 sql, params = query.to_sql()

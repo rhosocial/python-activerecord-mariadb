@@ -10,6 +10,8 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
+from rhosocial.activerecord.backend.expression.objects import Table
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -40,17 +42,17 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 
-drop_orders = DropTableExpression(dialect=dialect, table_name='orders', if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='users',
+    table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -78,7 +80,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='users',
+    into=Table(dialect, 'users'),
     columns=['name', 'age', 'status'],
     source=ValuesSource(
         dialect,
@@ -97,14 +99,12 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
     QueryExpression,
-    TableExpression,
     Column,
     WhereClause,
     OrderByClause,
     LimitOffsetClause,
 )
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
-
 query = QueryExpression(
     dialect=dialect,
     select=[
@@ -112,7 +112,7 @@ query = QueryExpression(
         Column(dialect, 'name'),
         Column(dialect, 'age'),
     ],
-    from_=TableExpression(dialect, 'users'),
+    from_=Table(dialect, 'users'),
     where=WhereClause(
         dialect,
         condition=ComparisonPredicate(

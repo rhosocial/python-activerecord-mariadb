@@ -9,6 +9,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
+    from rhosocial.activerecord.backend.expression.objects import Table
 
 
 class MariaDBTruncateExpression(TruncateExpression):
@@ -22,7 +23,7 @@ class MariaDBTruncateExpression(TruncateExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        table_name: str,
+        table: "Table",
         restart_identity: bool = False,
         cascade: bool = False,
         *,
@@ -31,7 +32,7 @@ class MariaDBTruncateExpression(TruncateExpression):
     ):
         super().__init__(
             dialect,
-            table_name=table_name,
+            table=table,
             restart_identity=restart_identity,
             cascade=cascade,
         )

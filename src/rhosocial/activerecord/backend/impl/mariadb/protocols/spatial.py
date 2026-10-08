@@ -1,7 +1,9 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/spatial.py
 """MariaDB spatial data type protocol."""
 
-from typing import Any, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Optional, Protocol, Tuple, Union, runtime_checkable
+
+from rhosocial.activerecord.backend.expression.objects import Index, Table
 
 
 @runtime_checkable
@@ -175,8 +177,8 @@ class MariaDBSpatialSupport(Protocol):
 
     def format_create_spatial_index(
         self,
-        index_name: str,
-        table_name: str,
+        index_name: Union[Index, str],
+        table_name: Union[Table, str],
         column: str
     ) -> Tuple[str, tuple]:
         """Format CREATE SPATIAL INDEX statement.

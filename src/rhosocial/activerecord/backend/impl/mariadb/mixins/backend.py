@@ -47,6 +47,11 @@ MARIADB_VERSION_BOUNDARIES = {
     'RENAME_TABLE_IF_EXISTS': (10, 5, 0),
     'RENAME_TABLE_WAIT': (10, 3, 0),
     'TRUNCATE_WAIT': (10, 3, 0),
+    # EXCHANGE PARTITION itself is accepted from 10.2 (the oldest measured
+    # version; it predates the 10.2 floor). The two validation options are a
+    # later addition: 10.2.44 through 11.3.2 reject both spellings with errno
+    # 1064, and 11.4.13 is the first measured version that parses them.
+    'EXCHANGE_PARTITION_VALIDATION': (11, 4, 0),
     'ROUTINE_OR_REPLACE': (10, 1, 3),
     'ROUTINE_IF_NOT_EXISTS': (10, 1, 3),
     'GRANT_OR_REPLACE': (10, 1, 4),

@@ -15,6 +15,7 @@ from rhosocial.activerecord.backend.expression import (
     ColumnDefinition,
     CreateTableExpression,
 )
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.model import ActiveRecord
@@ -35,7 +36,7 @@ def _create_indexed_table():
     dialect = mariadb_dialect()
     return CreateTableExpression(
         dialect,
-        Indexed.__table_name__,
+        Table(dialect, Indexed.__table_name__),
         columns=[
             ColumnDefinition(dialect, "id", IntegerType(dialect)),
             ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),

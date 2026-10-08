@@ -21,6 +21,9 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
     MariaDBJSONTableExpression,
     JSONTableColumn,
 )
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
 
 
 @pytest.fixture
@@ -347,11 +350,12 @@ class TestMySQLJSONTableJsonDocTypeValidation:
     """json_doc must be a string literal or an expression."""
 
     def test_expression_accepted(self, json_table_dialect):
-        from rhosocial.activerecord.backend.expression import TableExpression
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.query_parts import NamedRelationRef
         dialect = json_table_dialect
         expr = MariaDBJSONTableExpression(
             dialect=dialect,
-            json_doc=TableExpression(dialect, "t", alias="j"),
+            json_doc=NamedRelationRef(dialect, Table(dialect, "t"), alias="j"),
             path="$[*]",
             columns=[JSONTableColumn(name="a", type="INT", path="$.a")],
         )
@@ -384,7 +388,7 @@ class TestMySQLCreateTableCommentEscaping:
 
         expr = CreateTableExpression(
             dialect=dialect,
-            table="test_table",
+            table=Table(dialect, "test_table"),
             columns=[],
             table_options=CreateTableOptions(
                 dialect, comment=TableCommentClause(dialect, "Table's comment with 'quotes'")
@@ -406,7 +410,7 @@ class TestMySQLCreateTableCommentEscaping:
 
         expr = CreateTableExpression(
             dialect=dialect,
-            table="test_table",
+            table=Table(dialect, "test_table"),
             columns=[],
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, "Test\\value")),
         )

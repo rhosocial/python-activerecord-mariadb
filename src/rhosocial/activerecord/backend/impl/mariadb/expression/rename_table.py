@@ -19,6 +19,7 @@ succeed or all are rolled back.
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -28,7 +29,11 @@ class MariaDBRenameTableExpression(BaseExpression):
     """Represent a MariaDB ``RENAME TABLE ...`` statement.
 
     Attributes:
-        renames: Sequence of ``(old_name, new_name)`` table name pairs.
+        renames: Sequence of ``(old_table, new_table)`` pairs, each side a
+            :class:`Table`. A table being renamed may live in another
+            database, and that database is a named slot on the object rather
+            than a position in a pair. The *pair* stays a pair -- it is the
+            statement's grammar, not a way of qualifying a name.
         if_exists: Add statement-level ``IF EXISTS`` (MariaDB 10.5+).
         wait: Lock wait timeout in seconds (MariaDB 10.3+).
         nowait: Do not wait for metadata locks (MariaDB 10.3+).
@@ -37,14 +42,14 @@ class MariaDBRenameTableExpression(BaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        renames: List[Tuple[str, str]],
+        renames: List[Tuple[Table, Table]],
         *,
         if_exists: bool = False,
         wait: Optional[int] = None,
         nowait: bool = False,
     ):
         super().__init__(dialect)
-        self.renames: List[Tuple[str, str]] = list(renames)
+        self.renames: List[Tuple[Table, Table]] = list(renames)
         self.if_exists = if_exists
         self.wait = wait
         self.nowait = nowait
@@ -54,6 +59,7 @@ class MariaDBRenameTableExpression(BaseExpression):
 
         Raises:
             ValueError: If the rename list is empty or contains an invalid pair.
+            TypeError: If either side of a pair is not a relation.
         """
         if not strict:
             return
@@ -63,8 +69,8 @@ class MariaDBRenameTableExpression(BaseExpression):
             if not isinstance(pair, (tuple, list)) or len(pair) != 2:
                 raise ValueError(f"Invalid rename pair: {pair!r}")
             old_name, new_name = pair
-            if not isinstance(old_name, str) or not isinstance(new_name, str):
-                raise TypeError("Rename table names must be strings")
+            if not isinstance(old_name, Table) or not isinstance(new_name, Table):
+                raise TypeError("Rename table names must be Table objects")
 
     def to_sql(self) -> Tuple[str, tuple]:
         """Generate SQL by delegating to the dialect."""

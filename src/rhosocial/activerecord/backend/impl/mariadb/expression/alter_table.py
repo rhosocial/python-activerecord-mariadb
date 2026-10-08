@@ -14,6 +14,7 @@ any other backend.
 
 from typing import List, Optional, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     AlterTableAction,
     AlterTableExpression,
@@ -38,14 +39,14 @@ class MariaDBAlterTableExpression(AlterTableExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        table_name: str,
+        table: Table,
         actions: List[AlterTableAction],
         *,
         if_exists: bool = False,
         nowait: bool = False,
         wait: Optional[int] = None,
     ):
-        super().__init__(dialect, table_name, actions)
+        super().__init__(dialect, table, actions)
         self.if_exists = if_exists
         self.nowait = nowait
         self.wait = wait

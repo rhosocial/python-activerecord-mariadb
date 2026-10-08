@@ -3,11 +3,11 @@
 
 from typing import Any, Protocol, Tuple, runtime_checkable
 
-from rhosocial.activerecord.backend.dialect.protocols import TriggerSupport
+from rhosocial.activerecord.backend.dialect.protocols import TriggerObjectSupport
 
 
 @runtime_checkable
-class MariaDBTriggerSupport(TriggerSupport, Protocol):
+class MariaDBTriggerSupport(TriggerObjectSupport, Protocol):
     """MariaDB trigger DDL protocol.
 
     Feature Source: Native support (no extension required)

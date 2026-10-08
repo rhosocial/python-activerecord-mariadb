@@ -28,6 +28,10 @@ from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
     VarCharType,
 )
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -41,17 +45,17 @@ backend = MariaDBBackend(connection_config=config)
 backend.connect()
 dialect = backend.dialect
 
-drop_orders = DropTableExpression(dialect=dialect, table_name='orders', if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='users',
+    table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -71,7 +75,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='users',
+    into=Table(dialect, 'users'),
     columns=['name'],
     source=ValuesSource(
         dialect,
@@ -83,7 +87,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='users',
+    into=Table(dialect, 'users'),
     columns=['name'],
     source=ValuesSource(
         dialect,
@@ -98,8 +102,8 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import AlterTableExpression
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import AddColumn
-
 add_col_action = AddColumn(
+    dialect,
     column=ColumnDefinition(
         dialect,
         name='email',
@@ -109,7 +113,7 @@ add_col_action = AddColumn(
 
 add_col_expr = AlterTableExpression(
     dialect=dialect,
-    table_name='users',
+    table=Table(dialect, 'users'),
     actions=[add_col_action],
 )
 
@@ -121,6 +125,7 @@ backend.execute(sql, params)
 print("Column email added successfully")
 
 add_age_action = AddColumn(
+    dialect,
     column=ColumnDefinition(
         dialect,
         'age',
@@ -137,7 +142,7 @@ add_age_action = AddColumn(
 
 add_age_expr = AlterTableExpression(
     dialect=dialect,
-    table_name='users',
+    table=Table(dialect, 'users'),
     actions=[add_age_action],
 )
 

@@ -21,6 +21,7 @@ from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -41,7 +42,9 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
 
     Attributes:
         operation: The maintenance operation to run.
-        table_names: Tables the operation targets.
+        tables: Tables the operation targets, as :class:`Table` objects. A
+            table may live in another database, and that database is a named
+            slot on the object rather than a position in a pair.
         no_write_to_binlog: Suppress binary logging (ANALYZE, OPTIMIZE,
             REPAIR). When True renders NO_WRITE_TO_BINLOG.
         local: Synonym for ``no_write_to_binlog``.
@@ -58,7 +61,7 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         operation: "TableMaintenanceOperation",
-        table_names: List[str],
+        tables: List[Table],
         *,
         no_write_to_binlog: bool = False,
         local: bool = False,
@@ -69,7 +72,7 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
     ):
         super().__init__(dialect)
         self.operation = operation
-        self.table_names: List[str] = list(table_names)
+        self.tables: List[Table] = list(tables)
         self.no_write_to_binlog = no_write_to_binlog
         self.local = local
         self.persistent = persistent
@@ -78,16 +81,19 @@ class MariaDBTableMaintenanceExpression(BaseExpression):
         self.repair_mode = repair_mode
 
     def validate(self, strict: bool = True) -> None:
-        """Validate the operation and table name list."""
+        """Validate the operation and the target tables."""
         if not strict:
             return
         if not isinstance(self.operation, TableMaintenanceOperation):
             raise TypeError("operation must be a TableMaintenanceOperation")
-        if not self.table_names:
-            raise ValueError("Table maintenance requires at least one table name")
-        for name in self.table_names:
-            if not isinstance(name, str):
-                raise TypeError("Table names must be strings")
+        if not self.tables:
+            raise ValueError("Table maintenance requires at least one table")
+        for table in self.tables:
+            if not isinstance(table, Table):
+                raise TypeError(
+                    f"Table maintenance targets must be Table objects, "
+                    f"got {type(table).__name__}"
+                )
 
     def to_sql(self):
         """Generate SQL by delegating to the dialect."""

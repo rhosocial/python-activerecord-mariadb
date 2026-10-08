@@ -19,7 +19,6 @@ from rhosocial.activerecord.backend.expression import (
     InsertExpression,
     ValuesSource,
     QueryExpression,
-    TableExpression,
     ExplainExpression,
     CreateIndexExpression,
     DropTableExpression,
@@ -30,12 +29,16 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
-from rhosocial.activerecord.backend.expression.statements.explain import ExplainOptions
+from rhosocial.activerecord.backend.expression.statements.explain import (
+    ExplainFormat,
+    ExplainOptions,
+)
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
     VarCharType,
 )
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
+from rhosocial.activerecord.backend.expression.objects import Index, Table
 
 config = MariaDBConnectionConfig(
     host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -48,13 +51,13 @@ backend = MariaDBBackend(connection_config=config)
 backend.connect()
 dialect = backend.dialect
 
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='users',
+    table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
             ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
@@ -72,8 +75,8 @@ backend.execute(sql, params)
 
 create_index = CreateIndexExpression(
     dialect=dialect,
-    index_name='idx_users_email',
-    table_name='users',
+    index=Index(dialect, 'idx_users_email'),
+    table=Table(dialect, 'users'),
     columns=['email'],
     if_not_exists=True,
 )
@@ -88,7 +91,7 @@ users = [
 for name, email in users:
     insert_expr = InsertExpression(
         dialect=dialect,
-        into='users',
+        into=Table(dialect, 'users'),
         columns=['name', 'email'],
         source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
     )
@@ -103,7 +106,7 @@ for name, email in users:
 query1 = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, '*')],
-    from_=TableExpression(dialect, 'users'),
+    from_=Table(dialect, 'users'),
     where=ComparisonPredicate(
         dialect, '=', Column(dialect, 'name'), Literal(dialect, 'Alice'),
     ),
@@ -124,7 +127,7 @@ for row in result.data:
 query2 = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, '*')],
-    from_=TableExpression(dialect, 'users'),
+    from_=Table(dialect, 'users'),
     where=ComparisonPredicate(
         dialect, '=', Column(dialect, 'email'), Literal(dialect, 'alice@example.com'),
     ),
@@ -145,7 +148,7 @@ for row in result.data:
 explain_json = ExplainExpression(
     dialect=dialect,
     statement=query2,
-    options=ExplainOptions(format='JSON'),
+    options=ExplainOptions(format=ExplainFormat.JSON),
 )
 sql, params = explain_json.to_sql()
 print("\n3. EXPLAIN FORMAT=JSON:")
@@ -157,7 +160,7 @@ for row in result.data:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table_name='users', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

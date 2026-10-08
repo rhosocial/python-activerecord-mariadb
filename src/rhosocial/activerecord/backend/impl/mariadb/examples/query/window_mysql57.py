@@ -50,14 +50,17 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
     DecimalType,
 )
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
 
-drop_table = DropTableExpression(dialect=dialect, table_name='sales_data', if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name='sales_data',
+    table=Table(dialect, 'sales_data'),
     columns=[
         ColumnDefinition(
             dialect,
@@ -79,7 +82,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into='sales_data',
+    into=Table(dialect, 'sales_data'),
     columns=['salesperson', 'region', 'amount'],
     source=ValuesSource(
         dialect,

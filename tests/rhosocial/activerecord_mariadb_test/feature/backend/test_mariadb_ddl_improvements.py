@@ -7,6 +7,7 @@ from rhosocial.activerecord.backend.expression import (
     ColumnDefinition,
     CreateTableExpression,
 )
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import IntegerType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -24,6 +25,11 @@ class TestMariaDBViewCapabilityGating:
         """MariaDB supports DROP VIEW IF EXISTS."""
         dialect = MariaDBDialect()
         assert dialect.supports_if_exists_view() is True
+
+    def test_create_or_replace_view_supported(self):
+        """MariaDB supports the CREATE OR REPLACE VIEW spelling."""
+        dialect = MariaDBDialect()
+        assert dialect.supports_create_or_replace_view() is True
 
     def test_cascade_view_supported(self):
         """MariaDB supports DROP VIEW CASCADE."""
@@ -108,7 +114,7 @@ class TestMariaDBTableDeclarationGating:
         dialect = MariaDBDialect()
         expression = CreateTableExpression(
             dialect,
-            Plain.__table_name__,
+            Table(dialect, Plain.__table_name__),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=Plain.table_inherits(),
             tablespace=Plain.table_tablespace(),
@@ -121,7 +127,7 @@ class TestMariaDBTableDeclarationGating:
         assert dialect.supports_table_inheritance() is False
         expression = CreateTableExpression(
             dialect,
-            InheritedTable.__table_name__,
+            Table(dialect, InheritedTable.__table_name__),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=InheritedTable.table_inherits(),
             tablespace=InheritedTable.table_tablespace(),
@@ -135,7 +141,7 @@ class TestMariaDBTableDeclarationGating:
         assert dialect.supports_table_tablespace() is False
         expression = CreateTableExpression(
             dialect,
-            TablespacedTable.__table_name__,
+            Table(dialect, TablespacedTable.__table_name__),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=TablespacedTable.table_inherits(),
             tablespace=TablespacedTable.table_tablespace(),

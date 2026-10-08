@@ -4,8 +4,9 @@
 MariaDB supports spatial data types with the same syntax as MySQL.
 Available in MyISAM, Aria, and InnoDB (MariaDB 10.0+).
 """
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
+from rhosocial.activerecord.backend.expression.objects import Index, Table
 
 
 class MariaDBSpatialMixin:
@@ -224,23 +225,35 @@ class MariaDBSpatialMixin:
 
     def format_create_spatial_index(
         self,
-        index_name: str,
-        table_name: str,
+        index_name: Union[Index, str],
+        table_name: Union[Table, str],
         column: str
     ) -> Tuple[str, tuple]:
         """Format CREATE SPATIAL INDEX statement.
 
         Args:
-            index_name: Name of the index.
-            table_name: Name of the table.
-            column: Geometry column name.
+            index_name: The index's own name -- an :class:`Index`, or a bare
+                name for an unqualified one.
+            table_name: The table it indexes -- a :class:`Table`, or a bare
+                name. Accepting the object is what lets the index be created
+                on a table in another database.
+            column: Geometry column name. A column is an identifier inside
+                the table, never a qualified name of its own.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        index_sql, _ = (
+            index_name if isinstance(index_name, Index)
+            else Index(self, index_name)
+        ).to_sql()
+        table_sql, _ = (
+            table_name if isinstance(table_name, Table)
+            else Table(self, table_name)
+        ).to_sql()
         return (
-            f"CREATE SPATIAL INDEX {self.format_identifier(index_name)} "
-            f"ON {self.format_identifier(table_name)} "
+            f"CREATE SPATIAL INDEX {index_sql} "
+            f"ON {table_sql} "
             f"({self.format_identifier(column)})",
             ()
         )

@@ -15,6 +15,11 @@ Supported versions: MariaDB 10.2+
 import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
+from rhosocial.activerecord.backend.expression.objects import (
+    Index,
+    Table,
+)
+
 
 config = MariaDBConnectionConfig(
     host=os.getenv("MARIADB_HOST", "localhost"),
@@ -38,13 +43,13 @@ from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
 
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 # Baseline table with a non-unique index on `email`
 expr = CreateTableExpression(
-    dialect=dialect, table="users", columns=[
+    dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
                 ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
@@ -69,17 +74,16 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
 from rhosocial.activerecord.backend.expression.statements.ddl_index import (  # noqa: E402
     CreateIndexExpression, DropIndexExpression,
 )
-
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Drop the non-unique `idx_email` and add a unique `idx_email_unique`
 # via standalone DROP INDEX / CREATE INDEX statements.
 backend.execute(*DropIndexExpression(
-    dialect, index_name="idx_email", table_name="users"
+    dialect, index=Index(dialect, 'idx_email'), table=Table(dialect, 'users')
 ).to_sql())
 backend.execute(*CreateIndexExpression(
-    dialect, index_name="idx_email_unique", table_name="users",
+    dialect, index=Index(dialect, 'idx_email_unique'), table=Table(dialect, 'users'),
     columns=["email"], unique=True,
 ).to_sql())
 
@@ -103,7 +107,7 @@ if "users" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

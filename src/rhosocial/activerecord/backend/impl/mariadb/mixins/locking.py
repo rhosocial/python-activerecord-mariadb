@@ -131,9 +131,19 @@ class MariaDBLockingMixin:
             )
 
         if clause.of_columns:
-            tables_sql = ", ".join(
-                self.format_identifier(t) for t in clause.of_columns
-            )
+            # An OF entry is either a bare name or an expression. A schema
+            # object renders itself -- so a lock can name a table in another
+            # database -- while a bare string is a column name and takes the
+            # identifier formatter. This is core's own contract for the
+            # clause, spelled out because the MariaDB override does not
+            # inherit core's formatter.
+            of_parts = []
+            for entry in clause.of_columns:
+                if isinstance(entry, str):
+                    of_parts.append(self.format_identifier(entry))
+                else:
+                    of_parts.append(entry.to_sql()[0])
+            tables_sql = ", ".join(of_parts)
             parts.append(f"OF {tables_sql}")
 
         if clause.skip_locked:

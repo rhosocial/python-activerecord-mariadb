@@ -13,6 +13,9 @@ from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBCreateTableOptions,
 )
+from rhosocial.activerecord.backend.expression.objects import (
+    Table,
+)
 
 
 def test_storage_engine_option_supported():
@@ -23,7 +26,7 @@ def test_engine_and_charset_rendered_from_typed_options():
     dialect = MariaDBDialect(version=(10, 6, 0))
     expr = CreateTableExpression(
         dialect,
-        table="t",
+        table=Table(dialect, "t"),
         columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
         table_options=MariaDBCreateTableOptions(
             dialect, engine="InnoDB", charset="utf8mb4"
@@ -46,7 +49,7 @@ def test_auto_increment_row_format_and_system_versioning():
     )
     expr = CreateTableExpression(
         dialect,
-        "t",
+        Table(dialect, "t"),
         [ColumnDefinition(dialect, "id", IntegerType(dialect))],
         table_options=options,
     )
@@ -63,7 +66,7 @@ def test_system_versioning_gated_below_10_3():
     options = MariaDBCreateTableOptions(dialect, with_system_versioning=True)
     expr = CreateTableExpression(
         dialect,
-        "t",
+        Table(dialect, "t"),
         [ColumnDefinition(dialect, "id", IntegerType(dialect))],
         table_options=options,
     )

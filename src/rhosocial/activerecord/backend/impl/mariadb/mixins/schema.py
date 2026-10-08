@@ -62,7 +62,7 @@ class MariaDBSchemaMixin:
         parts = ["CREATE SCHEMA"]
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.schema_name))
+        parts.append(expr.schema.to_sql()[0])
         return " ".join(parts), ()
 
     def format_drop_schema_statement(self, expr: DropSchemaExpression) -> Tuple[str, tuple]:
@@ -79,7 +79,7 @@ class MariaDBSchemaMixin:
         parts = ["DROP SCHEMA"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        parts.append(self.format_identifier(expr.schema_name))
+        parts.append(expr.schema.to_sql()[0])
         return " ".join(parts), ()
 
 

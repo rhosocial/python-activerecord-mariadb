@@ -42,6 +42,10 @@ class MariaDBTableMixin:
         ``CREATE [TEMPORARY] TABLE [IF NOT EXISTS] <t> LIKE <src>`` provided by
         the core ``TableMixin``; this override only forwards to it so that the
         MariaDB-specific mixin satisfies the protocol it advertises.
+
+        No object-kind check here, and that is deliberate rather than an
+        oversight: the check belongs to the renderer that reads the slots, and
+        this one is core's. Delegating keeps it.
         """
         return super().format_create_table_like_statement(expr)
 
@@ -89,9 +93,21 @@ class MariaDBTableMixin:
         - Storage options (ENGINE, CHARSET, COLLATE)
         - Table-level comments
         - AUTO_INCREMENT in column definitions
+
+        Raises:
+            TypeError: ``expr.table`` is not a Table. A view would render as a
+                well-formed CREATE TABLE over that view's name.
+            UnsupportedFeatureError: If the dialect does not support a
+                MariaDB-refused option.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.objects import Table
 
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"CreateTableExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
         if expr.tablespace:
             raise UnsupportedFeatureError(
                 self.name, "TABLESPACE",
@@ -119,7 +135,13 @@ class MariaDBTableMixin:
         parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
+        # ``expr.table`` is the row-source reference the core statement
+        # already built; it renders through the dialect's qualified-name
+        # path, so a schema-qualified CREATE TABLE keeps its database
+        # instead of being flattened to a bare name here.
+        table_sql, table_params = expr.table.to_sql()
+        parts.append(table_sql)
+        all_params.extend(table_params)
 
         column_parts = []
         for col_def in expr.columns:
@@ -221,7 +243,18 @@ class MariaDBTableMixin:
                 constraint_parts.append("NULL")
 
             if constraint.is_auto_increment:
-                constraint_parts.append("AUTO_INCREMENT")
+                # Route the legacy constraint flag through the node, so the
+                # marker the server sees is the one ``supports_auto_increment_column``
+                # answered for -- not a string appended behind the probe's back.
+                from rhosocial.activerecord.backend.expression.statements import (
+                    AutoIncrementClause,
+                )
+
+                marker_sql, marker_params = self.format_auto_increment_clause(
+                    AutoIncrementClause(self)
+                )
+                constraint_parts.append(marker_sql.strip())
+                params.extend(marker_params)
 
         if constraint_parts:
             parts.append(' '.join(constraint_parts))
@@ -257,6 +290,7 @@ class MariaDBTableMixin:
         t_const: "TableConstraint",
     ) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.statements import (
             ForeignKeyConstraint,
             ReferentialAction,
@@ -280,7 +314,6 @@ class MariaDBTableMixin:
         elif t_const.constraint_type == TableConstraintType.CHECK:
             if t_const.check_condition is not None:
                 if not self.supports_check_constraint():
-                    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
                     raise UnsupportedFeatureError(
                         self.name, "CHECK constraint",
                         f"{self.name} does not support CHECK constraints."
@@ -294,7 +327,7 @@ class MariaDBTableMixin:
                 ref_cols_str = ', '.join(
                     self.format_identifier(c) for c in t_const.foreign_key_columns
                 )
-                ref_table = self.format_identifier(t_const.foreign_key_table)
+                ref_table = t_const.foreign_key_table.to_sql()[0]
                 parts.append(
                     f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
                 )
@@ -305,12 +338,48 @@ class MariaDBTableMixin:
                         parts.append(f"ON UPDATE {t_const.on_update.value}")
                     if t_const.match_type is not None:
                         if not self.supports_fk_match():
-                            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
                             raise UnsupportedFeatureError(
                                 self.name, "FOREIGN KEY MATCH",
                                 f"{self.name} does not support MATCH for foreign keys."
                             )
                         parts.append(f"MATCH {t_const.match_type}")
+
+        # The constraint-option pairs: each requested spelling is consumed or
+        # refused by name -- never dropped. This copy shadows
+        # ``MariaDBDialect.format_table_constraint`` (a class-body method wins
+        # in the MRO); it carries the same consumption so the two cannot drift.
+        if t_const.deferrable or t_const.not_deferrable:
+            if not self.supports_deferrable_constraint():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT DEFERRABLE" if t_const.deferrable else "CONSTRAINT NOT DEFERRABLE",
+                    f"{self.name} does not support DEFERRABLE constraints.",
+                )
+            parts.append("DEFERRABLE" if t_const.deferrable else "NOT DEFERRABLE")
+        if t_const.initially_deferred or t_const.initially_immediate:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CONSTRAINT INITIALLY DEFERRED"
+                if t_const.initially_deferred
+                else "CONSTRAINT INITIALLY IMMEDIATE",
+                f"{self.name} does not support the INITIALLY constraint attribute.",
+            )
+        if t_const.enforced or t_const.not_enforced:
+            if t_const.constraint_type not in (
+                TableConstraintType.CHECK,
+                TableConstraintType.FOREIGN_KEY,
+            ):
+                raise ValueError(
+                    "ENFORCED/NOT ENFORCED is only valid for CHECK and "
+                    "FOREIGN KEY constraints"
+                )
+            if not self.supports_constraint_enforced():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CONSTRAINT ENFORCED" if t_const.enforced else "CONSTRAINT NOT ENFORCED",
+                    f"{self.name} does not support ENFORCED constraints.",
+                )
+            parts.append("ENFORCED" if t_const.enforced else "NOT ENFORCED")
 
         return ' '.join(parts), tuple(params)
 
