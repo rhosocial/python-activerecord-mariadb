@@ -9,38 +9,22 @@ MariaDB-specific notes:
 - MariaDB 10.2+ supports OGC-compliant spatial functions with ST_ prefix
 - MariaDB also supports legacy functions (GeomFromText, etc.)
 - Aria and InnoDB storage engines support spatial indexes
+
+Every geometry argument is an expression.  A geometry held as data is built by
+``st_geom_from_text`` or ``st_geom_from_wkb`` below, which are the named
+constructors for this module: a geometry argument used to be accepted as a
+bare string, and whether that string was the name of a column or the WKT of a
+value had to be guessed from its type alone.  It always guessed "column", so
+``st_as_text(dialect, "POINT(1 1)")`` asked the server for a column named
+``POINT(1 1)`` and got errno 1054 back.
 """
 
-from typing import Union, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression import bases, core
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.dialect import SQLDialectBase
     from ..dialect import MariaDBDialect
-
-
-def _convert_to_expression(
-    dialect: "SQLDialectBase",
-    expr: Union[str, "bases.BaseExpression"],
-    handle_numeric_literals: bool = True,
-) -> "bases.BaseExpression":
-    """Helper function to convert an input value to an appropriate BaseExpression.
-
-    Args:
-        dialect: The SQL dialect instance
-        expr: The expression to convert
-        handle_numeric_literals: Whether to treat numeric values as literals
-
-    Returns:
-        A BaseExpression instance
-    """
-    if isinstance(expr, bases.BaseExpression):
-        return expr
-    elif handle_numeric_literals and isinstance(expr, (int, float)):
-        return core.Literal(dialect, expr)
-    else:
-        return core.Column(dialect, expr)
 
 
 def st_geom_from_text(
@@ -51,6 +35,8 @@ def st_geom_from_text(
     """Creates an ST_GeomFromText function call.
 
     Constructs a geometry value from a WKT (Well-Known Text) representation.
+    This is the named construction for a geometry given as data: it takes the
+    WKT itself, so a caller states that it has a value rather than a column.
 
     Args:
         dialect: The MariaDB dialect instance
@@ -77,6 +63,7 @@ def st_geom_from_wkb(
     """Creates an ST_GeomFromWKB function call.
 
     Constructs a geometry value from a WKB (Well-Known Binary) representation.
+    This is the named construction for a geometry given as binary data.
 
     Args:
         dialect: The MariaDB dialect instance
@@ -97,7 +84,7 @@ def st_geom_from_wkb(
 
 def st_as_text(
     dialect: "MariaDBDialect",
-    geom: Union[str, "bases.BaseExpression"],
+    geom: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates an ST_AsText function call.
 
@@ -105,20 +92,19 @@ def st_as_text(
 
     Args:
         dialect: The MariaDB dialect instance
-        geom: Geometry value or column
+        geom: Geometry expression, e.g. a ``Column`` or an ``st_geom_from_text``
 
     Returns:
         A FunctionCall instance representing ST_AsText
 
     Version: MariaDB 10.2+
     """
-    geom_expr = _convert_to_expression(dialect, geom)
-    return core.FunctionCall(dialect, "ST_AsText", geom_expr)
+    return core.FunctionCall(dialect, "ST_AsText", geom)
 
 
 def st_as_geojson(
     dialect: "MariaDBDialect",
-    geom: Union[str, "bases.BaseExpression"],
+    geom: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates an ST_AsGeoJSON function call.
 
@@ -126,21 +112,20 @@ def st_as_geojson(
 
     Args:
         dialect: The MariaDB dialect instance
-        geom: Geometry value or column
+        geom: Geometry expression, e.g. a ``Column`` or an ``st_geom_from_text``
 
     Returns:
         A FunctionCall instance representing ST_AsGeoJSON
 
     Version: MariaDB 10.2+
     """
-    geom_expr = _convert_to_expression(dialect, geom)
-    return core.FunctionCall(dialect, "ST_AsGeoJSON", geom_expr)
+    return core.FunctionCall(dialect, "ST_AsGeoJSON", geom)
 
 
 def st_distance(
     dialect: "MariaDBDialect",
-    geom1: Union[str, "bases.BaseExpression"],
-    geom2: Union[str, "bases.BaseExpression"],
+    geom1: "bases.BaseExpression",
+    geom2: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates an ST_Distance function call.
 
@@ -148,23 +133,21 @@ def st_distance(
 
     Args:
         dialect: The MariaDB dialect instance
-        geom1: First geometry
-        geom2: Second geometry
+        geom1: First geometry expression
+        geom2: Second geometry expression
 
     Returns:
         A FunctionCall instance representing ST_Distance
 
     Version: MariaDB 10.2+
     """
-    geom1_expr = _convert_to_expression(dialect, geom1)
-    geom2_expr = _convert_to_expression(dialect, geom2)
-    return core.FunctionCall(dialect, "ST_Distance", geom1_expr, geom2_expr)
+    return core.FunctionCall(dialect, "ST_Distance", geom1, geom2)
 
 
 def st_within(
     dialect: "MariaDBDialect",
-    geom1: Union[str, "bases.BaseExpression"],
-    geom2: Union[str, "bases.BaseExpression"],
+    geom1: "bases.BaseExpression",
+    geom2: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates an ST_Within function call.
 
@@ -172,23 +155,21 @@ def st_within(
 
     Args:
         dialect: The MariaDB dialect instance
-        geom1: First geometry
-        geom2: Second geometry
+        geom1: First geometry expression
+        geom2: Second geometry expression
 
     Returns:
         A FunctionCall instance representing ST_Within
 
     Version: MariaDB 10.2+
     """
-    geom1_expr = _convert_to_expression(dialect, geom1)
-    geom2_expr = _convert_to_expression(dialect, geom2)
-    return core.FunctionCall(dialect, "ST_Within", geom1_expr, geom2_expr)
+    return core.FunctionCall(dialect, "ST_Within", geom1, geom2)
 
 
 def st_contains(
     dialect: "MariaDBDialect",
-    geom1: Union[str, "bases.BaseExpression"],
-    geom2: Union[str, "bases.BaseExpression"],
+    geom1: "bases.BaseExpression",
+    geom2: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates an ST_Contains function call.
 
@@ -196,23 +177,21 @@ def st_contains(
 
     Args:
         dialect: The MariaDB dialect instance
-        geom1: First geometry
-        geom2: Second geometry
+        geom1: First geometry expression
+        geom2: Second geometry expression
 
     Returns:
         A FunctionCall instance representing ST_Contains
 
     Version: MariaDB 10.2+
     """
-    geom1_expr = _convert_to_expression(dialect, geom1)
-    geom2_expr = _convert_to_expression(dialect, geom2)
-    return core.FunctionCall(dialect, "ST_Contains", geom1_expr, geom2_expr)
+    return core.FunctionCall(dialect, "ST_Contains", geom1, geom2)
 
 
 def st_intersects(
     dialect: "MariaDBDialect",
-    geom1: Union[str, "bases.BaseExpression"],
-    geom2: Union[str, "bases.BaseExpression"],
+    geom1: "bases.BaseExpression",
+    geom2: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates an ST_Intersects function call.
 
@@ -220,17 +199,15 @@ def st_intersects(
 
     Args:
         dialect: The MariaDB dialect instance
-        geom1: First geometry
-        geom2: Second geometry
+        geom1: First geometry expression
+        geom2: Second geometry expression
 
     Returns:
         A FunctionCall instance representing ST_Intersects
 
     Version: MariaDB 10.2+
     """
-    geom1_expr = _convert_to_expression(dialect, geom1)
-    geom2_expr = _convert_to_expression(dialect, geom2)
-    return core.FunctionCall(dialect, "ST_Intersects", geom1_expr, geom2_expr)
+    return core.FunctionCall(dialect, "ST_Intersects", geom1, geom2)
 
 
 __all__ = [

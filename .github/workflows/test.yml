@@ -72,8 +72,8 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev30"
-          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/expression-schema-object-refactor"
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/typed-columns"
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@test/typed-column-contracts"
 
       - name: Create MariaDB scenario config
         run: |
@@ -160,8 +160,8 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev30"
-          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/expression-schema-object-refactor"
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/typed-columns"
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@test/typed-column-contracts"
 
       - name: Create MariaDB scenario config
         run: |
@@ -183,3 +183,4 @@ jobs:
         run: |
           export PYTHONPATH=src:tests
           python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short
+

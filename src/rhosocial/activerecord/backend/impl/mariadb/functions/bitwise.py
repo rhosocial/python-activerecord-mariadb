@@ -6,45 +6,27 @@ Functions: bit_and, bit_or, bit_xor, bit_count, bit_get_bit,
            bit_shift_left, bit_shift_right
 
 Note: MariaDB has native bitwise operators and functions similar to MySQL.
+
+Every operand is an expression: pass a ``Column`` to read a column and a
+``Literal`` to write a value.  An operand used to be accepted as a bare
+string and a bare number, and which of the two it was had to be worked out
+from its type at run time; the number was right, but the string could not say
+which it meant, and a column named ``16`` was read as the number sixteen.
 """
 
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression import bases, core
 from rhosocial.activerecord.backend.expression.operators import BinaryArithmeticExpression
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.dialect import SQLDialectBase
     from ..dialect import MariaDBDialect
-
-
-def _convert_to_expression(
-    dialect: "SQLDialectBase",
-    expr: Union[str, int, float, "bases.BaseExpression"],
-    handle_numeric_literals: bool = True,
-) -> "bases.BaseExpression":
-    """Helper function to convert an input value to an appropriate BaseExpression.
-
-    Args:
-        dialect: The SQL dialect instance
-        expr: The expression to convert
-        handle_numeric_literals: Whether to treat numeric values as literals
-
-    Returns:
-        A BaseExpression instance
-    """
-    if isinstance(expr, bases.BaseExpression):
-        return expr
-    elif handle_numeric_literals and isinstance(expr, (int, float)):
-        return core.Literal(dialect, expr)
-    else:
-        return core.Column(dialect, expr)
 
 
 def bit_and(
     dialect: "MariaDBDialect",
-    value: Union[str, int, "bases.BaseExpression"],
-    *values: Union[str, int, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
+    *values: "bases.BaseExpression",
 ) -> "bases.BaseExpression":
     """Returns the bitwise AND of values.
 
@@ -53,25 +35,24 @@ def bit_and(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: First value
-        *values: Additional values to AND
+        value: First value expression
+        *values: Additional value expressions to AND
 
     Returns:
         An expression representing bitwise AND
 
     Version: All MariaDB versions
     """
-    result = _convert_to_expression(dialect, value)
+    result = value
     for v in values:
-        v_expr = _convert_to_expression(dialect, v)
-        result = BinaryArithmeticExpression(dialect, "&", result, v_expr)
+        result = BinaryArithmeticExpression(dialect, "&", result, v)
     return result
 
 
 def bit_or(
     dialect: "MariaDBDialect",
-    value: Union[str, int, "bases.BaseExpression"],
-    *values: Union[str, int, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
+    *values: "bases.BaseExpression",
 ) -> "bases.BaseExpression":
     """Returns the bitwise OR of values.
 
@@ -80,25 +61,24 @@ def bit_or(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: First value
-        *values: Additional values to OR
+        value: First value expression
+        *values: Additional value expressions to OR
 
     Returns:
         An expression representing bitwise OR
 
     Version: All MariaDB versions
     """
-    result = _convert_to_expression(dialect, value)
+    result = value
     for v in values:
-        v_expr = _convert_to_expression(dialect, v)
-        result = BinaryArithmeticExpression(dialect, "|", result, v_expr)
+        result = BinaryArithmeticExpression(dialect, "|", result, v)
     return result
 
 
 def bit_xor(
     dialect: "MariaDBDialect",
-    value: Union[str, int, "bases.BaseExpression"],
-    *values: Union[str, int, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
+    *values: "bases.BaseExpression",
 ) -> "bases.BaseExpression":
     """Returns the bitwise XOR of values.
 
@@ -107,44 +87,42 @@ def bit_xor(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: First value
-        *values: Additional values to XOR
+        value: First value expression
+        *values: Additional value expressions to XOR
 
     Returns:
         An expression representing bitwise XOR
 
     Version: All MariaDB versions
     """
-    result = _convert_to_expression(dialect, value)
+    result = value
     for v in values:
-        v_expr = _convert_to_expression(dialect, v)
-        result = BinaryArithmeticExpression(dialect, "^", result, v_expr)
+        result = BinaryArithmeticExpression(dialect, "^", result, v)
     return result
 
 
 def bit_count(
     dialect: "MariaDBDialect",
-    value: Union[str, int, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Returns the number of bits set to 1 in the binary representation.
 
     Args:
         dialect: The MariaDB dialect instance
-        value: Column or expression to count bits
+        value: Expression whose bits to count
 
     Returns:
         A FunctionCall instance representing BIT_COUNT(expr)
 
     Version: MariaDB 10.0+
     """
-    value_expr = _convert_to_expression(dialect, value)
-    return core.FunctionCall(dialect, "BIT_COUNT", value_expr)
+    return core.FunctionCall(dialect, "BIT_COUNT", value)
 
 
 def bit_get_bit(
     dialect: "MariaDBDialect",
-    value: Union[str, int, "bases.BaseExpression"],
-    bit: Union[str, int, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
+    bit: "bases.BaseExpression",
 ) -> "bases.BaseExpression":
     """Returns the value of a specific bit (0 or 1).
 
@@ -153,7 +131,7 @@ def bit_get_bit(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: The value to get the bit from
+        value: The expression to get the bit from
         bit: The bit position (0-indexed)
 
     Returns:
@@ -161,16 +139,14 @@ def bit_get_bit(
 
     Version: Native operators available in all MariaDB versions
     """
-    value_expr = _convert_to_expression(dialect, value)
-    bit_expr = _convert_to_expression(dialect, bit)
-    shifted = BinaryArithmeticExpression(dialect, ">>", value_expr, bit_expr)
+    shifted = BinaryArithmeticExpression(dialect, ">>", value, bit)
     return BinaryArithmeticExpression(dialect, "&", shifted, core.Literal(dialect, 1))
 
 
 def bit_shift_left(
     dialect: "MariaDBDialect",
-    value: Union[str, int, "bases.BaseExpression"],
-    count: Union[str, int, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
+    count: "bases.BaseExpression",
 ) -> "bases.BaseExpression":
     """Returns the value left-shifted by count bits.
 
@@ -179,23 +155,21 @@ def bit_shift_left(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: The value to shift
-        count: Number of positions to shift
+        value: The expression to shift
+        count: Expression for the number of positions to shift
 
     Returns:
         An expression representing the left-shifted value
 
     Version: Native operators available in all MariaDB versions
     """
-    value_expr = _convert_to_expression(dialect, value)
-    count_expr = _convert_to_expression(dialect, count)
-    return BinaryArithmeticExpression(dialect, "<<", value_expr, count_expr)
+    return BinaryArithmeticExpression(dialect, "<<", value, count)
 
 
 def bit_shift_right(
     dialect: "MariaDBDialect",
-    value: Union[str, int, "bases.BaseExpression"],
-    count: Union[str, int, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
+    count: "bases.BaseExpression",
 ) -> "bases.BaseExpression":
     """Returns the value right-shifted by count bits.
 
@@ -204,17 +178,15 @@ def bit_shift_right(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: The value to shift
-        count: Number of positions to shift
+        value: The expression to shift
+        count: Expression for the number of positions to shift
 
     Returns:
         An expression representing the right-shifted value
 
     Version: Native operators available in all MariaDB versions
     """
-    value_expr = _convert_to_expression(dialect, value)
-    count_expr = _convert_to_expression(dialect, count)
-    return BinaryArithmeticExpression(dialect, ">>", value_expr, count_expr)
+    return BinaryArithmeticExpression(dialect, ">>", value, count)
 
 
 __all__ = [

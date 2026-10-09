@@ -180,6 +180,7 @@ from .mixins import (
     MariaDBGeneratedColumnMixin,
     MariaDBFunctionMixin,
     MariaDBNamespaceMixin,
+    MariaDBColumnSuggestionMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -207,6 +208,7 @@ from .protocols import (
     MariaDBMaintenanceSupport,
     MariaDBRoutineSupport,
     MariaDBAdminSupport,
+    MariaDBTypeSupport,
 )
 
 if TYPE_CHECKING:
@@ -271,6 +273,12 @@ class MariaDBDialect(
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
     MariaDBTypeSupportMixin,
+    # The column-side suggestion table — which column class each common Python
+    # type means on this server — and its capability narrowing. It derives from
+    # core's `ColumnSuggestionMixin`, so it belongs with the MariaDB mixins that
+    # own an answer rather than in the group of core mixins that only supply a
+    # fallback: core's copy must never sit in the MRO ahead of this one.
+    MariaDBColumnSuggestionMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
     MariaDBRenameTableMixin,
@@ -392,7 +400,7 @@ class MariaDBDialect(
     MariaDBMaintenanceSupport,
     MariaDBRoutineSupport,
     MariaDBAdminSupport,
-    # Named-object protocols come after the MariaDB-specific ones, and
+# Named-object protocols come after the MariaDB-specific ones, and
     # `NamespaceSupport` trails them, on purpose. `MariaDBTableSupport` and
     # `MariaDBTriggerSupport` derive from `TableObjectSupport` and
     # `TriggerObjectSupport`, and every object protocol derives from
@@ -407,6 +415,9 @@ class MariaDBDialect(
     RoutineObjectSupport,
     TypeObjectSupport,
     NamespaceSupport,
+    # MariaDB's own type attributes. Its mixin derives from DataTypeSupport,
+    # so it follows the core protocol above for the same C3 reason.
+    MariaDBTypeSupport,
 ):
     """MariaDB dialect implementation that adapts to the MariaDB version.
 
@@ -489,20 +500,158 @@ class MariaDBDialect(
 
     # region Type protocol
 
+    def substitute_advice(self, name: str) -> str:
+        """State what a MariaDB substitution gives up, in the caller's error.
+
+        ``real`` is the one entry with something to add: MariaDB's ``REAL`` is
+        not a storage class but a synonym whose resolution depends on a SQL
+        mode this framework does not read, and the catalog never reports the
+        word back. The caller has to be told that, or "it suggests DoubleType"
+        sounds like a spelling choice rather than the storage the column will
+        really have.
+        """
+        if name == "real":
+            return (
+                "MariaDB's ``REAL`` is a synonym for ``DOUBLE`` in the default "
+                "SQL mode (the DOUBLE page groups ``DOUBLE``, ``DOUBLE "
+                "PRECISION`` and ``REAL`` together); only under the "
+                "``REAL_AS_FLOAT`` SQL mode does it mean ``FLOAT``. Every wired "
+                "server reports a ``REAL`` column as ``double`` (``float`` "
+                "under that mode) and never as ``real`` in "
+                "``information_schema``, so the single-precision concept cannot "
+                "round-trip. Declare ``DoubleType``, or ``FloatType`` for "
+                "4-byte single precision."
+            )
+        return ""
+
     def suggested_data_types(self) -> Dict[str, type]:
-        """Cross-backend type-consistency suggestions for MariaDB."""
+        """What MariaDB stores for each core concept it cannot spell.
+
+        A concept MariaDB genuinely has is **rendered**, not suggested — the
+        native ``ENUM`` is the obvious one: it used to appear here as
+        ``MariaDBEnumType``, which said "I cannot render this" from a dialect
+        that renders ``ENUM(...)`` perfectly well, and a name in both sets is
+        one of the two being a lie.
+
+        What is left is the honest remainder — ``uuid`` used to be here and no
+        longer is, and ``real`` joins it for the reason its entry gives:
+
+        ``uuid``
+            **Removed.** MariaDB has had a native ``UUID`` column type since
+            **10.7**, so this concept is *rendered* rather than substituted (see
+            ``format_data_type_mariadb_uuid``, which is version-gated). The
+            entry that used to sit here claimed MariaDB had no UUID type at all
+            and pointed at a 16-byte ``BINARY`` instead — which was true before
+            10.7 and false after it, and would have quietly produced a column
+            that is not a UUID on every supported server. On a pre-10.7 server
+            a UUID is a ``MariaDBBinaryType(length=16)``, and asking for that
+            class is the honest way to say so.
+
+        ``real``
+            MariaDB documents ``REAL`` as one of the three words for the 8-byte
+            type — its DOUBLE page gives ``DOUBLE``, ``DOUBLE PRECISION`` and
+            ``REAL`` one grammar and says "``REAL`` and ``DOUBLE PRECISION`` are
+            synonyms, unless the ``REAL_AS_FLOAT`` SQL mode is enabled, in which
+            case ``REAL`` is a synonym for FLOAT rather than DOUBLE". Measured
+            on all fifteen wired servers, 10.2.44 through 13.1.1, which agree
+            byte for byte: a ``REAL`` column reports ``COLUMN_TYPE = 'double'``
+            (and ``REAL UNSIGNED`` reports ``'double unsigned'``), while under
+            ``REAL_AS_FLOAT`` it reports ``'float'``. The catalog therefore
+            never writes the word ``real`` back, so the concept cannot
+            round-trip: a declared ``RealType`` would introspect as a
+            ``DoubleType`` on a default server and as a ``FloatType`` under the
+            mode. The substitute is ``DoubleType`` — the storage the default
+            server builds — and ``FloatType`` is what to declare when 4-byte
+            single precision is what was meant. :meth:`substitute_advice`
+            carries that sentence into the caller's error.
+
+        ``binary`` / ``varbinary``
+            The converse of the core ``blob`` case, which MariaDB *renders*: a
+            ``BLOB`` here is unbounded, so it cannot stand in for a
+            width-constrained ``BINARY(n)`` or ``VARBINARY(n)``. The
+            substitutes are therefore the backend's own width-carrying classes
+            rather than ``MariaDBBinaryType`` for both, which would silently
+            drop the ``n`` that is the whole point of ``varbinary``.
+
+        ``array``
+            SQL:2016 defines arrays as a *constructed type* over every data
+            type, and MariaDB implements none of them — a column cannot be
+            declared ``INT[]``. What MariaDB does have is a native ``JSON``
+            column that validates its contents, and that is what this backend's
+            own array support raises on every array operation it cannot do
+            ("Use JSON arrays instead"). So the substitute is ``JsonType``,
+            which is what a MariaDB array is actually made of.
+
+        ``xml``
+            **Version-dependent, because MariaDB's answer changed.**
+            MariaDB had no XML type at all before **12.3**: not a native one,
+            not an alias, no ``XML`` keyword in its DDL grammar, and
+            ``CREATE TABLE t (c XML)`` fails with errno 4161. On such a server an
+            XML document is text with no validation applied to it, which is what
+            ``TextType`` says — an accurate description of the storage rather
+            than a consolation prize.
+
+            From **12.3** MariaDB has a native ``XMLTYPE`` column type, and
+            substituting ``TEXT`` there would be simply wrong: the backend can
+            store a real XML column. The substitute becomes
+            :class:`~...expression.types.MariaDBXmlType` — "basic XML storage
+            capabilities only, without validation or specialized XML-specific
+            functionality", 4 GB maximum "same as ``LONGBLOB``", no length
+            permitted — which is a genuinely different column from ``TEXT``, so
+            the suggestion has to follow the server rather than stay fixed.
+            (PostgreSQL, which has ``XML`` natively *and* validates it against a
+            registered schema, is why the two backends differ here and neither is
+            wrong.)
+
+        ``interval``
+            The one suggestion with no exact answer, so the reasoning is worth
+            stating. ``INTERVAL`` on MariaDB is an **expression** keyword —
+            ``INTERVAL 1 DAY`` inside ``DATE_ADD`` — and never a column type,
+            so there is nothing for an interval *column* to be. A span has to be
+            stored as something else, and the two candidates are both lossy:
+            ``TIME`` holds at most 838:59:59 (about 34 days) and has no notion
+            of months or years at all, while an integer has no unit. What is
+            left is the character form MariaDB's own interval arithmetic
+            produces — ``1 02:03:04.000000`` — which is why the suggestion is
+            ``VarCharType``: bounded, and readable by a human debugging a row.
+            It is a suggestion, not a promise, and the caller is free to store
+            seconds in a ``BIGINT`` instead.
+        """
+        from rhosocial.activerecord.backend.expression.types import (
+            DoubleType,
+            JsonType,
+            TextType,
+            VarCharType,
+        )
         from .expression.types import (
-            MariaDBBinaryType,
-            MariaDBEnumType,
             MariaDBUUIDType,
+            MariaDBBinaryType,
             MariaDBVarBinaryType,
+            MariaDBXmlType,
+        )
+
+        # The one version-dependent entry. MariaDB 12.3 added the native
+        # ``XMLTYPE`` column type, and before it there was no XML type at all;
+        # naming ``TextType`` unconditionally would be wrong on every 12.3+ server
+        # (the backend *can* store an XML column there) and naming
+        # ``MariaDBXmlType`` unconditionally would point a 12.2 or 11.x caller at
+        # a type whose formatter refuses to render. The key stays ``xml`` either
+        # way, so a caller asking "what does this backend do with XML?" gets an
+        # answer on every server, and the class it names is one this dialect can
+        # actually render — the property ``verify_backend.py`` checks.
+        xml_substitute = (
+            MariaDBXmlType
+            if self.version >= MARIADB_VERSION_BOUNDARIES["XMLTYPE"]
+            else TextType
         )
 
         return {
-            "uuid": MariaDBUUIDType,
-            "enum": MariaDBEnumType,
             "binary": MariaDBBinaryType,
             "varbinary": MariaDBVarBinaryType,
+            "real": DoubleType,
+            "array": JsonType,
+            "xml": xml_substitute,
+            "interval": VarCharType,
         }
 
     # endregion

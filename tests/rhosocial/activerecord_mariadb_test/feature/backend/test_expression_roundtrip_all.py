@@ -809,6 +809,19 @@ UNCONSTRUCTIBLE = (
     # the introspective constructor skips it and the type declares no members.
     "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBEnumType",
     "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBSetType",
+    # ---- core expressions, arrived with the typed-column work ----------------
+    # CUSTOM type. `raw` names the SQL type string and defaults to the empty
+    # string, so the filler skips it and builds a type with no spelling.
+    "rhosocial.activerecord.backend.expression.types.custom.CustomType",
+    # UUID constant. `which` must name 'nil' or 'max' and __init__ rejects
+    # anything else, so the filler's guess is refused at construction.
+    "rhosocial.activerecord.backend.expression.uuid.UUIDConstantExpression",
+    # UUID generation. Takes only a dialect and a keyword-only alias, so there
+    # is no parameter the filler can supply a value for.
+    "rhosocial.activerecord.backend.expression.uuid.UUIDGenerationExpression",
+    # UUID cast. `expression` is annotated Any, so the filler hands it a string
+    # where the node needs an expression to cast.
+    "rhosocial.activerecord.backend.expression.uuid.UUIDCastExpression",
     # ---- core expressions --------------------------------------------------
     # ALTER CONSTRAINT. `name` and `constraint_type` sit behind defaulted
     # positionals and are keyword-only, so the introspective constructor skips
@@ -1052,11 +1065,19 @@ LEGITIMATE_NON_RENDERS = {
     #
     #   core BinaryType      -> MariaDBBinaryType
     #   core VarBinaryType   -> MariaDBVarBinaryType
-    #   core UUIDType        -> MariaDBUUIDType
     #
     # Pinned rather than "fixed", because the dispatch is a naming contract in
     # core's type registry and changing it here would be a core change. The
     # MariaDB equivalents are in the matrix and do render.
+
+    # UUIDType was on that list once and is not any more. Unlike the two
+    # above it does have ``format_data_type_uuid``, and that delegates to
+    # ``format_data_type_mariadb_uuid``, which version-gates on MariaDB 10.7:
+    # below it the answer is UnsupportedFeatureError, from 10.7 up the column
+    # renders as UUID. One static pin cannot say both halves, and the pin is
+    # consulted before the UnsupportedFeatureError branch, so any entry here
+    # fails on one end of the matrix. Left unpinned: each outcome is already
+    # classified -- unsupported on the old servers, rendered on the new ones.
     "rhosocial.activerecord.backend.expression.types.array.ArrayType": (
         TypeError, "does not support the generic type 'array'"
     ),
@@ -1069,8 +1090,16 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.types.datetime_.IntervalType": (
         TypeError, "does not support the generic type 'interval'"
     ),
-    "rhosocial.activerecord.backend.expression.types.uuid_.UUIDType": (
-        TypeError, "does not support the generic type 'uuid'"
+    # REAL is a synonym for DOUBLE in the default SQL mode, and every wired
+    # server reports the column back as ``double``, so the single-precision
+    # concept cannot round-trip. Declare DoubleType instead, or FloatType for
+    # 4-byte single precision.
+    "rhosocial.activerecord.backend.expression.types.numeric.RealType": (
+        TypeError, "does not support the generic type 'real'"
+    ),
+    # No SQL/XML type either, and the same naming contract as the three above.
+    "rhosocial.activerecord.backend.expression.types.xml_.XmlType": (
+        TypeError, "does not support the generic type 'xml'"
     ),
     # The root of the type tree. Every concrete type declares its own generic
     # name, which is what dispatch reads; the root declares none, so there is

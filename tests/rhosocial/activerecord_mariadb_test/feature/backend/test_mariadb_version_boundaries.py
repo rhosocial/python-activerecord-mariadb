@@ -418,3 +418,124 @@ class TestGatesMatchLiveServer:
         except DatabaseError:
             available = False
         assert gate is available
+
+    def test_xmltype_gate_matches_server(self, mariadb_backend):
+        """The 12.3 XMLTYPE boundary, checked against the server that is there.
+
+        ``CREATE TABLE t (c XMLTYPE)`` is the probe: it either parses or it does
+        not, and the gate must say which. The catalog read-back then pins the
+        second half of the contract -- that a column of this type introspects as
+        ``xmltype`` and comes back through ``parse_type`` as
+        :class:`MariaDBXmlType`, not as a ``TEXT``.
+        """
+        gate = mariadb_backend.dialect.supports_data_type_mariadb_xml()
+        mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_xml")
+        try:
+            mariadb_backend.execute("CREATE TABLE t_gate_xml (id INT, x XMLTYPE)")
+            created = True
+        except DatabaseError:
+            created = False
+        try:
+            assert created is gate
+            if not created:
+                return
+            reported = mariadb_backend.fetch_one(
+                "SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_gate_xml' "
+                "AND COLUMN_NAME = 'x'"
+            )["t"]
+            assert reported == "xmltype"
+            parsed = mariadb_backend.dialect.parse_type(reported)
+            assert type(parsed).__name__ == "MariaDBXmlType"
+            assert mariadb_backend.dialect.format_data_type(parsed) == (
+                "XMLTYPE", (),
+            )
+        finally:
+            mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_xml")
+
+    def test_mediumint_reaches_the_introspector_as_its_own_width(self, mariadb_backend):
+        """MEDIUMINT is 3 bytes and must not be read back as the 4-byte INT.
+
+        The whole point of ``mariadb_mediumint`` is that a MEDIUMINT column is
+        distinguishable from an INT one, so this creates both and checks that
+        the catalog reports two different things and that ``parse_type`` keeps
+        them apart.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
+            MariaDBIntType,
+            MariaDBMediumIntType,
+        )
+
+        mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_mediumint")
+        mariadb_backend.execute(
+            "CREATE TABLE t_gate_mediumint (m MEDIUMINT, i INT)"
+        )
+        try:
+            types = mariadb_backend.fetch_all(
+                "SELECT COLUMN_NAME AS n, COLUMN_TYPE AS t "
+                "FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                "AND TABLE_NAME = 't_gate_mediumint'"
+            )
+            by_name = {row["n"]: row["t"] for row in types}
+            assert by_name["m"].startswith("mediumint")
+            assert by_name["i"].startswith("int")
+            assert by_name["m"] != by_name["i"]
+
+            parsed = mariadb_backend.dialect.parse_type(by_name["m"])
+            assert type(parsed) is MariaDBMediumIntType
+            dialect = mariadb_backend.dialect
+            assert parsed != MariaDBIntType(dialect)
+            assert dialect.format_data_type(parsed) == ("MEDIUMINT", ())
+        finally:
+            mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_mediumint")
+
+    def test_zerofill_adds_unsigned_server_side(self, mariadb_backend):
+        """Why the formatter has to emit both attributes.
+
+        MariaDB's own overview says ``ZEROFILL`` sets the column to ``UNSIGNED``,
+        and this is the observation that makes it matter: a column declared
+        ``INT ZEROFILL`` is *stored* as unsigned. Since ``parse_type`` derives
+        ``unsigned`` from the presence of the word, a formatter that wrote
+        ``ZEROFILL`` alone for a *signed* declaration produced DDL that described
+        a column the server built differently -- and parsed its own output back as
+        signed.
+
+        That is now prevented at construction rather than at render time:
+        ``_zerofill_signedness`` normalises the pair, so ``unsigned`` is already
+        ``True`` on any declaration that asks to be zero-padded and the formatter
+        emits both words. The end of this test is the assertion that matters --
+        the DDL this backend writes for that declaration, read back off a real
+        server, gives the declared value object.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
+            MariaDBIntType,
+        )
+
+        mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_zerofill")
+        mariadb_backend.execute("CREATE TABLE t_gate_zerofill (c INT ZEROFILL)")
+        try:
+            reported = mariadb_backend.fetch_one(
+                "SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                "AND TABLE_NAME = 't_gate_zerofill' AND COLUMN_NAME = 'c'"
+            )["t"]
+            assert "unsigned" in reported.lower(), reported
+            assert "zerofill" in reported.lower(), reported
+            # Both words, in MariaDB's documented order -- which is what the
+            # formatter emits, so the declared value object survives the trip.
+            assert reported.lower().endswith("unsigned zerofill"), reported
+            dialect = mariadb_backend.dialect
+            parsed = dialect.parse_type(reported)
+            assert parsed == MariaDBIntType(dialect, unsigned=True, zerofill=True)
+
+            # The declaration a caller actually writes, rendered by this
+            # backend, read back off this server.
+            declared = MariaDBIntType(dialect, zerofill=True)
+            assert declared.unsigned is True
+            rendered = dialect.format_data_type(declared)[0]
+            assert rendered == "INT UNSIGNED ZEROFILL"
+            assert dialect.parse_type(reported.lower()) == declared
+        finally:
+            mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_zerofill")
+

@@ -57,9 +57,21 @@ MARIADB_VERSION_BOUNDARIES = {
     'GRANT_OR_REPLACE': (10, 1, 4),
     'GRANT_IF_EXISTS': (10, 1, 4),
     'CHECK_CONSTRAINT': (10, 2, 1),
+    # --- 10.7 (UUID data type) ---
+    # https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type
+    'UUID': (10, 7, 0),
     # --- 12.3 (LTS) ---
     'IS_JSON_PREDICATE': (12, 3, 0),
     'TO_DATE_FUNCTION': (12, 3, 0),
+    # --- 12.3 (LTS) — data types ---
+    # Native XMLTYPE column type. Documented as "available from MariaDB 12.3";
+    # 12.3 is itself GA (first GA of the series is 12.3.2) and an LTS line
+    # maintained to June 2029, so the boundary names a real release rather than
+    # a preview. Verified against live servers: `CREATE TABLE t (c XMLTYPE)`
+    # succeeds on 12.3.3 / 13.0.2 / 13.1.1 and fails with errno 4161
+    # ("Unknown data type: 'XMLTYPE'") on 11.8.9 and 12.2.2.
+    # https://mariadb.com/docs/server/reference/data-types/string-data-types/xmltype
+    'XMLTYPE': (12, 3, 0),
     # --- 13.0 (GA) ---
     'RETURNING_UPDATE': (13, 0, 0),
     # --- 13.1 (RC) ---

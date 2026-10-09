@@ -20,7 +20,10 @@ import pytest
 from rhosocial.activerecord.backend.dialect import protocols as dialect_protocols
 from rhosocial.activerecord.backend.impl.mariadb import dialect as mariadb_dialect
 from rhosocial.activerecord.backend.impl.mariadb import mixins as mysql_mixins
+from rhosocial.activerecord.backend.impl.mariadb import protocols as mariadb_protocols
 from rhosocial.activerecord.backend.impl.mariadb import protocols as mysql_protocols
+from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.protocols import types as mariadb_protocol_types
 
 
 def get_all_protocol_methods(proto: type) -> set:
@@ -174,6 +177,9 @@ MYSQL_PROTOCOLS = [
     mysql_protocols.MariaDBTableSupport,
     mysql_protocols.MariaDBTriggerSupport,
     mysql_protocols.MariaDBWindowFunctionSupport,
+    # MariaDB's own data-type attributes. This one was declared and never
+    # composed, which made all nine of its capability members unreachable.
+    mysql_protocols.MariaDBTypeSupport,
 ]
 
 
@@ -200,6 +206,11 @@ class TestMariaDBDialectProtocolConformance:
 # satisfies one by accident, the negative test fails and forces a conscious
 # decision (move to MYSQL_PROTOCOLS or revert).
 MARIADB_NOT_IMPLEMENTED = [
+    # UUID value expressions (generation / nil-max constants / cast) are not
+    # implemented yet on this dialect. Listed here so the omission is a
+    # recorded decision rather than a gap; move it to the implemented list
+    # when the mixin lands.
+    dialect_protocols.UUIDSupport,
     # --- Intentional non-support ---
     # MariaDB has no standalone COMMENT ON statement; inline table/column
     # comments are rendered by CREATE TABLE instead.
@@ -653,3 +664,256 @@ class TestProtocolMixinReverseCoverage:
             f"{mixin.__name__} implements these methods not declared in "
             f"{protocol.__name__}: {undeclared}"
         )
+
+# ============================================================================
+# MariaDBTypeSupport — a declared protocol has to be reachable
+# ============================================================================
+
+
+class TestMariaDBTypeProtocolIsComposed:
+    """``MariaDBTypeSupport`` must be composed, exported, and answered correctly.
+
+    The protocol was declared with nine ``supports_mariadb_*`` capability
+    members, implemented by the mixin, and then left on the shelf: not exported
+    from ``protocols/__init__.py``, not composed into ``MariaDBDialect``, and not
+    in ``MYSQL_PROTOCOLS``. A ``runtime_checkable`` protocol is only an
+    ``isinstance`` target, so with nothing composed there was no way for any
+    caller -- or any test -- to see a single one of those members. MySQL's sibling
+    ``MySQLTypeSupport`` has always composed its own, which is the precedent that
+    makes this an inconsistency rather than a house style.
+
+    Three things are checked here, and they are not the same thing:
+
+    1. **composed** — ``isinstance(dialect, MariaDBTypeSupport)`` holds, and the
+       protocol is really in the MRO rather than satisfied by accident;
+    2. **answered** — each member returns the value its docstring claims, with
+       the two version-gated ones exercised on *both* sides of their boundary;
+    3. **not vacuous** — a wrong entry in ``MYSQL_PROTOCOLS`` would fail, and an
+       incomplete dialect would fail, so the positive list cannot quietly become
+       a list of hopes.
+    """
+
+    #: The protocol's own declared members. Read from the class rather than
+    #: repeated here, so adding a member to the protocol without a test for it
+    #: is impossible: the "every member is implemented" and "every member is
+    #: reachable" checks below both walk this.
+    @staticmethod
+    def _declared_members():
+        return [
+            name for name in vars(mariadb_protocols.MariaDBTypeSupport)
+            if not name.startswith("_")
+        ]
+
+    def test_protocol_is_exported_from_the_package(self):
+        """Half the original defect: it was not even importable by name."""
+        assert "MariaDBTypeSupport" in mariadb_protocols.__all__
+        assert (
+            mariadb_protocols.MariaDBTypeSupport
+            is mariadb_protocol_types.MariaDBTypeSupport
+        )
+
+    def test_protocol_is_composed_into_the_dialect(self):
+        assert mariadb_protocols.MariaDBTypeSupport in MariaDBDialect.__mro__
+
+    def test_dialect_satisfies_the_protocol(self):
+        dialect = mariadb_dialect.MariaDBDialect()
+        assert isinstance(dialect, mariadb_protocols.MariaDBTypeSupport)
+
+    def test_it_is_in_the_positive_conformance_list(self):
+        assert mariadb_protocols.MariaDBTypeSupport in MYSQL_PROTOCOLS
+
+    def test_mixin_defines_every_declared_member(self):
+        """Forward coverage, and it is the mixin that must supply them.
+
+        Without this the ``isinstance`` check would still pass if some *other*
+        class in the MRO happened to answer ``supports_mariadb_xml_type``, which
+        would leave the protocol satisfied by a class nobody intended to be
+        responsible for it.
+        """
+        mixin = mysql_mixins.MariaDBTypeSupportMixin
+        missing = [n for n in self._declared_members() if n not in vars(mixin)]
+        assert not missing, (
+            f"{mixin.__name__} does not implement these members declared in "
+            f"MariaDBTypeSupport: {missing}"
+        )
+
+    def test_every_declared_member_is_reachable_on_the_dialect(self):
+        dialect = mariadb_dialect.MariaDBDialect()
+        missing = [
+            n for n in self._declared_members()
+            if not callable(getattr(dialect, n, None))
+        ]
+        assert not missing, (
+            "MariaDBDialect cannot reach these declared capability members: "
+            f"{missing}"
+        )
+
+    # ---- the values, on both sides of each version gate ----
+
+    @pytest.mark.parametrize("member", [
+        "supports_mariadb_integer_attributes",
+        "supports_mariadb_mediumint_width",
+        "supports_mariadb_year_display_width",
+        "supports_mariadb_enum_charset",
+        "supports_mariadb_geometry_srid",
+        "supports_mariadb_sized_text",
+        "supports_mariadb_sized_blob",
+    ])
+    def test_ungated_capability_is_true_on_every_supported_version(self, member):
+        """These seven hold on every MariaDB release this backend supports.
+
+        Asserted across the whole version span rather than on the fixture alone,
+        because "always true" and "true because the fixture happens to be new
+        enough" look identical at one version.
+        """
+        for version in [(10, 2, 0), (10, 6, 0), (11, 8, 9), (12, 3, 0),
+                        (13, 0, 0), (13, 1, 1)]:
+            target = mariadb_dialect.MariaDBDialect(version=version)
+            assert getattr(target, member)() is True, (member, version)
+
+    @pytest.mark.parametrize("version,expected", [
+        ((10, 6, 0), False),
+        ((11, 8, 9), False),
+        ((12, 2, 2), False),
+        ((12, 3, 0), True),
+        ((12, 3, 3), True),
+        ((13, 0, 2), True),
+        ((13, 1, 1), True),
+    ])
+    def test_xml_capability_flips_at_12_3(self, version, expected):
+        """``XMLTYPE`` arrived in 12.3; below it there is no XML type at all."""
+        target = mariadb_dialect.MariaDBDialect(version=version)
+        assert target.supports_mariadb_xml_type() is expected
+
+    @pytest.mark.parametrize("version,expected", [
+        ((10, 5, 9), False),
+        ((10, 6, 28), False),
+        ((10, 7, 0), True),
+        ((12, 3, 3), True),
+    ])
+    def test_uuid_capability_flips_at_10_7(self, version, expected):
+        """MariaDB's native ``UUID`` column type arrived in 10.7."""
+        target = mariadb_dialect.MariaDBDialect(version=version)
+        assert target.supports_mariadb_uuid_type() is expected
+
+    @pytest.mark.parametrize("version", [
+        (10, 6, 0), (10, 7, 0), (12, 2, 2), (12, 3, 0), (13, 1, 1),
+    ])
+    def test_gated_capability_agrees_with_the_per_type_gate(self, version):
+        """One version boundary, two names -- they must not drift.
+
+        The capability method is for a caller asking "does this server have the
+        type"; the ``supports_data_type_*`` method is the same question read
+        through the naming convention and is what the formatter's own gate uses.
+        A divergence between them would mean the DDL could be refused by a
+        capability that claimed to be available.
+        """
+        target = mariadb_dialect.MariaDBDialect(version=version)
+        assert target.supports_mariadb_xml_type() is \
+            target.supports_data_type_mariadb_xml()
+        assert target.supports_mariadb_uuid_type() is \
+            target.supports_data_type_uuid()
+        assert target.supports_mariadb_uuid_type() is \
+            target.supports_data_type_mariadb_uuid()
+
+    @pytest.mark.parametrize("version,expected", [
+        ((12, 2, 2), False),
+        ((12, 3, 0), True),
+    ])
+    def test_gated_capability_matches_what_the_server_accepts(self, version, expected):
+        """The gate has to be about the server, not about a hardcoded flag."""
+        from rhosocial.activerecord.backend.impl.mariadb.mixins.backend import (
+            MARIADB_VERSION_BOUNDARIES,
+        )
+
+        target = mariadb_dialect.MariaDBDialect(version=version)
+        assert target.supports_mariadb_xml_type() is (
+            version >= MARIADB_VERSION_BOUNDARIES["XMLTYPE"]
+        )
+        assert target.supports_mariadb_xml_type() is expected
+        assert target.supports_mariadb_uuid_type() is (
+            version >= MARIADB_VERSION_BOUNDARIES["UUID"]
+        )
+
+    # ---- the negative direction: a wrong entry has to fail ----
+
+    def test_positive_list_contains_only_protocols_the_dialect_satisfies(
+        self,
+    ):
+        """``MYSQL_PROTOCOLS`` must not be able to grow an unbacked entry.
+
+        ``test_implements_protocol`` already asserts this one protocol at a time;
+        the loop is here so that adding a bogus entry produces one failure naming
+        the entry, instead of a single parametrised failure among dozens.
+        """
+        dialect = mariadb_dialect.MariaDBDialect()
+        unsatisfied = [
+            p.__name__ for p in MYSQL_PROTOCOLS
+            if getattr(p, "_is_runtime_protocol", False)
+            and not isinstance(dialect, p)
+        ]
+        assert not unsatisfied, (
+            f"MariaDBDialect does not satisfy protocols listed as supported: "
+            f"{unsatisfied}. Either compose the mixin that implements them or "
+            f"remove them from MYSQL_PROTOCOLS."
+        )
+
+    def test_an_object_missing_the_members_is_not_an_instance(self):
+        """The ``isinstance`` check has teeth: it is not vacuously true.
+
+        A bare object is the easy direction. The one that matters is an object
+        satisfying *all but one* member -- the shape a partially-landed fix takes
+        -- because that is the failure ``isinstance`` exists to catch.
+        """
+        protocol = mariadb_protocols.MariaDBTypeSupport
+        members = self._declared_members()
+        assert members
+
+        class Nothing:
+            pass
+
+        assert not isinstance(Nothing(), protocol)
+
+        class AlmostNothing:
+            pass
+
+        for name in members[:-1]:
+            setattr(AlmostNothing, name, lambda self: True)
+        assert not isinstance(AlmostNothing(), protocol)
+
+        class Everything:
+            pass
+
+        for name in members:
+            setattr(Everything, name, lambda self: True)
+        assert isinstance(Everything(), protocol)
+
+    def test_a_mixin_missing_one_member_would_not_satisfy_the_protocol(self):
+        """Remove one method from the mixin and the check must notice.
+
+        This is the regression the original defect would have passed: a protocol
+        that nothing composes can be edited forever without a single test
+        failing, because no code path reaches it.
+
+        The patched classes are built on ``object``, *not* on the mixin, so the
+        dropped member is genuinely absent rather than merely shadowed -- a
+        subclass would still find the real implementation further up its MRO and
+        the assertion would pass for the wrong reason.
+        """
+        protocol = mariadb_protocols.MariaDBTypeSupport
+        members = self._declared_members()
+        base = mysql_mixins.MariaDBTypeSupportMixin
+        implementations = {n: vars(base)[n] for n in members}
+
+        for drop in members:
+            namespace = {n: f for n, f in implementations.items() if n != drop}
+            patched = type("PatchedMixin", (), namespace)()
+            assert not isinstance(patched, protocol), (
+                f"dropping {drop} should stop {base.__name__} satisfying "
+                f"{protocol.__name__}, but isinstance() still says yes"
+            )
+
+        # ...and with every member present it is satisfied again, so the loop
+        # above is measuring the member set and not something incidental.
+        complete = type("CompleteMixin", (), dict(implementations))()
+        assert isinstance(complete, protocol)

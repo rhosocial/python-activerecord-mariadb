@@ -7,6 +7,10 @@ Tests use the dialect mixin methods to generate SQL, validating our implementati
 """
 import pytest
 
+from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
+    MariaDBPointType,
+)
+
 
 class TestMariaDBSpatialTypeBackend:
     """Synchronous tests for MariaDB spatial types with real database."""
@@ -39,6 +43,46 @@ class TestMariaDBSpatialTypeBackend:
             assert dialect.supports_geojson()
         else:
             assert not dialect.supports_geojson()
+
+    def test_formatted_ref_system_id_is_accepted_by_the_server(self, mariadb_backend):
+        """The declared reference system renders as the server's own spelling.
+
+        The formatter used to render ``SRID n`` (MySQL's spelling); every
+        measured MariaDB rejects that with errno 1064. This creates the column
+        from the formatter's output -- the check that defect fails -- and reads
+        the declaration back from ``I_S.GEOMETRY_COLUMNS.SRID``, where a
+        spatial column's reference system lives: ``COLUMN_TYPE`` reports the
+        bare ``point``.
+        """
+        dialect = mariadb_backend.dialect
+        ddl, params = dialect.format_data_type(MariaDBPointType(dialect, 4326))
+        assert params == ()
+        assert ddl == "POINT REF_SYSTEM_ID=4326"
+
+        table = "test_spatial_type_srid"
+        try:
+            mariadb_backend.execute(f"DROP TABLE IF EXISTS {table}")
+            mariadb_backend.execute(
+                f"CREATE TABLE {table} (id INT PRIMARY KEY, location {ddl})"
+            )
+
+            reported = mariadb_backend.execute(
+                "SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s "
+                "AND COLUMN_NAME = 'location'",
+                (table,),
+            )
+            assert reported.data[0]["t"] == "point"
+
+            view = mariadb_backend.execute(
+                "SELECT SRID AS srid FROM information_schema.GEOMETRY_COLUMNS "
+                "WHERE G_TABLE_SCHEMA = DATABASE() AND G_TABLE_NAME = %s "
+                "AND G_GEOMETRY_COLUMN = 'location'",
+                (table,),
+            )
+            assert view.data[0]["srid"] == 4326
+        finally:
+            mariadb_backend.execute(f"DROP TABLE IF EXISTS {table}")
 
     def test_format_spatial_literal_without_srid(self, mariadb_backend):
         """Test format_spatial_literal generates correct SQL without SRID."""

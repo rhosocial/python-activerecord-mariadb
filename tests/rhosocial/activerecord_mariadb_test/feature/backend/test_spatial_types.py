@@ -10,6 +10,9 @@ This module tests MariaDB-specific spatial data type functionality including:
 """
 import pytest
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression import (
+    types as maria_types,
+)
 from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
     MariaDBSTGeomFromTextExpression,
     MariaDBSTDistanceExpression,
@@ -62,6 +65,70 @@ class TestSpatialTypeProtocol:
 
         dialect_103 = MariaDBDialect(version=(10, 3, 0))
         assert dialect_103.supports_geojson()
+
+
+class TestSpatialSRIDColumnAttribute:
+    """The spatial ``srid`` is rendered and read with MariaDB's spelling.
+
+    MariaDB's column attribute is ``REF_SYSTEM_ID=<n>``; ``SRID <n>`` is
+    MySQL's spelling of the same idea and is rejected with errno 1064 by every
+    MariaDB server measured (live on 10.2.44 and 13.1.1 for this change;
+    10.6.28, 11.4.13, 11.8.9, 12.1.2 and 12.3.3 in the typed-columns
+    investigation), so the rendered DDL no server accepted until it was
+    corrected.
+    """
+
+    #: ``(word, class name)`` for the eight spatial classes that carry ``srid``.
+    SPATIAL = (
+        ("GEOMETRY", "MariaDBGeometryType"),
+        ("POINT", "MariaDBPointType"),
+        ("LINESTRING", "MariaDBLineStringType"),
+        ("POLYGON", "MariaDBPolygonType"),
+        ("MULTIPOINT", "MariaDBMultiPointType"),
+        ("MULTILINESTRING", "MariaDBMultiLineStringType"),
+        ("MULTIPOLYGON", "MariaDBMultiPolygonType"),
+        ("GEOMETRYCOLLECTION", "MariaDBGeometryCollectionType"),
+    )
+
+    @pytest.fixture
+    def dialect(self):
+        return MariaDBDialect(version=(10, 6, 0))
+
+    @pytest.mark.parametrize("word,cls_name", SPATIAL)
+    def test_formatter_renders_ref_system_id(self, dialect, word, cls_name):
+        cls = getattr(maria_types, cls_name)
+        rendered, params = dialect.format_data_type(cls(dialect, 4326))
+        assert rendered == f"{word} REF_SYSTEM_ID=4326"
+        assert params == ()
+
+    @pytest.mark.parametrize("word,cls_name", SPATIAL)
+    def test_parse_reads_ref_system_id(self, dialect, word, cls_name):
+        # The spaces around '=' are tolerated by the server and by the reader.
+        parsed = dialect.parse_type(f"{word.lower()} ref_system_id = 4326")
+        assert type(parsed).__name__ == cls_name
+        assert parsed.srid == 4326
+
+    @pytest.mark.parametrize("word,cls_name", SPATIAL)
+    def test_the_rendered_attribute_round_trips(self, dialect, word, cls_name):
+        cls = getattr(maria_types, cls_name)
+        declared = cls(dialect, 4326)
+        rendered, _ = dialect.format_data_type(declared)
+        assert dialect.parse_type(rendered) == declared
+
+    def test_no_srid_renders_the_bare_word(self, dialect):
+        for word, cls_name in self.SPATIAL:
+            cls = getattr(maria_types, cls_name)
+            assert dialect.format_data_type(cls(dialect))[0] == word
+
+    def test_the_mysql_srid_spelling_is_not_read(self, dialect):
+        """``SRID <n>`` arrives from nowhere MariaDB writes.
+
+        Every measured server rejects it (errno 1064), so it cannot come out of
+        a MariaDB catalog, and it is deliberately not one of the spellings
+        ``parse_type`` reads: the type parses as the bare spatial word with no
+        declared reference system rather than acquiring one from invalid DDL.
+        """
+        assert dialect.parse_type("point srid 4326").srid is None
 
 
 class TestSpatialLiteralFormatting:

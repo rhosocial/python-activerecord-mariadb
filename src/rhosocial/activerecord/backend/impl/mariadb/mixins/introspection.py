@@ -194,7 +194,18 @@ class MariaDBIntrospectionMixin:
     ) -> Tuple[str, tuple]:
         """Format column information query.
 
-        Query information_schema.COLUMNS for column metadata.
+        Query information_schema.COLUMNS for column metadata, left-joined to
+        information_schema.GEOMETRY_COLUMNS for spatial columns.
+
+        The join is what makes a declared spatial reference system visible at
+        all. MariaDB does not write ``REF_SYSTEM_ID=<n>`` into ``COLUMN_TYPE``
+        or ``SHOW CREATE``: those report the bare ``point``, and the declared
+        value exists only in ``GEOMETRY_COLUMNS.SRID`` (measured on 10.2.44
+        and 13.1.1; the view's ``G_TABLE_SCHEMA`` / ``G_TABLE_NAME`` /
+        ``G_GEOMETRY_COLUMN`` identify the column). A bare spatial column
+        reports SRID 0, MariaDB's default coordinate system, so a left join
+        without extra filtering is correct and non-spatial columns simply get
+        SQL NULL.
 
         Args:
             expr: Column info expression with table_name and schema.
@@ -206,14 +217,21 @@ class MariaDBIntrospectionMixin:
         table_name = params.get("table_name", "")
         schema = params.get("schema", "")
 
+        columns = self._information_schema('COLUMNS')
+        geometry_columns = self._information_schema('GEOMETRY_COLUMNS')
         sql = (
-            "SELECT COLUMN_NAME, ORDINAL_POSITION, COLUMN_DEFAULT, IS_NULLABLE, "
-            "DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, "
-            "COLUMN_TYPE, COLUMN_KEY, EXTRA, COLUMN_COMMENT, "
-            "CHARACTER_SET_NAME, COLLATION_NAME "
-            f"FROM {self._information_schema('COLUMNS')} "
-            f"WHERE TABLE_SCHEMA = {self.p()} AND TABLE_NAME = {self.p()} "
-            "ORDER BY ORDINAL_POSITION"
+            "SELECT c.COLUMN_NAME, c.ORDINAL_POSITION, c.COLUMN_DEFAULT, "
+            "c.IS_NULLABLE, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
+            "c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.COLUMN_TYPE, "
+            "c.COLUMN_KEY, c.EXTRA, c.COLUMN_COMMENT, "
+            "c.CHARACTER_SET_NAME, c.COLLATION_NAME, g.SRID AS SRID "
+            f"FROM {columns} AS c "
+            f"LEFT JOIN {geometry_columns} AS g "
+            "ON g.G_TABLE_SCHEMA = c.TABLE_SCHEMA "
+            "AND g.G_TABLE_NAME = c.TABLE_NAME "
+            "AND g.G_GEOMETRY_COLUMN = c.COLUMN_NAME "
+            f"WHERE c.TABLE_SCHEMA = {self.p()} AND c.TABLE_NAME = {self.p()} "
+            "ORDER BY c.ORDINAL_POSITION"
         )
         return (sql, (schema, table_name))
 
