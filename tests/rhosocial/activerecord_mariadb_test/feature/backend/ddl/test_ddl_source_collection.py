@@ -147,7 +147,7 @@ MODEL_FIELDS = (
 )
 BATCH_METHODS = (
     "columns_name",
-    "columns_type",
+    "columns_data_type",
     "columns_constraints",
     "columns_attributes",
     "columns_indexes",
@@ -266,12 +266,19 @@ def test_models_satisfy_ddl_source_and_preserve_field_order():
 
 
 def test_field_markers_preserve_declared_objects_and_order():
-    assert SyncDDLSource.column_type("tenant_id") is SQL_TYPE_MARKER
-    assert SyncDDLSource.column_type("tenant_id").data_types == (
+    assert SyncDDLSource.column_data_type("tenant_id") is SQL_TYPE_MARKER
+    assert SyncDDLSource.column_data_type("tenant_id").data_types == (
         SQL_TYPE,
         FALLBACK_SQL_TYPE,
     )
-    assert SyncDDLSource.column_type("tenant_id").data_types[0] is SQL_TYPE
+    assert SyncDDLSource.column_data_type("tenant_id").data_types[0] is SQL_TYPE
+
+    # ``column_type`` is the *declaration* accessor, not the SQL-type one: it
+    # presents whatever ``UseColumnType`` marker the field declares, as-is, and
+    # answers ``None`` when the field declares no column class. None of these
+    # fields declares one -- the SQL type is behind ``column_data_type`` above.
+    assert SyncDDLSource.column_type("tenant_id") is None
+    assert SyncDDLSource.column_type("order_id") is None
 
     constraints = SyncDDLSource.column_constraints("status")
     assert constraints[0] is DEFAULT_CONSTRAINT.constraint
@@ -307,7 +314,7 @@ def test_field_markers_preserve_declared_objects_and_order():
 
 
 def test_backend_types_and_column_options_are_collected_without_dialect_selection():
-    sql_type = SyncDDLSource.column_type("tenant_id")
+    sql_type = SyncDDLSource.column_data_type("tenant_id")
     assert isinstance(sql_type, UseSqlType)
     assert isinstance(sql_type.data_type, MariaDBIntType)
     assert sql_type.data_type.unsigned is True
@@ -348,7 +355,7 @@ def test_primary_keys_use_physical_column_names_and_declaration_order():
         ColumnConstraintType.NOT_NULL,
     ]
     assert SyncSingleKey.columns_name() == {"record_id": "record_pk"}
-    assert SyncSingleKey.column_type("record_id") is SINGLE_SQL_TYPE_MARKER
+    assert SyncSingleKey.column_data_type("record_id") is SINGLE_SQL_TYPE_MARKER
     assert SyncSingleKey.table_constraints() == []
 
 
@@ -411,7 +418,8 @@ def test_batch_interfaces_cover_all_fields_and_preserve_selected_order():
             "tenant_id": "tenant_key",
             "optional_note": "optional_note",
         }
-        assert model.columns_type(selected)["tenant_id"] is SQL_TYPE_MARKER
+        assert model.columns_data_type(selected)["tenant_id"] is SQL_TYPE_MARKER
+        assert model.columns_data_type(selected)["optional_note"] is None
         assert model.columns_constraints(selected)["status"][0] is DEFAULT_CONSTRAINT.constraint
         assert model.columns_attributes(selected)["status"][0] is COLLATION
         assert model.columns_comment(selected)["status"] == COMMENT.comment
@@ -420,7 +428,10 @@ def test_batch_interfaces_cover_all_fields_and_preserve_selected_order():
 
 
 def test_sync_and_async_sources_collect_the_same_declarations():
-    assert AsyncDDLSource.column_type("tenant_id") is SyncDDLSource.column_type("tenant_id")
+    assert (
+        AsyncDDLSource.column_data_type("tenant_id")
+        is SyncDDLSource.column_data_type("tenant_id")
+    )
     assert AsyncDDLSource.column_comment("status") == SyncDDLSource.column_comment("status")
     assert AsyncDDLSource.generated_column("computed") is GENERATED
     assert AsyncDDLSource.column_options("option_one") is COLUMN_OPTION
@@ -471,4 +482,4 @@ def test_sync_and_async_sources_collect_the_same_declarations():
             ColumnConstraintType.NOT_NULL,
         ]
         assert model.column_name("record_id") == "record_pk"
-        assert model.column_type("record_id") is SINGLE_SQL_TYPE_MARKER
+        assert model.column_data_type("record_id") is SINGLE_SQL_TYPE_MARKER
