@@ -90,6 +90,7 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.CTESupport,
     dialect_protocols.CollationSupport,
     dialect_protocols.ColumnAttributeSupport,
+    dialect_protocols.ColumnTypeSupport,
     dialect_protocols.DataTypeSupport,
     dialect_protocols.DateTimeSupport,
     dialect_protocols.DqlOrderSupport,

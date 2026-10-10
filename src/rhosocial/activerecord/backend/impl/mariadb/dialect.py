@@ -180,7 +180,7 @@ from .mixins import (
     MariaDBGeneratedColumnMixin,
     MariaDBFunctionMixin,
     MariaDBNamespaceMixin,
-    MariaDBColumnSuggestionMixin,
+    MariaDBColumnTypeMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -273,12 +273,12 @@ class MariaDBDialect(
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
     MariaDBTypeSupportMixin,
-    # The column-side suggestion table — which column class each common Python
-    # type means on this server — and its capability narrowing. It derives from
-    # core's `ColumnSuggestionMixin`, so it belongs with the MariaDB mixins that
-    # own an answer rather than in the group of core mixins that only supply a
-    # fallback: core's copy must never sit in the MRO ahead of this one.
-    MariaDBColumnSuggestionMixin,
+    # The column-side type table — which column class each common Python
+    # type means on this server. It derives from core's `ColumnTypeMixin`, so
+    # it belongs with the MariaDB mixins that own an answer rather than in the
+    # group of core mixins that only supply a fallback: core's copy must never
+    # sit in the MRO ahead of this one.
+    MariaDBColumnTypeMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
     MariaDBRenameTableMixin,

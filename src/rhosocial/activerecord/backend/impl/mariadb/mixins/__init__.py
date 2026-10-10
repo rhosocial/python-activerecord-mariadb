@@ -35,7 +35,7 @@ Mixin Organization:
 - generated_column.py: Generated column, identity and auto-increment support
 - function.py: SQL function version checks
 - namespace.py: which namespace levels a MariaDB name may carry
-- column_suggestion.py: the column class each common Python type means here
+- column_type.py: the column class each common Python type means here
 """
 
 from .introspection import MariaDBIntrospectionMixin
@@ -89,7 +89,7 @@ from .ddl_view import MariaDBViewMixin
 from .generated_column import MariaDBGeneratedColumnMixin
 from .function import MariaDBFunctionMixin
 from .namespace import MariaDBNamespaceMixin
-from .column_suggestion import MariaDBColumnSuggestionMixin
+from .column_type import MariaDBColumnTypeMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -113,7 +113,7 @@ __all__ = [
     'AsyncMariaDBConcurrencyMixin',
     'MariaDBPartitionMixin',
     'MariaDBTypeSupportMixin',
-    'MariaDBColumnSuggestionMixin',
+    'MariaDBColumnTypeMixin',
     'MariaDBAlterColumnModifierMixin',
     'MariaDBAlterConstraintModifierMixin',
     'MariaDBRenameTableMixin',
@@ -144,5 +144,5 @@ __all__ = [
     'MariaDBGeneratedColumnMixin',
     'MariaDBFunctionMixin',
     'MariaDBNamespaceMixin',
-    'MariaDBColumnSuggestionMixin',
+    'MariaDBColumnTypeMixin',
 ]
