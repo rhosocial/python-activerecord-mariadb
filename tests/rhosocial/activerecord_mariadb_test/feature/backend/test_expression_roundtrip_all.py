@@ -35,14 +35,38 @@ Each outcome is now named and asserted:
   reason belonging to its own tree. Each entry pins the exception type *and* a
   message fragment, so a class that starts failing for a different reason fails
   here instead of staying quietly green.
-* :class:`UnsupportedFeatureError` from a class *not* named in the dict --
-  MariaDB does not model the feature. Asserted as exactly that type, so a
-  subclass raised for an unrelated reason is still visible rather than passing.
+* :class:`UnsupportedFeatureError` from a probe inside a formatter, for a class
+  *not* named in the dict -- MariaDB does not model the feature. Asserted as
+  exactly that type, so a subclass raised for an unrelated reason is still
+  visible rather than passing.
+* :class:`UnsupportedFeatureError` from the dispatch, for a class not named in
+  the dict -- the dialect declares no ``format_*`` method for it at all, which
+  is a wiring fact about this backend rather than a capability answer. The
+  method the dispatch names must be a row in :data:`UNMODELLED_FORMATTERS`,
+  so the gap is a decision with a reason rather than an omission; see
+  :func:`_dispatched_formatter`.
 * **anything else** -- a failure naming the class and the exception.
 
 The dict is read before the :class:`UnsupportedFeatureError` branch, because core
 reports a *missing formatter* as ``UnsupportedFeatureError`` as well; see
 :func:`assert_sql_roundtrip_classified`.
+
+Why the dispatch's refusal is no longer allowed on its type alone
+=================================================================
+
+The two ``UnsupportedFeatureError`` outcomes above were one branch until core
+turned ``trim``/``lpad``/``rpad``/``repeat`` into dedicated nodes. A backend
+that mixed in no formatter for one of those would have answered every
+``.lpad(...)`` with a refusal this matrix read as "MariaDB lacks the feature",
+and nothing here could tell that apart from a probe inside a formatter
+declining a feature MariaDB genuinely does not have. The exception itself
+records who is refusing: a probe names the feature, while the dispatch frames
+the formatting method it could not find as ``the '<method>' statement`` --
+see :func:`_dispatched_formatter`. Only the dispatch's refusal is a wiring
+fact about this backend, so only it must be accounted for:
+:meth:`TestMatrixIntegrity.test_unmodelled_formatter_list_is_exact` pins
+:data:`UNMODELLED_FORMATTERS` in both directions, and a method nobody listed
+fails the run.
 
 And what happens when a class cannot be constructed
 ==================================================
@@ -1127,6 +1151,105 @@ LEGITIMATE_NON_RENDERS = {
 
 
 # ---------------------------------------------------------------------------
+# The dispatch gap: a missing formatter is a decision, not an omission
+# ---------------------------------------------------------------------------
+#
+# ``to_sql()`` reports a dialect that names no formatter for a class through
+# the same ``UnsupportedFeatureError`` a capability probe uses, so the type
+# alone cannot say "this backend never wired the feature in". The frame the
+# dispatch puts around the method name can, and it is the only place in the
+# tree that opens it -- see :func:`_dispatched_formatter`.
+
+#: The two ends of the frame ``to_sql()`` puts around a formatting method name
+#: in the ``feature_name`` of the ``UnsupportedFeatureError`` it raises for a
+#: dialect that has no such formatter.
+_DISPATCH_FEATURE_PREFIX = "the '"
+_DISPATCH_FEATURE_SUFFIX = "' statement"
+
+
+def _dispatched_formatter(exc):
+    """The formatting method *exc* says the dialect does not have, or ``None``.
+
+    ``None`` means *exc* is not the dispatch reporting a missing formatter --
+    it is a probe inside a formatter that refused a feature, which is the
+    ``"unsupported"`` branch and needs no row anywhere.
+
+    Args:
+        exc: An :class:`UnsupportedFeatureError` raised out of ``to_sql()``.
+
+    Returns:
+        The method name out of the ``feature_name`` frame, or ``None`` when
+        *exc* came from a probe rather than from the dispatch.
+    """
+    feature = exc.feature_name
+    if not feature.startswith(_DISPATCH_FEATURE_PREFIX):
+        return None
+    if not feature.endswith(_DISPATCH_FEATURE_SUFFIX):
+        return None
+    method = feature[len(_DISPATCH_FEATURE_PREFIX) : len(feature) - len(_DISPATCH_FEATURE_SUFFIX)]
+    return method if method else None
+
+
+#: Formatters MariaDB declares no implementation of, grouped by the feature
+#: that is absent, each group naming every method the matrix's classes need.
+#:
+#: A class needing one of these fails with ``UnsupportedFeatureError`` naming
+#: the method it wanted, and :func:`assert_sql_roundtrip_classified` asserts
+#: that method is a row here. :meth:`TestMatrixIntegrity.\
+#: test_unmodelled_formatter_list_is_exact` pins the table in both directions:
+#: a formatter that starts existing moves its classes out of the table and the
+#: pin fails until the entry goes, and a class that starts needing a method
+#: outside the table fails outright instead of passing as "unsupported".
+#:
+#: These are not defects: they are features MariaDB does not have, which the
+#: shared renderer reports by naming the method it could not find. The
+#: grouping is the point -- "25 methods" says nothing, "no SQL/XML, no
+#: property graphs, no COMMENT ON, no PIVOT" says what the dialect is.
+UNMODELLED_FORMATTERS = {
+    "SQL/XML (MariaDB implements no part of SQL/XML)": (
+        "format_xmlagg_expression",
+        "format_xmlattributes_expression",
+        "format_xmlcomment_expression",
+        "format_xmlconcat_expression",
+        "format_xmlelement_expression",
+        "format_xmlexists_expression",
+        "format_xmlforest_expression",
+        "format_xmlpi_expression",
+        "format_xmlparse_expression",
+        "format_xmlquery_expression",
+        "format_xmlroot_expression",
+        "format_xmlserialize_expression",
+        "format_xmltable_expression",
+    ),
+    "SQL/PGQ property graphs (MariaDB has a MATCH predicate but no "
+    "property-graph DDL and no GRAPH_TABLE)": (
+        "format_alter_property_graph_statement",
+        "format_create_property_graph_statement",
+        "format_drop_property_graph_statement",
+        "format_graph_table_expression",
+        "format_graph_columns_clause",
+        "format_table_properties_clause",
+        "format_vertex_table",
+        "format_edge_table",
+    ),
+    "COMMENT ON (MariaDB's COMMENT is a table option and a column attribute, "
+    "both rendered by this dialect; the standalone statement is not "
+    "implemented)": ("format_comment_statement",),
+    "PIVOT / UNPIVOT (not MariaDB syntax, and no formatter for either)": (
+        "format_pivot_expression",
+        "format_unpivot_expression",
+    ),
+    "the TableSource root (every concrete row source overrides its formatter; "
+    "the root carries nothing but an alias and is never rendered)": ("format_table_source",),
+}
+
+
+def _unmodelled_methods():
+    """The flat set of formatter names in :data:`UNMODELLED_FORMATTERS`."""
+    return {method for methods in UNMODELLED_FORMATTERS.values() for method in methods}
+
+
+# ---------------------------------------------------------------------------
 # The local SQL assertion: classify the outcome instead of swallowing it
 # ---------------------------------------------------------------------------
 
@@ -1143,6 +1266,10 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
     * ``UnsupportedFeatureError`` from a class *not* named in the dict -- MariaDB
       does not model the feature. Asserted as exactly that type, so a subclass
       raised for an unrelated reason is still visible rather than passing.
+    * ``UnsupportedFeatureError`` naming a formatting method, for a class not
+      named in the dict -- the dispatch found nothing, which is a wiring fact
+      about this backend rather than a capability answer. The method must be
+      in :data:`UNMODELLED_FORMATTERS`; the table entry is the reason.
     * **anything else** -- a failure naming the class and the exception.
 
     The dict is consulted before the ``UnsupportedFeatureError`` branch, not
@@ -1175,6 +1302,17 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
             )
             return "non-render"
         if type(exc) is UnsupportedFeatureError:
+            method = _dispatched_formatter(exc)
+            if method is not None:
+                assert method in _unmodelled_methods(), (
+                    f"{fqn}: to_sql() reported that {exc.dialect_name} declares no "
+                    f"{method!r}, which is not in UNMODELLED_FORMATTERS.\n"
+                    f"  Either MariaDB now needs that formatter -- in which case "
+                    f"the class should render and this entry should go -- or the "
+                    f"feature is absent and the method belongs in that table with "
+                    f"its reason."
+                )
+                return "unmodelled"
             return "unsupported"
         raise AssertionError(
             f"{fqn}: to_sql() raised {type(exc).__name__}, which is neither a "
@@ -1448,6 +1586,62 @@ class TestMatrixIntegrity:
             + "\n  ".join(wrong_message)
         )
 
+    def test_unmodelled_formatter_list_is_exact(self, mariadb_dialect):
+        """Pin the unmodelled-formatter table against what the dialect lacks.
+
+        Observed rather than assumed: for each class the matrix covers, either
+        it renders or it fails, and every dispatch refusal is attributed to the
+        method it named -- including the classes pinned in
+        :data:`LEGITIMATE_NON_RENDERS`, whose dispatch failures those pins
+        record class by class. Then the table is compared with the set
+        observed, in both directions, so:
+
+        * a method in the table that MariaDB now implements fails here,
+          because its classes render and are no longer attributed to it --
+          which is the moment to delete the entry rather than leave a lie in
+          the table;
+        * a class that starts needing a method outside the table fails the
+          per-class assertion in :func:`assert_sql_roundtrip_classified`
+          instead of being absorbed into "unsupported".
+
+        This is the regression test for the pad/trim incident. Core turned
+        ``trim``/``lpad``/``rpad``/``repeat`` into dedicated nodes, and a
+        backend that mixed in no formatter for one of them would have shipped
+        a silent ``UnsupportedFeatureError`` on every ``.lpad(...)`` while this
+        matrix stayed green, because the blanket ``unsupported`` branch
+        allowed the dispatch's refusal exactly as it allows a probe's. The
+        dispatch names the method it wanted; this test makes that name
+        load-bearing on both sides of the table.
+        """
+        observed = set()
+        for fqn in sorted(REGISTERED):
+            instance, source = make_instance(REGISTERED[fqn], mariadb_dialect)
+            if instance is None:
+                continue
+            try:
+                instance.to_sql()
+            except UnsupportedFeatureError as exc:
+                method = _dispatched_formatter(exc)
+                if method is not None:
+                    observed.add(method)
+                continue
+            except Exception:
+                continue
+
+        declared = _unmodelled_methods()
+        assert not (observed - declared), (
+            "classes need formatters that are not in UNMODELLED_FORMATTERS: "
+            f"{sorted(observed - declared)}. Add each with the feature that is "
+            f"absent and why -- or mix the formatter in, in which case the "
+            f"classes render and the entry is not needed."
+        )
+        assert not (declared - observed), (
+            "UNMODELLED_FORMATTERS names formatters no class actually needs: "
+            f"{sorted(declared - observed)}. MariaDB may have gained one of "
+            f"these, in which case the classes needing it now render and the "
+            f"entry should go."
+        )
+
     def test_matrix_covers_both_packages_completely(self):
         """The matrix covers every concrete class both packages define.
 
@@ -1499,7 +1693,13 @@ class TestMatrixIntegrity:
         ``test_matrix_covers_both_packages_completely`` and nothing else.
         """
         ExpressionRegistry._auto_register_builtins()
-        buckets = {"rendered": 0, "unsupported": 0, "non-render": 0, "unconstructible": 0}
+        buckets = {
+            "rendered": 0,
+            "unsupported": 0,
+            "unmodelled": 0,
+            "non-render": 0,
+            "unconstructible": 0,
+        }
         for fqn in sorted(REGISTERED):
             instance, _ = make_instance(REGISTERED[fqn], mariadb_dialect)
             if instance is None:
@@ -1509,7 +1709,11 @@ class TestMatrixIntegrity:
         print(
             f"\nexpression matrix: {len(REGISTERED)} registered, "
             f"{buckets['rendered']} render and round-trip, "
-            f"{buckets['unsupported']} UnsupportedFeatureError, "
+            f"{buckets['unsupported']} UnsupportedFeatureError from a probe, "
+            f"{buckets['unmodelled']} from the dispatch (pinned in "
+            f"UNMODELLED_FORMATTERS), "
             f"{buckets['non-render']} pinned non-render, "
             f"{buckets['unconstructible']} pinned unconstructible"
         )
+        for feature, methods in sorted(UNMODELLED_FORMATTERS.items()):
+            print(f"  not modelled: {feature} ({len(methods)} formatters)")
