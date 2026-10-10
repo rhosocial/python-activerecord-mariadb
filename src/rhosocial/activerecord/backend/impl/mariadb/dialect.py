@@ -112,6 +112,14 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
+    # TRIM/LPAD/RPAD/REPEAT are nodes with default formatters, and MariaDB
+    # spells all four natively -- ``TRIM([BOTH|LEADING|TRAILING] [chars] FROM
+    # str)``, ``LPAD``/``RPAD(str, len, padstr)`` and ``REPEAT(str, n)`` -- so
+    # the shared defaults are the answer here and no override is needed.
+    LpadMixin,
+    RepeatMixin,
+    RpadMixin,
+    TrimMixin,
     # Naming. Each of these is core's default renderer for one kind of
     # object, placed ahead of NamespaceMixin so that C3 keeps the per-kind
     # formatter in front of the shared namespace prefix. MariaDB's spelling
@@ -347,6 +355,16 @@ class MariaDBDialect(
     DomainMixin,
     TransactionControlMixin,
     PartitionMixin,
+    # TRIM/LPAD/RPAD/REPEAT are nodes with default formatters, and MariaDB
+    # spells all four natively -- ``TRIM([BOTH|LEADING|TRAILING] [chars] FROM
+    # str)``, ``LPAD``/``RPAD(str, len, padstr)`` and ``REPEAT(str, n)`` -- so
+    # the shared defaults are the answer here and no override is needed. (The
+    # two-argument ``LPAD(x, n)`` form MariaDB accepts is a separate spelling
+    # question the node does not use: it always spells the pad out.)
+    LpadMixin,
+    RepeatMixin,
+    RpadMixin,
+    TrimMixin,
     # Protocol support markers
     CollationSupport,
     CTESupport,
