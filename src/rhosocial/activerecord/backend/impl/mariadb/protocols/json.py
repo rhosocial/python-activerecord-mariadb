@@ -56,6 +56,15 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
+    def supports_json_path(self) -> bool:
+        """Whether a JSON path can be read on this server (MariaDB 10.2.3+).
+
+        Declared apart from supports_json_type because they are separate
+        questions: the functions and the column type arrived together in
+        10.2.3, but only one of them has to be true for a path to render.
+        """
+        ...
+
     def supports_json_merge_patch(self) -> bool:
         """Whether JSON_MERGE_PATCH is supported.
 

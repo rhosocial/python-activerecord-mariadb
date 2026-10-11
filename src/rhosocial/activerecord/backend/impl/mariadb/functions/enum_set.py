@@ -3,9 +3,16 @@
 MariaDB Enum and SET type function factories.
 
 Functions: find_in_set, elt, field
+
+Every argument except :func:`find_in_set`'s searched value is an expression:
+pass a ``Column`` to read a column and a ``Literal`` to write a value.  Those
+arguments used to be accepted as bare strings, and a bare string became a
+column reference -- so ``ELT(1, "a", "b", "c")`` did not choose "a" but read a
+column called ``a``, and returned its contents when such a column happened to
+exist.
 """
 
-from typing import Union, Any, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression import bases, core
 
@@ -13,33 +20,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import MariaDBDialect
 
 
-def _convert_to_expression(
-    dialect: "MariaDBDialect",
-    expr: Union[str, "bases.BaseExpression"],
-    handle_numeric_literals: bool = True,
-) -> "bases.BaseExpression":
-    """Helper function to convert an input value to an appropriate BaseExpression.
-
-    Args:
-        dialect: The SQL dialect instance
-        expr: The expression to convert
-        handle_numeric_literals: Whether to treat numeric values as literals
-
-    Returns:
-        A BaseExpression instance
-    """
-    if isinstance(expr, bases.BaseExpression):
-        return expr
-    elif handle_numeric_literals and isinstance(expr, (int, float)):
-        return core.Literal(dialect, expr)
-    else:
-        return core.Column(dialect, expr)
-
-
 def find_in_set(
     dialect: "MariaDBDialect",
     value: str,
-    set_column: Union[str, "bases.BaseExpression"],
+    set_column: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates a FIND_IN_SET function call.
 
@@ -47,22 +31,23 @@ def find_in_set(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: Value to find
-        set_column: SET column name or expression
+        value: The value to find; always a string value, never a column
+        set_column: Expression for the SET column to search
 
     Returns:
         A FunctionCall instance for FIND_IN_SET
 
     Version: All MariaDB versions
     """
-    col_expr = _convert_to_expression(dialect, set_column)
-    return core.FunctionCall(dialect, "FIND_IN_SET", core.Literal(dialect, value), col_expr)
+    return core.FunctionCall(
+        dialect, "FIND_IN_SET", core.Literal(dialect, value), set_column,
+    )
 
 
 def elt(
     dialect: "MariaDBDialect",
-    index: Union[int, "bases.BaseExpression"],
-    *choices: Union[str, "bases.BaseExpression"],
+    index: "bases.BaseExpression",
+    *choices: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates an ELT function call.
 
@@ -81,23 +66,21 @@ def elt(
         A FunctionCall instance for ELT
 
     Example:
-        - elt(dialect, 1, "a", "b", "c") -> ELT(1, 'a', 'b', 'c') returns 'a'
-        - elt(dialect, 2, "a", "b", "c") -> ELT(2, 'a', 'b', 'c') returns 'b'
+        - elt(dialect, lit(1), lit("a"), lit("b"), lit("c"))
+          -> ELT(?, ?, ?, ?) returns 'a'
 
     Version: All MariaDB versions
     """
     if not choices:
         return core.FunctionCall(dialect, "ELT")
 
-    index_expr = _convert_to_expression(dialect, index)
-    choice_exprs = [_convert_to_expression(dialect, c) for c in choices]
-    return core.FunctionCall(dialect, "ELT", index_expr, *choice_exprs)
+    return core.FunctionCall(dialect, "ELT", index, *choices)
 
 
 def field(
     dialect: "MariaDBDialect",
-    value: Union[str, "bases.BaseExpression"],
-    *values: Union[str, "bases.BaseExpression"],
+    value: "bases.BaseExpression",
+    *values: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates a FIELD function call.
 
@@ -108,23 +91,22 @@ def field(
 
     Args:
         dialect: The MariaDB dialect instance
-        value: The value to search for
-        *values: The values to search within
+        value: Expression for the value to search for
+        *values: Expressions for the values to search within
 
     Returns:
         A FunctionCall instance for FIELD
 
     Example:
-        - field(dialect, "b", "a", "b", "c") -> FIELD('b', 'a', 'b', 'c') returns 2
+        - field(dialect, lit("b"), lit("a"), lit("b"), lit("c"))
+          -> FIELD(?, ?, ?, ?) returns 2
 
     Version: All MariaDB versions
     """
-    value_expr = _convert_to_expression(dialect, value)
     if not values:
-        return core.FunctionCall(dialect, "FIELD", value_expr)
+        return core.FunctionCall(dialect, "FIELD", value)
 
-    value_exprs = [_convert_to_expression(dialect, v) for v in values]
-    return core.FunctionCall(dialect, "FIELD", value_expr, *value_exprs)
+    return core.FunctionCall(dialect, "FIELD", value, *values)
 
 
 __all__ = [

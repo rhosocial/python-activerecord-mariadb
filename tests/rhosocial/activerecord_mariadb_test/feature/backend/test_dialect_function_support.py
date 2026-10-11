@@ -93,19 +93,29 @@ class TestMySQLFunctionSupportVersionDependent:
         assert result_new.get("st_as_geojson") is True
 
     def test_always_available_functions(self):
-        """Test functions that are available in all MariaDB versions."""
+        """Functions available in every MariaDB version this backend targets.
+
+        TRUNC is not on the list. It was, and running it against the scenario
+        matrix showed it missing from 10.2 through 12.1 and present from 12.2 on,
+        so the registry now gates it and this list follows. See
+        TestMeasuredVersionGates for the measurement."""
         dialect = MariaDBDialect(version=(10, 11, 0))
         result = dialect.supports_functions()
 
         always_available = [
             "match_against",
             "find_in_set", "elt", "field",
-            "round_", "pow", "power", "sqrt", "mod", "ceil", "floor", "trunc",
+            "round_", "pow", "power", "sqrt", "mod", "ceil", "floor",
             "max_", "min_", "avg",
             "bit_and", "bit_or", "bit_xor", "bit_count",
         ]
         for func in always_available:
             assert result.get(func) is True, f"{func} should be always available"
+
+    def test_trunc_is_not_always_available(self):
+        """The other half of the correction: on 10.11 it is absent."""
+        dialect = MariaDBDialect(version=(10, 11, 0))
+        assert dialect.supports_functions().get("trunc") is False
 
     def test_bit_shift_functions_always_supported(self):
         """Test that bit shift functions are supported in all MariaDB versions."""
@@ -168,3 +178,47 @@ class TestMySQLFunctionSupportIntegration:
 
         assert old_result.get("st_geom_from_text") is False
         assert new_result.get("st_geom_from_text") is True
+
+
+class TestMeasuredVersionGates:
+    """Gates that came from asking servers rather than from docstrings.
+
+    The registry marks most of these (None, None), meaning "every version this
+    backend targets". That is a claim, and a claim about which versions have a
+    function is cheap to check and easy to get wrong, so these boundaries were
+    measured against the scenario matrix -- 10.2.44, 10.3.39, 10.4.34, 10.5.29,
+    10.6.28, 10.11.19, 11.4.13, 11.7.2, 11.8.9, 12.0.2, 12.1.2, 12.2.2,
+    12.3.3, 13.0.2 and 13.1.1 -- by running the function on each.
+    """
+
+    def test_trunc_is_absent_before_12_2(self):
+        """TRUNC does not exist below 12.2; it is not a synonym that older
+        versions happen to accept."""
+        for version in [(10, 2, 44), (10, 6, 28), (11, 4, 13), (11, 8, 9),
+                        (12, 0, 2), (12, 1, 2)]:
+            dialect = MariaDBDialect(version=version)
+            assert dialect.supports_functions().get("trunc") is False, version
+
+    def test_trunc_is_present_from_12_2(self):
+        for version in [(12, 2, 2), (12, 3, 3), (13, 0, 2), (13, 1, 1)]:
+            dialect = MariaDBDialect(version=version)
+            assert dialect.supports_functions().get("trunc") is True, version
+
+    @pytest.mark.parametrize(
+        "name",
+        ["round_", "pow", "power", "sqrt", "mod", "ceil", "floor",
+         "max_", "min_", "avg",
+         "bit_and", "bit_or", "bit_xor", "bit_count",
+         "find_in_set", "elt", "field"],
+    )
+    @pytest.mark.parametrize("version", [(10, 2, 0), (11, 8, 0), (13, 1, 0)])
+    def test_present_in_every_version_measured(self, name, version):
+        """These were run on all fifteen servers and answered everywhere.
+
+        bit_count is here because it is the one most likely to be wrong: the
+        bit functions arrived in 10.0, which is below the oldest version this
+        backend supports, so the floor and the target range do not overlap and
+        the gate can stay open.
+        """
+        dialect = MariaDBDialect(version=version)
+        assert dialect.supports_functions().get(name) is True, (name, version)

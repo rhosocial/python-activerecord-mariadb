@@ -25,8 +25,10 @@ Design principle: Sync and Async are separate and cannot coexist.
 """
 
 import copy
+import warnings
 from typing import Any, Dict, List, Optional
 
+from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.introspection.base import (
     IntrospectorMixin,
     SyncAbstractIntrospector,
@@ -131,6 +133,56 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             )
         return tables
 
+    def _parse_data_type(self, col_type: str) -> Optional[DataType]:
+        """Read one catalog type string into a ``DataType``, or ``None``.
+
+        Populating ``ColumnInfo.parsed_data_type`` is what makes the schema
+        differ compare *values* instead of strings. Core's
+        ``SchemaDiffer._columns_equivalent`` reads the field twice: when both
+        sides carry a type it compares the objects with ``!=``, and only when
+        one side is ``None`` does it fall back to comparing the ``data_type``
+        string. Every other backend populates it here, via
+        ``DataType.parse_data_type_str(dialect, raw)``; MariaDB was the only
+        one that left it at its ``None`` default, so on this backend the whole
+        type-identity model was inert and the differ compared the base word
+        alone -- blind to ``VARCHAR(100)`` vs ``VARCHAR(200)``, to an ``ENUM``'s
+        labels, to ``INT`` vs ``INT UNSIGNED``.
+
+        The reason one bad column must not take the table down: ``parse_type``
+        ends in ``CustomType``, whose constructor *validates* the raw name as a
+        SQL type name and raises ``InvalidTypeNameError`` for anything that is
+        not identifier-shaped, and other branches raise ``ValueError`` on
+        parameters the server can report that this dialect will not accept. The
+        catalog is not under this backend's control -- a MariaDB release can
+        add a type, and a restored dump can carry one -- so a single unreadable
+        string degrades that one column to the string comparison core already
+        implements, and says so, rather than aborting ``list_columns`` for the
+        whole table. Measured across all fifteen wired servers (10.2.44 through
+        13.1.1) and every type in MariaDB's numeric, string, date/time, spatial
+        and JSON vocabularies, no such string exists today: the unmodelled types
+        -- ``INET4``, ``INET6``, ``VECTOR(n)`` -- are all plain identifiers and
+        come back as ``CustomType``, which is the honest answer for a type this
+        backend has no class for. This is the guard, not a repair.
+
+        Returns:
+            The parsed type, or ``None`` when the string could not be read at
+            all. ``None`` is the field's documented default and the value core's
+            differ already treats as "fall back to the string".
+        """
+        try:
+            return DataType.parse_data_type_str(self._backend.dialect, col_type)
+        except Exception as exc:  # noqa: BLE001 -- see the docstring
+            warnings.warn(
+                f"MariaDB reported column type {col_type!r}, which this "
+                f"backend's parse_type could not read ({type(exc).__name__}: "
+                f"{exc}). That column's parsed_data_type is left unset, so the "
+                f"schema differ will compare its data_type string rather than "
+                f"the type object. The rest of the table is unaffected.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return None
+
     def _parse_columns(
         self,
         rows: List[Dict[str, Any]],
@@ -145,6 +197,20 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
                 else ColumnNullable.NOT_NULL
             )
             col_type = row.get("COLUMN_TYPE") or row.get("DATA_TYPE") or "VARCHAR"
+            # A spatial column's declared reference system is not in
+            # COLUMN_TYPE: MariaDB reports the bare `point` and keeps the
+            # declaration only in I_S.GEOMETRY_COLUMNS.SRID (the column query
+            # joins that view; measured on 10.2.44 and 13.1.1). Fold a
+            # non-zero SRID back into the type text so the parsed type is the
+            # declared one and the differ sees a reference-system change. SRID
+            # 0 is MariaDB's default -- what a bare spatial column reports --
+            # so it means "no declaration" (srid=None) rather than the
+            # distinct REF_SYSTEM_ID=0 value object the server cannot tell
+            # apart from it.
+            full_type = col_type
+            srid = row.get("SRID")
+            if srid is not None and int(srid) != 0:
+                full_type = f"{col_type} REF_SYSTEM_ID={int(srid)}"
             columns.append(
                 ColumnInfo(
                     name=row["COLUMN_NAME"],
@@ -152,7 +218,8 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
                     schema=schema,
                     ordinal_position=row["ORDINAL_POSITION"],
                     data_type=col_type.split("(")[0].lower(),
-                    data_type_full=col_type,
+                    data_type_full=full_type,
+                    parsed_data_type=self._parse_data_type(full_type),
                     nullable=nullable,
                     default_value=row.get("COLUMN_DEFAULT"),
                     is_primary_key=row.get("COLUMN_KEY") == "PRI",

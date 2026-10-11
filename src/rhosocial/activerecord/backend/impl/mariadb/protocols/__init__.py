@@ -27,6 +27,7 @@ Protocol Organization:
 - window_function.py: Window functions support
 - cte.py: Common Table Expressions support
 - partition.py: Table partitioning support
+- types.py: Native MariaDB data types and the attributes they carry
 """
 
 from .charset import MariaDBCharsetCollationSupport
@@ -51,6 +52,7 @@ from .alter_table import MariaDBAlterTableSupport
 from .maintenance import MariaDBMaintenanceSupport
 from .routine import MariaDBRoutineSupport
 from .admin import MariaDBAdminSupport
+from .types import MariaDBTypeSupport
 
 __all__ = [
     'MariaDBDMLOperationSupport',
@@ -75,4 +77,5 @@ __all__ = [
     'MariaDBMaintenanceSupport',
     'MariaDBRoutineSupport',
     'MariaDBAdminSupport',
+    'MariaDBTypeSupport',
 ]

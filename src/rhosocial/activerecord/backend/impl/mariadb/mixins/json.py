@@ -4,13 +4,23 @@
 MariaDB 10.2.3+ supports JSON functions, and 10.2.7+ supports
 JSON arrow operators (-> and ->>).
 """
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import Union, Any, List, Optional, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.expression import bases
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.advanced_functions import JSONExpression
+    from rhosocial.activerecord.backend.expression.advanced_functions import (
+        JSONDocumentExpression,
+        JSONTextExpression,
+    )
+
+    #: Core has one class per JSON operator, and this dialect renders either
+    #: from the same code path -- so the parameter is a union, not one of the
+    #: two. ``JSONTextExpression`` subclasses ``JSONDocumentExpression`` so a
+    #: path chain can keep going after ``->>``; that inheritance is about
+    #: accessors, not about ``->>`` yielding a document.
+    JSONPathNode = Union[JSONDocumentExpression, JSONTextExpression]
 
 
 class MariaDBJSONMixin:
@@ -60,6 +70,16 @@ class MariaDBJSONMixin:
             True if MariaDB version >= 10.2.3.
         """
         return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']
+
+
+    def supports_json_path(self) -> bool:
+        """Whether a JSON path can be read on this server.
+
+        Gated on the functions rather than the type: MariaDB 10.2.3 brought
+        both, but they are separate questions and the type is the one a later
+        version could drop.
+        """
+        return self.version >= (10, 2, 3)
 
     def supports_json_function(self, function_name: str) -> bool:
         """Check if specific JSON function is supported.
@@ -120,7 +140,7 @@ class MariaDBJSONMixin:
         """
         return ""
 
-    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, tuple]:
+    def format_json_function_expression(self, expr: "JSONPathNode") -> Tuple[str, tuple]:
         """Format JSON expression using function-based equivalents.
 
         Arrows are rendered as the equivalent function calls:

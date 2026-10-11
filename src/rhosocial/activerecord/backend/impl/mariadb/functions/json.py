@@ -4,43 +4,26 @@ MariaDB JSON function factories.
 
 Functions: json_extract, json_unquote, json_object, json_array, json_contains,
 json_set, json_remove, json_type, json_valid, json_search
+
+The document argument of every function here is an expression: pass a
+``Column`` to read a column and a ``Literal`` to write a document.  It used to
+be accepted as a bare string, which always became a column reference -- so a
+document given as data reached the server as an identifier, and
+``json_extract(dialect, '{"a": 1}', "$.a")`` rendered a reference to a column
+whose name was ``{"a": 1}``.
 """
 
-from typing import Union, Optional, Any, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression import bases, core
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.dialect import SQLDialectBase
     from ..dialect import MariaDBDialect
-
-
-def _convert_to_expression(
-    dialect: "SQLDialectBase",
-    expr: Union[str, "bases.BaseExpression"],
-    handle_numeric_literals: bool = True,
-) -> "bases.BaseExpression":
-    """Helper function to convert an input value to an appropriate BaseExpression.
-
-    Args:
-        dialect: The SQL dialect instance
-        expr: The expression to convert
-        handle_numeric_literals: Whether to treat numeric values as literals
-
-    Returns:
-        A BaseExpression instance
-    """
-    if isinstance(expr, bases.BaseExpression):
-        return expr
-    elif handle_numeric_literals and isinstance(expr, (int, float)):
-        return core.Literal(dialect, expr)
-    else:
-        return core.Column(dialect, expr)
 
 
 def json_extract(
     dialect: "MariaDBDialect",
-    json_doc: Union[str, "bases.BaseExpression"],
+    json_doc: "bases.BaseExpression",
     path: str,
     *paths: str,
 ) -> "core.FunctionCall":
@@ -50,12 +33,12 @@ def json_extract(
 
     Usage rules:
     - To extract from a column: json_extract(dialect, Column(dialect, "json_col"), "$.name")
-    - To extract from a literal: json_extract(dialect, '{"a": 1}', "$.a")
+    - To extract from a literal: json_extract(dialect, Literal(dialect, '{"a": 1}'), "$.a")
     - Multiple paths: json_extract(dialect, col, "$.name", "$.age")
 
     Args:
         dialect: The MariaDB dialect instance
-        json_doc: JSON document (column or literal)
+        json_doc: Expression for the JSON document
         path: First JSON path expression
         *paths: Additional JSON path expressions
 
@@ -64,9 +47,7 @@ def json_extract(
 
     Version: MariaDB 10.2.3+
     """
-    doc_expr = _convert_to_expression(dialect, json_doc)
-    path_expr = core.Literal(dialect, path)
-    args = [doc_expr, path_expr]
+    args = [json_doc, core.Literal(dialect, path)]
     for p in paths:
         args.append(core.Literal(dialect, p))
     return core.FunctionCall(dialect, "JSON_EXTRACT", *args)
@@ -74,7 +55,7 @@ def json_extract(
 
 def json_unquote(
     dialect: "MariaDBDialect",
-    json_val: Union[str, "bases.BaseExpression"],
+    json_val: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates a JSON_UNQUOTE function call.
 
@@ -82,15 +63,14 @@ def json_unquote(
 
     Args:
         dialect: The MariaDB dialect instance
-        json_val: JSON value to unquote
+        json_val: Expression for the JSON value to unquote
 
     Returns:
         A FunctionCall instance representing JSON_UNQUOTE
 
     Version: MariaDB 10.2.3+
     """
-    val_expr = _convert_to_expression(dialect, json_val)
-    return core.FunctionCall(dialect, "JSON_UNQUOTE", val_expr)
+    return core.FunctionCall(dialect, "JSON_UNQUOTE", json_val)
 
 
 def json_object(
@@ -151,7 +131,7 @@ def json_array(
 
 def json_contains(
     dialect: "MariaDBDialect",
-    target: Union[str, "bases.BaseExpression"],
+    target: "bases.BaseExpression",
     candidate: Any,
     path: Optional[str] = None,
 ) -> "core.FunctionCall":
@@ -161,7 +141,7 @@ def json_contains(
 
     Args:
         dialect: The MariaDB dialect instance
-        target: Target JSON document or column
+        target: Expression for the target JSON document
         candidate: Value to search for
         path: Optional path within the document
 
@@ -170,17 +150,16 @@ def json_contains(
 
     Version: MariaDB 10.2.3+
     """
-    target_expr = _convert_to_expression(dialect, target)
     candidate_expr = core.Literal(dialect, candidate)
     if path is not None:
         path_expr = core.Literal(dialect, path)
-        return core.FunctionCall(dialect, "JSON_CONTAINS", target_expr, candidate_expr, path_expr)
-    return core.FunctionCall(dialect, "JSON_CONTAINS", target_expr, candidate_expr)
+        return core.FunctionCall(dialect, "JSON_CONTAINS", target, candidate_expr, path_expr)
+    return core.FunctionCall(dialect, "JSON_CONTAINS", target, candidate_expr)
 
 
 def json_set(
     dialect: "MariaDBDialect",
-    json_doc: Union[str, "bases.BaseExpression"],
+    json_doc: "bases.BaseExpression",
     path: str,
     value: Any,
     *path_value_pairs: Any,
@@ -191,7 +170,7 @@ def json_set(
 
     Args:
         dialect: The MariaDB dialect instance
-        json_doc: JSON document or column
+        json_doc: Expression for the JSON document
         path: JSON path expression
         value: Value to set
         *path_value_pairs: Additional path-value pairs
@@ -201,8 +180,7 @@ def json_set(
 
     Version: MariaDB 10.2.3+
     """
-    doc_expr = _convert_to_expression(dialect, json_doc)
-    args = [doc_expr, core.Literal(dialect, path), core.Literal(dialect, value)]
+    args = [json_doc, core.Literal(dialect, path), core.Literal(dialect, value)]
     for i in range(0, len(path_value_pairs), 2):
         if i + 1 < len(path_value_pairs):
             args.append(core.Literal(dialect, path_value_pairs[i]))
@@ -212,7 +190,7 @@ def json_set(
 
 def json_remove(
     dialect: "MariaDBDialect",
-    json_doc: Union[str, "bases.BaseExpression"],
+    json_doc: "bases.BaseExpression",
     path: str,
     *paths: str,
 ) -> "core.FunctionCall":
@@ -222,7 +200,7 @@ def json_remove(
 
     Args:
         dialect: The MariaDB dialect instance
-        json_doc: JSON document or column
+        json_doc: Expression for the JSON document
         path: First JSON path expression
         *paths: Additional JSON path expressions
 
@@ -231,8 +209,7 @@ def json_remove(
 
     Version: MariaDB 10.2.3+
     """
-    doc_expr = _convert_to_expression(dialect, json_doc)
-    args = [doc_expr, core.Literal(dialect, path)]
+    args = [json_doc, core.Literal(dialect, path)]
     for p in paths:
         args.append(core.Literal(dialect, p))
     return core.FunctionCall(dialect, "JSON_REMOVE", *args)
@@ -240,7 +217,7 @@ def json_remove(
 
 def json_type(
     dialect: "MariaDBDialect",
-    json_val: Union[str, "bases.BaseExpression"],
+    json_val: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates a JSON_TYPE function call.
 
@@ -248,20 +225,19 @@ def json_type(
 
     Args:
         dialect: The MariaDB dialect instance
-        json_val: JSON value to check
+        json_val: Expression for the JSON value to check
 
     Returns:
         A FunctionCall instance representing JSON_TYPE
 
     Version: MariaDB 10.2.3+
     """
-    val_expr = _convert_to_expression(dialect, json_val)
-    return core.FunctionCall(dialect, "JSON_TYPE", val_expr)
+    return core.FunctionCall(dialect, "JSON_TYPE", json_val)
 
 
 def json_valid(
     dialect: "MariaDBDialect",
-    json_val: Union[str, "bases.BaseExpression"],
+    json_val: "bases.BaseExpression",
 ) -> "core.FunctionCall":
     """Creates a JSON_VALID function call.
 
@@ -269,20 +245,19 @@ def json_valid(
 
     Args:
         dialect: The MariaDB dialect instance
-        json_val: Value to validate
+        json_val: Expression for the value to validate
 
     Returns:
         A FunctionCall instance representing JSON_VALID
 
     Version: MariaDB 10.2.3+
     """
-    val_expr = _convert_to_expression(dialect, json_val)
-    return core.FunctionCall(dialect, "JSON_VALID", val_expr)
+    return core.FunctionCall(dialect, "JSON_VALID", json_val)
 
 
 def json_search(
     dialect: "MariaDBDialect",
-    json_doc: Union[str, "bases.BaseExpression"],
+    json_doc: "bases.BaseExpression",
     search_str: str,
     path: Optional[str] = None,
     search_all: bool = False,
@@ -293,7 +268,7 @@ def json_search(
 
     Args:
         dialect: The MariaDB dialect instance
-        json_doc: JSON document or column
+        json_doc: Expression for the JSON document
         search_str: String to search for
         path: Optional path to search within
         search_all: If True, returns all matches; otherwise returns first match
@@ -303,17 +278,16 @@ def json_search(
 
     Version: MariaDB 10.2.3+
     """
-    doc_expr = _convert_to_expression(dialect, json_doc)
     one_or_all = "all" if search_all else "one"
     one_or_all_expr = core.Literal(dialect, one_or_all)
     search_expr = core.Literal(dialect, search_str)
     if path is not None:
         path_expr = core.Literal(dialect, path)
         return core.FunctionCall(
-            dialect, "JSON_SEARCH", doc_expr, one_or_all_expr, search_expr,
+            dialect, "JSON_SEARCH", json_doc, one_or_all_expr, search_expr,
             core.Literal(dialect, None), path_expr,
         )
-    return core.FunctionCall(dialect, "JSON_SEARCH", doc_expr, one_or_all_expr, search_expr)
+    return core.FunctionCall(dialect, "JSON_SEARCH", json_doc, one_or_all_expr, search_expr)
 
 
 __all__ = [

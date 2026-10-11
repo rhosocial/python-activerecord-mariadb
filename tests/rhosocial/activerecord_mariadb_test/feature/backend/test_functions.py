@@ -126,12 +126,19 @@ class TestSupportsFunctions:
         assert result_10_2_2.get("json_extract") is False
 
     def test_supports_functions_math_functions(self):
-        """Test math functions are available on all versions."""
+        """Test math functions are available on all versions.
+
+        TRUNC is not among them. It is absent from 10.2 through 12.1 and
+        present from 12.2, measured against the scenario servers, so the
+        registry gates it. The rest have been in MariaDB for longer than the
+        oldest version this backend supports.
+        """
         dialect = MariaDBDialect(version=(10, 0, 0))
         result = dialect.supports_functions()
-        math_funcs = ["round_", "pow", "sqrt", "ceil", "floor", "trunc"]
+        math_funcs = ["round_", "pow", "sqrt", "ceil", "floor"]
         for func in math_funcs:
             assert result.get(func) is True, f"{func} should be True"
+        assert result.get("trunc") is False
 
 
 class TestFunctionFactories:
