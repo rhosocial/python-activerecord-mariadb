@@ -92,7 +92,7 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.ColumnAttributeSupport,
     dialect_protocols.ColumnTypeSupport,
     dialect_protocols.DataTypeSupport,
-    dialect_protocols.DateTimeSupport,
+    dialect_protocols.TimestampSupport,
     dialect_protocols.DqlOrderSupport,
     dialect_protocols.ExplainSupport,
     dialect_protocols.FilterClauseSupport,
