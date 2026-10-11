@@ -114,18 +114,17 @@ jobs:
           name: codecov-mariadb-${{ matrix.python-version }}-${{ matrix.mariadb-version }}
           fail_ci_if_error: false
 
-  test-experimental-python-315:
-    name: Python ${{ matrix.python-version }}${{ matrix.freethreaded && 't' || '' }} / MariaDB ${{ matrix.mariadb-version }} (experimental)
+  test-python-315:
+    name: Python ${{ matrix.python-version }}${{ matrix.freethreaded && 't' || '' }} / MariaDB ${{ matrix.mariadb-version }}
     runs-on: ubuntu-26.04
     permissions:
       contents: read
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { python-version: '3.15.0-rc.2', mariadb-version: '12.3', freethreaded: false }
-          - { python-version: '3.15.0-rc.2', mariadb-version: '13.0', freethreaded: true }
+          - { python-version: '3.15', mariadb-version: '12.3', freethreaded: false }
+          - { python-version: '3.15', mariadb-version: '13.0', freethreaded: true }
           - { python-version: '3.14', mariadb-version: '13.1-rc', freethreaded: false }
 
     services:
