@@ -184,6 +184,16 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         asks to be zero-padded, and it is ``True`` because that is the column
         MariaDB is about to build.
 
+        **The shape is judged before the value is read.** The expressions
+        collect ``unsigned`` without judging it — a value is not a wrong value
+        until a backend has to honour it, and this is the backend that has to,
+        so the non-bool arrives here rather than being refused at construction.
+        But ``UNSIGNED`` here is a *modifier* in the rendered DDL, and a truthy
+        string would render as one silently: ``unsigned="yes"`` would write
+        ``INT UNSIGNED`` and report success for a column nobody asked for, the
+        same silent loss the three-row table above is written to prevent. So the
+        shape is named, not guessed at.
+
         **``ZEROFILL`` reaches only the integer widths.** It is a MariaDB display
         attribute with no field on the exact/approximate concepts — core's
         ``FloatType`` carries ``precision`` and ``unsigned`` and nothing else,
@@ -219,10 +229,26 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             ``(sql, ())`` — the type word plus whatever attributes apply. Both
             attributes are column modifiers, never bound parameters.
 
+        Raises:
+            TypeError: if ``unsigned`` is not a ``bool`` — it becomes a type
+                modifier in the rendered DDL, so a truthy non-bool would render
+                ``UNSIGNED`` and report success.
+
         Official Documentation:
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        if data_type.unsigned:
+        # Direct read, not ``getattr(..., False)``: the field is on every concept
+        # routed through here, and probing for it would turn a caller passing the
+        # wrong class into the same silent render this guard exists to prevent.
+        # What arrives is what ``__init__`` normalised to, so a ``zerofill``
+        # declaration shows up as the ``True`` that column actually is.
+        unsigned = data_type.unsigned
+        if not isinstance(unsigned, bool):
+            raise TypeError(
+                f"unsigned must be a bool, got {type(unsigned).__name__}; it "
+                f"becomes a type modifier in the rendered DDL."
+            )
+        if unsigned:
             sql = f"{sql} UNSIGNED"
         # ``getattr`` rather than a direct read: this helper serves both
         # MariaDB's own width classes, which carry ``zerofill``, and the core
