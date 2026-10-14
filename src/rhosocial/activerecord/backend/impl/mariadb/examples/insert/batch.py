@@ -83,7 +83,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
     QueryStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, WildcardExpression, Column
+from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column
 from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
 insert_expr = InsertStatement(
     dialect=dialect,
@@ -112,7 +112,7 @@ print(f"Affected rows: {result.affected_rows}")
 
 verify_query = QueryStatement(
     dialect=dialect,
-    select=[WildcardExpression(dialect)],
+    select=[AllColumnsWildcard(dialect)],
     from_=Table(dialect, 'logs'),
     order_by=OrderByClause(dialect, [Column(dialect, 'id')]),
 )
