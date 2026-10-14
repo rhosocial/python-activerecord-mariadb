@@ -30,7 +30,8 @@ from rhosocial.activerecord.backend.expression.functions.datetime import (
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType, TimestampType
 from rhosocial.activerecord.backend.options import ExecutionOptions
@@ -126,12 +127,10 @@ class TestMySQLNiladicDDLContext:
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=current_timestamp(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
                 ]),
             ],
             if_not_exists=True,
@@ -166,12 +165,11 @@ class TestMySQLNiladicDDLContext:
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=FunctionCall(dialect, 'CURRENT_TIMESTAMP')),
+                    ColumnConstraint(
+                        dialect, branch=ColumnDefaultConstraint(dialect, FunctionCall(dialect, 'CURRENT_TIMESTAMP'))),
                 ]),
             ],
             if_not_exists=True,
@@ -205,12 +203,10 @@ class TestMySQLNiladicDDLContext:
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect, 6), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=current_timestamp(dialect, 6)),
+                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect, 6))),
                 ]),
             ],
             if_not_exists=True,
@@ -266,12 +262,10 @@ class TestAsyncMySQLNiladicDDLContext:
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=current_timestamp(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
                 ]),
             ],
             if_not_exists=True,

@@ -32,14 +32,18 @@ trusting the docstring.
 
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.core import Column, Literal
+from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
     AlterConstraint,
     ValidateConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ConstraintValidation,
+    TableCheckConstraint,
     TableConstraint,
-    TableConstraintType,
+    TableForeignKeyConstraint,
+    TablePrimaryKeyConstraint,
 )
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
@@ -91,6 +95,11 @@ CONSTRAINT_SWITCHES = {
     "supports_add_constraint": True,
     "supports_drop_constraint": True,
     "supports_drop_constraint_if_exists": True,
+    # The naming prefix. ``True`` for the family -- the table level accepts a
+    # name on every kind -- and the column level narrows that to the foreign
+    # key alone in the formatter. A single boolean cannot say so, which is why
+    # the narrowing is asserted against the rendered clause rather than here.
+    "supports_constraint_naming": True,
     # Column attributes, declared next to the constraint kinds because
     # MariaDB has all four table-level kinds and almost nothing column-level.
     "supports_column_character_set": True,
@@ -118,6 +127,7 @@ EVIDENCE = {
     "supports_add_constraint": "13.1.1",
     "supports_drop_constraint": "1091",
     "supports_drop_constraint_if_exists": "silent no-op",
+    "supports_constraint_naming": "1064",
     "supports_column_character_set": "CHARACTER_SET_NAME",
     "supports_column_collation": "1253",
 }
@@ -188,17 +198,39 @@ class TestConstraintSwitchValues:
 
         MySQL needs a per-kind answer (a CHECK takes ``[NOT] ENFORCED`` and a
         FOREIGN KEY answers 3941). MariaDB's parser rejects the token before it
-        looks at the constraint, so there is nothing to distinguish. The
-        parameter is accepted and ignored; core's own mixin declares it with
-        that signature, so dropping it would break the call contract.
+        looks at the constraint, so there is nothing to distinguish -- and the
+        probe takes no parameter at all: it answers the family, and the kind is
+        the branch class's business in core's
+        :meth:`~rhosocial.activerecord.backend.dialect.mixins.ddl_column.DDLColumnMixin.format_alter_constraint_action`.
         """
         dialect = _dialect()
-        assert dialect.supports_alter_constraint_enforced(TableConstraintType.CHECK) is False
-        assert dialect.supports_alter_constraint_enforced(TableConstraintType.FOREIGN_KEY) is False
-        assert dialect.supports_alter_constraint_enforced(TableConstraintType.PRIMARY_KEY) is False
-        assert dialect.supports_alter_constraint_enforced(TableConstraintType.UNIQUE) is False
-        assert dialect.supports_alter_constraint_enforced("CHECK") is False
         assert dialect.supports_alter_constraint_enforced() is False
+        # Both spellings on both kinds the grammar allows: refused by name on
+        # every combination, because the refusal is about the clause, not about
+        # the constraint it rides on.
+        for kind in (TableCheckConstraint, TableForeignKeyConstraint):
+            for spelling in ("enforced", "not_enforced"):
+                action = AlterConstraint(
+                    dialect, "probe_ck", constraint_kind=kind, **{spelling: True}
+                )
+                with pytest.raises(UnsupportedFeatureError) as excinfo:
+                    action.to_sql()
+                assert "ALTER CONSTRAINT" in str(excinfo.value)
+                assert "ENFORCED" in str(excinfo.value)
+
+    def test_alter_constraint_refuses_a_kind_that_cannot_carry_the_trait(self):
+        """The kind restriction is the expression layer's, not the probe's.
+
+        ``AlterConstraint`` accepts only a CHECK or FOREIGN KEY branch, by
+        class; anything else is a ``ValueError`` at construction. That is a
+        different failure from the probe's refusal and the two must not collapse
+        into one.
+        """
+        dialect = _dialect()
+        with pytest.raises(ValueError, match="TableCheckConstraint or TableForeignKeyConstraint"):
+            AlterConstraint(
+                dialect, "probe_pk", constraint_kind=TablePrimaryKeyConstraint, enforced=True
+            )
 
 
 class TestConstraintSwitchesAreDeclaredLocally:
@@ -407,12 +439,14 @@ class TestTheDeclaredProbesAreLoadBearing:
     """
 
     def _alter(self, dialect, **kw):
-        return AlterConstraint(dialect, "probe_ck", constraint_type=TableConstraintType.CHECK, **kw)
+        return AlterConstraint(dialect, "probe_ck", constraint_kind=TableCheckConstraint, **kw)
 
     def _not_valid_check(self, dialect):
         constraint = TableConstraint(
             dialect,
-            TableConstraintType.CHECK,
+            branch=TableCheckConstraint(
+                dialect, ComparisonPredicate(dialect, ">", Column(dialect, "a"), Literal(dialect, 0))
+            ),
             name="probe_ck",
             validation=ConstraintValidation.NOVALIDATE,
         )
@@ -420,7 +454,7 @@ class TestTheDeclaredProbesAreLoadBearing:
 
     def test_alter_constraint_probe_flip_renders_the_spelling(self):
         class Alters(MariaDBDialect):
-            def supports_alter_constraint_enforced(self, constraint_type=None):
+            def supports_alter_constraint_enforced(self):
                 return True
 
         dialect = Alters(MEASURED_VERSION)

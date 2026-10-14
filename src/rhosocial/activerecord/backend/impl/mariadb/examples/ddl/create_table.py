@@ -24,7 +24,9 @@ from rhosocial.activerecord.backend.expression.functions.datetime import current
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     IndexDefinition,
@@ -66,8 +68,7 @@ columns = [
         name='id',
         data_type=IntegerType(dialect),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
@@ -75,7 +76,7 @@ columns = [
         name='name',
         data_type=VarCharType(dialect, 200),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
@@ -83,7 +84,7 @@ columns = [
         name='price',
         data_type=DecimalType(dialect, 10, 2),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
@@ -96,7 +97,7 @@ columns = [
         name='is_active',
         data_type=TinyIntType(dialect),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=1),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1)),
         ],
     ),
     ColumnDefinition(
@@ -104,7 +105,7 @@ columns = [
         name='created_at',
         data_type=TimestampType(dialect),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=current_timestamp(dialect)),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
         ],
     ),
 ]

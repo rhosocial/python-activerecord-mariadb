@@ -147,12 +147,12 @@ from rhosocial.activerecord.backend.expression.statements.ddl_domain import (
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ColumnConstraint,
-    ColumnConstraintType,
     ForeignKeyConstraint,
     IndexDefinition,
     ReferencesClause,
     TableConstraint,
-    TableConstraintType,
+    ColumnNotNullConstraint,
+    TablePrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     TriggerEvent,
@@ -404,9 +404,7 @@ def register_specials():
         "statements.ddl_alter.AddTableConstraint",
         lambda d: ddl_alter.AddTableConstraint(
             d,
-            TableConstraint(
-                d, TableConstraintType.PRIMARY_KEY, name="c", columns=["a"]
-            ),
+            TableConstraint(d, branch=TablePrimaryKeyConstraint(d, ["a"]), name="c"),
         ),
     )
 
@@ -575,13 +573,11 @@ def register_specials():
     # -- constraints and column pieces --------------------------------------
     register_special_constructor(
         "statements.ddl_table.ColumnConstraint",
-        lambda d: ColumnConstraint(d, ColumnConstraintType.NOT_NULL, name="c"),
+        lambda d: ColumnConstraint(d, branch=ColumnNotNullConstraint(d), name="c"),
     )
     register_special_constructor(
         "statements.ddl_table.TableConstraint",
-        lambda d: TableConstraint(
-            d, TableConstraintType.PRIMARY_KEY, name="c", columns=["a"]
-        ),
+        lambda d: TableConstraint(d, branch=TablePrimaryKeyConstraint(d, ["a"]), name="c"),
     )
     register_special_constructor(
         "statements.ddl_table.ForeignKeyConstraint",

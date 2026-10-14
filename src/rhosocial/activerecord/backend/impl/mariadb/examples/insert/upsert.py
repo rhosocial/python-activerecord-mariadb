@@ -38,8 +38,11 @@ from rhosocial.activerecord.backend.expression.predicates import ComparisonPredi
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
     OnConflictClause,
+    ColumnPrimaryKeyConstraint,
+    ColumnUniqueConstraint,
+    ColumnNotNullConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -65,18 +68,17 @@ create_table = CreateTableStatement(
     table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'username', VarCharType(dialect, 100), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-            ColumnConstraint(dialect, ColumnConstraintType.UNIQUE),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+            ColumnConstraint(dialect, branch=ColumnUniqueConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'email', VarCharType(dialect, 100), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'login_count', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 0)),
         ]),
     ],
     if_not_exists=True,

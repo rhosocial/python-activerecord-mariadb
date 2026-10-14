@@ -36,8 +36,13 @@ dialect = backend.dialect
 
 # Clean up any leftover tables
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableStatement, CreateTableStatement, ColumnDefinition,
-    ColumnConstraint, ColumnConstraintType, IndexDefinition,
+    DropTableStatement,
+    CreateTableStatement,
+    ColumnDefinition,
+    ColumnConstraint,
+    IndexDefinition,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
@@ -52,8 +57,8 @@ expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
             ]),
         ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
     ],

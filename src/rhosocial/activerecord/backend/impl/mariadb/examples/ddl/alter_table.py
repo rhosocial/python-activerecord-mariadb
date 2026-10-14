@@ -22,7 +22,8 @@ from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -62,8 +63,7 @@ create_table = CreateTableStatement(
             'id',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
@@ -131,11 +131,7 @@ add_age_action = AddColumn(
         'age',
         IntegerType(dialect),
         constraints=[
-            ColumnConstraint(
-                dialect,
-                ColumnConstraintType.DEFAULT,
-                default_value=Literal(dialect, 0),
-            ),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, 0))),
         ],
     ),
 )

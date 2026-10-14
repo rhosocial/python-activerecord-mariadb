@@ -68,7 +68,8 @@ from rhosocial.activerecord.backend.expression.statements.ddl_sequence import (
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ConstraintValidation,
     TableConstraint,
-    TableConstraintType,
+    TableCheckConstraint,
+    TableForeignKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
     TruncateStatement,
@@ -102,11 +103,14 @@ def _table(d, name="probe_t"):
 
 
 def _check(d, **kw):
+    # The kind is the branch; the keywords that follow are the production's
+    # (name / validation / the enforcement and deferral pairs).
     return TableConstraint(
         d,
-        TableConstraintType.CHECK,
+        branch=TableCheckConstraint(
+            d, ComparisonPredicate(d, "=", Column(d, "a"), Column(d, "b"))
+        ),
         name="probe_ck",
-        check_condition=ComparisonPredicate(d, "=", Column(d, "a"), Column(d, "b")),
         **kw,
     )
 
@@ -114,11 +118,8 @@ def _check(d, **kw):
 def _fk(d, **kw):
     return TableConstraint(
         d,
-        TableConstraintType.FOREIGN_KEY,
+        branch=TableForeignKeyConstraint(d, ["a"], (_table(d, "probe_t2"), ["b"])),
         name="probe_fk",
-        columns=["a"],
-        foreign_key_table=_table(d, "probe_t2"),
-        foreign_key_columns=["b"],
         **kw,
     )
 
@@ -586,23 +587,24 @@ class TestPairParametersSurviveSerialization:
 class TestAlterConstraintPairIsConsumed:
     """``AlterConstraint``: mandatory pair, consumed by refusal on MariaDB.
 
-    MariaDB declares no ``supports_alter_constraint_enforced``, so core's
-    ``format_alter_constraint_action`` refuses both spellings by name. The
-    mandatory grammar refuses "neither" too, which is the one place the
+    MariaDB declares ``supports_alter_constraint_enforced()`` as ``False``, so
+    core's ``format_alter_constraint_action`` refuses both spellings by name.
+    The mandatory grammar refuses "neither" too, which is the one place the
     four-state table differs.
     """
 
     def _action(self, **kw):
         return AlterConstraint(
-            _dialect(), "probe_ck", constraint_type=TableConstraintType.CHECK, **kw
+            _dialect(), "probe_ck", constraint_kind=TableCheckConstraint, **kw
         )
 
-    def test_maria_db_does_not_declare_the_alter_constraint_probe(self):
-        # The resolved method is the ConstraintSupport protocol stub (returns
-        # None): MariaDB adds no declaration of its own, so core's formatter
-        # refuses both spellings. A future declaration would change the
-        # outcome and this pin with it.
-        assert not _dialect().supports_alter_constraint_enforced()
+    def test_maria_db_declares_the_alter_constraint_probe_as_false(self):
+        # Declared, not inherited: ``(self)``, no kind, and the value is the
+        # measured one. Before this branch the probe resolved to the
+        # ``ConstraintSupport`` protocol stub, which answers ``None`` -- core
+        # reads that as "no answer" rather than as "no", so the refusal could
+        # change under this backend with no MariaDB file edited.
+        assert _dialect().supports_alter_constraint_enforced() is False
 
     def test_neither_set_is_refused_at_construction(self):
         with pytest.raises(ValueError, match="exactly one of enforced=True or not_enforced=True"):
@@ -688,12 +690,13 @@ class TestConstraintCapabilityGatesAreDeclaredAndMeasured:
         )
 
     def test_check_constraint_is_version_gated(self):
-        # CHECK constraints land in 10.2.1; the boundary is already pinned by
+        # CHECK constraints land in 10.2.1 (MARIADB_VERSION_BOUNDARIES
+        # ['CHECK_CONSTRAINT']); the boundary is already pinned by
         # test_mariadb_version_boundaries.py and is repeated here so this table
         # reads as the whole constraint surface.
-        for version in ((10, 2, 0), (10, 2, 5)):
+        for version in ((10, 1, 0), (10, 2, 0), (10, 2, 1 - 1)):
             assert MariaDBDialect(version).supports_check_constraint() is False, version
-        for version in ((10, 2, 1), (10, 6, 0), (13, 1, 1)):
+        for version in ((10, 2, 1), (10, 2, 5), (10, 6, 0), (13, 1, 1)):
             assert MariaDBDialect(version).supports_check_constraint() is True, version
 
 
@@ -706,7 +709,7 @@ def _declaring_constraint_probe(cls, name):
 
 
 class _AlterConstraintEnforcedDialect(MariaDBDialect):
-    def supports_alter_constraint_enforced(self, constraint_type: Any = None) -> bool:
+    def supports_alter_constraint_enforced(self) -> bool:
         return True
 
 
@@ -731,7 +734,7 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
 
     def _alter(self, dialect, **kw):
         return AlterConstraint(
-            dialect, "probe_ck", constraint_type=TableConstraintType.CHECK, **kw
+            dialect, "probe_ck", constraint_kind=TableCheckConstraint, **kw
         )
 
     def _add_not_valid(self, dialect):
@@ -761,15 +764,17 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
     def test_novalidate_probe_flip_renders_the_spelling(self):
         sql, params = self._add_not_valid(_NovalidateConstraintDialect(VERSION)).to_sql()
         assert sql.endswith(" NOT VALID")
-        assert params == (0,)
+        # A DDL CHECK predicate carries no bind parameters (core refuses one in
+        # `_format_ddl_check_predicate`), so the action adds none either.
+        assert params == ()
 
     def test_on_mariadb_each_is_still_refused_by_name(self):
         with pytest.raises(UnsupportedFeatureError, match="ALTER CONSTRAINT"):
-            self._alter(_dialect(VERSION), enforced=True).to_sql()
+            self._alter(MariaDBDialect(VERSION), enforced=True).to_sql()
         with pytest.raises(UnsupportedFeatureError, match="VALIDATE CONSTRAINT"):
-            ValidateConstraint(_dialect(VERSION), "probe_ck").to_sql()
+            ValidateConstraint(MariaDBDialect(VERSION), "probe_ck").to_sql()
         with pytest.raises(UnsupportedFeatureError, match="NOT VALID"):
-            self._add_not_valid(_dialect(VERSION)).to_sql()
+            self._add_not_valid(MariaDBDialect(VERSION)).to_sql()
 
 
 class TestColumnLevelReferencesBuildsARealForeignKey:

@@ -7,7 +7,10 @@ from rhosocial.activerecord.backend.dialect.protocols import TableObjectSupport
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint,
         CreateTableLikeStatement,
+        TableForeignKeyConstraint,
     )
 
 
@@ -98,6 +101,23 @@ class MariaDBTableSupport(TableObjectSupport, Protocol):
 
     def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
         """Format a table-level constraint (PRIMARY KEY / UNIQUE / FOREIGN KEY)."""
+        ...
+
+    def format_column_constraint(self, constraint: "ColumnConstraint") -> Tuple[str, tuple]:
+        """Format a column-level constraint, refusing the name and the
+        enforcement trait on every branch but the column-level foreign key."""
+        ...
+
+    def format_column_primary_key_constraint(
+        self, constraint: "ColumnPrimaryKeyConstraint"
+    ) -> Tuple[str, tuple]:
+        """Format the column-level ``PRIMARY KEY`` branch with MariaDB's ``AUTO_INCREMENT``."""
+        ...
+
+    def format_table_foreign_key_constraint(
+        self, constraint: "TableForeignKeyConstraint"
+    ) -> Tuple[str, tuple]:
+        """Format a table-level ``FOREIGN KEY`` with MariaDB's spaced column list."""
         ...
 
     def format_index_definition(self, idx_def: Any) -> Tuple[str, tuple]:

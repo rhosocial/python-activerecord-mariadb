@@ -49,8 +49,11 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
     MariaDBSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableStatement, ColumnDefinition,
-    ColumnConstraint, ColumnConstraintType,
+    CreateTableStatement,
+    ColumnDefinition,
+    ColumnConstraint,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
@@ -63,8 +66,8 @@ expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
             ]),
         ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
     ]

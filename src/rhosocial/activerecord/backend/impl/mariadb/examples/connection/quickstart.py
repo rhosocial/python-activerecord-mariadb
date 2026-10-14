@@ -25,8 +25,9 @@ from rhosocial.activerecord.backend.expression.core import Column, Literal
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
-    ColumnConstraintType,
     ColumnDefinition,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -73,15 +74,14 @@ def create_demo_tables():
                 'id',
                 IntegerType(dialect),
                 constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
             ),
             ColumnDefinition(
                 dialect,
                 'name',
                 VarCharType(dialect, 100),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
             ),
             ColumnDefinition(dialect, 'status', VarCharType(dialect, 20)),
         ],
@@ -98,15 +98,14 @@ def create_demo_tables():
                 'id',
                 IntegerType(dialect),
                 constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
             ),
             ColumnDefinition(
                 dialect,
                 'message',
                 VarCharType(dialect, 255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
             ),
         ],
         if_not_exists=True,

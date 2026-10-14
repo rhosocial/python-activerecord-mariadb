@@ -16,7 +16,8 @@ from rhosocial.activerecord.backend.expression.functions.datetime import current
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -55,8 +56,7 @@ create_table = CreateTableStatement(
             'id',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(dialect, 'level', VarCharType(dialect, 20)),
@@ -66,11 +66,7 @@ create_table = CreateTableStatement(
             'created_at',
             TimestampType(dialect),
             constraints=[
-                ColumnConstraint(
-                    dialect,
-                    ColumnConstraintType.DEFAULT,
-                    default_value=current_timestamp(dialect),
-                ),
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
             ],
         ),
     ],

@@ -17,7 +17,7 @@ MariaDB version-specific features:
 - EXPLAIN FORMAT (since 10.6)
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Dict, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
@@ -891,9 +891,11 @@ class MariaDBDialect(
         the boundary -- not just the errno -- has to be on the record.
 
         ``ON DELETE CASCADE`` on the same column is accepted on every measured
-        version, so it is ``ON UPDATE`` specifically that trips it. Recorded on
-        :meth:`MariaDBTableMixin.format_table_constraint` where the clause is
-        rendered.
+        version, so it is ``ON UPDATE`` specifically that trips it. It is not a
+        rendering decision and no formatter refuses it: the clause is rendered
+        by core's ``format_table_foreign_key_constraint``, and the server is the
+        one that refuses, so a caller must not put a CHECK over the same column
+        as a cascading foreign key from 10.5 on.
         """
         return True
 
@@ -1049,7 +1051,7 @@ class MariaDBDialect(
         """
         return False
 
-    def supports_alter_constraint_enforced(self, constraint_type: Any = None) -> bool:
+    def supports_alter_constraint_enforced(self) -> bool:
         """Whether ``ALTER CONSTRAINT ... [NOT] ENFORCED`` is supported.
 
         False. Measured on **13.1.1**: ``ALTER TABLE t ALTER CONSTRAINT ck NOT
@@ -1068,11 +1070,42 @@ class MariaDBDialect(
         MySQL accepts both ``[NOT] ENFORCED`` spellings here; MariaDB accepts
         neither. The verdict is stated for this server alone.
 
-        ``constraint_type`` is accepted and ignored: the answer is the same for
-        every kind, and the parameter is core's cross-backend spelling (core's
-        own mixin declares it with that signature).
+        **No parameter.** A probe answers one question -- "is this capability
+        family present on this server" -- and the kind is not part of it. This
+        one used to take an ignored ``constraint_type``; keeping the parameter
+        would have kept two call shapes alive for an answer that is the same
+        for every kind. The kind, where one exists, is decided by the branch
+        class in :meth:`format_alter_constraint_action`.
         """
         return False
+
+    def supports_constraint_naming(self) -> bool:
+        """Whether a constraint may carry a ``CONSTRAINT <name>`` prefix.
+
+        True, and the answer is *level-dependent*, which is why the boolean
+        answers the family and the column level narrows it.
+
+        Measured on **13.1.1** (192.168.1.3:15694, TLSv1.2):
+
+        * **Table level: every kind.** ``ALTER TABLE t ADD CONSTRAINT uq UNIQUE
+          (v)`` is accepted and the symbol survives as ``UNIQUE KEY `uq```;
+          ``ADD CONSTRAINT ck CHECK (c > 0)`` and ``ADD CONSTRAINT fk FOREIGN
+          KEY (c) REFERENCES p (id)`` likewise. ``CREATE TABLE t (u INT,
+          CONSTRAINT uq_u UNIQUE (u))`` renders ``UNIQUE KEY `uq_u```.
+        * **Column level: the foreign key only.** ``p INT CONSTRAINT fk_p
+          REFERENCES parent (id)`` is accepted and renders ``CONSTRAINT `fk_p`
+          FOREIGN KEY (`p`) REFERENCES `parent` (`id`)``. Every other
+          column-level kind answers **errno 1064 / SQLSTATE 42000**, in either
+          position: ``CONSTRAINT`` before or after ``UNIQUE``,
+          ``UNIQUE KEY``, ``PRIMARY KEY`` and ``CHECK`` are all syntax errors.
+
+        The narrowing is therefore a formatter decision, not a probe decision:
+        :meth:`MariaDBTableMixin.format_column_constraint` refuses a name on any
+        column branch that is not :class:`ColumnForeignKeyConstraint`. Reporting
+        ``False`` here instead would be wrong in the other direction -- it would
+        refuse the table-level name that is the whole point of the switch.
+        """
+        return True
 
     def supports_validate_constraint(self) -> bool:
         """Whether ``VALIDATE CONSTRAINT name`` is supported.
@@ -1363,92 +1396,5 @@ class MariaDBDialect(
         value = value.replace('\\', '\\\\')
         value = value.replace("'", "''")
         return value
-
-    def format_table_constraint(
-        self,
-        t_const: "TableConstraint"
-    ) -> Tuple[str, tuple]:
-        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from rhosocial.activerecord.backend.expression.statements import (
-            TableConstraintType, ForeignKeyConstraint, ReferentialAction,
-        )
-
-        parts = []
-        params: List[Any] = []
-
-        if t_const.name:
-            parts.append(f"CONSTRAINT {self.format_identifier(t_const.name)}")
-
-        if t_const.constraint_type == TableConstraintType.PRIMARY_KEY:
-            if t_const.columns:
-                cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
-                parts.append(f"PRIMARY KEY ({cols_str})")
-        elif t_const.constraint_type == TableConstraintType.UNIQUE:
-            if t_const.columns:
-                cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
-                parts.append(f"UNIQUE ({cols_str})")
-        elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
-            if t_const.columns and t_const.foreign_key_table and t_const.foreign_key_columns:
-                cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
-                ref_cols_str = ', '.join(
-                    self.format_identifier(c) for c in t_const.foreign_key_columns
-                )
-                ref_table = t_const.foreign_key_table.to_sql()[0]
-                parts.append(
-                    f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
-                )
-
-            if isinstance(t_const, ForeignKeyConstraint):
-                if t_const.on_delete != ReferentialAction.NO_ACTION:
-                    parts.append(f"ON DELETE {t_const.on_delete.value}")
-                if t_const.on_update != ReferentialAction.NO_ACTION:
-                    parts.append(f"ON UPDATE {t_const.on_update.value}")
-
-        elif t_const.constraint_type == TableConstraintType.CHECK and t_const.check_condition:
-            check_sql, check_params = t_const.check_condition.to_sql()
-            parts.append(f"CHECK ({check_sql})")
-            params.extend(check_params)
-
-        # The constraint-option pairs: each requested spelling is consumed or
-        # refused by name -- never dropped. MariaDB's grammar has no [NOT]
-        # ENFORCED, no [NOT] DEFERRABLE and no INITIALLY clause (measured on
-        # 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, sentinels rejected; 10.6's
-        # sql_yacc.yy has none of the tokens), so the probes answer False and
-        # every spelling is refused. A subclass that flips a probe True renders
-        # the spelling it declared.
-        if t_const.deferrable or t_const.not_deferrable:
-            if not self.supports_deferrable_constraint():
-                raise UnsupportedFeatureError(
-                    self.name,
-                    "CONSTRAINT DEFERRABLE" if t_const.deferrable else "CONSTRAINT NOT DEFERRABLE",
-                    f"{self.name} does not support DEFERRABLE constraints.",
-                )
-            parts.append("DEFERRABLE" if t_const.deferrable else "NOT DEFERRABLE")
-        if t_const.initially_deferred or t_const.initially_immediate:
-            raise UnsupportedFeatureError(
-                self.name,
-                "CONSTRAINT INITIALLY DEFERRED"
-                if t_const.initially_deferred
-                else "CONSTRAINT INITIALLY IMMEDIATE",
-                f"{self.name} does not support the INITIALLY constraint attribute.",
-            )
-        if t_const.enforced or t_const.not_enforced:
-            if t_const.constraint_type not in (
-                TableConstraintType.CHECK,
-                TableConstraintType.FOREIGN_KEY,
-            ):
-                raise ValueError(
-                    "ENFORCED/NOT ENFORCED is only valid for CHECK and "
-                    "FOREIGN KEY constraints"
-                )
-            if not self.supports_constraint_enforced():
-                raise UnsupportedFeatureError(
-                    self.name,
-                    "CONSTRAINT ENFORCED" if t_const.enforced else "CONSTRAINT NOT ENFORCED",
-                    f"{self.name} does not support ENFORCED constraints.",
-                )
-            parts.append("ENFORCED" if t_const.enforced else "NOT ENFORCED")
-
-        return ' '.join(parts), tuple(params)
 
     # endregion
