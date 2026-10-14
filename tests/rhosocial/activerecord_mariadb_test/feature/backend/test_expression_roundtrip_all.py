@@ -111,7 +111,11 @@ from rhosocial.activerecord.backend.expression.objects import (
     Type,
     View,
 )
-from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
+from rhosocial.activerecord.backend.expression.predicates import (
+    ComparisonPredicate,
+    ILikePredicate,
+    LikePredicate,
+)
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
 from rhosocial.activerecord.backend.expression.serialization import (
     ExpressionRegistry,
@@ -166,7 +170,6 @@ from rhosocial.activerecord.backend.expression.statements.dml import (
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
-    VarCharType,
 )
 from rhosocial.activerecord.backend.expression.xml import (
     XMLAttribute,
@@ -180,6 +183,7 @@ from rhosocial.activerecord.backend.impl.dummy.expression import (
     _DummyTypeDefinition,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression import routine as maria_routine
+from rhosocial.activerecord.backend.impl.mariadb.expression import show as maria_show
 from rhosocial.activerecord.backend.impl.mariadb.expression.dml import (
     MariaDBInsertExpression,
 )
@@ -711,12 +715,61 @@ def register_specials():
         lambda d: XMLConcatExpression(d, [Literal(d, "a"), Literal(d, "b")]),
     )
 
+    # -- predicates whose operand slots are expressions ---------------------
+    # ``LikePredicate`` carries the operator as a parameter and takes its two
+    # operands as value nodes, so the generic guess puts plain strings in both
+    # positions and the instance cannot render (``'str' object has no attribute
+    # 'to_sql'``). ``ILikePredicate`` takes its column as ``Any`` for the same
+    # reason. Core's own dummy2 matrix registers these two shapes; this is the
+    # same registration, so the contract the core states is the one measured
+    # here. MariaDB spells LIKE with core's own formatter and refuses ILIKE
+    # through its ``supports_ilike`` probe, so neither needs a matrix row.
+    register_special_constructor(
+        "predicates.LikePredicate",
+        lambda d: LikePredicate(d, "LIKE", Column(d, "a"), Literal(d, "%x%")),
+    )
+    register_special_constructor(
+        "predicates.ILikePredicate",
+        lambda d: ILikePredicate(d, Column(d, "a"), "%x%"),
+    )
+
     # -- MariaDB's own expressions ------------------------------------------
     # Each of these guesses a bare string where the formatter wants an object.
     # `MariaDBFlushExpression` and friends are absent from this list on purpose:
     # their one-line constructors are guessed correctly, and the three that
     # refuse an empty collection are pinned in LEGITIMATE_NON_RENDERS with the
     # reason, because an instance with no options is not a statement.
+    #
+    # SHOW. `relation` is annotated `Union[RelationObject, str]`, and the
+    # heuristic reads a union's members when it asks what a parameter is, so it
+    # finds the `RelationObject` arm and supplies a Literal -- which the
+    # constructor refuses, because a SHOW target is a relation or a name, never
+    # an expression. Each statement gets the relation object it names, so the
+    # rendered SQL is one this backend actually accepts.
+    register_special_constructor(
+        "show.ShowRelationExpression",
+        lambda d: maria_show.ShowRelationExpression(d, _table_obj(d, "probe_rel")),
+    )
+    register_special_constructor(
+        "show.ShowColumnsExpression",
+        lambda d: maria_show.ShowColumnsExpression(d, _table_obj(d, "probe_cols")),
+    )
+    register_special_constructor(
+        "show.ShowCreateTableExpression",
+        lambda d: maria_show.ShowCreateTableExpression(d, _table_obj(d, "probe_ct")),
+    )
+    register_special_constructor(
+        "show.ShowCreateViewExpression",
+        lambda d: maria_show.ShowCreateViewExpression(d, View(d, "probe_cv")),
+    )
+    register_special_constructor(
+        "show.ShowCreateTriggerExpression",
+        lambda d: maria_show.ShowCreateTriggerExpression(d, Trigger(d, "probe_trg")),
+    )
+    register_special_constructor(
+        "show.ShowIndexExpression",
+        lambda d: maria_show.ShowIndexExpression(d, _table_obj(d, "probe_idx")),
+    )
     register_special_constructor(
         "routine.MariaDBCreateProcedureExpression",
         lambda d: maria_routine.MariaDBCreateProcedureExpression(
@@ -923,7 +976,25 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.transaction.TransactionExpression": (
         NotImplementedError, _NO_FORMATTER
     ),
-    "rhosocial.activerecord.backend.expression.datetime._TemporalValueExpression": (
+    "rhosocial.activerecord.backend.expression.datetime._TemporalValue": (
+        NotImplementedError, _NO_FORMATTER
+    ),
+    # The DDL column-clause base and the two constraint-branch bases. Each names
+    # the *category* rather than a renderable node and deliberately overrides no
+    # ``format_method``: a column clause is one of collation / charset / identity
+    # / auto-increment / comment / generated, and a constraint branch is one of
+    # primary key / unique / not null / nullable / check / default / foreign key
+    # / generated. The concrete members each name their own formatter and are in
+    # the matrix; the bases have nothing to dispatch, so this is the same
+    # no-formatter outcome as the bases above. S3 introduced the two branch
+    # bases, and the wildcard split did not touch these.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnClause": (
+        NotImplementedError, _NO_FORMATTER
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnConstraintBranch": (
+        NotImplementedError, _NO_FORMATTER
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.TableConstraintBranch": (
         NotImplementedError, _NO_FORMATTER
     ),
     "rhosocial.activerecord.backend.expression.introspection.IntrospectionExpression": (
@@ -1216,6 +1287,11 @@ UNMODELLED_FORMATTERS = {
         "format_xmlroot_expression",
         "format_xmlserialize_expression",
         "format_xmltable_expression",
+        # S1-c's PASSING clause belongs to the same absent family: it carries the
+        # BY VALUE / BY REF argument list the XML querying expressions pass with,
+        # and MariaDB has none of them, so the dialect declares no
+        # ``format_passing_clause`` either.
+        "format_passing_clause",
     ),
     "SQL/PGQ property graphs (MariaDB has a MATCH predicate but no "
     "property-graph DDL and no GRAPH_TABLE)": (
