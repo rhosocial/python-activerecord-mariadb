@@ -44,8 +44,8 @@ from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnection
 from rhosocial.activerecord.backend.expression import CreateTableStatement
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
-    ColumnConstraintType,
     ColumnDefinition,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.model import ActiveRecord
@@ -79,8 +79,10 @@ User.__backend__.execute(*CreateTableStatement(
     columns=[
         ColumnDefinition(
             dialect, "id", IntegerType(dialect),
-            constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY,
-                is_auto_increment=True)],
+            constraints=[ColumnConstraint(
+                dialect,
+                branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True),
+            )],
         ),
         ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
         ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
