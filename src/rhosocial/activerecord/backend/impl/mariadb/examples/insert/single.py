@@ -4,7 +4,7 @@ Single row insert - MariaDB.
 This example demonstrates:
 1. INSERT a single row with explicit column values
 2. INSERT with AUTO_INCREMENT primary key
-3. Verify inserted data using QueryExpression
+3. Verify inserted data using QueryStatement
 """
 
 # ============================================================
@@ -14,10 +14,10 @@ import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
-    QueryExpression,
-    InsertExpression,
+    CreateTableStatement,
+    DropTableStatement,
+    QueryStatement,
+    InsertStatement,
     ValuesSource,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, WildcardExpression, Column
@@ -50,15 +50,15 @@ dialect = backend.dialect
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
 # Drop dependent tables first for clean setup
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     columns=[
@@ -86,7 +86,7 @@ backend.execute(sql, params)
 # ============================================================
 
 # 1. Insert a single row with explicit column values
-insert_expr = InsertExpression(
+insert_expr = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     source=ValuesSource(dialect, [
@@ -105,7 +105,7 @@ result = backend.execute(sql, params)
 print(f"Affected rows: {result.affected_rows}")
 
 # Verify the inserted row
-verify_query = QueryExpression(
+verify_query = QueryStatement(
     dialect=dialect,
     select=[WildcardExpression(dialect)],
     from_=Table(dialect, 'users'),
@@ -120,7 +120,7 @@ result = backend.execute(sql, params, options=dql_options)
 print(f"Inserted row: {result.data}")
 
 # 2. Insert another row (AUTO_INCREMENT id will be assigned automatically)
-insert_expr2 = InsertExpression(
+insert_expr2 = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     source=ValuesSource(dialect, [
@@ -133,7 +133,7 @@ result = backend.execute(sql, params)
 print(f"Second insert affected rows: {result.affected_rows}")
 
 # Verify all rows
-all_query = QueryExpression(
+all_query = QueryStatement(
     dialect=dialect,
     select=[Column(dialect, 'id'), Column(dialect, 'name'), Column(dialect, 'email')],
     from_=Table(dialect, 'users'),
@@ -146,11 +146,11 @@ print(f"All rows: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()
@@ -159,7 +159,7 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use InsertExpression with ValuesSource containing a single row list
+# 1. Use InsertStatement with ValuesSource containing a single row list
 # 2. AUTO_INCREMENT columns are omitted from the insert columns list
-# 3. Verify inserts using QueryExpression with WHERE clause
+# 3. Verify inserts using QueryStatement with WHERE clause
 # 4. MariaDB returns affected_rows = 1 for successful single insert

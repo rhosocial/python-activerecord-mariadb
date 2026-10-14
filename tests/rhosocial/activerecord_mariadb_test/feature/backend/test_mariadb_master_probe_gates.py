@@ -6,7 +6,7 @@ Core (``c4d6adc``) gave four previously-decorative probes a call site:
 =============================  ===============================================
 probe                          consumer
 =============================  ===============================================
-``supports_materialized_cte``  ``format_cte_expression`` (MATERIALIZED hint)
+``supports_materialized_cte``  ``format_cte_clause`` (MATERIALIZED hint)
 ``supports_truncate``          ``format_truncate_statement``
 ``supports_with_data_clause``  CTAS / CREATE MATERIALIZED VIEW / REFRESH
 ``supports_transaction_wait``  the WAIT / NO WAIT transaction pair
@@ -48,17 +48,17 @@ carried a deliberately invalid sentinel that came back rejected; grid:
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression import Column, QueryExpression
+from rhosocial.activerecord.backend.expression import Column, QueryStatement
 from rhosocial.activerecord.backend.expression.objects import Table
-from rhosocial.activerecord.backend.expression.query_sources import CTEExpression
+from rhosocial.activerecord.backend.expression.query_sources import CTEClause
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-    CreateTableAsExpression,
+    CreateTableAsStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
-    TruncateExpression,
+    TruncateStatement,
 )
 from rhosocial.activerecord.backend.expression.transaction import (
-    BeginTransactionExpression,
+    BeginTransactionStatement,
     SetTransactionExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
@@ -80,7 +80,7 @@ def _table(d, name="probe_t"):
 
 
 def _query(d):
-    return QueryExpression(d, select=[Column(d, "id")], from_=_table(d, "probe_src"))
+    return QueryStatement(d, select=[Column(d, "id")], from_=_table(d, "probe_src"))
 
 
 def _declaring_class(cls, name):
@@ -128,45 +128,45 @@ class TestGatedSpellingsAreConsumed:
     """Setting a gated spelling refuses by name; none set renders the plain form."""
 
     def test_neither_cte_hint_renders_the_plain_cte(self):
-        sql, params = CTEExpression(_dialect(), "c", query="SELECT 1").to_sql()
+        sql, params = CTEClause(_dialect(), "c", query="SELECT 1").to_sql()
         assert sql == "`c` AS (SELECT 1)"
         assert params == ()
 
     def test_materialized_hint_is_refused_by_name(self):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            CTEExpression(_dialect(), "c", query="SELECT 1", materialized=True).to_sql()
+            CTEClause(_dialect(), "c", query="SELECT 1", materialized=True).to_sql()
         assert "MATERIALIZED CTE" in str(excinfo.value)
 
     def test_not_materialized_hint_is_refused_by_name(self):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            CTEExpression(_dialect(), "c", query="SELECT 1", not_materialized=True).to_sql()
+            CTEClause(_dialect(), "c", query="SELECT 1", not_materialized=True).to_sql()
         assert "NOT MATERIALIZED CTE" in str(excinfo.value)
 
     def test_plain_ctas_renders_without_a_data_clause(self):
-        sql, params = CreateTableAsExpression(_dialect(), _table(_dialect()), _query(_dialect())).to_sql()
+        sql, params = CreateTableAsStatement(_dialect(), _table(_dialect()), _query(_dialect())).to_sql()
         assert sql == "CREATE TABLE `probe_t` AS SELECT `id` FROM `probe_src`"
         assert params == ()
 
     def test_ctas_with_data_is_refused_by_name(self):
         dialect = _dialect()
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            CreateTableAsExpression(dialect, _table(dialect), _query(dialect), with_data=True).to_sql()
+            CreateTableAsStatement(dialect, _table(dialect), _query(dialect), with_data=True).to_sql()
         assert "WITH DATA" in str(excinfo.value)
 
     def test_ctas_with_no_data_is_refused_by_name(self):
         dialect = _dialect()
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            CreateTableAsExpression(dialect, _table(dialect), _query(dialect), no_data=True).to_sql()
+            CreateTableAsStatement(dialect, _table(dialect), _query(dialect), no_data=True).to_sql()
         assert "WITH NO DATA" in str(excinfo.value)
 
     def test_truncate_renders(self):
-        sql, params = TruncateExpression(_dialect(), _table(_dialect())).to_sql()
+        sql, params = TruncateStatement(_dialect(), _table(_dialect())).to_sql()
         assert sql == "TRUNCATE TABLE `probe_t`"
         assert params == ()
 
     def test_transaction_wait_is_refused_by_name(self):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            BeginTransactionExpression(_dialect(), wait=True).to_sql()
+            BeginTransactionStatement(_dialect(), wait=True).to_sql()
         assert "TRANSACTION WAIT" in str(excinfo.value)
 
     def test_transaction_no_wait_is_refused_by_name(self):
@@ -203,31 +203,31 @@ class TestProbesAreLoadBearing:
     """
 
     def test_materialized_probe_flip_spells_the_hint(self):
-        sql, _ = CTEExpression(
+        sql, _ = CTEClause(
             _MaterializedCTEDialect(VERSION), "c", query="SELECT 1", materialized=True
         ).to_sql()
         assert sql == "`c` AS MATERIALIZED (SELECT 1)"
 
     def test_with_data_probe_flip_spells_the_clause(self):
         dialect = _WithDataDialect(VERSION)
-        sql, _ = CreateTableAsExpression(
+        sql, _ = CreateTableAsStatement(
             dialect, _table(dialect), _query(dialect), with_data=True
         ).to_sql()
         assert sql.endswith(" WITH DATA")
-        sql, _ = CreateTableAsExpression(
+        sql, _ = CreateTableAsStatement(
             dialect, _table(dialect), _query(dialect), no_data=True
         ).to_sql()
         assert sql.endswith(" WITH NO DATA")
 
     def test_truncate_probe_flip_refuses(self):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            TruncateExpression(_NoTruncateDialect(VERSION), _table(_NoTruncateDialect(VERSION))).to_sql()
+            TruncateStatement(_NoTruncateDialect(VERSION), _table(_NoTruncateDialect(VERSION))).to_sql()
         assert "TRUNCATE" in str(excinfo.value)
 
     def test_transaction_wait_probe_flip_renders_the_spelling(self):
         dialect = _WaitDialect(VERSION)
-        assert BeginTransactionExpression(dialect, wait=True).to_sql() == ("START TRANSACTION WAIT", ())
-        assert BeginTransactionExpression(dialect, no_wait=True).to_sql() == ("START TRANSACTION NO WAIT", ())
+        assert BeginTransactionStatement(dialect, wait=True).to_sql() == ("START TRANSACTION WAIT", ())
+        assert BeginTransactionStatement(dialect, no_wait=True).to_sql() == ("START TRANSACTION NO WAIT", ())
         assert SetTransactionExpression(dialect, wait=True).to_sql() == ("SET TRANSACTION WAIT", ())
         assert SetTransactionExpression(dialect, no_wait=True).to_sql() == ("SET TRANSACTION NO WAIT", ())
 

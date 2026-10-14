@@ -9,7 +9,7 @@ for retrieving view metadata.
 import pytest
 
 from rhosocial.activerecord.backend.introspection.types import (
-    ViewInfo,
+    IntrospectionViewInfo,
 )
 
 
@@ -17,14 +17,14 @@ class TestListViews:
     """Tests for list_views method."""
 
     def test_list_views_returns_view_info(self, backend_with_view):
-        """Test that list_views returns ViewInfo objects."""
+        """Test that list_views returns IntrospectionViewInfo objects."""
         views = backend_with_view.introspector.list_views()
 
         assert isinstance(views, list)
         assert len(views) > 0
 
         for view in views:
-            assert isinstance(view, ViewInfo)
+            assert isinstance(view, IntrospectionViewInfo)
 
     def test_list_views_includes_created_view(self, backend_with_view):
         """Test that created views are listed."""
@@ -57,7 +57,7 @@ class TestGetViewInfo:
         view = backend_with_view.introspector.get_view_info("user_summary")
 
         assert view is not None
-        assert isinstance(view, ViewInfo)
+        assert isinstance(view, IntrospectionViewInfo)
         assert view.name == "user_summary"
 
     def test_get_view_info_nonexistent(self, backend_with_view):
@@ -141,14 +141,14 @@ class TestAsyncViewIntrospection:
 
     @pytest.mark.asyncio
     async def test_async_list_views(self, async_backend_with_view):
-        """Test async list_views returns ViewInfo objects."""
+        """Test async list_views returns IntrospectionViewInfo objects."""
         views = await async_backend_with_view.introspector.list_views()
 
         assert isinstance(views, list)
         assert len(views) > 0
 
         for view in views:
-            assert isinstance(view, ViewInfo)
+            assert isinstance(view, IntrospectionViewInfo)
 
     @pytest.mark.asyncio
     async def test_async_get_view_info(self, async_backend_with_view):
@@ -156,7 +156,7 @@ class TestAsyncViewIntrospection:
         view = await async_backend_with_view.introspector.get_view_info("user_summary")
 
         assert view is not None
-        assert isinstance(view, ViewInfo)
+        assert isinstance(view, IntrospectionViewInfo)
         assert view.name == "user_summary"
 
     @pytest.mark.asyncio

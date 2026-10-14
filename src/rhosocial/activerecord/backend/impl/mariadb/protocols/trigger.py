@@ -95,7 +95,7 @@ class MariaDBTriggerSupport(TriggerObjectSupport, Protocol):
         """Format CREATE TRIGGER statement.
 
         Args:
-            expr: CreateTriggerExpression instance
+            expr: CreateTriggerStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -106,7 +106,7 @@ class MariaDBTriggerSupport(TriggerObjectSupport, Protocol):
         """Format DROP TRIGGER statement.
 
         Args:
-            expr: DropTriggerExpression instance
+            expr: DropTriggerStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

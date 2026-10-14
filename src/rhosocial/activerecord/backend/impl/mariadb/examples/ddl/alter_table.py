@@ -16,7 +16,7 @@ import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression, InsertExpression, ValuesSource, DropTableExpression,
+    CreateTableStatement, InsertStatement, ValuesSource, DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
@@ -45,15 +45,15 @@ backend = MariaDBBackend(connection_config=config)
 backend.connect()
 dialect = backend.dialect
 
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     columns=[
@@ -73,7 +73,7 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['name'],
@@ -85,7 +85,7 @@ insert = InsertExpression(
 sql, params = insert.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['name'],
@@ -100,7 +100,7 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
-from rhosocial.activerecord.backend.expression import AlterTableExpression
+from rhosocial.activerecord.backend.expression import AlterTableStatement
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import AddColumn
 add_col_action = AddColumn(
     dialect,
@@ -111,7 +111,7 @@ add_col_action = AddColumn(
     ),
 )
 
-add_col_expr = AlterTableExpression(
+add_col_expr = AlterTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     actions=[add_col_action],
@@ -140,7 +140,7 @@ add_age_action = AddColumn(
     ),
 )
 
-add_age_expr = AlterTableExpression(
+add_age_expr = AlterTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     actions=[add_age_action],

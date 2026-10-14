@@ -4,17 +4,17 @@
 MariaDB Transaction Behavior:
 - Isolation level must be set BEFORE START TRANSACTION using SET TRANSACTION
 - START TRANSACTION can include READ ONLY / READ WRITE modes
-- The dialect's format_begin_transaction() only returns START TRANSACTION
+- The dialect's format_begin_transaction_statement() only returns START TRANSACTION
 - SetTransactionExpression is used for isolation level settings
 """
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.transaction import (
-    BeginTransactionExpression,
-    CommitTransactionExpression,
-    RollbackTransactionExpression,
-    SavepointExpression,
-    ReleaseSavepointExpression,
+    BeginTransactionStatement,
+    CommitStatement,
+    RollbackStatement,
+    SavepointStatement,
+    ReleaseSavepointStatement,
     SetTransactionExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
@@ -22,18 +22,18 @@ from rhosocial.activerecord.backend.transaction import IsolationLevel, Transacti
 
 
 class TestMariaDBBeginTransactionExpression:
-    """Tests for MariaDB BeginTransactionExpression."""
+    """Tests for MariaDB BeginTransactionStatement."""
 
     def test_basic_begin(self, mariadb_dialect):
         """Test basic START TRANSACTION."""
-        expr = BeginTransactionExpression(mariadb_dialect)
+        expr = BeginTransactionStatement(mariadb_dialect)
         sql, params = expr.to_sql()
         assert sql == "START TRANSACTION"
         assert params == ()
 
     def test_begin_with_isolation_level_returns_only_start(self, mariadb_dialect):
         """Test that isolation level is set via SET TRANSACTION before START TRANSACTION."""
-        expr = BeginTransactionExpression(mariadb_dialect)
+        expr = BeginTransactionStatement(mariadb_dialect)
         expr.isolation_level(IsolationLevel.SERIALIZABLE)
         sql, params = expr.to_sql()
         assert "SET TRANSACTION ISOLATION LEVEL" in sql
@@ -43,7 +43,7 @@ class TestMariaDBBeginTransactionExpression:
 
     def test_begin_read_only(self, mariadb_dialect):
         """Test START TRANSACTION READ ONLY."""
-        expr = BeginTransactionExpression(mariadb_dialect)
+        expr = BeginTransactionStatement(mariadb_dialect)
         expr.read_only()
         sql, params = expr.to_sql()
         assert sql == "START TRANSACTION READ ONLY"
@@ -57,7 +57,7 @@ class TestMariaDBBeginTransactionExpression:
     ])
     def test_begin_with_isolation_returns_start_transaction(self, mariadb_dialect, level):
         """Test that isolation level is set via SET TRANSACTION before START TRANSACTION."""
-        expr = BeginTransactionExpression(mariadb_dialect)
+        expr = BeginTransactionStatement(mariadb_dialect)
         expr.isolation_level(level)
         sql, params = expr.to_sql()
         assert "SET TRANSACTION ISOLATION LEVEL" in sql
@@ -112,21 +112,21 @@ class TestMariaDBCommitRollback:
 
     def test_commit(self, mariadb_dialect):
         """Test COMMIT statement."""
-        expr = CommitTransactionExpression(mariadb_dialect)
+        expr = CommitStatement(mariadb_dialect)
         sql, params = expr.to_sql()
         assert sql == "COMMIT"
         assert params == ()
 
     def test_rollback(self, mariadb_dialect):
         """Test ROLLBACK statement."""
-        expr = RollbackTransactionExpression(mariadb_dialect)
+        expr = RollbackStatement(mariadb_dialect)
         sql, params = expr.to_sql()
         assert sql == "ROLLBACK"
         assert params == ()
 
     def test_rollback_to_savepoint(self, mariadb_dialect):
         """Test ROLLBACK TO SAVEPOINT statement."""
-        expr = RollbackTransactionExpression(mariadb_dialect)
+        expr = RollbackStatement(mariadb_dialect)
         expr.to_savepoint("my_savepoint")
         sql, params = expr.to_sql()
         assert "ROLLBACK" in sql
@@ -139,7 +139,7 @@ class TestMariaDBSavepoint:
 
     def test_savepoint(self, mariadb_dialect):
         """Test SAVEPOINT statement."""
-        expr = SavepointExpression(mariadb_dialect, "my_savepoint")
+        expr = SavepointStatement(mariadb_dialect, "my_savepoint")
         sql, params = expr.to_sql()
         assert "SAVEPOINT" in sql
         assert "my_savepoint" in sql
@@ -147,7 +147,7 @@ class TestMariaDBSavepoint:
 
     def test_release_savepoint(self, mariadb_dialect):
         """Test RELEASE SAVEPOINT statement."""
-        expr = ReleaseSavepointExpression(mariadb_dialect, "my_savepoint")
+        expr = ReleaseSavepointStatement(mariadb_dialect, "my_savepoint")
         sql, params = expr.to_sql()
         assert "RELEASE SAVEPOINT" in sql
         assert "my_savepoint" in sql
@@ -189,13 +189,13 @@ class TestMariaDBDeferrableIsConsumed:
     """
 
     def test_begin_deferrable_refused_by_name(self, mariadb_dialect):
-        expr = BeginTransactionExpression(mariadb_dialect, deferrable=True)
+        expr = BeginTransactionStatement(mariadb_dialect, deferrable=True)
         with pytest.raises(UnsupportedFeatureError) as excinfo:
             expr.to_sql()
         assert "TRANSACTION DEFERRABLE" in str(excinfo.value)
 
     def test_begin_not_deferrable_refused_by_name(self, mariadb_dialect):
-        expr = BeginTransactionExpression(mariadb_dialect, not_deferrable=True)
+        expr = BeginTransactionStatement(mariadb_dialect, not_deferrable=True)
         with pytest.raises(UnsupportedFeatureError) as excinfo:
             expr.to_sql()
         assert "TRANSACTION NOT DEFERRABLE" in str(excinfo.value)
@@ -220,7 +220,7 @@ class TestMariaDBDeferrableIsConsumed:
                 return True
 
         dialect = DeclaringDialect((10, 6, 0))
-        sql, _ = BeginTransactionExpression(dialect, deferrable=True).to_sql()
+        sql, _ = BeginTransactionStatement(dialect, deferrable=True).to_sql()
         assert sql.endswith(" DEFERRABLE"), sql
-        sql, _ = BeginTransactionExpression(dialect, not_deferrable=True).to_sql()
+        sql, _ = BeginTransactionStatement(dialect, not_deferrable=True).to_sql()
         assert sql.endswith(" NOT DEFERRABLE"), sql

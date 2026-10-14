@@ -7,7 +7,7 @@ MariaDB adds statement-level qualifiers with no generic equivalent:
 * ``ALTER TABLE ... WAIT n | NOWAIT`` — metadata lock wait timeout (10.3+).
 
 They live on ``MariaDBAlterTableExpression`` (deriving the generic
-``AlterTableExpression``) and are rendered by the MariaDB
+``AlterTableStatement``) and are rendered by the MariaDB
 ``format_alter_table_statement`` override. MariaDB does **not** share them with
 any other backend.
 """
@@ -17,7 +17,7 @@ from typing import List, Optional, TYPE_CHECKING
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     AlterTableAction,
-    AlterTableExpression,
+    AlterTableStatement,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -29,7 +29,7 @@ __all__ = [
 ]
 
 
-class MariaDBAlterTableExpression(AlterTableExpression):
+class MariaDBAlterTableExpression(AlterTableStatement):
     """A MariaDB ``ALTER TABLE`` statement extending the generic one.
 
     Adds the MariaDB-only statement-level ``if_exists``, ``nowait`` and

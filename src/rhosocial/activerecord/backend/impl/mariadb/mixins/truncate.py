@@ -7,7 +7,7 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
-        TruncateExpression,
+        TruncateStatement,
     )
 
 
@@ -77,7 +77,7 @@ class MariaDBTruncateMixin:
         """
         return self.version >= MARIADB_VERSION_BOUNDARIES['TRUNCATE_WAIT']
 
-    def format_truncate_statement(self, expr: "TruncateExpression") -> Tuple[str, tuple]:
+    def format_truncate_statement(self, expr: "TruncateStatement") -> Tuple[str, tuple]:
         """Format MariaDB ``TRUNCATE [TABLE] tbl_name [WAIT n | NOWAIT]``.
 
         Each two-spelling modifier carries one parameter per spelling --
@@ -98,7 +98,7 @@ class MariaDBTruncateMixin:
 
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"TruncateExpression.table must be a Table, "
+                f"TruncateStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if not self.supports_truncate():

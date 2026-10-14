@@ -13,7 +13,7 @@ import pytest
 from rhosocial.activerecord.backend.dialect import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import (
     Column,
-    InsertExpression,
+    InsertStatement,
     Literal,
     OnConflictClause,
     ValuesSource,
@@ -44,7 +44,7 @@ class TestMariaDBOnConflictCapabilities:
         source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
         clause1 = OnConflictClause(dialect, conflict_target=["col_a"], do_nothing=True)
         clause2 = OnConflictClause(dialect, conflict_target=["col_b"], do_nothing=True)
-        expr = InsertExpression(dialect, into=Table(dialect, "t"), source=source, on_conflict=[clause1, clause2])
+        expr = InsertStatement(dialect, into=Table(dialect, "t"), source=source, on_conflict=[clause1, clause2])
 
         with pytest.raises(UnsupportedFeatureError, match="multiple ON CONFLICT clauses"):
             expr.to_sql()
@@ -60,7 +60,7 @@ class TestMariaDBOnConflictRendering:
             conflict_target=["id"],
             update_assignments={"name": Column(dialect, "name", "excluded")},
         )
-        expr = InsertExpression(
+        expr = InsertStatement(
             dialect, into=Table(dialect, "users"), columns=["id", "name"], source=source, on_conflict=clause
         )
         sql, params = expr.to_sql()
@@ -74,7 +74,7 @@ class TestMariaDBOnConflictRendering:
         """do_nothing renders the MariaDB no-op UPDATE id = id."""
         source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
         clause = OnConflictClause(dialect, conflict_target=["id"], do_nothing=True)
-        expr = InsertExpression(dialect, into=Table(dialect, "users"), columns=["id"], source=source, on_conflict=clause)
+        expr = InsertStatement(dialect, into=Table(dialect, "users"), columns=["id"], source=source, on_conflict=clause)
         sql, params = expr.to_sql()
         assert sql == (
             'INSERT INTO `users` (`id`) VALUES (%s) '

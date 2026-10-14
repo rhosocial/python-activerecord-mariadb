@@ -38,8 +38,8 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
     ColumnDefinition,
-    CreateTableExpression,
-    DropTableExpression,
+    CreateTableStatement,
+    DropTableStatement,
     IdentityClause,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType
@@ -138,7 +138,7 @@ def _create_table(dialect, name, *, auto_increment=False, identity=None):
             )
         ]
     attributes = [IdentityAttribute(**identity)] if identity is not None else []
-    return CreateTableExpression(
+    return CreateTableStatement(
         dialect,
         Table(dialect, name),
         [
@@ -247,7 +247,7 @@ class TestExecutionConfirmation:
             sentinel_backend,
             expression,
             prepare=[("DROP TABLE IF EXISTS `ident_round_ok`", ())],
-            teardown=[DropTableExpression(dialect, table)],
+            teardown=[DropTableStatement(dialect, table)],
         )
 
         assert outcome is ExecutionOutcome.ACCEPTED
@@ -286,7 +286,7 @@ class TestExecutionConfirmation:
             sentinel_backend,
             expression,
             prepare=[("DROP TABLE IF EXISTS `ident_round_frame`", ())],
-            teardown=[DropTableExpression(dialect, table)],
+            teardown=[DropTableStatement(dialect, table)],
         )
         assert outcome is ExecutionOutcome.ACCEPTED
 

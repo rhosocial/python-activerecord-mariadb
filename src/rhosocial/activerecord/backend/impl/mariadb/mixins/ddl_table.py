@@ -105,7 +105,7 @@ class MariaDBTableMixin:
 
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableExpression.table must be a Table, "
+                f"CreateTableStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if expr.tablespace:
@@ -335,6 +335,48 @@ class MariaDBTableMixin:
                     if t_const.on_delete and t_const.on_delete != ReferentialAction.NO_ACTION:
                         parts.append(f"ON DELETE {t_const.on_delete.value}")
                     if t_const.on_update and t_const.on_update != ReferentialAction.NO_ACTION:
+                        # Measured trap, MariaDB 13.1.1: a foreign key carrying
+                        # ``ON UPDATE CASCADE`` cannot coexist on the same column with a
+                        # CHECK constraint over that column -- in **either** order.
+                        # Refused with **errno 1901 / SQLSTATE HY000**,
+                        # ``Function or expression 'c' cannot be used in the CHECK
+                        # clause of `ck` `` (measured, both orders):
+                        #
+                        #   -- CHECK first
+                        #   ALTER TABLE t ADD CONSTRAINT ck CHECK (c > 0);        -- ok
+                        #   ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY (c)
+                        #     REFERENCES r (id) ON UPDATE CASCADE;                -- 1901
+                        #   ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY (c)
+                        #     REFERENCES r (id) ON DELETE CASCADE;                -- ok
+                        #
+                        #   -- FK first, then the CHECK: the same 1901
+                        #   ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY (c)
+                        #     REFERENCES r (id) ON UPDATE CASCADE;                -- ok
+                        #   ALTER TABLE t ADD CONSTRAINT ck CHECK (c > 0);        -- 1901
+                        #
+                        # Three things follow, and they are different.
+                        #
+                        # It is ``ON UPDATE CASCADE`` specifically that trips it,
+                        # not cascading in general -- ``ON DELETE CASCADE`` alone is
+                        # accepted on the same column in both orders.
+                        #
+                        # The error names the *CHECK*, not the foreign key, so a
+                        # caller classifying by errno alone will attribute it to the
+                        # wrong constraint.
+                        #
+                        # And the conflict is version-gated at **10.5**: measured
+                        # across fifteen servers, 10.2.44 / 10.3.39 / 10.4.34 accept
+                        # the combination and keep both constraints, and every
+                        # server from 10.5.29 on answers 1901. The DDL is legal
+                        # before that and refused after it, so a migration that ran
+                        # on one release can fail on the next with no change to the
+                        # statements. (Same boundary, same direction, as the
+                        # column-level ``REFERENCES`` shortcut becoming real --
+                        # recorded on ``MariaDBDialect.supports_foreign_key_constraint``.)
+                        #
+                        # A caller hitting 1901 while building a table with both is
+                        # seeing a server rule, not a rendering bug: the two clauses
+                        # cannot be reconciled here.
                         parts.append(f"ON UPDATE {t_const.on_update.value}")
                     if t_const.match_type is not None:
                         if not self.supports_fk_match():

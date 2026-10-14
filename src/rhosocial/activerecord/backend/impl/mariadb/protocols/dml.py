@@ -102,7 +102,7 @@ class MariaDBDMLOperationSupport(Protocol):
         Supports INSERT IGNORE, REPLACE INTO, and RETURNING clause.
 
         Args:
-            expr: InsertExpression instance
+            expr: InsertStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

@@ -67,7 +67,7 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
 from rhosocial.activerecord.backend.impl.mariadb.protocols.types import (
     MariaDBTypeSupport,
 )
-from rhosocial.activerecord.backend.introspection.types import ColumnInfo
+from rhosocial.activerecord.backend.introspection.types import IntrospectionColumnInfo
 
 
 @pytest.fixture
@@ -1205,14 +1205,14 @@ class TestZerofillImpliesUnsigned:
         differently from one written now.
         """
         from rhosocial.activerecord.backend.introspection.types import (
-            ColumnInfo,
+            IntrospectionColumnInfo,
             ColumnNullable,
         )
 
         differ = MariaDBSchemaDiffer()
 
         def column(catalog_text):
-            return ColumnInfo(
+            return IntrospectionColumnInfo(
                 name="c", table_name="t", schema="d", ordinal_position=1,
                 data_type=catalog_text.split("(")[0].lower(),
                 data_type_full=catalog_text,
@@ -1452,7 +1452,7 @@ class TestIntegerSpellingRoundTripOnALiveServer:
 class TestParseTypeReadsBackEveryTypeTheDialectWrites:
     """``parse_type`` must read back every type ``format_data_type`` writes.
 
-    Populating ``ColumnInfo.parsed_data_type`` (see the introspection suite) is
+    Populating ``IntrospectionColumnInfo.parsed_data_type`` (see the introspection suite) is
     what made this observable: with the field left at ``None`` the schema differ
     compared the ``data_type`` string, so a type this dialect wrote and could
     not read back was invisible. Three such gaps were found by measuring the

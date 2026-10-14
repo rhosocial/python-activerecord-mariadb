@@ -2,8 +2,8 @@
 Schema diff: detect index changes (drop one index, add another).
 
 Builds a ``SchemaSnapshot`` before and after dropping an existing index and
-creating a new one (via standalone ``DropIndexExpression`` /
-``CreateIndexExpression``), then uses ``MariaDBSchemaDiffer`` to report the
+creating a new one (via standalone ``DropIndexStatement`` /
+``CreateIndexStatement``), then uses ``MariaDBSchemaDiffer`` to report the
 added/removed indexes.
 
 Supported versions: MariaDB 10.2+
@@ -36,19 +36,19 @@ dialect = backend.dialect
 
 # Clean up any leftover tables
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableExpression, CreateTableExpression, ColumnDefinition,
+    DropTableStatement, CreateTableStatement, ColumnDefinition,
     ColumnConstraint, ColumnConstraintType, IndexDefinition,
 )
 from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
 
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 # Baseline table with a non-unique index on `email`
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
@@ -72,17 +72,17 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
     MariaDBSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_index import (  # noqa: E402
-    CreateIndexExpression, DropIndexExpression,
+    CreateIndexStatement, DropIndexStatement,
 )
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Drop the non-unique `idx_email` and add a unique `idx_email_unique`
 # via standalone DROP INDEX / CREATE INDEX statements.
-backend.execute(*DropIndexExpression(
+backend.execute(*DropIndexStatement(
     dialect, index=Index(dialect, 'idx_email'), table=Table(dialect, 'users')
 ).to_sql())
-backend.execute(*CreateIndexExpression(
+backend.execute(*CreateIndexStatement(
     dialect, index=Index(dialect, 'idx_email_unique'), table=Table(dialect, 'users'),
     columns=["email"], unique=True,
 ).to_sql())
@@ -107,7 +107,7 @@ if "users" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

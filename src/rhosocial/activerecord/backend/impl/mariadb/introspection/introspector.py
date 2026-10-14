@@ -39,18 +39,18 @@ from rhosocial.activerecord.backend.introspection.executor import (
     AsyncIntrospectorExecutor,
 )
 from rhosocial.activerecord.backend.introspection.types import (
-    DatabaseInfo,
-    TableInfo,
+    IntrospectionDatabaseInfo,
+    IntrospectionTableInfo,
     TableType,
-    ColumnInfo,
+    IntrospectionColumnInfo,
     ColumnNullable,
     IndexInfo,
     IndexColumnInfo,
     IndexType,
-    ForeignKeyInfo,
+    IntrospectionForeignKeyInfo,
     ReferentialAction,
-    ViewInfo,
-    TriggerInfo,
+    IntrospectionViewInfo,
+    IntrospectionTriggerInfo,
     IntrospectionScope,
 )
 from .show_introspector import (
@@ -90,14 +90,14 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     # Parse methods — pure Python, no I/O
     # ------------------------------------------------------------------ #
 
-    def _parse_database_info(self, rows: List[Dict[str, Any]]) -> DatabaseInfo:
+    def _parse_database_info(self, rows: List[Dict[str, Any]]) -> IntrospectionDatabaseInfo:
         version = self._get_version()
         version_str = ".".join(str(v) for v in version)
         db_name = self._get_default_schema()
 
         db_row = rows[0] if rows else {}
 
-        return DatabaseInfo(
+        return IntrospectionDatabaseInfo(
             name=db_name,
             version=version_str,
             version_tuple=version,
@@ -108,7 +108,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
 
     def _parse_tables(
         self, rows: List[Dict[str, Any]], schema: Optional[str]
-    ) -> List[TableInfo]:
+    ) -> List[IntrospectionTableInfo]:
         target_db = schema if schema is not None else self._get_default_schema()
         table_type_map = {
             "BASE TABLE": TableType.BASE_TABLE,
@@ -119,7 +119,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         for row in rows:
             t_type = table_type_map.get(row.get("TABLE_TYPE", "BASE TABLE"), TableType.BASE_TABLE)
             tables.append(
-                TableInfo(
+                IntrospectionTableInfo(
                     name=row["TABLE_NAME"],
                     schema=target_db,
                     table_type=t_type,
@@ -136,7 +136,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     def _parse_data_type(self, col_type: str) -> Optional[DataType]:
         """Read one catalog type string into a ``DataType``, or ``None``.
 
-        Populating ``ColumnInfo.parsed_data_type`` is what makes the schema
+        Populating ``IntrospectionColumnInfo.parsed_data_type`` is what makes the schema
         differ compare *values* instead of strings. Core's
         ``SchemaDiffer._columns_equivalent`` reads the field twice: when both
         sides carry a type it compares the objects with ``!=``, and only when
@@ -188,7 +188,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         rows: List[Dict[str, Any]],
         table_name: str,
         schema: str,
-    ) -> List[ColumnInfo]:
+    ) -> List[IntrospectionColumnInfo]:
         columns = []
         for row in rows:
             nullable = (
@@ -212,7 +212,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             if srid is not None and int(srid) != 0:
                 full_type = f"{col_type} REF_SYSTEM_ID={int(srid)}"
             columns.append(
-                ColumnInfo(
+                IntrospectionColumnInfo(
                     name=row["COLUMN_NAME"],
                     table_name=table_name,
                     schema=schema,
@@ -276,7 +276,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         rows: List[Dict[str, Any]],
         table_name: str,
         schema: str,
-    ) -> List[ForeignKeyInfo]:
+    ) -> List[IntrospectionForeignKeyInfo]:
         action_map = {
             "NO_ACTION": ReferentialAction.NO_ACTION,
             "NO ACTION": ReferentialAction.NO_ACTION,
@@ -287,13 +287,13 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             "SET_DEFAULT": ReferentialAction.SET_DEFAULT,
             "SET DEFAULT": ReferentialAction.SET_DEFAULT,
         }
-        fk_map: Dict[str, ForeignKeyInfo] = {}
+        fk_map: Dict[str, IntrospectionForeignKeyInfo] = {}
         for row in rows:
             fk_name = row.get("CONSTRAINT_NAME", "")
             if fk_name not in fk_map:
                 on_update_raw = (row.get("UPDATE_RULE") or "NO ACTION").upper()
                 on_delete_raw = (row.get("DELETE_RULE") or "NO ACTION").upper()
-                fk_map[fk_name] = ForeignKeyInfo(
+                fk_map[fk_name] = IntrospectionForeignKeyInfo(
                     name=fk_name,
                     table_name=table_name,
                     schema=schema,
@@ -309,9 +309,9 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
 
     def _parse_views(
         self, rows: List[Dict[str, Any]], schema: str
-    ) -> List[ViewInfo]:
+    ) -> List[IntrospectionViewInfo]:
         return [
-            ViewInfo(
+            IntrospectionViewInfo(
                 name=row.get("TABLE_NAME", row.get("VIEW_NAME", "")),
                 schema=schema,
                 definition=row.get("VIEW_DEFINITION"),
@@ -326,11 +326,11 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         rows: List[Dict[str, Any]],
         view_name: str,
         schema: str,
-    ) -> Optional[ViewInfo]:
+    ) -> Optional[IntrospectionViewInfo]:
         if not rows:
             return None
         row = rows[0]
-        return ViewInfo(
+        return IntrospectionViewInfo(
             name=row.get("TABLE_NAME", row.get("VIEW_NAME", view_name)),
             schema=schema,
             definition=row.get("VIEW_DEFINITION"),
@@ -340,9 +340,9 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
 
     def _parse_triggers(
         self, rows: List[Dict[str, Any]], schema: str
-    ) -> List[TriggerInfo]:
+    ) -> List[IntrospectionTriggerInfo]:
         return [
-            TriggerInfo(
+            IntrospectionTriggerInfo(
                 name=row.get("TRIGGER_NAME", ""),
                 table_name=row.get("EVENT_OBJECT_TABLE", ""),
                 schema=schema,
@@ -393,7 +393,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
 
     def get_table_info(
         self, table_name: str, schema: Optional[str] = None
-    ) -> Optional[TableInfo]:
+    ) -> Optional[IntrospectionTableInfo]:
         key = self._make_cache_key(
             IntrospectionScope.TABLE, table_name, schema=schema
         )
@@ -453,7 +453,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
 
     async def get_table_info(
         self, table_name: str, schema: Optional[str] = None
-    ) -> Optional[TableInfo]:
+    ) -> Optional[IntrospectionTableInfo]:
         key = self._make_cache_key(
             IntrospectionScope.TABLE, table_name, schema=schema
         )

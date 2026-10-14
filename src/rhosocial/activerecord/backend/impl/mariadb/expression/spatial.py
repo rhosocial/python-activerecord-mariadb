@@ -11,7 +11,7 @@ This module provides expression classes for MariaDB spatial functions:
 
 from typing import TYPE_CHECKING, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class MariaDBSTGeomFromTextExpression(AliasableMixin, SQLValueExpression):
+class MariaDBSTGeomFromTextExpression(AliasableMixin, SQLValue):
     """MariaDB ST_GeomFromText expression.
     
     Creates a geometry value from WKT.
@@ -47,7 +47,7 @@ class MariaDBSTGeomFromTextExpression(AliasableMixin, SQLValueExpression):
         return "format_st_geom_from_text"
 
 
-class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """MariaDB ST_Distance expression.
     
     Returns the distance between two geometries.
@@ -75,7 +75,7 @@ class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueExpre
         return "format_st_distance"
 
 
-class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """MariaDB ST_Within expression.
     
     Returns whether one geometry is within another.
@@ -103,7 +103,7 @@ class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpress
         return "format_st_within"
 
 
-class MariaDBSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class MariaDBSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """MariaDB ST_Contains expression.
     
     Returns whether one geometry contains another.

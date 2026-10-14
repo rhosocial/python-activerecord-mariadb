@@ -9,7 +9,7 @@ for retrieving table metadata.
 import pytest
 
 from rhosocial.activerecord.backend.introspection.types import (
-    TableInfo,
+    IntrospectionTableInfo,
     TableType,
 )
 
@@ -18,14 +18,14 @@ class TestListTables:
     """Tests for list_tables method."""
 
     def test_list_tables_returns_table_info(self, backend_with_tables):
-        """Test that list_tables returns TableInfo objects."""
+        """Test that list_tables returns IntrospectionTableInfo objects."""
         tables = backend_with_tables.introspector.list_tables()
 
         assert isinstance(tables, list)
         assert len(tables) > 0
 
         for table in tables:
-            assert isinstance(table, TableInfo)
+            assert isinstance(table, IntrospectionTableInfo)
 
     def test_list_tables_includes_created_tables(self, backend_with_tables):
         """Test that created tables are listed."""
@@ -70,7 +70,7 @@ class TestGetTableInfo:
         table = backend_with_tables.introspector.get_table_info("users")
 
         assert table is not None
-        assert isinstance(table, TableInfo)
+        assert isinstance(table, IntrospectionTableInfo)
         assert table.name == "users"
 
     def test_get_table_info_nonexistent(self, backend_with_tables):
@@ -190,14 +190,14 @@ class TestAsyncTableIntrospection:
 
     @pytest.mark.asyncio
     async def test_async_list_tables(self, async_backend_with_tables):
-        """Test async list_tables returns TableInfo objects."""
+        """Test async list_tables returns IntrospectionTableInfo objects."""
         tables = await async_backend_with_tables.introspector.list_tables()
 
         assert isinstance(tables, list)
         assert len(tables) > 0
 
         for table in tables:
-            assert isinstance(table, TableInfo)
+            assert isinstance(table, IntrospectionTableInfo)
 
     @pytest.mark.asyncio
     async def test_async_get_table_info(self, async_backend_with_tables):
@@ -205,7 +205,7 @@ class TestAsyncTableIntrospection:
         table = await async_backend_with_tables.introspector.get_table_info("users")
 
         assert table is not None
-        assert isinstance(table, TableInfo)
+        assert isinstance(table, IntrospectionTableInfo)
         assert table.name == "users"
 
     @pytest.mark.asyncio

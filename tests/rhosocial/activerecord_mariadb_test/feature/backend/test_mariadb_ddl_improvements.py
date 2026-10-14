@@ -5,7 +5,7 @@ import pytest
 from rhosocial.activerecord.model import ActiveRecord
 from rhosocial.activerecord.backend.expression import (
     ColumnDefinition,
-    CreateTableExpression,
+    CreateTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import IntegerType
@@ -112,7 +112,7 @@ class TestMariaDBTableDeclarationGating:
             id: int
 
         dialect = MariaDBDialect()
-        expression = CreateTableExpression(
+        expression = CreateTableStatement(
             dialect,
             Table(dialect, Plain.__table_name__),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
@@ -125,7 +125,7 @@ class TestMariaDBTableDeclarationGating:
     def test_table_inherits_is_propagated_and_rejected(self):
         dialect = MariaDBDialect(version=(10, 6, 0))
         assert dialect.supports_table_inheritance() is False
-        expression = CreateTableExpression(
+        expression = CreateTableStatement(
             dialect,
             Table(dialect, InheritedTable.__table_name__),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
@@ -139,7 +139,7 @@ class TestMariaDBTableDeclarationGating:
     def test_table_tablespace_is_propagated_and_rejected(self):
         dialect = MariaDBDialect(version=(10, 6, 0))
         assert dialect.supports_table_tablespace() is False
-        expression = CreateTableExpression(
+        expression = CreateTableStatement(
             dialect,
             Table(dialect, TablespacedTable.__table_name__),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],

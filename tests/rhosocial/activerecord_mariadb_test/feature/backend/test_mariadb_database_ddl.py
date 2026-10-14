@@ -2,8 +2,8 @@
 """Explicit MariaDBDialect database DDL capability + rendering tests."""
 
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
-    CreateDatabaseExpression,
-    DropDatabaseExpression,
+    CreateDatabaseStatement,
+    DropDatabaseStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.expression.objects import (
@@ -22,11 +22,11 @@ def test_database_capabilities():
 
 
 def test_create_database_renders():
-    sql, params = CreateDatabaseExpression(_dialect(), database=Database(_dialect(), "app")).to_sql()
+    sql, params = CreateDatabaseStatement(_dialect(), database=Database(_dialect(), "app")).to_sql()
     assert "CREATE DATABASE" in sql
     assert params == ()
 
 
 def test_drop_database_renders():
-    sql, _ = DropDatabaseExpression(_dialect(), database=Database(_dialect(), "app")).to_sql()
+    sql, _ = DropDatabaseStatement(_dialect(), database=Database(_dialect(), "app")).to_sql()
     assert "DROP DATABASE" in sql

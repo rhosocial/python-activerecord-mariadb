@@ -12,7 +12,7 @@ class MariaDBViewMixin:
         """MariaDB spells the form ``CREATE OR REPLACE VIEW``.
 
         Core keeps this apart from :meth:`supports_or_replace_view` and gates
-        ``CreateViewExpression.replace`` on it, so answering only the former
+        ``CreateViewStatement.replace`` on it, so answering only the former
         leaves the flag refused as unsupported.
         """
         return True

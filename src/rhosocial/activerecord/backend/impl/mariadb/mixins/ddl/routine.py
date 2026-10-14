@@ -199,7 +199,7 @@ class MariaDBRoutineMixin:
         """Format ``CREATE [OR REPLACE] [IF NOT EXISTS] [AGGREGATE] FUNCTION ...``.
 
         Supports both the MariaDB stored-function expression and the core
-        SQL/PSM ``CreateFunctionExpression``; the two differ only in how they
+        SQL/PSM ``CreateFunctionStatement``; the two differ only in how they
         spell their parameter list and in whether they can be aggregate or
         deterministic.
 
@@ -297,7 +297,7 @@ class MariaDBRoutineMixin:
         """Format ``DROP FUNCTION [IF EXISTS] name`` (stored / aggregate function).
 
         Supports both the MariaDB stored-function expression and the core
-        SQL/PSM ``DropFunctionExpression``.
+        SQL/PSM ``DropFunctionStatement``.
 
         Raises:
             TypeError: The named routine is not a Function.

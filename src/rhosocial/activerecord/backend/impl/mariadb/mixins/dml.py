@@ -10,7 +10,7 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        InsertExpression,
+        InsertStatement,
     )
     from ..expression.load_data import MariaDBLoadDataExpression
 
@@ -103,7 +103,7 @@ class MariaDBDMLOperationMixin:
 
     def format_insert_statement(
         self,
-        expr: "InsertExpression"
+        expr: "InsertStatement"
     ) -> Tuple[str, tuple]:
         """Format INSERT statement with MariaDB-specific options.
 
@@ -113,7 +113,7 @@ class MariaDBDMLOperationMixin:
         - RETURNING clause (10.5+)
 
         Args:
-            expr: InsertExpression instance.
+            expr: InsertStatement instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -129,7 +129,7 @@ class MariaDBDMLOperationMixin:
 
         if not isinstance(expr.into, Table):
             raise TypeError(
-                f"InsertExpression.into must be a Table, "
+                f"InsertStatement.into must be a Table, "
                 f"got {type(expr.into).__name__}"
             )
         if self.strict_validation:
@@ -317,7 +317,7 @@ class MariaDBDMLOperationMixin:
 
         return ' '.join(parts), tuple(all_params)
 
-    def format_replace_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
+    def format_replace_statement(self, expr: "InsertStatement") -> Tuple[str, tuple]:
         """Format REPLACE INTO statement.
 
         REPLACE INTO is a MariaDB/MySQL extension that either:
@@ -327,7 +327,7 @@ class MariaDBDMLOperationMixin:
         Note: AUTO_INCREMENT value changes on replacement.
 
         Args:
-            expr: ReplaceExpression instance (similar to InsertExpression).
+            expr: ReplaceExpression instance (similar to InsertStatement).
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -339,7 +339,7 @@ class MariaDBDMLOperationMixin:
 
         if not isinstance(expr.into, Table):
             raise TypeError(
-                f"InsertExpression.into must be a Table, "
+                f"InsertStatement.into must be a Table, "
                 f"got {type(expr.into).__name__}"
             )
         all_params: List[Any] = []

@@ -78,7 +78,7 @@ EXAMPLES_META = {
         'max_version': '9.6',
     },
     'ddl/drop_table.py': {
-        'title': 'DROP TABLE using DropTableExpression',
+        'title': 'DROP TABLE using DropTableStatement',
         'dialect_protocols': [],
         'priority': 10,
         'min_version': '5.6',
@@ -128,21 +128,21 @@ EXAMPLES_META = {
         'note': 'MariaDB does not support RETURNING clause; use LAST_INSERT_ID() instead',
     },
     'delete/basic.py': {
-        'title': 'DELETE using DeleteExpression',
+        'title': 'DELETE using DeleteStatement',
         'dialect_protocols': [],
         'priority': 10,
         'min_version': '5.6',
         'max_version': '9.6',
     },
     'update/basic.py': {
-        'title': 'UPDATE using UpdateExpression',
+        'title': 'UPDATE using UpdateStatement',
         'dialect_protocols': [],
         'priority': 10,
         'min_version': '5.6',
         'max_version': '9.6',
     },
     'query/union.py': {
-        'title': 'UNION using SetOperationExpression',
+        'title': 'UNION using SetOperationStatement',
         'dialect_protocols': [],
         'priority': 10,
         'min_version': '5.6',

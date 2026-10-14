@@ -7,7 +7,7 @@ from rhosocial.activerecord.backend.dialect.protocols import TableObjectSupport
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-        CreateTableLikeExpression,
+        CreateTableLikeStatement,
     )
 
 
@@ -83,7 +83,7 @@ class MariaDBTableSupport(TableObjectSupport, Protocol):
         ...
 
     def format_create_table_like_statement(
-        self, expr: "CreateTableLikeExpression"
+        self, expr: "CreateTableLikeStatement"
     ) -> Tuple[str, tuple]:
         """Format CREATE TABLE ... LIKE statement."""
         ...

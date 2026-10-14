@@ -12,8 +12,8 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        CreateTriggerExpression,
-        DropTriggerExpression,
+        CreateTriggerStatement,
+        DropTriggerStatement,
     )
 
 
@@ -154,7 +154,7 @@ class MariaDBTriggerMixin:
 
     def format_create_trigger_statement(
         self,
-        expr: "CreateTriggerExpression"
+        expr: "CreateTriggerStatement"
     ) -> Tuple[str, tuple]:
         """Format CREATE TRIGGER statement for MariaDB.
 
@@ -168,7 +168,7 @@ class MariaDBTriggerMixin:
             trigger_body
 
         Args:
-            expr: CreateTriggerExpression instance.
+            expr: CreateTriggerStatement instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -186,12 +186,12 @@ class MariaDBTriggerMixin:
             value = getattr(expr, attribute)
             if not isinstance(value, kind):
                 raise TypeError(
-                    f"CreateTriggerExpression.{attribute} must be a "
+                    f"CreateTriggerStatement.{attribute} must be a "
                     f"{kind.__name__}, got {type(value).__name__}"
                 )
         if expr.function is not None and not isinstance(expr.function, Function):
             raise TypeError(
-                f"CreateTriggerExpression.function must be a Function, "
+                f"CreateTriggerStatement.function must be a Function, "
                 f"got {type(expr.function).__name__}"
             )
 
@@ -282,12 +282,12 @@ class MariaDBTriggerMixin:
 
     def format_drop_trigger_statement(
         self,
-        expr: "DropTriggerExpression"
+        expr: "DropTriggerStatement"
     ) -> Tuple[str, tuple]:
         """Format DROP TRIGGER statement for MariaDB.
 
         Args:
-            expr: DropTriggerExpression instance.
+            expr: DropTriggerStatement instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -299,7 +299,7 @@ class MariaDBTriggerMixin:
 
         if not isinstance(expr.trigger, Trigger):
             raise TypeError(
-                f"DropTriggerExpression.trigger must be a Trigger, "
+                f"DropTriggerStatement.trigger must be a Trigger, "
                 f"got {type(expr.trigger).__name__}"
             )
         parts = ["DROP TRIGGER"]

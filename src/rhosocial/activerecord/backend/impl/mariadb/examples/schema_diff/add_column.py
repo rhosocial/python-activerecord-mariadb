@@ -34,19 +34,19 @@ dialect = backend.dialect
 
 # Clean up any leftover tables
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableExpression, CreateTableExpression, ColumnDefinition,
+    DropTableStatement, CreateTableStatement, ColumnDefinition,
     ColumnConstraint, ColumnConstraintType,
 )
 from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
 
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 # Baseline table: id, name, email
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
@@ -70,14 +70,14 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
     MariaDBSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
-    AlterTableExpression, AddColumn,
+    AlterTableStatement, AddColumn,
 )
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column — appended after the existing columns
 add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
-alter_expr = AlterTableExpression(dialect, Table(dialect, "users"), [add_col])
+alter_expr = AlterTableStatement(dialect, Table(dialect, "users"), [add_col])
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)
 
@@ -102,7 +102,7 @@ if "users" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

@@ -14,7 +14,7 @@ from enum import Enum
 from typing import FrozenSet, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.collation import CollateExpression
+    from rhosocial.activerecord.backend.expression.collation import CollateFunction
 
 __all__ = [
     "MariaDBCharset",
@@ -184,8 +184,8 @@ class MariaDBCharsetCollationMixin:
         """MariaDB supports expression-level COLLATE."""
         return True
 
-    def validate_collation_name(self, expr: "CollateExpression") -> str:
-        """Validate a ``CollateExpression`` and return its collation SQL."""
+    def validate_collation_name(self, expr: "CollateFunction") -> str:
+        """Validate a ``CollateFunction`` and return its collation SQL."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
         if expr.collation_options:

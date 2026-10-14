@@ -17,7 +17,7 @@ from ..backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-        AlterTableExpression,
+        AlterTableStatement,
     )
     from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
         MariaDBRenameIndexExpression,
@@ -65,7 +65,7 @@ class MariaDBAlterTableMixin:
         return self.version >= (10, 5, 3)
 
     def format_alter_table_statement(
-        self, expr: "AlterTableExpression"
+        self, expr: "AlterTableStatement"
     ) -> Tuple[str, tuple]:
         """Format a MariaDB ``ALTER TABLE ...`` statement.
 
@@ -86,7 +86,7 @@ class MariaDBAlterTableMixin:
 
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"AlterTableExpression.table must be a Table, "
+                f"AlterTableStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         head = "ALTER TABLE"
@@ -132,7 +132,7 @@ class MariaDBAlterTableMixin:
         for position, action in enumerate(expr.actions):
             if not isinstance(action, AlterTableAction):
                 raise TypeError(
-                    f"AlterTableExpression.actions must hold AlterTableAction implementations, "
+                    f"AlterTableStatement.actions must hold AlterTableAction implementations, "
                     f"got {type(action).__name__} at position {position}"
                 )
             action_part, action_params = action.to_sql()

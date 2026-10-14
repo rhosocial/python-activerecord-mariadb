@@ -27,10 +27,10 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
@@ -44,15 +44,15 @@ from rhosocial.activerecord.backend.expression.types import (
     DecimalType,
 )
 
-drop_customers = DropTableExpression(dialect=dialect, table=Table(dialect, 'customers'), if_exists=True)
+drop_customers = DropTableStatement(dialect=dialect, table=Table(dialect, 'customers'), if_exists=True)
 sql, params = drop_customers.to_sql()
 backend.execute(sql, params)
 
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-create_customers = CreateTableExpression(
+create_customers = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'customers'),
     columns=[
@@ -78,7 +78,7 @@ create_customers = CreateTableExpression(
 sql, params = create_customers.to_sql()
 backend.execute(sql, params)
 
-create_orders = CreateTableExpression(
+create_orders = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'orders'),
     columns=[
@@ -100,7 +100,7 @@ create_orders = CreateTableExpression(
 sql, params = create_orders.to_sql()
 backend.execute(sql, params)
 
-insert_customers = InsertExpression(
+insert_customers = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'customers'),
     columns=['name', 'email'],
@@ -115,7 +115,7 @@ insert_customers = InsertExpression(
 sql, params = insert_customers.to_sql()
 backend.execute(sql, params)
 
-insert_orders = InsertExpression(
+insert_orders = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'orders'),
     columns=['customer_id', 'total', 'status'],
@@ -135,7 +135,7 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
-    QueryExpression,
+    QueryStatement,
     Column,
     WhereClause,
 )
@@ -143,7 +143,7 @@ from rhosocial.activerecord.backend.expression.predicates import ComparisonPredi
 customers = NamedRelationRef(dialect, Table(dialect, 'customers'), alias='c')
 orders = NamedRelationRef(dialect, Table(dialect, 'orders'), alias='o')
 
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, 'name', table='c'),

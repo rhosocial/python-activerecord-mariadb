@@ -11,7 +11,7 @@ This module provides expression classes for MariaDB JSON functions:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class MariaDBJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class MariaDBJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """MariaDB JSON_EXTRACT expression.
     
     Extracts a value from a JSON document using a path.
@@ -49,7 +49,7 @@ class MariaDBJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueExpr
         return "format_json_extract"
 
 
-class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
+class MariaDBJSONObjectExpression(AliasableMixin, SQLValue):
     """MariaDB JSON_OBJECT expression.
     
     Creates a JSON object from key-value pairs.
@@ -94,7 +94,7 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValueExpression):
         return "format_json_object"
 
 
-class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
+class MariaDBJSONArrayExpression(AliasableMixin, SQLValue):
     """MariaDB JSON_ARRAY expression.
     
     Creates a JSON array from values.
@@ -140,7 +140,7 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValueExpression):
         return "format_json_array"
 
 
-class MariaDBJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class MariaDBJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """MariaDB JSON_CONTAINS expression.
     
     Checks if a JSON document contains a specific value.

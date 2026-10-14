@@ -17,8 +17,8 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBCreateTableOptions
 from rhosocial.activerecord.backend.expression import (
-    DropTableExpression,
-    CreateTableExpression,
+    DropTableStatement,
+    CreateTableStatement,
 )
 from rhosocial.activerecord.backend.expression.functions.datetime import current_timestamp
 from rhosocial.activerecord.backend.expression.statements import (
@@ -52,7 +52,7 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop if exists for clean setup
-drop = DropTableExpression(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
+drop = DropTableStatement(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
@@ -118,7 +118,7 @@ indexes = [
 ]
 
 # Create table with MariaDB-specific ENGINE and CHARSET options
-create_expr = CreateTableExpression(
+create_expr = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'products'),
     columns=columns,
@@ -146,7 +146,7 @@ for col in columns_info:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

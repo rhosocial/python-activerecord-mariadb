@@ -3,12 +3,12 @@
 MariaDB CREATE TABLE ... LIKE syntax tests.
 
 This module tests the MariaDB-specific LIKE syntax for CREATE TABLE statements.
-The LIKE form is modelled by CreateTableLikeExpression and rendered by the
+The LIKE form is modelled by CreateTableLikeStatement and rendered by the
 dialect's ``format_create_table_like_statement`` (MariaDB inherits the generic
 TableMixin implementation).
 """
 
-from rhosocial.activerecord.backend.expression import CreateTableLikeExpression
+from rhosocial.activerecord.backend.expression import CreateTableLikeStatement
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.expression.objects import (
     Table,
@@ -21,7 +21,7 @@ class TestMariaDBCreateTableLike:
     def test_basic_like_syntax(self):
         """Test basic CREATE TABLE ... LIKE syntax."""
         dialect = MariaDBDialect()
-        expr = CreateTableLikeExpression(dialect, table=Table(dialect, "users_copy"), like_table=Table(dialect, "users"))
+        expr = CreateTableLikeStatement(dialect, table=Table(dialect, "users_copy"), like_table=Table(dialect, "users"))
         sql, params = expr.to_sql()
 
         assert sql == "CREATE TABLE `users_copy` LIKE `users`"
@@ -30,7 +30,7 @@ class TestMariaDBCreateTableLike:
     def test_like_with_if_not_exists(self):
         """Test CREATE TABLE ... LIKE with IF NOT EXISTS."""
         dialect = MariaDBDialect()
-        expr = CreateTableLikeExpression(
+        expr = CreateTableLikeStatement(
             dialect, table=Table(dialect, "users_copy"), like_table=Table(dialect, "users"), if_not_exists=True
         )
         sql, params = expr.to_sql()
@@ -41,7 +41,7 @@ class TestMariaDBCreateTableLike:
     def test_like_with_temporary(self):
         """Test CREATE TEMPORARY TABLE ... LIKE."""
         dialect = MariaDBDialect()
-        expr = CreateTableLikeExpression(
+        expr = CreateTableLikeStatement(
             dialect, table=Table(dialect, "temp_users"), like_table=Table(dialect, "users"), temporary=True
         )
         sql, params = expr.to_sql()
@@ -52,7 +52,7 @@ class TestMariaDBCreateTableLike:
     def test_like_with_schema_qualified_table(self):
         """Test CREATE TABLE ... LIKE with a database-qualified source table."""
         dialect = MariaDBDialect()
-        expr = CreateTableLikeExpression(
+        expr = CreateTableLikeStatement(
             dialect,
             table=Table(dialect, "users_copy"),
             like_table=Table(dialect, "users", catalog_name="production"),
@@ -65,7 +65,7 @@ class TestMariaDBCreateTableLike:
     def test_like_with_temporary_and_if_not_exists(self):
         """Test CREATE TEMPORARY TABLE ... LIKE with IF NOT EXISTS."""
         dialect = MariaDBDialect()
-        expr = CreateTableLikeExpression(
+        expr = CreateTableLikeStatement(
             dialect,
             table=Table(dialect, "temp_users_copy"),
             like_table=Table(dialect, "users", catalog_name="test_db"),
@@ -91,12 +91,12 @@ class TestMariaDBCreateTableOptions:
 
     def test_create_or_replace(self):
         from rhosocial.activerecord.backend.expression import (
-            CreateTableExpression,
+            CreateTableStatement,
             CreateTableOptions,
         )
 
         dialect = MariaDBDialect(version=(10, 5, 0))
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             table=Table(dialect, "t"),
             columns=[],

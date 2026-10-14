@@ -40,8 +40,8 @@ import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import Sequence
 from rhosocial.activerecord.backend.expression.statements.ddl_sequence import (
-    AlterSequenceExpression,
-    CreateSequenceExpression,
+    AlterSequenceStatement,
+    CreateSequenceStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
@@ -80,112 +80,112 @@ class _ProbeCase(NamedTuple):
 #: whether the initial value can be set, ALTER whether it can be changed.
 SEQUENCE_OPTION_PROBES = [
     _ProbeCase(
-        "create-start", "CREATE", CreateSequenceExpression,
+        "create-start", "CREATE", CreateSequenceStatement,
         "start", "SEQUENCE START",
         "supports_sequence_start", {"start": 5},
     ),
     _ProbeCase(
-        "create-increment", "CREATE", CreateSequenceExpression,
+        "create-increment", "CREATE", CreateSequenceStatement,
         "increment", "SEQUENCE INCREMENT",
         "supports_sequence_increment", {"increment": 2},
     ),
     _ProbeCase(
-        "create-minvalue", "CREATE", CreateSequenceExpression,
+        "create-minvalue", "CREATE", CreateSequenceStatement,
         "minvalue", "SEQUENCE MINVALUE",
         "supports_sequence_minvalue", {"minvalue": 1},
     ),
     _ProbeCase(
-        "create-maxvalue", "CREATE", CreateSequenceExpression,
+        "create-maxvalue", "CREATE", CreateSequenceStatement,
         "maxvalue", "SEQUENCE MAXVALUE",
         "supports_sequence_maxvalue", {"maxvalue": 500},
     ),
     _ProbeCase(
-        "create-cycle", "CREATE", CreateSequenceExpression,
+        "create-cycle", "CREATE", CreateSequenceStatement,
         "cycle", "SEQUENCE CYCLE",
         "supports_sequence_cycle", {"cycle": True},
     ),
     _ProbeCase(
-        "create-no-cycle", "CREATE", CreateSequenceExpression,
+        "create-no-cycle", "CREATE", CreateSequenceStatement,
         "no-cycle", "SEQUENCE NO CYCLE",
         "supports_sequence_cycle", {"no_cycle": True},
     ),
     _ProbeCase(
-        "create-cache", "CREATE", CreateSequenceExpression,
+        "create-cache", "CREATE", CreateSequenceStatement,
         "cache", "SEQUENCE CACHE",
         "supports_sequence_cache", {"cache": 10},
     ),
     _ProbeCase(
-        "create-no-cache", "CREATE", CreateSequenceExpression,
+        "create-no-cache", "CREATE", CreateSequenceStatement,
         "no-cache", "SEQUENCE NO CACHE",
         "supports_sequence_cache", {"no_cache": True},
     ),
     _ProbeCase(
-        "create-order", "CREATE", CreateSequenceExpression,
+        "create-order", "CREATE", CreateSequenceStatement,
         "order", "SEQUENCE ORDER",
         "supports_sequence_order", {"order": True},
     ),
     _ProbeCase(
-        "create-no-order", "CREATE", CreateSequenceExpression,
+        "create-no-order", "CREATE", CreateSequenceStatement,
         "no-order", "SEQUENCE NO ORDER",
         "supports_sequence_order", {"no_order": True},
     ),
     _ProbeCase(
-        "create-owned-by", "CREATE", CreateSequenceExpression,
+        "create-owned-by", "CREATE", CreateSequenceStatement,
         "owned_by", "SEQUENCE OWNED BY",
         "supports_sequence_owned_by", {"owned_by": "orders.id"},
     ),
     _ProbeCase(
-        "alter-start", "ALTER", AlterSequenceExpression,
+        "alter-start", "ALTER", AlterSequenceStatement,
         "start", "ALTER SEQUENCE START",
         "supports_alter_sequence_start", {"start": 5},
     ),
     _ProbeCase(
-        "alter-increment", "ALTER", AlterSequenceExpression,
+        "alter-increment", "ALTER", AlterSequenceStatement,
         "increment", "ALTER SEQUENCE INCREMENT",
         "supports_sequence_increment", {"increment": 2},
     ),
     _ProbeCase(
-        "alter-minvalue", "ALTER", AlterSequenceExpression,
+        "alter-minvalue", "ALTER", AlterSequenceStatement,
         "minvalue", "ALTER SEQUENCE MINVALUE",
         "supports_sequence_minvalue", {"minvalue": 1},
     ),
     _ProbeCase(
-        "alter-maxvalue", "ALTER", AlterSequenceExpression,
+        "alter-maxvalue", "ALTER", AlterSequenceStatement,
         "maxvalue", "ALTER SEQUENCE MAXVALUE",
         "supports_sequence_maxvalue", {"maxvalue": 500},
     ),
     _ProbeCase(
-        "alter-cycle", "ALTER", AlterSequenceExpression,
+        "alter-cycle", "ALTER", AlterSequenceStatement,
         "cycle", "ALTER SEQUENCE CYCLE",
         "supports_sequence_cycle", {"cycle": True},
     ),
     _ProbeCase(
-        "alter-no-cycle", "ALTER", AlterSequenceExpression,
+        "alter-no-cycle", "ALTER", AlterSequenceStatement,
         "no-cycle", "ALTER SEQUENCE NO CYCLE",
         "supports_sequence_cycle", {"no_cycle": True},
     ),
     _ProbeCase(
-        "alter-cache", "ALTER", AlterSequenceExpression,
+        "alter-cache", "ALTER", AlterSequenceStatement,
         "cache", "ALTER SEQUENCE CACHE",
         "supports_sequence_cache", {"cache": 10},
     ),
     _ProbeCase(
-        "alter-no-cache", "ALTER", AlterSequenceExpression,
+        "alter-no-cache", "ALTER", AlterSequenceStatement,
         "no-cache", "ALTER SEQUENCE NO CACHE",
         "supports_sequence_cache", {"no_cache": True},
     ),
     _ProbeCase(
-        "alter-order", "ALTER", AlterSequenceExpression,
+        "alter-order", "ALTER", AlterSequenceStatement,
         "order", "ALTER SEQUENCE ORDER",
         "supports_sequence_order", {"order": True},
     ),
     _ProbeCase(
-        "alter-no-order", "ALTER", AlterSequenceExpression,
+        "alter-no-order", "ALTER", AlterSequenceStatement,
         "no-order", "ALTER SEQUENCE NO ORDER",
         "supports_sequence_order", {"no_order": True},
     ),
     _ProbeCase(
-        "alter-owned-by", "ALTER", AlterSequenceExpression,
+        "alter-owned-by", "ALTER", AlterSequenceStatement,
         "owned_by", "ALTER SEQUENCE OWNED BY",
         "supports_sequence_owned_by", {"owned_by": "orders.id"},
     ),

@@ -27,7 +27,7 @@ class MariaDBCTEMixin:
         ``WITH c AS NOT MATERIALIZED (...)`` are syntax errors (errno 1064)
         everywhere while the plain ``WITH c AS (...)`` is accepted (sentinel
         rejected). MariaDB 10.6.28's ``sql_yacc.yy`` has 0 ``MATERIALIZED``
-        occurrences. Core's ``format_cte_expression`` consults this probe, so
+        occurrences. Core's ``format_cte_clause`` consults this probe, so
         a requested hint is refused by name; it never renders it.
         """
         return False

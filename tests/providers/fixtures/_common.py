@@ -7,7 +7,7 @@ values (``ENGINE='InnoDB'``).  The authoritative ``.sql`` schema files under
 use the unquoted storage form.
 
 Rather than modifying the MariaDB backend library source, :func:`to_mariadb_ddl_sql`
-post-processes the SQL produced by ``CreateTableExpression.to_sql()`` so that
+post-processes the SQL produced by ``CreateTableStatement.to_sql()`` so that
 the generated DDL matches the reference files:
 
 * ``KEY='value'`` storage options become ``KEY=value``.
@@ -23,8 +23,8 @@ import re
 from typing import Tuple
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
+    CreateTableStatement,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 
@@ -37,8 +37,8 @@ def _strip_storage_option_quotes(sql: str) -> str:
     return _STORAGE_OPTION_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}", sql)
 
 
-def to_mariadb_ddl_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
-    """Generate canonical MariaDB DDL for a :class:`CreateTableExpression`.
+def to_mariadb_ddl_sql(expr: CreateTableStatement) -> Tuple[str, tuple]:
+    """Generate canonical MariaDB DDL for a :class:`CreateTableStatement`.
 
     Post-processes the dialect output to drop quotes around storage option
     values.  The MariaDB dialect already emits ``ON DELETE`` / ``ON UPDATE``
@@ -51,19 +51,19 @@ def to_mariadb_ddl_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
     return sql, params
 
 
-def to_mysql_ddl_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
+def to_mysql_ddl_sql(expr: CreateTableStatement) -> Tuple[str, tuple]:
     """Backward-compatible alias for :func:`to_mariadb_ddl_sql`."""
     return to_mariadb_ddl_sql(expr)
 
 
-def create_table_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
+def create_table_sql(expr: CreateTableStatement) -> Tuple[str, tuple]:
     """Public alias for :func:`to_mariadb_ddl_sql`."""
     return to_mariadb_ddl_sql(expr)
 
 
-def drop_table(dialect, table_name: str) -> DropTableExpression:
+def drop_table(dialect, table_name: str) -> DropTableStatement:
     """Build a canonical ``DROP TABLE IF EXISTS`` expression."""
-    return DropTableExpression(
+    return DropTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_exists=True,

@@ -9,7 +9,7 @@ This module provides expression classes for MariaDB SET type operations:
 
 from typing import TYPE_CHECKING, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class MariaDBSetLiteralExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """MariaDB SET literal value expression.
 
@@ -61,7 +61,7 @@ class MariaDBSetLiteralExpression(
 class MariaDBFindInSetExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """MariaDB FIND_IN_SET function expression.
 
@@ -100,7 +100,7 @@ class MariaDBFindInSetExpression(
 class MariaDBSetContainsExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """MariaDB SET contains check expression.
 

@@ -11,16 +11,16 @@ from rhosocial.activerecord.backend.expression import bases
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.advanced_functions import (
-        JSONDocumentExpression,
-        JSONTextExpression,
+        JSONDocumentValue,
+        JSONTextValue,
     )
 
     #: Core has one class per JSON operator, and this dialect renders either
     #: from the same code path -- so the parameter is a union, not one of the
-    #: two. ``JSONTextExpression`` subclasses ``JSONDocumentExpression`` so a
+    #: two. ``JSONTextValue`` subclasses ``JSONDocumentValue`` so a
     #: path chain can keep going after ``->>``; that inheritance is about
     #: accessors, not about ``->>`` yielding a document.
-    JSONPathNode = Union[JSONDocumentExpression, JSONTextExpression]
+    JSONPathNode = Union[JSONDocumentValue, JSONTextValue]
 
 
 class MariaDBJSONMixin:

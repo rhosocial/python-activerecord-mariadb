@@ -525,7 +525,7 @@ class MariaDBPartitionMixin:
             Literal,
             LogicalPredicate,
             OrderByClause,
-            QueryExpression,
+            QueryStatement,
         )
         from rhosocial.activerecord.backend.expression.objects import Table
 
@@ -537,7 +537,7 @@ class MariaDBPartitionMixin:
         partitions = Table(
             expr.dialect, "PARTITIONS", catalog_name="information_schema"
         )
-        query = QueryExpression(
+        query = QueryStatement(
             expr.dialect,
             select=[
                 Column(expr.dialect, "PARTITION_NAME", alias="name"),

@@ -41,7 +41,7 @@ from typing import ClassVar, Optional
 from rhosocial.activerecord.base import FieldProxy
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
-from rhosocial.activerecord.backend.expression import CreateTableExpression
+from rhosocial.activerecord.backend.expression import CreateTableStatement
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
@@ -73,7 +73,7 @@ User.configure(
 )
 
 dialect = User.__backend__.dialect
-User.__backend__.execute(*CreateTableExpression(
+User.__backend__.execute(*CreateTableStatement(
     dialect,
     "users",
     columns=[
