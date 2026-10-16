@@ -1,5 +1,5 @@
 """
-UNION using SetOperationStatement - MariaDB.
+UNION using SetOperation - MariaDB.
 
 This example demonstrates:
 1. UNION (distinct)
@@ -85,7 +85,7 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
     QueryStatement,
-    SetOperationStatement,
+    SetOperation,
 )
 # First query
 query1 = QueryStatement(
@@ -100,10 +100,10 @@ query2 = QueryStatement(
 )
 
 # Union
-union_expr = SetOperationStatement(
+union_expr = SetOperation(
     dialect=dialect,
+    op='union',
     left=query1,
-    operation='UNION',
     right=query2,
 )
 sql, params = union_expr.to_sql()
@@ -117,11 +117,10 @@ print(f"UNION result: {result.data}")
 # ============================================================
 # SECTION: UNION ALL
 # ============================================================
-union_all = SetOperationStatement(
+union_all = SetOperation(
     dialect=dialect,
+    op='union_all',
     left=query1,
-    operation='UNION',
-    all_=True,
     right=query2,
 )
 sql, params = union_all.to_sql()
@@ -141,6 +140,6 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use SetOperationStatement with operation='UNION', all_=True for UNION ALL
+# 1. Use SetOperation with op='union' for UNION, op='union_all' for UNION ALL
 # 2. UNION removes duplicates, UNION ALL keeps all rows
 # 3. Can add ORDER BY using query1.with_order_by()

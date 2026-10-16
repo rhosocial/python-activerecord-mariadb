@@ -85,7 +85,7 @@ import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import graph as graph_mod
 from rhosocial.activerecord.backend.expression.advanced_functions import (
-    CaseFunction,
+    CaseExpression,
     WindowClause,
     WindowDefinition,
     WindowSpecification,
@@ -111,17 +111,23 @@ from rhosocial.activerecord.backend.expression.objects import (
     Type,
     View,
 )
+from rhosocial.activerecord.backend.expression.operators import (
+    ArithmeticOperation,
+)
 from rhosocial.activerecord.backend.expression.predicates import (
     ComparisonPredicate,
     ILikePredicate,
     LikePredicate,
 )
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
+from rhosocial.activerecord.backend.expression.query_sources import SetOperation
 from rhosocial.activerecord.backend.expression.serialization import (
-    ExpressionRegistry,
+    auto_register_builtins,
     deserialize,
     deserialize_json,
     deserialize_xml,
+    register_expression_class,
+    registered_expression_classes,
     serialize,
     serialize_json,
     serialize_xml,
@@ -216,8 +222,8 @@ CORE_EXPR_PKG = "rhosocial.activerecord.backend.expression"
 def _collect(package: str) -> Dict[str, type]:
     """Every concrete expression class *package* defines, by fully qualified name.
 
-    Collected by walking the package, not by reading ``ExpressionRegistry``:
-    the registry is process-global and *grows* as other test modules import
+    Collected by walking the package, not by reading the deserialization class
+    index: that index is process-global and *grows* as other test modules import
     their own backends, so reading it would make this matrix's contents depend
     on which files pytest happened to import first. Sibling backends' classes
     would then be rendered with the MariaDB dialect, which is not a meaningful
@@ -227,7 +233,7 @@ def _collect(package: str) -> Dict[str, type]:
     ``ValidateConstraint`` each have two spellings). They are the same objects,
     so the first name wins and the matrix does not test a class four times.
     """
-    ExpressionRegistry._auto_register_builtins()
+    auto_register_builtins()
     collected = collect_expression_classes(package)
     by_identity: Dict[int, str] = {}
     for fqn, cls in sorted(collected.items()):
@@ -243,14 +249,15 @@ def _collect(package: str) -> Dict[str, type]:
 def _matrix_classes() -> Dict[str, type]:
     """Both packages merged, and registered so deserialization can resolve them.
 
-    Deserialization looks a class up by name in ``ExpressionRegistry``, so a
-    class the matrix renders must be findable there or the round-trip resolves
-    to the wrong thing.
+    Deserialization looks a class up by name in the serialization class index --
+    which is *not* the ``(dialect, kind)`` render registry: the index names
+    classes, the registry names render functions -- so a class the matrix renders
+    must be findable there or the round-trip resolves to the wrong thing.
     """
     merged: Dict[str, type] = {}
     for package in (MARIADB_EXPR_PKG, CORE_EXPR_PKG):
         for fqn, cls in _collect(package).items():
-            ExpressionRegistry.register(cls)
+            register_expression_class(cls)
             merged[fqn] = cls
     return merged
 
@@ -600,8 +607,8 @@ def register_specials():
 
     # -- expressions that need at least one member --------------------------
     register_special_constructor(
-        "advanced_functions.CaseFunction",
-        lambda d: CaseFunction(
+        "advanced_functions.CaseExpression",
+        lambda d: CaseExpression(
             d,
             cases=[(_column_predicate(d), Literal(d, 1))],
             else_result=Literal(d, 0),
@@ -731,6 +738,28 @@ def register_specials():
     register_special_constructor(
         "predicates.ILikePredicate",
         lambda d: ILikePredicate(d, Column(d, "a"), "%x%"),
+    )
+
+    # -- nodes whose operation is a closed set of *words* ---------------------
+    # ``ArithmeticOperation`` and ``SetOperation`` both carry their operation as
+    # a word (``add``/``sub``/``mul``/``div``/``mod`` and
+    # ``union``/``union_all``/``intersect``/``except``) and refuse anything else
+    # at construction. The introspective guess reads ``op: str`` and supplies
+    # ``"x"``, which is not one of them, so both need a real word handed in.
+    register_special_constructor(
+        "operators.ArithmeticOperation",
+        lambda d: ArithmeticOperation(d, "add", Column(d, "a"), Column(d, "b")),
+    )
+    register_special_constructor(
+        "query_sources.SetOperation",
+        lambda d: SetOperation(
+            d,
+            op="union",
+            left=QueryStatement(d, select=[Column(d, "id")], from_=_table_obj(d)),
+            right=QueryStatement(
+                d, select=[Column(d, "id")], from_=_table_obj(d, "other")
+            ),
+        ),
     )
 
     # -- MariaDB's own expressions ------------------------------------------
@@ -1126,11 +1155,11 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError, "format_edge_table"
     ),
     # PIVOT / UNPIVOT. Not MariaDB syntax, and no formatter.
-    "rhosocial.activerecord.backend.expression.pivot.PivotExpression": (
-        UnsupportedFeatureError, "format_pivot_expression"
+    "rhosocial.activerecord.backend.expression.pivot.Pivot": (
+        UnsupportedFeatureError, "format_pivot"
     ),
-    "rhosocial.activerecord.backend.expression.pivot.UnpivotExpression": (
-        UnsupportedFeatureError, "format_unpivot_expression"
+    "rhosocial.activerecord.backend.expression.pivot.Unpivot": (
+        UnsupportedFeatureError, "format_unpivot"
     ),
     # COMMENT ON. MariaDB's COMMENT is a table option and a column attribute,
     # both of which this dialect renders; the standalone statement is not
@@ -1308,8 +1337,8 @@ UNMODELLED_FORMATTERS = {
     "both rendered by this dialect; the standalone statement is not "
     "implemented)": ("format_comment_statement",),
     "PIVOT / UNPIVOT (not MariaDB syntax, and no formatter for either)": (
-        "format_pivot_expression",
-        "format_unpivot_expression",
+        "format_pivot",
+        "format_unpivot",
     ),
     "the TableSource root (every concrete row source overrides its formatter; "
     "the root carries nothing but an alias and is never rendered)": ("format_table_source",),
@@ -1580,7 +1609,7 @@ class TestMatrixIntegrity:
         a constructor and the entry is stale; a class that fails to build without
         being named would become a silent skip. Both fail here.
         """
-        ExpressionRegistry._auto_register_builtins()
+        auto_register_builtins()
         actual = tuple(
             sorted(
                 fqn
@@ -1722,7 +1751,7 @@ class TestMatrixIntegrity:
         rather than the registry because the registry also holds whatever
         backends other test modules happened to import.
         """
-        ExpressionRegistry._auto_register_builtins()
+        auto_register_builtins()
         expected = _matrix_classes()
         stray = [
             fqn
@@ -1750,8 +1779,8 @@ class TestMatrixIntegrity:
         renders but the registry cannot resolve would round-trip into the wrong
         thing or nothing at all.
         """
-        ExpressionRegistry._auto_register_builtins()
-        unresolved = sorted(set(REGISTERED) - set(ExpressionRegistry._registry))
+        auto_register_builtins()
+        unresolved = sorted(set(REGISTERED) - set(registered_expression_classes()))
         assert not unresolved, (
             f"the matrix covers classes the registry cannot resolve: {unresolved}"
         )
@@ -1764,7 +1793,7 @@ class TestMatrixIntegrity:
         remove -- so the direction of the check here is a floor in
         ``test_matrix_covers_both_packages_completely`` and nothing else.
         """
-        ExpressionRegistry._auto_register_builtins()
+        auto_register_builtins()
         buckets = {
             "rendered": 0,
             "unsupported": 0,

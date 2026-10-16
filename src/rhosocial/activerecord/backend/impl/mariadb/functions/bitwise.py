@@ -12,12 +12,18 @@ Every operand is an expression: pass a ``Column`` to read a column and a
 string and a bare number, and which of the two it was had to be worked out
 from its type at run time; the number was right, but the string could not say
 which it meant, and a column named ``16`` was read as the number sixteen.
+
+The bitwise symbols are **not** arithmetic: :class:`ArithmeticOperation` admits
+a closed set of operation words (``add`` / ``sub`` / ``mul`` / ``div`` / ``mod``)
+and ``&`` / ``|`` / ``^`` / ``<<`` / ``>>`` are none of them. These are plain
+binary operators, so they are written as :class:`BinaryExpression`, which takes
+the character the backend spells.
 """
 
 from typing import TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression import bases, core
-from rhosocial.activerecord.backend.expression.operators import BinaryArithmeticExpression
+from rhosocial.activerecord.backend.expression.operators import BinaryExpression
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import MariaDBDialect
@@ -45,7 +51,7 @@ def bit_and(
     """
     result = value
     for v in values:
-        result = BinaryArithmeticExpression(dialect, "&", result, v)
+        result = BinaryExpression(dialect, "&", result, v)
     return result
 
 
@@ -71,7 +77,7 @@ def bit_or(
     """
     result = value
     for v in values:
-        result = BinaryArithmeticExpression(dialect, "|", result, v)
+        result = BinaryExpression(dialect, "|", result, v)
     return result
 
 
@@ -97,7 +103,7 @@ def bit_xor(
     """
     result = value
     for v in values:
-        result = BinaryArithmeticExpression(dialect, "^", result, v)
+        result = BinaryExpression(dialect, "^", result, v)
     return result
 
 
@@ -139,8 +145,8 @@ def bit_get_bit(
 
     Version: Native operators available in all MariaDB versions
     """
-    shifted = BinaryArithmeticExpression(dialect, ">>", value, bit)
-    return BinaryArithmeticExpression(dialect, "&", shifted, core.Literal(dialect, 1))
+    shifted = BinaryExpression(dialect, ">>", value, bit)
+    return BinaryExpression(dialect, "&", shifted, core.Literal(dialect, 1))
 
 
 def bit_shift_left(
@@ -163,7 +169,7 @@ def bit_shift_left(
 
     Version: Native operators available in all MariaDB versions
     """
-    return BinaryArithmeticExpression(dialect, "<<", value, count)
+    return BinaryExpression(dialect, "<<", value, count)
 
 
 def bit_shift_right(
@@ -186,7 +192,7 @@ def bit_shift_right(
 
     Version: Native operators available in all MariaDB versions
     """
-    return BinaryArithmeticExpression(dialect, ">>", value, count)
+    return BinaryExpression(dialect, ">>", value, count)
 
 
 __all__ = [

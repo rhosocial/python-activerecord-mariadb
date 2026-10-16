@@ -212,7 +212,12 @@ class TestMySQLNiladicDDLContext:
             if_not_exists=True,
         )
         sql, params = create.to_sql()
-        assert "CURRENT_TIMESTAMP(%s)" in sql or "CURRENT_TIMESTAMP(?)" in sql
+        # A DEFAULT position carries no bind parameters, so the precision
+        # argument renders as an inline literal rather than a placeholder --
+        # ``TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6)`` is what the server
+        # accepts, and a bind placeholder in DDL was never valid at all.
+        assert "CURRENT_TIMESTAMP(6)" in sql
+        assert params == ()
 
         try:
             mariadb_backend.execute(sql, params)

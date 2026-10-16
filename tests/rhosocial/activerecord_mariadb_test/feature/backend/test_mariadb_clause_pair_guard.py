@@ -570,7 +570,7 @@ class TestPairParametersSurviveSerialization:
     )
     def test_second_spelling_survives_the_round_trip(self, factory, field):
         from rhosocial.activerecord.backend.expression.serialization import (
-            ExpressionRegistry,
+            register_expression_class,
         )
 
         dialect = _dialect()
@@ -579,7 +579,7 @@ class TestPairParametersSurviveSerialization:
         # covers ``backend/expression`` only); the roundtrip matrix registers
         # them via ``collect_expression_classes``. Registering here lets this
         # focused round-trip deserialize MariaDB-owned expressions too.
-        ExpressionRegistry.register(type(expr))
+        register_expression_class(type(expr))
         decoded = deserialize_json(serialize_json(expr), dialect)
         assert getattr(decoded, field) is True
 
@@ -765,7 +765,7 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
         sql, params = self._add_not_valid(_NovalidateConstraintDialect(VERSION)).to_sql()
         assert sql.endswith(" NOT VALID")
         # A DDL CHECK predicate carries no bind parameters (core refuses one in
-        # `_format_ddl_check_predicate`), so the action adds none either.
+        # `_format_ddl_condition`), so the action adds none either.
         assert params == ()
 
     def test_on_mariadb_each_is_still_refused_by_name(self):
