@@ -142,11 +142,20 @@ class MariaDBTruncateMixin:
         table_sql, _ = expr.table.to_sql()
         sql = f"TRUNCATE TABLE {table_sql}{identity}{behavior}"
 
+        # The WAIT/NOWAIT modifiers belong to the MariaDB node's contract:
+        # the core ``TruncateStatement`` declares neither, so which fields
+        # exist is a question about the class and is answered with isinstance
+        # rather than probed off the instance.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.truncate import (
+            MariaDBTruncateExpression,
+        )
+
         wait = None
-        if getattr(expr, "nowait", False):
-            wait = "NOWAIT"
-        elif getattr(expr, "wait", None) is not None:
-            wait = f"WAIT {int(expr.wait)}"
+        if isinstance(expr, MariaDBTruncateExpression):
+            if expr.nowait:
+                wait = "NOWAIT"
+            elif expr.wait is not None:
+                wait = f"WAIT {int(expr.wait)}"
         if wait is not None:
             if not self.supports_truncate_wait():
                 raise UnsupportedFeatureError(

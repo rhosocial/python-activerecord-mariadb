@@ -135,8 +135,20 @@ class MariaDBDMLOperationMixin:
         if self.strict_validation:
             expr.validate(strict=True)
 
-        is_replace = getattr(expr, 'replace', False)
-        is_ignore = getattr(expr, 'ignore', False)
+        # ``replace`` / ``ignore`` are MariaDB node fields: the core
+        # ``InsertStatement`` declares neither, so which modifiers exist is a
+        # question about the class and is answered with isinstance rather
+        # than probed off the instance.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.dml import (
+            MariaDBInsertExpression,
+        )
+
+        if isinstance(expr, MariaDBInsertExpression):
+            is_replace = expr.replace
+            is_ignore = expr.ignore
+        else:
+            is_replace = False
+            is_ignore = False
 
         if is_replace and is_ignore:
             raise ValueError("Cannot use both 'replace' and 'ignore' options together")
@@ -214,6 +226,8 @@ class MariaDBDMLOperationMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression.bases import BaseExpression
+
         all_params = []
         parts = ["ON DUPLICATE KEY UPDATE"]
 
@@ -221,11 +235,18 @@ class MariaDBDMLOperationMixin:
         if expr.update_assignments:
             for col_name, value_expr in expr.update_assignments.items():
                 col_sql = self.format_identifier(col_name)
-                if hasattr(value_expr, "to_sql"):
-                    val_sql, val_params = value_expr.to_sql()
-                    all_params.extend(val_params)
-                else:
-                    val_sql = str(value_expr)
+                # The clause's contract declares ``BaseExpression`` values, so
+                # the kind is asserted rather than sniffed: a host value that
+                # used to be silently ``str()``-ed into the SQL text now
+                # fails here instead of rendering as SQL it was never
+                # checked against.
+                if not isinstance(value_expr, BaseExpression):
+                    raise TypeError(
+                        f"update_assignments[{col_name!r}] must be a "
+                        f"BaseExpression, got {type(value_expr).__name__}"
+                    )
+                val_sql, val_params = value_expr.to_sql()
+                all_params.extend(val_params)
                 update_parts.append(f"{col_sql} = {val_sql}")
 
         if update_parts:

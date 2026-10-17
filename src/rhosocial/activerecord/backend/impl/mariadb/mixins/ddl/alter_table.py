@@ -83,6 +83,9 @@ class MariaDBAlterTableMixin:
         from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
             AlterTableAction,
         )
+        from rhosocial.activerecord.backend.impl.mariadb.expression.alter_table import (
+            MariaDBAlterTableExpression,
+        )
 
         if not isinstance(expr.table, Table):
             raise TypeError(
@@ -90,14 +93,19 @@ class MariaDBAlterTableMixin:
                 f"got {type(expr.table).__name__}"
             )
         head = "ALTER TABLE"
-        if getattr(expr, "if_exists", False):
-            if not self.supports_alter_table_if_exists():
-                raise UnsupportedFeatureError(
-                    self.name,
-                    "ALTER TABLE IF EXISTS",
-                    "Statement-level IF EXISTS requires MariaDB 10.5 or later."
-                )
-            head += " IF EXISTS"
+        # The MariaDB-only qualifiers (``if_exists``, ``wait``, ``nowait``)
+        # belong to the MariaDB node's contract: the core statement declares
+        # none of them, so which fields exist is a question about the class
+        # and is answered with isinstance rather than probed off the instance.
+        if isinstance(expr, MariaDBAlterTableExpression):
+            if expr.if_exists:
+                if not self.supports_alter_table_if_exists():
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "ALTER TABLE IF EXISTS",
+                        "Statement-level IF EXISTS requires MariaDB 10.5 or later."
+                    )
+                head += " IF EXISTS"
 
         # The statement holds the table as a schema object, so a caller that knows
         # the database can say so and the namespace survives into the SQL
@@ -105,13 +113,12 @@ class MariaDBAlterTableMixin:
         table_sql, _ = expr.table.to_sql()
         table_part = f"{head} {table_sql}"
 
-        wait_value = getattr(expr, "wait", None)
-        if getattr(expr, "nowait", False):
-            wait = "NOWAIT"
-        elif wait_value is not None:
-            wait = f"WAIT {int(wait_value)}"
-        else:
-            wait = None
+        wait = None
+        if isinstance(expr, MariaDBAlterTableExpression):
+            if expr.nowait:
+                wait = "NOWAIT"
+            elif expr.wait is not None:
+                wait = f"WAIT {int(expr.wait)}"
         if wait is not None:
             if not self.supports_alter_table_wait():
                 raise UnsupportedFeatureError(
@@ -155,15 +162,18 @@ class MariaDBAlterTableMixin:
         """
         from rhosocial.activerecord.backend.expression.objects import Index, Table
 
-        for attribute, kind in (
-            ("table", Table),
-            ("old_index", Index),
-            ("new_index", Index),
+        # Three schema objects, each with its own ``format_*_object``: the
+        # table it lives on, and the index before and after its rename. The
+        # slots are the node's declared fields, so they are read by name
+        # rather than probed for.
+        for name, value, kind in (
+            ("table", expr.table, Table),
+            ("old_index", expr.old_index, Index),
+            ("new_index", expr.new_index, Index),
         ):
-            value = getattr(expr, attribute)
             if not isinstance(value, kind):
                 raise TypeError(
-                    f"MariaDBRenameIndexExpression.{attribute} must be a "
+                    f"MariaDBRenameIndexExpression.{name} must be a "
                     f"{kind.__name__}, got {type(value).__name__}"
                 )
         expr.validate(strict=self.strict_validation)

@@ -192,7 +192,14 @@ class MariaDBPartitionMixin:
             raise UnsupportedFeatureError(self.name, "RANGE partitioning")
         keys_sql, params = self._format_partition_key_list(expr.keys)
         sql = f" PARTITION BY RANGE ({keys_sql})"
-        return self._append_partition_definitions(sql, list(params), getattr(expr, "partitions", []))
+        # Named definitions belong to the MariaDB clause node; the core
+        # clause carries none, so their presence is a class question.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+            MariaDBPartitionByRange,
+        )
+
+        partitions = expr.partitions if isinstance(expr, MariaDBPartitionByRange) else ()
+        return self._append_partition_definitions(sql, list(params), partitions)
 
     def format_partition_by_range_columns(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY RANGE COLUMNS (...)`` with optional definitions."""
@@ -202,7 +209,16 @@ class MariaDBPartitionMixin:
             raise UnsupportedFeatureError(self.name, "RANGE COLUMNS partitioning")
         keys_sql, params = self._format_partition_key_list(expr.keys)
         sql = f" PARTITION BY RANGE COLUMNS ({keys_sql})"
-        return self._append_partition_definitions(sql, list(params), getattr(expr, "partitions", []))
+        # Named definitions belong to the MariaDB clause node; the core
+        # clause carries none, so their presence is a class question.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+            MariaDBPartitionByRangeColumns,
+        )
+
+        partitions = (
+            expr.partitions if isinstance(expr, MariaDBPartitionByRangeColumns) else ()
+        )
+        return self._append_partition_definitions(sql, list(params), partitions)
 
     def format_partition_by_list(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY LIST (...)`` with optional definitions."""
@@ -212,7 +228,14 @@ class MariaDBPartitionMixin:
             raise UnsupportedFeatureError(self.name, "LIST partitioning")
         keys_sql, params = self._format_partition_key_list(expr.keys)
         sql = f" PARTITION BY LIST ({keys_sql})"
-        return self._append_partition_definitions(sql, list(params), getattr(expr, "partitions", []))
+        # Named definitions belong to the MariaDB clause node; the core
+        # clause carries none, so their presence is a class question.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+            MariaDBPartitionByList,
+        )
+
+        partitions = expr.partitions if isinstance(expr, MariaDBPartitionByList) else ()
+        return self._append_partition_definitions(sql, list(params), partitions)
 
     def format_partition_by_list_columns(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY LIST COLUMNS (...)`` with optional definitions."""
@@ -222,7 +245,16 @@ class MariaDBPartitionMixin:
             raise UnsupportedFeatureError(self.name, "LIST COLUMNS partitioning")
         keys_sql, params = self._format_partition_key_list(expr.keys)
         sql = f" PARTITION BY LIST COLUMNS ({keys_sql})"
-        return self._append_partition_definitions(sql, list(params), getattr(expr, "partitions", []))
+        # Named definitions belong to the MariaDB clause node; the core
+        # clause carries none, so their presence is a class question.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+            MariaDBPartitionByListColumns,
+        )
+
+        partitions = (
+            expr.partitions if isinstance(expr, MariaDBPartitionByListColumns) else ()
+        )
+        return self._append_partition_definitions(sql, list(params), partitions)
 
     def format_partition_by_hash(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY [LINEAR] HASH (...) [PARTITIONS n]``."""
@@ -236,7 +268,15 @@ class MariaDBPartitionMixin:
         keyword = "LINEAR HASH" if linear else "HASH"
         keys_sql, params = self._format_partition_key_list(expr.keys)
         sql = f" PARTITION BY {keyword} ({keys_sql})"
-        partitions_count = getattr(expr, "partitions_count", None)
+        # ``partitions_count`` belongs to the MariaDB clause node; the core
+        # clause has no count, so its presence is a class question.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+            MariaDBPartitionByHash,
+        )
+
+        partitions_count = (
+            expr.partitions_count if isinstance(expr, MariaDBPartitionByHash) else None
+        )
         if partitions_count is not None:
             if not isinstance(partitions_count, int) or partitions_count <= 0:
                 raise ValueError("partitions_count must be a positive integer")
@@ -255,7 +295,15 @@ class MariaDBPartitionMixin:
         keyword = "LINEAR KEY" if linear else "KEY"
         keys_sql, params = self._format_partition_key_list(expr.keys)
         sql = f" PARTITION BY {keyword} ({keys_sql})"
-        partitions_count = getattr(expr, "partitions_count", None)
+        # ``partitions_count`` belongs to the MariaDB clause node; the core
+        # clause has no count, so its presence is a class question.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+            MariaDBPartitionByKey,
+        )
+
+        partitions_count = (
+            expr.partitions_count if isinstance(expr, MariaDBPartitionByKey) else None
+        )
         if partitions_count is not None:
             if not isinstance(partitions_count, int) or partitions_count <= 0:
                 raise ValueError("partitions_count must be a positive integer")

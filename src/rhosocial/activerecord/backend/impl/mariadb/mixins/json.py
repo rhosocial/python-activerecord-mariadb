@@ -218,28 +218,42 @@ class MariaDBJSONMixin:
                 f"JSON_TABLE requires MariaDB {required} or later.",
             )
 
-        columns = list(getattr(expr, "columns", None) or [])
+        # Two declared contracts reach this formatter, told apart by their
+        # class rather than by probing: the MariaDB node carries ``json_doc``
+        # and ``nested_paths``, the core node ``json_column``. What a plain
+        # string means differs with the class (document literal versus
+        # column name) and is part of the same per-class contract.
+        from rhosocial.activerecord.backend.expression.query_sources import (
+            JSONTableExpression,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+            MariaDBJSONTableExpression,
+        )
+
+        if isinstance(expr, MariaDBJSONTableExpression):
+            columns = list(expr.columns)
+            doc_sql, params = self._json_document_sql(expr.json_doc)
+            nested_paths = expr.nested_paths
+        else:
+            if not isinstance(expr, JSONTableExpression):
+                raise TypeError(
+                    "format_json_table_expression takes a "
+                    "MariaDBJSONTableExpression or a JSONTableExpression, "
+                    f"got {type(expr).__name__}"
+                )
+            columns = list(expr.columns)
+            doc_sql, params = self._json_column_sql(expr.json_column)
+            nested_paths = []
         if not self._validate_data_type_name(columns):
             raise UnsupportedFeatureError(
                 self.name,
                 "JSON_TABLE column type",
                 "JSON_TABLE column type must be a plain SQL type name.",
             )
-
-        # The two nodes mean different things by a plain string:
-        #   MariaDB ``json_doc``  -> a JSON document literal
-        #   core    ``json_column`` -> the name of a column holding one
-        # An expression is used as-is in both cases.
-        if hasattr(expr, "json_doc"):
-            doc_sql, params = self._json_document_sql(expr.json_doc)
-        else:
-            doc_sql, params = self._json_column_sql(
-                getattr(expr, "json_column", None)
-            )
         path_sql = self._escape_sql_string(expr.path)
 
         column_defs = [self._format_json_table_column(col) for col in columns]
-        for nested in (getattr(expr, "nested_paths", None) or []):
+        for nested in nested_paths:
             nested_cols = ", ".join(
                 self._format_json_table_column(col) for col in nested.columns
             )

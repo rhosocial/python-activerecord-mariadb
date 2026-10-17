@@ -642,7 +642,6 @@ class MariaDBDialect(
             VarCharType,
         )
         from .expression.types import (
-            MariaDBUUIDType,
             MariaDBBinaryType,
             MariaDBVarBinaryType,
             MariaDBXmlType,
@@ -1270,44 +1269,44 @@ class MariaDBDialect(
         from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
 
         set_isolation = ""
-        if expr._isolation_level is not None:
+        if expr.isolation_level is not None:
             level_map = {
                 IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
                 IsolationLevel.READ_COMMITTED: "READ COMMITTED",
                 IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",
                 IsolationLevel.SERIALIZABLE: "SERIALIZABLE",
             }
-            level_name = level_map.get(expr._isolation_level)
+            level_name = level_map.get(expr.isolation_level)
             if level_name:
                 set_isolation = f"SET TRANSACTION ISOLATION LEVEL {level_name}; "
 
-        if expr._mode == TransactionMode.READ_ONLY:
+        if expr.mode == TransactionMode.READ_ONLY:
             begin_sql = "START TRANSACTION READ ONLY"
-        elif expr._mode == TransactionMode.READ_WRITE:
+        elif expr.mode == TransactionMode.READ_WRITE:
             begin_sql = "START TRANSACTION READ WRITE"
         else:
             begin_sql = "START TRANSACTION"
 
-        if expr._deferrable or expr._not_deferrable:
+        if expr.deferrable or expr.not_deferrable:
             if not self.supports_deferrable_transaction():
                 raise UnsupportedFeatureError(
                     self.name,
                     "TRANSACTION DEFERRABLE"
-                    if expr._deferrable
+                    if expr.deferrable
                     else "TRANSACTION NOT DEFERRABLE",
                     f"{self.name} does not support DEFERRABLE transactions.",
                 )
-            begin_sql += " DEFERRABLE" if expr._deferrable else " NOT DEFERRABLE"
+            begin_sql += " DEFERRABLE" if expr.deferrable else " NOT DEFERRABLE"
 
-        if expr._wait or expr._no_wait:
+        if expr.wait or expr.no_wait:
             if not self.supports_transaction_wait():
-                spelling = "WAIT" if expr._wait else "NO WAIT"
+                spelling = "WAIT" if expr.wait else "NO WAIT"
                 raise UnsupportedFeatureError(
                     self.name,
                     f"TRANSACTION {spelling}",
                     f"{self.name} does not support the {spelling} transaction clause.",
                 )
-            begin_sql += " WAIT" if expr._wait else " NO WAIT"
+            begin_sql += " WAIT" if expr.wait else " NO WAIT"
 
         return f"{set_isolation}{begin_sql}", ()
 
@@ -1322,43 +1321,43 @@ class MariaDBDialect(
 
         parts = ["SET TRANSACTION"]
 
-        if expr._isolation_level is not None:
+        if expr.isolation_level is not None:
             level_map = {
                 IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
                 IsolationLevel.READ_COMMITTED: "READ COMMITTED",
                 IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",
                 IsolationLevel.SERIALIZABLE: "SERIALIZABLE",
             }
-            level_name = level_map.get(expr._isolation_level)
+            level_name = level_map.get(expr.isolation_level)
             if level_name:
                 parts.append(f"ISOLATION LEVEL {level_name}")
 
-        if expr._mode is not None:
-            if expr._mode == TransactionMode.READ_ONLY:
+        if expr.mode is not None:
+            if expr.mode == TransactionMode.READ_ONLY:
                 parts.append("READ ONLY")
-            elif expr._mode == TransactionMode.READ_WRITE:
+            elif expr.mode == TransactionMode.READ_WRITE:
                 parts.append("READ WRITE")
 
-        if expr._deferrable or expr._not_deferrable:
+        if expr.deferrable or expr.not_deferrable:
             if not self.supports_deferrable_transaction():
                 raise UnsupportedFeatureError(
                     self.name,
                     "TRANSACTION DEFERRABLE"
-                    if expr._deferrable
+                    if expr.deferrable
                     else "TRANSACTION NOT DEFERRABLE",
                     f"{self.name} does not support DEFERRABLE transactions.",
                 )
-            parts.append("DEFERRABLE" if expr._deferrable else "NOT DEFERRABLE")
+            parts.append("DEFERRABLE" if expr.deferrable else "NOT DEFERRABLE")
 
-        if expr._wait or expr._no_wait:
+        if expr.wait or expr.no_wait:
             if not self.supports_transaction_wait():
-                spelling = "WAIT" if expr._wait else "NO WAIT"
+                spelling = "WAIT" if expr.wait else "NO WAIT"
                 raise UnsupportedFeatureError(
                     self.name,
                     f"TRANSACTION {spelling}",
                     f"{self.name} does not support the {spelling} transaction clause.",
                 )
-            parts.append("WAIT" if expr._wait else "NO WAIT")
+            parts.append("WAIT" if expr.wait else "NO WAIT")
 
         return " ".join(parts), ()
 

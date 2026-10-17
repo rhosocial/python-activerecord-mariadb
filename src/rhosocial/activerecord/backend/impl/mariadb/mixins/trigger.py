@@ -178,15 +178,15 @@ class MariaDBTriggerMixin:
 
         # Three objects, each with its own format_method, so each needs its kind
         # checked here: a Function where the table belongs renders as valid SQL
-        # over the function's name.
-        for attribute, kind in (
-            ("trigger", Trigger),
-            ("table", Table),
+        # over the function's name. The slots are the node's declared fields,
+        # read by name rather than probed for.
+        for name, value, kind in (
+            ("trigger", expr.trigger, Trigger),
+            ("table", expr.table, Table),
         ):
-            value = getattr(expr, attribute)
             if not isinstance(value, kind):
                 raise TypeError(
-                    f"CreateTriggerStatement.{attribute} must be a "
+                    f"CreateTriggerStatement.{name} must be a "
                     f"{kind.__name__}, got {type(value).__name__}"
                 )
         if expr.function is not None and not isinstance(expr.function, Function):
@@ -195,7 +195,13 @@ class MariaDBTriggerMixin:
                 f"got {type(expr.function).__name__}"
             )
 
-        timing = expr.timing.value if hasattr(expr.timing, 'value') else str(expr.timing)
+        # The timing / level / events slots take the core enum or its raw
+        # spelling; the enum branch is selected with isinstance, which is the
+        # same shape core's ``format_comment_on_statement`` normalises
+        # ``object_type`` with.
+        from enum import Enum
+
+        timing = expr.timing.value if isinstance(expr.timing, Enum) else expr.timing
 
         if timing == "INSTEAD OF" and not self.supports_instead_of_trigger():
             raise UnsupportedFeatureError(
@@ -204,12 +210,14 @@ class MariaDBTriggerMixin:
                 "INSTEAD OF triggers require MariaDB 10.4 or later."
             )
 
-        if expr.level and hasattr(expr.level, 'value') and expr.level.value == "FOR EACH STATEMENT":
-            raise UnsupportedFeatureError(
-                self.name,
-                "FOR EACH STATEMENT triggers",
-                "MariaDB only supports FOR EACH ROW triggers."
-            )
+        if expr.level:
+            level = expr.level.value if isinstance(expr.level, Enum) else expr.level
+            if level == "FOR EACH STATEMENT":
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "FOR EACH STATEMENT triggers",
+                    "MariaDB only supports FOR EACH ROW triggers."
+                )
 
         if expr.condition:
             raise UnsupportedFeatureError(
@@ -251,7 +259,11 @@ class MariaDBTriggerMixin:
         parts.append(timing)
 
         if expr.events:
-            parts.append(expr.events[0].value if hasattr(expr.events[0], 'value') else str(expr.events[0]))
+            parts.append(
+                expr.events[0].value
+                if isinstance(expr.events[0], Enum)
+                else expr.events[0]
+            )
 
         parts.append("ON")
         table_sql, _ = expr.table.to_sql()

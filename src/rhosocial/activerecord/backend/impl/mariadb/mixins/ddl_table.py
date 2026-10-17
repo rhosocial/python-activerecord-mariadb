@@ -122,7 +122,10 @@ class MariaDBTableMixin:
         all_params: List[Any] = []
 
         options_part = ""
-        table_options = getattr(expr, "table_options", None)
+        # ``table_options`` is a declared field of the core statement (the
+        # ``CreateTableOptions`` header modifiers), so it is read by name;
+        # ``None`` is its declared default, not a probe fallback.
+        table_options = expr.table_options
         if table_options is not None:
             options_sql, options_params = table_options.to_sql()
             if options_sql:
@@ -170,8 +173,11 @@ class MariaDBTableMixin:
         from rhosocial.activerecord.backend.impl.mariadb.expression.table_options import (
             MariaDBCreateTableOptions,
         )
-        table_options = getattr(expr, "table_options", None)
-        if table_options is not None and getattr(table_options, "comment", None) is not None:
+        # The second read is the same declared field as above: the comment is
+        # part of the generic ``CreateTableOptions`` contract, so both reads
+        # are by name rather than probes.
+        table_options = expr.table_options
+        if table_options is not None and table_options.comment is not None:
             comment_sql, _ = self.format_table_comment_clause(table_options.comment)
             parts.append(comment_sql.strip())
 

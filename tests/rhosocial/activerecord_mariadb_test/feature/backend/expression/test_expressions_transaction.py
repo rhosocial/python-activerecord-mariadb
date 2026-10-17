@@ -18,7 +18,7 @@ from rhosocial.activerecord.backend.expression.transaction import (
     SetTransactionExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
+from rhosocial.activerecord.backend.transaction import IsolationLevel
 
 
 class TestMariaDBBeginTransactionExpression:
@@ -34,12 +34,12 @@ class TestMariaDBBeginTransactionExpression:
     def test_begin_with_isolation_level_returns_only_start(self, mariadb_dialect):
         """Test that isolation level is set via SET TRANSACTION before START TRANSACTION."""
         expr = BeginTransactionStatement(mariadb_dialect)
-        expr.isolation_level(IsolationLevel.SERIALIZABLE)
+        expr.with_isolation_level(IsolationLevel.SERIALIZABLE)
         sql, params = expr.to_sql()
         assert "SET TRANSACTION ISOLATION LEVEL" in sql
         assert "START TRANSACTION" in sql
         assert params == ()
-        assert mariadb_dialect.supports_isolation_level_in_begin() == False
+        assert not mariadb_dialect.supports_isolation_level_in_begin()
 
     def test_begin_read_only(self, mariadb_dialect):
         """Test START TRANSACTION READ ONLY."""
@@ -58,7 +58,7 @@ class TestMariaDBBeginTransactionExpression:
     def test_begin_with_isolation_returns_start_transaction(self, mariadb_dialect, level):
         """Test that isolation level is set via SET TRANSACTION before START TRANSACTION."""
         expr = BeginTransactionStatement(mariadb_dialect)
-        expr.isolation_level(level)
+        expr.with_isolation_level(level)
         sql, params = expr.to_sql()
         assert "SET TRANSACTION ISOLATION LEVEL" in sql
         assert "START TRANSACTION" in sql
@@ -71,7 +71,7 @@ class TestMariaDBSetTransactionExpression:
     def test_set_isolation_level(self, mariadb_dialect):
         """Test SET TRANSACTION ISOLATION LEVEL."""
         expr = SetTransactionExpression(mariadb_dialect)
-        expr.isolation_level(IsolationLevel.SERIALIZABLE)
+        expr.with_isolation_level(IsolationLevel.SERIALIZABLE)
         sql, params = expr.to_sql()
         assert sql == "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
         assert params == ()
@@ -85,7 +85,7 @@ class TestMariaDBSetTransactionExpression:
     def test_all_isolation_levels(self, mariadb_dialect, level, expected_name):
         """Test all isolation levels in SET TRANSACTION."""
         expr = SetTransactionExpression(mariadb_dialect)
-        expr.isolation_level(level)
+        expr.with_isolation_level(level)
         sql, params = expr.to_sql()
         assert expected_name in sql
         assert params == ()
@@ -159,23 +159,23 @@ class TestMariaDBTransactionCapabilities:
 
     def test_supports_transaction_mode(self, mariadb_dialect):
         """Test MariaDB supports transaction mode."""
-        assert mariadb_dialect.supports_transaction_mode() == True
+        assert mariadb_dialect.supports_transaction_mode()
 
     def test_supports_isolation_level_in_begin(self, mariadb_dialect):
         """Test MariaDB does not support isolation level in BEGIN."""
-        assert mariadb_dialect.supports_isolation_level_in_begin() == False
+        assert not mariadb_dialect.supports_isolation_level_in_begin()
 
     def test_supports_read_only_transaction(self, mariadb_dialect):
         """Test MariaDB supports READ ONLY transactions."""
-        assert mariadb_dialect.supports_read_only_transaction() == True
+        assert mariadb_dialect.supports_read_only_transaction()
 
     def test_supports_deferrable_transaction(self, mariadb_dialect):
         """Test MariaDB does not support DEFERRABLE transactions."""
-        assert mariadb_dialect.supports_deferrable_transaction() == False
+        assert not mariadb_dialect.supports_deferrable_transaction()
 
     def test_supports_savepoint(self, mariadb_dialect):
         """Test MariaDB supports savepoints."""
-        assert mariadb_dialect.supports_savepoint() == True
+        assert mariadb_dialect.supports_savepoint()
 
 
 class TestMariaDBDeferrableIsConsumed:
