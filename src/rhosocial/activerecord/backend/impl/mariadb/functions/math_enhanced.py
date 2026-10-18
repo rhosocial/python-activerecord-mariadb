@@ -18,6 +18,20 @@ right in both directions -- a column named ``3.7`` was unreachable, and
 from typing import TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression import bases, core
+from rhosocial.activerecord.backend.expression.functions.aggregate import (
+    AvgFunction,
+    MaxFunction,
+    MinFunction,
+)
+from rhosocial.activerecord.backend.expression.functions.math import (
+    CeilFunction,
+    FloorFunction,
+    ModuloFunction,
+    PowerFunction,
+    RoundFunction,
+    SquareRootFunction,
+    TruncateFunction,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -27,13 +41,13 @@ def round_(
     dialect: "SQLDialectBase",
     expr: "bases.BaseExpression",
     precision: int = 0,
-) -> "core.FunctionCall":
-    """Creates a ROUND function call.
+) -> RoundFunction:
+    """Creates a ROUND function node.
 
     Rounds a numeric value to the specified number of decimal places.
 
     Usage:
-        - round_(dialect, Column(dialect, "price")) -> ROUND("price")
+        - round_(dialect, Column(dialect, "price")) -> ROUND("price", 0)
         - round_(dialect, Column(dialect, "price"), 2) -> ROUND("price", 2)
 
     Args:
@@ -42,26 +56,29 @@ def round_(
         precision: Number of decimal places (default 0)
 
     Returns:
-        A FunctionCall instance representing the ROUND function
+        A RoundFunction node; the class writes the ROUND spelling and
+        normalises the bare ``precision`` int into an integer value node.
 
     Version: All MariaDB versions
     """
-    precision_expr = core.Literal(dialect, precision)
-    return core.FunctionCall(dialect, "ROUND", expr, precision_expr)
+    return RoundFunction(dialect, expr, precision)
 
 
 def pow(
     dialect: "SQLDialectBase",
     base: "bases.BaseExpression",
     exponent: "bases.BaseExpression",
-) -> "core.FunctionCall":
-    """Creates a POW function call.
+) -> PowerFunction:
+    """Creates a POWER function node.
 
-    Returns the value of base raised to the power of exponent.
+    Returns the value of base raised to the power of exponent. The node's
+    class writes the ``POWER`` spelling; MariaDB accepts ``POW`` as a
+    synonym of it, so this factory and :func:`power` now answer with the
+    one standard node instead of two spellings of the same call.
 
     Usage:
-        - pow(dialect, Literal(dialect, 2), Literal(dialect, 3)) -> POW(2, 3)
-        - pow(dialect, Column(dialect, "x"), Literal(dialect, 2)) -> POW("x", 2)
+        - pow(dialect, Literal(dialect, 2), Literal(dialect, 3)) -> POWER(2, 3)
+        - pow(dialect, Column(dialect, "x"), Literal(dialect, 2)) -> POWER("x", 2)
 
     Args:
         dialect: The SQL dialect instance
@@ -69,21 +86,23 @@ def pow(
         exponent: The exponent expression
 
     Returns:
-        A FunctionCall instance representing the POW function
+        A PowerFunction node.
 
     Version: All MariaDB versions
     """
-    return core.FunctionCall(dialect, "POW", base, exponent)
+    return PowerFunction(dialect, base, exponent)
 
 
 def power(
     dialect: "SQLDialectBase",
     base: "bases.BaseExpression",
     exponent: "bases.BaseExpression",
-) -> "core.FunctionCall":
-    """Creates a POWER function call (alias for POW).
+) -> PowerFunction:
+    """Creates a POWER function node.
 
-    Returns the value of base raised to the power of exponent.
+    Returns the value of base raised to the power of exponent. The same
+    standard node as :func:`pow`; MariaDB spells the synonym ``POW`` and
+    this backend renders the class's ``POWER``.
 
     Usage:
         - power(dialect, Literal(dialect, 2), Literal(dialect, 3)) -> POWER(2, 3)
@@ -95,18 +114,18 @@ def power(
         exponent: The exponent expression
 
     Returns:
-        A FunctionCall instance representing the POWER function
+        A PowerFunction node.
 
     Version: All MariaDB versions
     """
-    return core.FunctionCall(dialect, "POWER", base, exponent)
+    return PowerFunction(dialect, base, exponent)
 
 
 def sqrt(
     dialect: "SQLDialectBase",
     expr: "bases.BaseExpression",
-) -> "core.FunctionCall":
-    """Creates a SQRT function call.
+) -> SquareRootFunction:
+    """Creates a SQRT function node.
 
     Returns the square root of the argument.
 
@@ -119,19 +138,19 @@ def sqrt(
         expr: The numeric expression
 
     Returns:
-        A FunctionCall instance representing the SQRT function
+        A SquareRootFunction node.
 
     Version: All MariaDB versions
     """
-    return core.FunctionCall(dialect, "SQRT", expr)
+    return SquareRootFunction(dialect, expr)
 
 
 def mod(
     dialect: "SQLDialectBase",
     dividend: "bases.BaseExpression",
     divisor: "bases.BaseExpression",
-) -> "core.FunctionCall":
-    """Creates a MOD function call.
+) -> ModuloFunction:
+    """Creates a MOD function node.
 
     Returns the remainder of dividend divided by divisor.
 
@@ -145,18 +164,18 @@ def mod(
         divisor: The divisor expression
 
     Returns:
-        A FunctionCall instance representing the MOD function
+        A ModuloFunction node.
 
     Version: All MariaDB versions
     """
-    return core.FunctionCall(dialect, "MOD", dividend, divisor)
+    return ModuloFunction(dialect, dividend, divisor)
 
 
 def ceil(
     dialect: "SQLDialectBase",
     expr: "bases.BaseExpression",
-) -> "core.FunctionCall":
-    """Creates a CEIL function call.
+) -> CeilFunction:
+    """Creates a CEIL function node.
 
     Returns the smallest integer value not less than the argument.
 
@@ -169,18 +188,18 @@ def ceil(
         expr: The numeric expression
 
     Returns:
-        A FunctionCall instance representing the CEIL function
+        A CeilFunction node.
 
     Version: All MariaDB versions (CEILING is also available as alias)
     """
-    return core.FunctionCall(dialect, "CEIL", expr)
+    return CeilFunction(dialect, expr)
 
 
 def floor(
     dialect: "SQLDialectBase",
     expr: "bases.BaseExpression",
-) -> "core.FunctionCall":
-    """Creates a FLOOR function call.
+) -> FloorFunction:
+    """Creates a FLOOR function node.
 
     Returns the largest integer value not greater than the argument.
 
@@ -193,19 +212,19 @@ def floor(
         expr: The numeric expression
 
     Returns:
-        A FunctionCall instance representing the FLOOR function
+        A FloorFunction node.
 
     Version: All MariaDB versions
     """
-    return core.FunctionCall(dialect, "FLOOR", expr)
+    return FloorFunction(dialect, expr)
 
 
 def trunc(
     dialect: "SQLDialectBase",
     expr: "bases.BaseExpression",
     precision: int = 0,
-) -> "core.FunctionCall":
-    """Creates a TRUNCATE function call.
+) -> TruncateFunction:
+    """Creates a TRUNCATE function node.
 
     Returns the value truncated to the specified number of decimal places.
 
@@ -215,7 +234,8 @@ def trunc(
         - trunc(dialect, Column(dialect, "price"), 2) -> TRUNCATE("price", 2)
 
     Note:
-        MariaDB uses TRUNCATE, not TRUNC (which is used by some other databases).
+        MariaDB uses TRUNCATE, not TRUNC (which is used by some other
+        databases), and the classed node carries that spelling.
 
     Args:
         dialect: The SQL dialect instance
@@ -223,18 +243,18 @@ def trunc(
         precision: Number of decimal places (default 0)
 
     Returns:
-        A FunctionCall instance representing the TRUNCATE function
+        A TruncateFunction node; the bare ``precision`` int is normalised
+        into an integer value node by the class.
 
     Version: All MariaDB versions
     """
-    precision_expr = core.Literal(dialect, precision)
-    return core.FunctionCall(dialect, "TRUNCATE", expr, precision_expr)
+    return TruncateFunction(dialect, expr, precision)
 
 
 def max_(
     dialect: "SQLDialectBase",
     *args: "bases.BaseExpression",
-) -> "core.FunctionCall":
+) -> "bases.BaseExpression":
     """Creates a GREATEST or MAX function call.
 
     Returns the maximum value from the arguments.
@@ -247,24 +267,29 @@ def max_(
         When called with a single argument, uses MAX (aggregate).
         When called with multiple arguments, uses GREATEST (scalar).
 
+        Only the aggregate half is a classed node: MAX is a standard
+        function, so it is a ``MaxFunction``. GREATEST is a MariaDB scalar
+        with no standard node of its own and stays on the generic call --
+        the escape hatch.
+
     Args:
         dialect: The SQL dialect instance
         *args: The expressions to compare
 
     Returns:
-        A FunctionCall instance representing GREATEST or MAX
+        A MaxFunction node for one argument, a FunctionCall for GREATEST.
 
     Version: All MariaDB versions
     """
     if len(args) == 1:
-        return core.FunctionCall(dialect, "MAX", args[0])
+        return MaxFunction(dialect, args[0])
     return core.FunctionCall(dialect, "GREATEST", *args)
 
 
 def min_(
     dialect: "SQLDialectBase",
     *args: "bases.BaseExpression",
-) -> "core.FunctionCall":
+) -> "bases.BaseExpression":
     """Creates a LEAST or MIN function call.
 
     Returns the minimum value from the arguments.
@@ -277,25 +302,30 @@ def min_(
         When called with a single argument, uses MIN (aggregate).
         When called with multiple arguments, uses LEAST (scalar).
 
+        Only the aggregate half is a classed node: MIN is a standard
+        function, so it is a ``MinFunction``. LEAST is a MariaDB scalar
+        with no standard node of its own and stays on the generic call --
+        the escape hatch.
+
     Args:
         dialect: The SQL dialect instance
         *args: The expressions to compare
 
     Returns:
-        A FunctionCall instance representing LEAST or MIN
+        A MinFunction node for one argument, a FunctionCall for LEAST.
 
     Version: All MariaDB versions
     """
     if len(args) == 1:
-        return core.FunctionCall(dialect, "MIN", args[0])
+        return MinFunction(dialect, args[0])
     return core.FunctionCall(dialect, "LEAST", *args)
 
 
 def avg(
     dialect: "SQLDialectBase",
     expr: "bases.BaseExpression",
-) -> "core.FunctionCall":
-    """Creates an AVG function call.
+) -> AvgFunction:
+    """Creates an AVG function node.
 
     Returns the average value of the argument.
 
@@ -307,11 +337,11 @@ def avg(
         expr: The numeric expression
 
     Returns:
-        A FunctionCall instance representing the AVG function
+        An AvgFunction node.
 
     Version: All MariaDB versions
     """
-    return core.FunctionCall(dialect, "AVG", expr)
+    return AvgFunction(dialect, expr)
 
 
 __all__ = [

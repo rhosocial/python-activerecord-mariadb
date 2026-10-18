@@ -48,11 +48,16 @@ class TestMySQLMathEnhancedFunctions:
         assert "ROUND(" in sql
 
     def test_pow(self, mariadb_dialect: MariaDBDialect):
-        """Test pow() function."""
+        """Test pow() function.
+
+        The power concept has one standard node and it writes the POWER
+        spelling; MariaDB accepts POW as a synonym, so the factory and
+        power() answer with the same class.
+        """
         result = pow(mariadb_dialect, Column(mariadb_dialect, "base"),
                      Literal(mariadb_dialect, 2))
         sql, _ = result.to_sql()
-        assert "POW(" in sql
+        assert "POWER(" in sql
 
     def test_pow_both_columns(self, mariadb_dialect: MariaDBDialect):
         """Test pow() with both column references."""
@@ -62,10 +67,10 @@ class TestMySQLMathEnhancedFunctions:
             Column(mariadb_dialect, "y")
         )
         sql, _ = result.to_sql()
-        assert "POW(" in sql
+        assert "POWER(" in sql
 
     def test_power(self, mariadb_dialect: MariaDBDialect):
-        """Test power() function (alias for POW)."""
+        """Test power() function (the same standard node as pow())."""
         result = power(mariadb_dialect, Literal(mariadb_dialect, 2),
                        Literal(mariadb_dialect, 3))
         sql, _ = result.to_sql()
@@ -240,11 +245,15 @@ class TestMySQLMathEnhancedFunctions:
         assert "ROUND(`3.7`, %s)" == sql
 
     def test_pow_with_integer_exponent(self, mariadb_dialect: MariaDBDialect):
-        """Test pow() with an integer exponent."""
+        """Test pow() with an integer exponent.
+
+        The class writes POWER (POW is MariaDB's synonym of it), and the
+        exponent binds like every data-position value.
+        """
         result = pow(mariadb_dialect, Column(mariadb_dialect, "base"),
                      Literal(mariadb_dialect, 2))
         sql, params = result.to_sql()
-        assert "POW(`base`, %s)" == sql
+        assert "POWER(`base`, %s)" == sql
         assert params == (2,)
 
     def test_sqrt_with_column_named_sixteen(self, mariadb_dialect: MariaDBDialect):

@@ -1,6 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/function.py
 """MariaDB SQL function support mixin."""
-from typing import Dict
+from typing import Dict, Tuple
 
 
 class MariaDBFunctionMixin:
@@ -143,6 +143,22 @@ class MariaDBFunctionMixin:
             return False
 
         return True
+
+    def format_char_length_function(self, expr) -> Tuple[str, tuple]:
+        """Render the character length as ``CHAR_LENGTH(operand)``.
+
+        The base spells this ``LENGTH``, and on MariaDB that answers a
+        different question: measured on 13.1.1 (192.168.1.3:15694),
+        ``LENGTH('héllo')`` is 6 -- the byte count, é being two bytes --
+        while ``CHAR_LENGTH('héllo')`` is 5, the characters. The node's
+        ``unit`` records the semantics the caller asked for and the core
+        leaves the spelling to the backend, so the entry point is
+        overridden rather than letting the standard spelling quietly count
+        bytes where characters were meant. ``expr.unit`` is still not
+        rendered: the unit is a semantic the node declares, and
+        ``CHAR_LENGTH`` is this backend's one spelling for it.
+        """
+        return self._format_scalar_function("CHAR_LENGTH", expr)
 
 
 __all__ = ['MariaDBFunctionMixin']
