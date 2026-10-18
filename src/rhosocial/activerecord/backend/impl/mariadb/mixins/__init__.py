@@ -90,6 +90,7 @@ from .generated_column import MariaDBGeneratedColumnMixin
 from .function import MariaDBFunctionMixin
 from .namespace import MariaDBNamespaceMixin
 from .column_type import MariaDBColumnTypeMixin
+from .typed_value import MariaDBTypedValueMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
@@ -145,4 +146,5 @@ __all__ = [
     'MariaDBFunctionMixin',
     'MariaDBNamespaceMixin',
     'MariaDBColumnTypeMixin',
+    'MariaDBTypedValueMixin',
 ]

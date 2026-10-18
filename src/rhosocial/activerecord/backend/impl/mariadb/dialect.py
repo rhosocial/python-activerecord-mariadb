@@ -120,6 +120,11 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     RepeatMixin,
     RpadMixin,
     TrimMixin,
+    # Value literals: the base tier-1 rendering plus the tier-2 methods a
+    # backend must implement. MariaDB's own spellings come from
+    # MariaDBTypedValueMixin (imported with the local mixins), which the
+    # dialect composes ahead of this one.
+    TypedValueMixin,
     # Naming. Each of these is core's default renderer for one kind of
     # object, placed ahead of NamespaceMixin so that C3 keeps the per-kind
     # formatter in front of the shared namespace prefix. MariaDB's spelling
@@ -189,6 +194,7 @@ from .mixins import (
     MariaDBFunctionMixin,
     MariaDBNamespaceMixin,
     MariaDBColumnTypeMixin,
+    MariaDBTypedValueMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -347,6 +353,12 @@ class MariaDBDialect(
     IntrospectionMixin,
     PredicateMixin,
     ExpressionMixin,
+    # Value literals: MariaDB's spellings ahead of the base's tier-1
+    # rendering. This order is what resolves format_binary_value and
+    # format_uuid_value (INTERVAL is deliberately absent -- see
+    # mixins/typed_value.py for the measured refusals behind that).
+    MariaDBTypedValueMixin,
+    TypedValueMixin,
     DateTimeMixin,
     DQLMixin,
     DMLMixin,
