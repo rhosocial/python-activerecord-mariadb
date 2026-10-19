@@ -27,8 +27,15 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class TableMaintenanceOperation(Enum):
-    """Table maintenance operation for MariaDB."""
+class TableMaintenanceOperation(str, Enum):
+    """Table maintenance operation for MariaDB.
+
+    A closed set, so it takes an enum with a ``str`` base and ``__str__``
+    pinned to ``str.__str__``: the member is the word it carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     ANALYZE = "ANALYZE"
     CHECK = "CHECK"

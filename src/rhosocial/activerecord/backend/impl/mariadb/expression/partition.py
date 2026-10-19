@@ -28,8 +28,15 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import MariaDBDialect
 
 
-class MariaDBPartitionStrategy(Enum):
-    """MariaDB table partitioning strategies supported by MariaDBPartitionMixin."""
+class MariaDBPartitionStrategy(str, Enum):
+    """MariaDB table partitioning strategies supported by MariaDBPartitionMixin.
+
+    A closed set, so it takes an enum with a ``str`` base and ``__str__``
+    pinned to ``str.__str__``: the member is the word it carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     RANGE = "RANGE"
     RANGE_COLUMNS = "RANGE COLUMNS"
@@ -41,12 +48,17 @@ class MariaDBPartitionStrategy(Enum):
     LINEAR_KEY = "LINEAR KEY"
 
 
-class MariaDBSubpartitionStrategy(Enum):
+class MariaDBSubpartitionStrategy(str, Enum):
     """MariaDB subpartitioning strategies.
 
     MariaDB restricts subpartitioning to HASH and KEY (and their LINEAR
     variants) only. RANGE and LIST cannot be used for subpartitioning.
+
+    The same closed-set spelling as :class:`MariaDBPartitionStrategy`.
     """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     HASH = "HASH"
     KEY = "KEY"

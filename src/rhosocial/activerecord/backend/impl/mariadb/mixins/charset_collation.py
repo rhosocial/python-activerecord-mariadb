@@ -24,8 +24,15 @@ __all__ = [
 ]
 
 
-class MariaDBCharset(Enum):
-    """MariaDB character sets for table/column ``CHARACTER SET``."""
+class MariaDBCharset(str, Enum):
+    """MariaDB character sets for table/column ``CHARACTER SET``.
+
+    A closed set, so it takes an enum with a ``str`` base and ``__str__``
+    pinned to ``str.__str__``: the member is the word it carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     ARMSCII8 = "armscii8"
     ASCII = "ascii"
@@ -80,8 +87,14 @@ class MariaDBCharset(Enum):
     UTF32 = "utf32"
 
 
-class MariaDBStorageEngine(Enum):
-    """Built-in MariaDB storage engines for ``ENGINE=<name>``."""
+class MariaDBStorageEngine(str, Enum):
+    """Built-in MariaDB storage engines for ``ENGINE=<name>``.
+
+    The same closed-set spelling as :class:`MariaDBCharset`.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     INNODB = "InnoDB"
     MYISAM = "MyISAM"
@@ -97,8 +110,14 @@ class MariaDBStorageEngine(Enum):
     PERFORMANCE_SCHEMA = "PERFORMANCE_SCHEMA"
 
 
-class MariaDBCollation(Enum):
-    """Common MariaDB collations for expression-level COLLATE."""
+class MariaDBCollation(str, Enum):
+    """Common MariaDB collations for expression-level COLLATE.
+
+    The same closed-set spelling as :class:`MariaDBCharset`.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     BINARY = "binary"
     LATIN1_SWEDISH_CI = "latin1_swedish_ci"

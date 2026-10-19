@@ -28,8 +28,15 @@ __all__ = [
 ]
 
 
-class MariaDBRowFormat(Enum):
-    """MariaDB ``ROW_FORMAT`` table option values."""
+class MariaDBRowFormat(str, Enum):
+    """MariaDB ``ROW_FORMAT`` table option values.
+
+    A closed set, so it takes an enum with a ``str`` base and ``__str__``
+    pinned to ``str.__str__``: the member is the word it carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     DEFAULT = "DEFAULT"
     DYNAMIC = "DYNAMIC"

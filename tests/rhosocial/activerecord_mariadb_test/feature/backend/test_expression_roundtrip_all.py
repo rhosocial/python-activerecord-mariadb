@@ -1399,10 +1399,14 @@ LEGITIMATE_NON_RENDERS = {
 # member's name and the normaliser refuses it. Only that channel fails; the
 # dict channel carries the member untouched and JSON carries its value.
 #
-# None of these can be fixed from a backend repository: the writer, the
-# reader and the constructors are all core's. Each row is therefore pinned
-# exactly -- the channel(s) that fail and the exception or mismatch they
-# fail with -- so that the day core fixes one, ``test_pinned_serialization_\
+# The writer and the reader are core's, so a row in the first block cannot be
+# fixed from a backend repository. The normalisation rows name whichever
+# constructor declines to convert the word back -- core's for the classes above,
+# and this backend's own for the one MariaDB row, which is pinned here rather
+# than changed there because its node's read contract is a decision of its own.
+# Each row is pinned exactly -- the channel(s) that fail and the exception or
+# mismatch they fail with -- so that the day the owning side fixes one,
+# ``test_pinned_serialization_\
 # gap_really_fails`` reports the row as stale and the row is deleted. A class
 # that starts failing *without* a row fails its per-class assertion instead.
 #
@@ -1450,10 +1454,6 @@ SERIALIZATION_GAP = {
         ("dict", "json", "xml"),
         (TypeError, "XMLForestItem is not one of the value kinds"),
     ),
-    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBKillExpression": (
-        ("dict", "json", "xml"),
-        (TypeError, "KillTarget is not one of the value kinds"),
-    ),
     "rhosocial.activerecord.backend.impl.mariadb.expression.load_data.MariaDBLoadDataExpression": (
         ("dict", "json", "xml"),
         (TypeError, "LoadDataOptions is not one of the value kinds"),
@@ -1493,6 +1493,17 @@ SERIALIZATION_GAP = {
     "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": (
         ("json", "xml"),
         "type mismatch str vs XMLSerializeDocumentType",
+    ),
+    # This backend's own ``KillTarget`` takes the org's enum spelling -- a
+    # ``str`` base with ``__str__`` pinned -- so the member *is* a string and
+    # the writer carries it as ``string_value`` instead of refusing it by name.
+    # The word survives the JSON and XML payloads and the node's constructor
+    # does not normalise it back into a member, so the parameter comes back
+    # as the ``str`` the wire carried. The dict channel hands the member
+    # through untouched and still round-trips.
+    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBKillExpression": (
+        ("json", "xml"),
+        "type mismatch str vs KillTarget",
     ),
     # ---- the XML channel spells a str-enum member as str(member) -----------
     # ``DateTimeField`` and ``IntervalUnit`` are str-enums, so JSON writes the

@@ -22,8 +22,17 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class FlushOption(Enum):
-    """FLUSH statement options."""
+class FlushOption(str, Enum):
+    """FLUSH statement options.
+
+    A ``str`` base with ``__str__`` pinned to ``str.__str__`` so the member
+    spells itself as its own word: an enum whose ``str()`` is the repr-shaped
+    spelling writes ``FlushOption.TABLES`` into anything that stringifies it,
+    and only the ``str`` base makes the member the scalar an artifact carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     TABLES = "TABLES"
     TABLES_WITH_READ_LOCK = "TABLES WITH READ LOCK"
@@ -46,8 +55,16 @@ class FlushOption(Enum):
     SLAVE = "SLAVE"
 
 
-class KillTarget(Enum):
-    """KILL target selector."""
+class KillTarget(str, Enum):
+    """KILL target selector.
+
+    The closed set takes an enum with a ``str`` base and ``__str__`` pinned to
+    ``str.__str__``, so the member is the word an artifact carries and no
+    formatting site has to unwrap it.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     CONNECTION = "CONNECTION"
     QUERY = "QUERY"
