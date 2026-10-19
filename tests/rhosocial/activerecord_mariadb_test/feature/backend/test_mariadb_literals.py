@@ -1,32 +1,32 @@
-# tests/rhosocial/activerecord_mariadb_test/feature/backend/test_mariadb_typed_values.py
-"""MariaDB's spellings for the typed value nodes.
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/test_mariadb_literals.py
+"""MariaDB's spellings for the value kinds a literal can carry.
 
-Every overridden kind is asserted in both positions the class-level
-``inline_params`` strategy distinguishes:
+One node carries every value; ``Literal.inline`` decides whether the value
+binds behind a placeholder (the data position) or is written as SQL text
+through the dialect's literal construction (the DDL syntax position), and
+MariaDB's own spellings live in one place: the tier-2 branches of
+``format_literal`` (impl/mariadb/mixins/literal.py).
 
-* **data position** (the plain node, ``inline_params = False``): the
-  placeholder plus the host value -- the driver binds ``bytes`` and the
-  canonical forms natively;
-* **DDL syntax position** (the class that owns the position declares
-  ``inline_params = True``, exactly as core's ``DdlLiteral`` does for
-  ``Literal``): the exact inline literal text.
+* binary -- ``X'0102FF'``, measured on 13.1.1 (192.168.1.3:15694): the
+  SELECT returns the bytes and a ``VARBINARY(16)`` / ``TINYBLOB DEFAULT``
+  fills the column with them.
+* UUID -- the bare quoted canonical text; ``CHAR(36)`` and the native
+  ``UUID`` column type (10.7+) accept it identically, and the ``0x`` form
+  is a binary literal, measured to come back as bytes.
+* INTERVAL -- no branch on purpose: ``SELECT INTERVAL 1 DAY`` is errno
+  1064 and an ``INTERVAL DEFAULT`` is errno 4161 'Unknown data type'
+  (measured on 13.1.1), so the base's explicit refusal is the answer.
 
-INTERVAL has no literal form on MariaDB, so its DDL position must fail
-explicitly with the base's :class:`NotImplementedError` -- that refusal
-is the documented answer, not a missing feature of this test.
-
-The tier-1 audit (NULL / booleans / numbers / strings / date-times) is
-kept as render assertions: MariaDB agrees with the base spellings, so
-none of them is overridden, and these assertions pin that agreement.
+The tier-1 audit (NULL / booleans / numbers / strings / dates / times /
+datetimes) is kept as render assertions: MariaDB agrees with the base
+spellings, so none of them is overridden.
 
 The live cases confirm the DDL spellings against the first configured
-server (``mariadb_131rc``, 13.1.1 at 192.168.1.3:15694): a ``DEFAULT``
-carrying the literal is created, a row is inserted without the column,
-and the column is read back. Measured evidence for the refusals the
-docstrings cite lives in ``impl/mariadb/mixins/typed_value.py``.
+server (``mariadb_131rc``): a ``DEFAULT`` carrying the literal is created,
+a row is inserted without the column, and the column is read back.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
@@ -36,103 +36,46 @@ from rhosocial.activerecord.backend.expression import (
     ColumnDefinition,
     CreateTableStatement,
     DropTableStatement,
+    Literal,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
     VarCharType,
 )
-from rhosocial.activerecord.backend.expression.values import (
-    BinaryValue,
-    BooleanValue,
-    DateValue,
-    IntegerValue,
-    IntervalValue,
-    StringValue,
-    UUIDValue,
-)
 from rhosocial.activerecord.backend.impl.mariadb.types import MariaDBVarBinaryType
 
-# ---------------------------------------------------------------------------
-# DDL-position carriers
-#
-# Whether a value inlines is a decision of its class (spec 4.4), so the DDL
-# position is exercised through a subclass that declares the inline strategy
-# -- the same relationship ``DdlLiteral`` has to ``Literal`` in core. No
-# instance flag is flipped anywhere.
-# ---------------------------------------------------------------------------
 
-
-class _DdlBinaryValue(BinaryValue):
-    """A binary value at a DDL syntax position."""
-
-    inline_params = True
-
-
-class _DdlUUIDValue(UUIDValue):
-    """A UUID value at a DDL syntax position."""
-
-    inline_params = True
-
-
-class _DdlIntervalValue(IntervalValue):
-    """An interval value at a DDL syntax position (none exists here)."""
-
-    inline_params = True
-
-
-class _DdlBooleanValue(BooleanValue):
-    """A boolean value at a DDL syntax position."""
-
-    inline_params = True
-
-
-class _DdlIntegerValue(IntegerValue):
-    """An integer value at a DDL syntax position."""
-
-    inline_params = True
-
-
-class _DdlStringValue(StringValue):
-    """A string value at a DDL syntax position."""
-
-    inline_params = True
-
-
-class _DdlDateValue(DateValue):
-    """A date value at a DDL syntax position."""
-
-    inline_params = True
-
-
-class TestMariaDBBinaryValueSpelling:
+class TestMariaDBBinarySpelling:
     """``X'0102FF'`` -- the x-quoted upper-case hex form."""
 
     def test_data_position_binds_host_bytes(self, mariadb_dialect):
-        expr = BinaryValue(mariadb_dialect, b"\x01\x02\xff")
+        expr = Literal(mariadb_dialect, b"\x01\x02\xff")
         assert expr.to_sql() == ("%s", (b"\x01\x02\xff",))
 
     def test_ddl_position_renders_x_hex(self, mariadb_dialect):
-        expr = _DdlBinaryValue(mariadb_dialect, b"\x01\x02\xff")
+        expr = Literal(mariadb_dialect, b"\x01\x02\xff", inline=True)
         assert expr.to_sql() == ("X'0102FF'", ())
 
 
-class TestMariaDBUUIDValueSpelling:
+class TestMariaDBUUIDSpelling:
     """The bare quoted canonical text -- MariaDB's only UUID literal form."""
 
     CANONICAL = "550e8400-e29b-41d4-a716-446655440000"
 
     def test_data_position_binds_host_uuid(self, mariadb_dialect):
         host = uuid.UUID(self.CANONICAL)
-        expr = UUIDValue(mariadb_dialect, host)
+        expr = Literal(mariadb_dialect, host)
         assert expr.to_sql() == ("%s", (host,))
 
     def test_ddl_position_renders_quoted_text(self, mariadb_dialect):
-        expr = _DdlUUIDValue(mariadb_dialect, uuid.UUID(self.CANONICAL))
+        expr = Literal(
+            mariadb_dialect, uuid.UUID(self.CANONICAL), inline=True
+        )
         assert expr.to_sql() == (f"'{self.CANONICAL}'", ())
 
 
-class TestMariaDBIntervalValueHasNoLiteral:
+class TestMariaDBIntervalHasNoLiteral:
     """INTERVAL is a keyword-parameter of date arithmetic, not a value.
 
     ``SELECT INTERVAL 1 DAY`` is errno 1064 and an ``INTERVAL DEFAULT`` is
@@ -141,15 +84,18 @@ class TestMariaDBIntervalValueHasNoLiteral:
     """
 
     def test_data_position_binds_host_timedelta(self, mariadb_dialect):
-        expr = IntervalValue(mariadb_dialect, timedelta(days=1))
+        from datetime import timedelta
+
+        expr = Literal(mariadb_dialect, timedelta(days=1))
         assert expr.to_sql() == ("%s", (timedelta(days=1),))
 
     def test_ddl_position_refuses_explicitly(self, mariadb_dialect):
-        expr = _DdlIntervalValue(mariadb_dialect, timedelta(days=1))
-        with pytest.raises(NotImplementedError) as raised:
+        from datetime import timedelta
+
+        expr = Literal(mariadb_dialect, timedelta(days=1), inline=True)
+        with pytest.raises(TypeError) as raised:
             expr.to_sql()
-        assert "does not implement INTERVAL literals" in str(raised.value)
-        assert "format_interval_value" in str(raised.value)
+        assert "no inline SQL literal form" in str(raised.value)
 
 
 class TestTier1AuditAgreesWithBase:
@@ -161,18 +107,23 @@ class TestTier1AuditAgreesWithBase:
     """
 
     def test_boolean_spells_true_false(self, mariadb_dialect):
-        assert _DdlBooleanValue(mariadb_dialect, True).to_sql() == ("TRUE", ())
-        assert _DdlBooleanValue(mariadb_dialect, False).to_sql() == ("FALSE", ())
+        assert Literal(mariadb_dialect, True, inline=True).to_sql() == ("TRUE", ())
+        assert Literal(mariadb_dialect, False, inline=True).to_sql() == ("FALSE", ())
 
     def test_integer_spells_numeric_text(self, mariadb_dialect):
-        assert _DdlIntegerValue(mariadb_dialect, 42).to_sql() == ("42", ())
+        assert Literal(mariadb_dialect, 42, inline=True).to_sql() == ("42", ())
+
+    def test_float_spells_repr(self, mariadb_dialect):
+        assert Literal(mariadb_dialect, 1.5, inline=True).to_sql() == ("1.5", ())
 
     def test_string_spells_quoted_doubled_quotes(self, mariadb_dialect):
-        assert _DdlStringValue(mariadb_dialect, "x'y").to_sql() == ("'x''y'", ())
+        assert (
+            Literal(mariadb_dialect, "x'y", inline=True).to_sql() == ("'x''y'", ())
+        )
 
     def test_date_spells_quoted_iso(self, mariadb_dialect):
         assert (
-            _DdlDateValue(mariadb_dialect, date(2026, 10, 17)).to_sql()
+            Literal(mariadb_dialect, date(2026, 10, 17), inline=True).to_sql()
             == ("'2026-10-17'", ())
         )
 
@@ -203,13 +154,13 @@ class TestLiveDefaultRoundTrip:
 
         backend = mariadb_backend_single
         dialect = backend.dialect
-        table = Table(dialect, "typed_values_probe_bin")
+        table = Table(dialect, "literal_probe_bin")
         columns = [
             ColumnDefinition(dialect, "id", BigIntType(dialect), constraints=[
                 ColumnConstraint(
                     dialect,
                     branch=ColumnDefaultConstraint(
-                        dialect, _DdlIntegerValue(dialect, 1)
+                        dialect, Literal(dialect, 1, inline=True)
                     ),
                 )
             ]),
@@ -222,7 +173,7 @@ class TestLiveDefaultRoundTrip:
                         dialect,
                         branch=ColumnDefaultConstraint(
                             dialect,
-                            _DdlBinaryValue(dialect, b"\x01\x02\xff"),
+                            Literal(dialect, b"\x01\x02\xff", inline=True),
                         ),
                     )
                 ],
@@ -234,13 +185,11 @@ class TestLiveDefaultRoundTrip:
         # right for a pure accept/refuse verdict but not for a round trip:
         # the table has to outlive the CREATE, so the drop is ours to run.
         try:
-            outcome = confirm_expression_execution(
-                backend, create, prepare=[drop]
-            )
+            outcome = confirm_expression_execution(backend, create, prepare=[drop])
             if outcome is ExecutionOutcome.NOT_RENDERED:
                 pytest.skip("dialect does not render this expression")
-            backend.execute("INSERT INTO typed_values_probe_bin () VALUES ()")
-            result = backend.execute("SELECT b FROM typed_values_probe_bin")
+            backend.execute("INSERT INTO literal_probe_bin () VALUES ()")
+            result = backend.execute("SELECT b FROM literal_probe_bin")
             assert result.data[0]["b"] == b"\x01\x02\xff"
         finally:
             backend.execute(drop.to_sql()[0], drop.to_sql()[1])
@@ -253,13 +202,13 @@ class TestLiveDefaultRoundTrip:
 
         backend = mariadb_backend_single
         dialect = backend.dialect
-        table = Table(dialect, "typed_values_probe_uuid")
+        table = Table(dialect, "literal_probe_uuid")
         columns = [
             ColumnDefinition(dialect, "id", BigIntType(dialect), constraints=[
                 ColumnConstraint(
                     dialect,
                     branch=ColumnDefaultConstraint(
-                        dialect, _DdlIntegerValue(dialect, 1)
+                        dialect, Literal(dialect, 1, inline=True)
                     ),
                 )
             ]),
@@ -272,9 +221,10 @@ class TestLiveDefaultRoundTrip:
                         dialect,
                         branch=ColumnDefaultConstraint(
                             dialect,
-                            _DdlUUIDValue(
+                            Literal(
                                 dialect,
                                 uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+                                inline=True,
                             ),
                         ),
                     )
@@ -284,13 +234,11 @@ class TestLiveDefaultRoundTrip:
         create = CreateTableStatement(dialect=dialect, table=table, columns=columns)
         drop = DropTableStatement(dialect, table, if_exists=True)
         try:
-            outcome = confirm_expression_execution(
-                backend, create, prepare=[drop]
-            )
+            outcome = confirm_expression_execution(backend, create, prepare=[drop])
             if outcome is ExecutionOutcome.NOT_RENDERED:
                 pytest.skip("dialect does not render this expression")
-            backend.execute("INSERT INTO typed_values_probe_uuid () VALUES ()")
-            result = backend.execute("SELECT u FROM typed_values_probe_uuid")
+            backend.execute("INSERT INTO literal_probe_uuid () VALUES ()")
+            result = backend.execute("SELECT u FROM literal_probe_uuid")
             assert result.data[0]["u"] == "550e8400-e29b-41d4-a716-446655440000"
         finally:
             backend.execute(drop.to_sql()[0], drop.to_sql()[1])

@@ -120,11 +120,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     RepeatMixin,
     RpadMixin,
     TrimMixin,
-    # Value literals: the base tier-1 rendering plus the tier-2 methods a
-    # backend must implement. MariaDB's own spellings come from
-    # MariaDBTypedValueMixin (imported with the local mixins), which the
-    # dialect composes ahead of this one.
-    TypedValueMixin,
     # Naming. Each of these is core's default renderer for one kind of
     # object, placed ahead of NamespaceMixin so that C3 keeps the per-kind
     # formatter in front of the shared namespace prefix. MariaDB's spelling
@@ -194,7 +189,7 @@ from .mixins import (
     MariaDBFunctionMixin,
     MariaDBNamespaceMixin,
     MariaDBColumnTypeMixin,
-    MariaDBTypedValueMixin,
+    MariaDBLiteralValueMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -238,6 +233,15 @@ _SUGGESTION_TEMPORAL = "MariaDB system-versioned tables require specific table c
 
 
 class MariaDBDialect(
+    # Ahead of SQLDialectBase, unlike every other MariaDB mixin. Those add
+    # methods the base does not have, so their position is a readability
+    # choice; this one overrides ``format_literal``, which the base defines,
+    # and a mixin placed after the class it overrides never wins. It
+    # resolves MariaDB's two tier-2 spellings -- binary ``X'...'`` and the
+    # bare quoted UUID text -- and leaves the base's portable forms and the
+    # literal-construction protocol to it (INTERVAL is deliberately absent:
+    # mixins/literal.py records the measured refusals behind that).
+    MariaDBLiteralValueMixin,
     SQLDialectBase,
     # Namespaces: MariaDB qualifies by database (the catalog) and has no
     # inner schema, so `MariaDBNamespaceMixin` is the one declaration of which
@@ -353,12 +357,6 @@ class MariaDBDialect(
     IntrospectionMixin,
     PredicateMixin,
     ExpressionMixin,
-    # Value literals: MariaDB's spellings ahead of the base's tier-1
-    # rendering. This order is what resolves format_binary_value and
-    # format_uuid_value (INTERVAL is deliberately absent -- see
-    # mixins/typed_value.py for the measured refusals behind that).
-    MariaDBTypedValueMixin,
-    TypedValueMixin,
     DateTimeMixin,
     DQLMixin,
     DMLMixin,
