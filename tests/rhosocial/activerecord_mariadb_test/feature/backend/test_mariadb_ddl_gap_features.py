@@ -12,7 +12,7 @@ backend implementation:
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AddColumn,
+    AddColumnAction,
     AlterTableStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import ColumnDefinition
@@ -214,7 +214,7 @@ class TestMariaDBAlterTableStatement:
     """Tests for MariaDB statement-level ALTER TABLE qualifiers."""
 
     def _add_column_action(self, dialect):
-        return AddColumn(
+        return AddColumnAction(
             dialect, column=ColumnDefinition(dialect, 'email', TextType(dialect))
         )
 

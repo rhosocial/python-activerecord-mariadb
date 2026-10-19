@@ -51,13 +51,13 @@ class MariaDBJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue):
 
 class MariaDBJSONObjectExpression(AliasableMixin, SQLValue):
     """MariaDB JSON_OBJECT expression.
-    
+
     Creates a JSON object from key-value pairs.
-    
+
     Example:
         >>> expr = MariaDBJSONObjectExpression(dialect, {'name': 'Alice', 'age': 30})
         OR
-        >>> expr = MariaDBJSONObjectExpression(dialect, ('name', 'Alice'), ('age', 30))
+        >>> expr = MariaDBJSONObjectExpression(dialect, [('name', 'Alice'), ('age', 30)])
     """
 
     def __init__(
@@ -66,20 +66,15 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValue):
         data: Any = None,
         *,
         alias: Optional[str] = None,
-        **kwargs: Any,
     ):
         super().__init__(dialect)
-        self.data = data  # keep raw for get_params() introspection
-        self.kwargs: Dict[str, Any] = dict(kwargs)
-        if data is not None and kwargs:
-            pairs = self._convert_to_pairs(data) + self._convert_to_pairs(kwargs)
-        elif data is not None:
-            pairs = self._convert_to_pairs(data)
-        elif kwargs:
-            pairs = self._convert_to_pairs(kwargs)
-        else:
-            pairs = []
-        self.pairs = pairs
+        # The pairs ride one named parameter -- a mapping or an iterable of
+        # two-item entries. An artifact names its parameters, and a
+        # ``**kwargs`` catch-all accepts names no artifact can carry
+        # (wire §4.11.4), so the extras channel the constructor once had is
+        # gone rather than smuggled.
+        self.data = data
+        self.pairs = self._convert_to_pairs(data) if data is not None else []
         self.alias = alias
 
     def _convert_to_pairs(self, data: Any) -> List[tuple]:

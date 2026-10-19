@@ -6,6 +6,7 @@ Tests for expression-level COLLATE support on MariaDB.
 import pytest
 
 from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.expression.collation import CollateFunction
 from rhosocial.activerecord.backend.impl.mariadb.mixins import MariaDBCollation
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
@@ -42,7 +43,12 @@ class TestMariaDBCollationExpression:
         assert params == ()
 
     def test_literal_collate_preserves_parameter_binding(self, dialect):
-        expr = Literal(dialect, "Alice").collate(MariaDBCollation.UTF8MB4_UNICODE_CI)
+        # A bound literal keeps binding behind the COLLATE -- the node is a
+        # CollateFunction over the literal, not a literal with collation sugar:
+        # core's value node carries no operation mixins any more.
+        expr = CollateFunction(
+            dialect, Literal(dialect, "Alice"), MariaDBCollation.UTF8MB4_UNICODE_CI
+        )
 
         sql, params = expr.to_sql()
 
@@ -52,7 +58,7 @@ class TestMariaDBCollationExpression:
     def test_rejects_schema_qualified_collation(self, dialect):
         expr = Column(dialect, "name").collate("utf8mb4_bin", schema="public")
 
-        with pytest.raises(Exception, match="COLLATE options: schema"):
+        with pytest.raises(Exception, match="COLLATE schema qualifier"):
             expr.to_sql()
 
     def test_rejects_unsupported_collation(self, dialect):

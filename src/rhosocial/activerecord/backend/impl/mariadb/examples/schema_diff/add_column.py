@@ -74,13 +74,13 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
     MariaDBSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
-    AlterTableStatement, AddColumn,
+    AlterTableStatement, AddColumnAction,
 )
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column — appended after the existing columns
-add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
+add_col = AddColumnAction(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
 alter_expr = AlterTableStatement(dialect, Table(dialect, "users"), [add_col])
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)

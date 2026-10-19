@@ -185,12 +185,22 @@ class MariaDBCharsetCollationMixin:
         return True
 
     def validate_collation_name(self, expr: "CollateFunction") -> str:
-        """Validate a ``CollateFunction`` and return its collation SQL."""
+        """Validate a ``CollateFunction`` and return its collation SQL.
+
+        MariaDB has no schema-qualified spelling for COLLATE -- a collation
+        names a charset's rule set and lives in no namespace -- so a schema
+        qualifier is refused by name rather than dropped. The open options
+        bag this used to read is gone from the node's contract; a qualifier
+        that reaches it now arrives through the ``schema`` parameter.
+        """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        if expr.collation_options:
-            unsupported = ", ".join(sorted(expr.collation_options))
-            raise UnsupportedFeatureError(self.name, f"COLLATE options: {unsupported}")
+        if expr.schema:
+            raise UnsupportedFeatureError(
+                self.name,
+                f"COLLATE schema qualifier: {expr.schema}",
+                "MariaDB collations are not schema-qualified; pass the bare collation name.",
+            )
         return self.validate_collation_by_name(expr.collation_name)
 
     # --- charset ---------------------------------------------------------

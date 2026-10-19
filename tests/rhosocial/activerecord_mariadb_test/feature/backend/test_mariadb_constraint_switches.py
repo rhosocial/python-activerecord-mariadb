@@ -35,8 +35,8 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.core import Column, Literal
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AlterConstraint,
-    ValidateConstraint,
+    AlterConstraintAction,
+    ValidateConstraintAction,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ConstraintValidation,
@@ -210,7 +210,7 @@ class TestConstraintSwitchValues:
         # the constraint it rides on.
         for kind in (TableCheckConstraint, TableForeignKeyConstraint):
             for spelling in ("enforced", "not_enforced"):
-                action = AlterConstraint(
+                action = AlterConstraintAction(
                     dialect, "probe_ck", constraint_kind=kind, **{spelling: True}
                 )
                 with pytest.raises(UnsupportedFeatureError) as excinfo:
@@ -221,14 +221,14 @@ class TestConstraintSwitchValues:
     def test_alter_constraint_refuses_a_kind_that_cannot_carry_the_trait(self):
         """The kind restriction is the expression layer's, not the probe's.
 
-        ``AlterConstraint`` accepts only a CHECK or FOREIGN KEY branch, by
+        ``AlterConstraintAction`` accepts only a CHECK or FOREIGN KEY branch, by
         class; anything else is a ``ValueError`` at construction. That is a
         different failure from the probe's refusal and the two must not collapse
         into one.
         """
         dialect = _dialect()
         with pytest.raises(ValueError, match="TableCheckConstraint or TableForeignKeyConstraint"):
-            AlterConstraint(
+            AlterConstraintAction(
                 dialect, "probe_pk", constraint_kind=TablePrimaryKeyConstraint, enforced=True
             )
 
@@ -439,7 +439,7 @@ class TestTheDeclaredProbesAreLoadBearing:
     """
 
     def _alter(self, dialect, **kw):
-        return AlterConstraint(dialect, "probe_ck", constraint_kind=TableCheckConstraint, **kw)
+        return AlterConstraintAction(dialect, "probe_ck", constraint_kind=TableCheckConstraint, **kw)
 
     def _not_valid_check(self, dialect):
         constraint = TableConstraint(
@@ -473,7 +473,7 @@ class TestTheDeclaredProbesAreLoadBearing:
                 return True
 
         dialect = Validates(MEASURED_VERSION)
-        assert ValidateConstraint(dialect, "probe_ck").to_sql() == (
+        assert ValidateConstraintAction(dialect, "probe_ck").to_sql() == (
             "VALIDATE CONSTRAINT `probe_ck`",
             (),
         )
@@ -483,7 +483,7 @@ class TestTheDeclaredProbesAreLoadBearing:
         with pytest.raises(UnsupportedFeatureError, match="ALTER CONSTRAINT"):
             self._alter(dialect, enforced=True).to_sql()
         with pytest.raises(UnsupportedFeatureError, match="VALIDATE CONSTRAINT"):
-            ValidateConstraint(dialect, "probe_ck").to_sql()
+            ValidateConstraintAction(dialect, "probe_ck").to_sql()
 
 
 class TestMariaDBIsNotConflatedWithMySQL:

@@ -28,7 +28,7 @@ exists to catch.
 Pairs consumed by core's inherited formatters (CTE materialization, set
 operation ALL/DISTINCT, materialized-view WITH DATA, identity options) are
 certified by core's guard; MariaDB adds no decision to them and does not repeat
-them here. ``AlterConstraint.enforced`` is covered separately below: its
+them here. ``AlterConstraintAction.enforced`` is covered separately below: its
 grammar is mandatory and its refusal comes from core's formatter, because
 MariaDB declares no ``supports_alter_constraint_enforced``.
 """
@@ -53,10 +53,10 @@ from rhosocial.activerecord.backend.expression.serialization import (
     serialize_json,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AddTableConstraint,
-    AlterConstraint,
+    AddTableConstraintAction,
+    AlterConstraintAction,
     AlterTableStatement,
-    ValidateConstraint,
+    ValidateConstraintAction,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_function import (
     DropFunctionStatement,
@@ -539,8 +539,8 @@ class TestPairParametersSurviveSerialization:
             (lambda d: TruncateStatement(d, _table(d), restrict=True), "restrict"),
             (lambda d: _check(d, not_enforced=True), "not_enforced"),
             (lambda d: _fk(d, deferrable=True), "deferrable"),
-            (lambda d: BeginTransactionStatement(d, deferrable=True), "_deferrable"),
-            (lambda d: SetTransactionExpression(d, not_deferrable=True), "_not_deferrable"),
+            (lambda d: BeginTransactionStatement(d, deferrable=True), "deferrable"),
+            (lambda d: SetTransactionExpression(d, not_deferrable=True), "not_deferrable"),
             (
                 lambda d: MariaDBExchangePartitionExpression(
                     d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), with_validation=True
@@ -570,22 +570,23 @@ class TestPairParametersSurviveSerialization:
     )
     def test_second_spelling_survives_the_round_trip(self, factory, field):
         from rhosocial.activerecord.backend.expression.serialization import (
-            register_expression_class,
+            default_registry,
         )
 
         dialect = _dialect()
         expr = factory(dialect)
-        # Backend-local classes are not in core's auto-registry (that walk
-        # covers ``backend/expression`` only); the roundtrip matrix registers
-        # them via ``collect_expression_classes``. Registering here lets this
-        # focused round-trip deserialize MariaDB-owned expressions too.
-        register_expression_class(type(expr))
+        # Backend-local classes are not in core's auto-populated registry (that
+        # walk covers the framework's own packages only); the roundtrip matrix
+        # registers them via ``collect_expression_classes``. Registering here
+        # lets this focused round-trip deserialize MariaDB-owned expressions
+        # too; re-registering a class the matrix already added is a no-op.
+        default_registry().register_node(type(expr))
         decoded = deserialize_json(serialize_json(expr), dialect)
         assert getattr(decoded, field) is True
 
 
 class TestAlterConstraintPairIsConsumed:
-    """``AlterConstraint``: mandatory pair, consumed by refusal on MariaDB.
+    """``AlterConstraintAction``: mandatory pair, consumed by refusal on MariaDB.
 
     MariaDB declares ``supports_alter_constraint_enforced()`` as ``False``, so
     core's ``format_alter_constraint_action`` refuses both spellings by name.
@@ -594,7 +595,7 @@ class TestAlterConstraintPairIsConsumed:
     """
 
     def _action(self, **kw):
-        return AlterConstraint(
+        return AlterConstraintAction(
             _dialect(), "probe_ck", constraint_kind=TableCheckConstraint, **kw
         )
 
@@ -733,7 +734,7 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
     """
 
     def _alter(self, dialect, **kw):
-        return AlterConstraint(
+        return AlterConstraintAction(
             dialect, "probe_ck", constraint_kind=TableCheckConstraint, **kw
         )
 
@@ -742,7 +743,7 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
             dialect, validation=ConstraintValidation.NOVALIDATE
         )
         return AlterTableStatement(
-            dialect, Table(dialect, "probe_t"), actions=[AddTableConstraint(dialect, constraint)]
+            dialect, Table(dialect, "probe_t"), actions=[AddTableConstraintAction(dialect, constraint)]
         )
 
     def test_alter_constraint_probe_flip_renders_the_spelling(self):
@@ -756,7 +757,7 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
         )
 
     def test_validate_probe_flip_renders_the_spelling(self):
-        assert ValidateConstraint(_ValidateConstraintDialect(VERSION), "probe_ck").to_sql() == (
+        assert ValidateConstraintAction(_ValidateConstraintDialect(VERSION), "probe_ck").to_sql() == (
             "VALIDATE CONSTRAINT `probe_ck`",
             (),
         )
@@ -772,7 +773,7 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
         with pytest.raises(UnsupportedFeatureError, match="ALTER CONSTRAINT"):
             self._alter(MariaDBDialect(VERSION), enforced=True).to_sql()
         with pytest.raises(UnsupportedFeatureError, match="VALIDATE CONSTRAINT"):
-            ValidateConstraint(MariaDBDialect(VERSION), "probe_ck").to_sql()
+            ValidateConstraintAction(MariaDBDialect(VERSION), "probe_ck").to_sql()
         with pytest.raises(UnsupportedFeatureError, match="NOT VALID"):
             self._add_not_valid(MariaDBDialect(VERSION)).to_sql()
 
