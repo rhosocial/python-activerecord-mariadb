@@ -698,8 +698,8 @@ def register_specials():
         lambda d: graph_mod.VertexTable(d, node_table(d), key_columns=["id"]),
     )
     register_special_constructor(
-        "graph.EdgeTable",
-        lambda d: graph_mod.EdgeTable(d, edge_table(d), ["src"], ["dst"]),
+        "graph.edge_table_definition",
+        lambda d: graph_mod.EdgeTableDefinition(d, edge_table(d), ["src"], ["dst"]),
     )
     register_special_constructor(
         "graph.QuantifiedPath",

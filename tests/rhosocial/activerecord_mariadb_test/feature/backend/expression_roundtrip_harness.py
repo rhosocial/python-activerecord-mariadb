@@ -46,7 +46,8 @@ from rhosocial.activerecord.backend.expression.bases import BaseExpression
 # annotation naming it wants an object too.
 _MENTIONS_RELATION = re.compile(
     r"\b(Table|View|MaterializedView|Index|Sequence|Type|Domain|Function|Trigger"
-    r"|Schema|Database|RelationObject|SchemaObject|NodeTable|EdgeTable)\b"
+    r"|Schema|Database|RelationObject|SchemaObject|NodeTable|EdgeTable"
+    r"|EdgeTableDefinition)\b"
 )
 
 # An INSERT's data source. It is an expression now, so it needs a real one --
@@ -357,7 +358,7 @@ def special_constructors():
         "graph.GraphVertex": _graph_vertex,
         "graph.GraphEdge": _graph_edge,
         "graph.VertexTable": _node_table,
-        "graph.EdgeTable": _edge_table,
+        "graph.edge_table_definition": _edge_table,
         "graph.GraphTableExpression": _graph_table_expr,
         "graph.CreatePropertyGraphStatement": _create_property_graph_expr,
         "graph.DropPropertyGraphStatement": _drop_property_graph_expr,
@@ -696,12 +697,12 @@ def _node_table(dialect):
 
 def _edge_table(dialect):
     """A graph edge table declaration."""
-    from rhosocial.activerecord.backend.expression.graph import EdgeTable
+    from rhosocial.activerecord.backend.expression.graph import EdgeTableDefinition
     from rhosocial.activerecord.backend.expression.objects import (
         EdgeTable as EdgeTableObject,
     )
 
-    return EdgeTable(dialect, EdgeTableObject(dialect, "e"), ["s"], ["d"])
+    return EdgeTableDefinition(dialect, EdgeTableObject(dialect, "e"), ["s"], ["d"])
 
 
 def _graph_vertex(dialect):
