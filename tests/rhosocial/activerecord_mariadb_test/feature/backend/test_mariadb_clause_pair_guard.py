@@ -425,7 +425,7 @@ class TestFourStatesArePairwiseDistinguishable:
         for case in PAIR_CASES:
             assert case.a != case.b, case.case_id
 
-    def test_maria_db_declares_neither_enforcement_nor_deferral(self):
+    def test_mariadb_declares_neither_enforcement_nor_deferral(self):
         # Measured on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc (all four spellings
         # rejected with errno 1064, sentinels rejected) and by 10.6's grammar,
         # which has no ENFORCED / DEFERRABLE / INITIALLY token. A future
@@ -599,7 +599,7 @@ class TestAlterConstraintPairIsConsumed:
             _dialect(), "probe_ck", constraint_kind=TableCheckConstraint, **kw
         )
 
-    def test_maria_db_declares_the_alter_constraint_probe_as_false(self):
+    def test_mariadb_declares_the_alter_constraint_probe_as_false(self):
         # Declared, not inherited: ``(self)``, no kind, and the value is the
         # measured one. Before this branch the probe resolved to the
         # ``ConstraintSupport`` protocol stub, which answers ``None`` -- core

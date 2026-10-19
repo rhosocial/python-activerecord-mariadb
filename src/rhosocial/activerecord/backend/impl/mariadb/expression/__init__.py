@@ -215,3 +215,32 @@ __all__ = [
     "MariaDBFindInSetExpression",
     "MariaDBSetContainsExpression",
 ]
+# ``MariaDB`` is one word. The general derivation -- a run of capitals counts
+# as a single word -- disagrees with this backend's identifier and yields
+# ``maria_db_binary_type``, ``maria_dbjson_object_expression``,
+# ``maria_dbst_distance_expression`` and ``maria_dbuuid_type``. The kind is a
+# wire contract (spec 3), so the identifier is declared whole and the kind is
+# derived from that declaration: ``KIND_RESERVED`` is data, not behaviour, so
+# no class overrides ``kind()`` and class name, kind and formatter entry keep
+# one source.
+#
+# The loop walks this package's own modules rather than an exported name
+# list, for the reason the sqlite package's note gives: a hand-maintained
+# list can only ever be out of date, and a node that is defined but not
+# re-exported here would silently keep the split spelling.
+import importlib as _importlib
+import pkgutil as _pkgutil
+
+from rhosocial.activerecord.backend.expression.core import BaseExpression as _BaseExpression
+
+for _module_info in _pkgutil.walk_packages(__path__, prefix=__name__ + ".", onerror=lambda _error: None):
+    _module = _importlib.import_module(_module_info.name)
+    for _value in vars(_module).values():
+        if (
+            isinstance(_value, type)
+            and issubclass(_value, _BaseExpression)
+            and _value.__name__.startswith("MariaDB")
+            and _value.__module__ == _module_info.name
+        ):
+            _value.KIND_RESERVED = ("MariaDB",)
+del _module_info, _module, _value, _importlib, _pkgutil, _BaseExpression
