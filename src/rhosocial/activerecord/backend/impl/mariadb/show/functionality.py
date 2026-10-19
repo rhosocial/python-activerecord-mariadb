@@ -100,7 +100,7 @@ class MariaDBShowFunctionality:
         """
         expr = expression_cls(self.dialect, relation)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         return expr
 
     def _parse_columns_result(self, result):
@@ -441,7 +441,7 @@ class MariaDBShowFunctionality:
         """
         expr = self._show_relation(ShowColumnsExpression, table_name, schema)
         if full:
-            expr.full()
+            expr.with_full()
         if like:
             expr.like(like)
 
@@ -488,11 +488,11 @@ class MariaDBShowFunctionality:
         """
         expr = ShowTablesExpression(self.dialect)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         if like:
             expr.like(like)
         if full:
-            expr.full()
+            expr.with_full()
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -533,7 +533,7 @@ class MariaDBShowFunctionality:
         """
         expr = ShowTableStatusExpression(self.dialect)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         if like:
             expr.like(like)
 
@@ -557,7 +557,7 @@ class MariaDBShowFunctionality:
         """
         expr = ShowTriggersExpression(self.dialect)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         if table_name:
             expr.for_table(table_name)
 
@@ -579,7 +579,7 @@ class MariaDBShowFunctionality:
         """
         expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -646,7 +646,7 @@ class MariaDBShowFunctionality:
         """
         expr = ShowProcessListExpression(self.dialect)
         if full:
-            expr.full()
+            expr.with_full()
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -665,7 +665,7 @@ class MariaDBShowFunctionality:
         """
         expr = ShowWarningsExpression(self.dialect)
         if limit is not None:
-            expr.limit(limit)
+            expr.with_limit(limit)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -682,7 +682,7 @@ class MariaDBShowFunctionality:
         """
         expr = ShowErrorsExpression(self.dialect)
         if limit is not None:
-            expr.limit(limit)
+            expr.with_limit(limit)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -831,7 +831,7 @@ class AsyncMariaDBShowFunctionality:
         """Async version of columns."""
         expr = self._sync_impl._show_relation(ShowColumnsExpression, table_name, schema)
         if full:
-            expr.full()
+            expr.with_full()
         if like:
             expr.like(like)
         sql, params = expr.to_sql()
@@ -860,11 +860,11 @@ class AsyncMariaDBShowFunctionality:
         """Async version of tables."""
         expr = ShowTablesExpression(self.dialect)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         if like:
             expr.like(like)
         if full:
-            expr.full()
+            expr.with_full()
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_tables_result(result)
@@ -888,7 +888,7 @@ class AsyncMariaDBShowFunctionality:
         """Async version of table_status."""
         expr = ShowTableStatusExpression(self.dialect)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         if like:
             expr.like(like)
         sql, params = expr.to_sql()
@@ -903,7 +903,7 @@ class AsyncMariaDBShowFunctionality:
         """Async version of triggers."""
         expr = ShowTriggersExpression(self.dialect)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         if table_name:
             expr.for_table(table_name)
         sql, params = expr.to_sql()
@@ -916,7 +916,7 @@ class AsyncMariaDBShowFunctionality:
         """Async version of create_trigger."""
         expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
         if schema:
-            expr.schema(schema)
+            expr.with_schema(schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_create_trigger_result(result, trigger_name)
@@ -957,7 +957,7 @@ class AsyncMariaDBShowFunctionality:
         """Async version of processlist."""
         expr = ShowProcessListExpression(self.dialect)
         if full:
-            expr.full()
+            expr.with_full()
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_processlist_result(result)
@@ -968,7 +968,7 @@ class AsyncMariaDBShowFunctionality:
         """Async version of warnings."""
         expr = ShowWarningsExpression(self.dialect)
         if limit is not None:
-            expr.limit(limit)
+            expr.with_limit(limit)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_warnings_result(result)
@@ -977,7 +977,7 @@ class AsyncMariaDBShowFunctionality:
         """Async version of errors."""
         expr = ShowErrorsExpression(self.dialect)
         if limit is not None:
-            expr.limit(limit)
+            expr.with_limit(limit)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_errors_result(result)

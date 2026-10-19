@@ -39,7 +39,7 @@ class TestShowExpressionBase:
         assert expr.get_params() == {"schema": "app"}
 
     def test_schema_fluent(self, dialect):
-        expr = ShowExpression(dialect).schema("app")
+        expr = ShowExpression(dialect).with_schema("app")
         assert expr.get_params() == {"schema": "app"}
 
     def test_to_sql_not_implemented(self, dialect):
@@ -73,12 +73,27 @@ class TestShowColumnsExpression:
 class TestShowTablesExpression:
     def test_keyword_params(self, dialect):
         expr = ShowTablesExpression(dialect, full=True, like_pattern="t%")
-        assert expr.get_params() == {"full": True, "like_pattern": "t%"}
+        assert expr.get_params() == {
+            "schema": None, "full": True, "like_pattern": "t%"
+        }
         assert expr.to_sql() == ("SHOW FULL TABLES LIKE %s", ("t%",))
 
+    def test_schema_param_reaches_the_from_clause(self, dialect):
+        expr = ShowTablesExpression(dialect, schema="app", full=True)
+        assert expr.get_params() == {
+            "schema": "app", "full": True, "like_pattern": None
+        }
+        assert expr.to_sql() == ("SHOW FULL TABLES FROM `app`", ())
+
+    def test_schema_set_fluently_renders_the_same(self, dialect):
+        expr = ShowTablesExpression(dialect).with_schema("app")
+        assert expr.to_sql() == ("SHOW TABLES FROM `app`", ())
+
     def test_fluent_api(self, dialect):
-        expr = ShowTablesExpression(dialect).full().like("t%")
-        assert expr.get_params() == {"full": True, "like_pattern": "t%"}
+        expr = ShowTablesExpression(dialect).with_full().like("t%")
+        assert expr.get_params() == {
+            "schema": None, "full": True, "like_pattern": "t%"
+        }
         assert expr.to_sql() == ("SHOW FULL TABLES LIKE %s", ("t%",))
 
 
@@ -95,8 +110,14 @@ class TestShowDatabasesExpression:
 class TestShowTableStatusExpression:
     def test_keyword_param(self, dialect):
         expr = ShowTableStatusExpression(dialect, like_pattern="log_%")
-        assert expr.get_params() == {"like_pattern": "log_%"}
+        assert expr.get_params() == {
+            "schema": None, "like_pattern": "log_%"
+        }
         assert expr.to_sql() == ("SHOW TABLE STATUS LIKE %s", ("log_%",))
+
+    def test_schema_param_reaches_the_from_clause(self, dialect):
+        expr = ShowTableStatusExpression(dialect, schema="app")
+        assert expr.to_sql() == ("SHOW TABLE STATUS FROM `app`", ())
 
     def test_no_pattern(self, dialect):
         assert ShowTableStatusExpression(dialect).to_sql() == ("SHOW TABLE STATUS", ())
@@ -105,8 +126,14 @@ class TestShowTableStatusExpression:
 class TestShowTriggersExpression:
     def test_keyword_param(self, dialect):
         expr = ShowTriggersExpression(dialect, table_name="orders")
-        assert expr.get_params() == {"table_name": "orders"}
+        assert expr.get_params() == {
+            "schema": None, "table_name": "orders"
+        }
         assert expr.to_sql() == ("SHOW TRIGGERS LIKE %s", ("orders",))
+
+    def test_schema_param_reaches_the_from_clause(self, dialect):
+        expr = ShowTriggersExpression(dialect, schema="app", table_name="orders")
+        assert expr.to_sql() == ("SHOW TRIGGERS FROM `app` LIKE %s", ("orders",))
 
     def test_no_table(self, dialect):
         assert ShowTriggersExpression(dialect).to_sql() == ("SHOW TRIGGERS", ())
