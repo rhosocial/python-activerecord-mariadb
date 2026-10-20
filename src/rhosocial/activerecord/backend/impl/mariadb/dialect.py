@@ -8,6 +8,7 @@ based on the MariaDB version provided at initialization.
 MariaDB version-specific features:
 - Window functions (since 10.2)
 - CTE (since 10.2)
+- UNION / UNION ALL (every release, measured on 10.2.44 through 13.1.1)
 - INTERSECT/EXCEPT (since 10.3)
 - SEQUENCE (since 10.3)
 - System-versioned tables (since 10.3)

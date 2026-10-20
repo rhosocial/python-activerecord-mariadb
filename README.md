@@ -151,7 +151,9 @@ Gates below are the versions at which this backend's own `supports_*`
 switch returns `True`, probed at 10.1.3, 10.2, 10.2.1, 10.2.3, 10.2.7, 10.3, 10.4, 10.5, 10.6, 11, 11.4, 11.8, 12, 12.3, 13, 13.1.
 A version is the first probe at or above the real gate, so each is an
 upper bound within one ladder step. Switches already `True` at the
-oldest release carry no gate and are omitted.
+oldest release carry no gate and are omitted -- `union` and `union_all`
+are among them: `SELECT 1 UNION SELECT 2` is accepted on every probed
+release, 10.2.44 through 13.1.1.
 
 | Min version | Capabilities that turn on |
 |---|---|
