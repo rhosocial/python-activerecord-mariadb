@@ -43,7 +43,19 @@ MARIADB_VERSION_BOUNDARIES = {
     'RETURNING': (10, 5, 0),
     'EXPLAIN_FORMAT': (10, 6, 0),
     'INSTEAD_OF_TRIGGER': (10, 4, 0),
-    'SKIP_LOCKED': (10, 3, 0),
+    # The two FOR UPDATE wait modifiers do not travel together on MariaDB,
+    # so they get separate keys -- core's own ``supports_for_update_nowait``
+    # docstring spells out why a shared probe would have to be answered
+    # True for a dialect that rejects half the requests it admits.
+    # Measured live on the 15-server grid (each statement is a
+    # parse-or-reject probe):
+    #   FOR UPDATE NOWAIT     errno 1064 on 10.2.44, accepted from 10.3.39.
+    #   FOR UPDATE SKIP LOCKED errno 1064 on 10.3.39, 10.4.34, 10.5.29,
+    #                       accepted from 10.6.28.
+    # The pair previously shared one 10.3.0 key, which answered NOWAIT for
+    # the whole 10.3-10.5 range the server rejects SKIP LOCKED on.
+    'FOR_UPDATE_NOWAIT': (10, 3, 0),
+    'SKIP_LOCKED': (10, 6, 0),
     'RENAME_TABLE_IF_EXISTS': (10, 5, 0),
     'RENAME_TABLE_WAIT': (10, 3, 0),
     'TRUNCATE_WAIT': (10, 3, 0),

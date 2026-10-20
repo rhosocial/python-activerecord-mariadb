@@ -79,20 +79,26 @@ class MariaDBLockingMixin:
     def supports_for_update_nowait(self) -> bool:
         """Whether FOR UPDATE NOWAIT is supported.
 
-        MariaDB 10.3+ supports NOWAIT.
+        Measured live on the 15-server grid: ``SELECT 1 FOR UPDATE NOWAIT``
+        (and the same against a subquery) is errno 1064 on 10.2.44 and
+        accepted from 10.3.39 onward, so the first release of the 10.3 line
+        is the boundary.
 
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SKIP_LOCKED']
+        return self.version >= MARIADB_VERSION_BOUNDARIES['FOR_UPDATE_NOWAIT']
 
     def supports_for_update_skip_locked(self) -> bool:
         """Whether FOR UPDATE SKIP LOCKED is supported.
 
-        MariaDB 10.3+ supports SKIP LOCKED.
+        Measured live on the 15-server grid: ``SELECT 1 FOR UPDATE SKIP
+        LOCKED`` is errno 1064 on 10.3.39, 10.4.34 and 10.5.29, and accepted
+        from 10.6.28 onward -- the 10.6 line, not the 10.3 line that NOWAIT
+        belongs to.
 
         Returns:
-            True if MariaDB version >= 10.3.0.
+            True if MariaDB version >= 10.6.0.
         """
         return self.version >= MARIADB_VERSION_BOUNDARIES['SKIP_LOCKED']
 
@@ -199,7 +205,7 @@ class MariaDBLockingMixin:
                 raise UnsupportedFeatureError(
                     self.name,
                     "SKIP LOCKED",
-                    "SKIP LOCKED requires MariaDB 10.3 or later."
+                    "SKIP LOCKED requires MariaDB 10.6 or later."
                 )
             parts.append("SKIP LOCKED")
         elif clause.nowait:

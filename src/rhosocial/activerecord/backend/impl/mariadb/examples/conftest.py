@@ -32,7 +32,7 @@ EXAMPLES_META = {
         'priority': 10,
         'min_version': '5.6',
         'max_version': '9.6',
-        'note': 'SKIP LOCKED and NOWAIT require MariaDB 8.0+',
+        'note': 'NOWAIT requires MariaDB 10.3+, SKIP LOCKED requires MariaDB 10.6+',
     },
     'transaction/exclusive.py': {
         'title': 'Transaction Isolation Levels',

@@ -160,10 +160,10 @@ release, 10.2.44 through 13.1.1.
 | 10.2 | `basic_cte`, `filter_clause`, `grant_if_exists`, `grant_or_replace`, `read_only_transaction`, `recursive_cte`, `transaction_mode`, `window_frame_clause`, `window_functions` |
 | 10.2.1 | `check_constraint` |
 | 10.2.3 | `geojson`, `json_merge_patch`, `json_type`, `trigger_order` |
-| 10.3 | `alter_sequence`, `alter_table_wait`, `constraint_enforced`, `create_sequence`, `drop_sequence`, `except`, `for_update_nowait`, `for_update_skip_locked`, `intersect`, `rename_table_wait`, `sequence`, `system_versioning`, `temporal_tables`, `truncate_wait` |
+| 10.3 | `alter_sequence`, `alter_table_wait`, `constraint_enforced`, `create_sequence`, `drop_sequence`, `except`, `for_update_nowait`, `intersect`, `rename_table_wait`, `sequence`, `system_versioning`, `temporal_tables`, `truncate_wait` |
 | 10.4 | `instead_of_trigger`, `multiple_triggers_per_timing` |
 | 10.5 | `alter_table_if_exists`, `analyze_table_persistent`, `rename_table_if_exists`, `returning`, `returning_delete`, `returning_expression`, `returning_for_delete`, `returning_for_insert`, `returning_for_replace`, `returning_insert` |
-| 10.6 | `explain_analyze`, `json_table`, `rename_index` |
+| 10.6 | `explain_analyze`, `for_update_skip_locked`, `json_table`, `rename_index` |
 | 13 | `returning_for_update`, `returning_update` |
 | 13.1 | `deny`, `json_arrow_operators_native` |
 
