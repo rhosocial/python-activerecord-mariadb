@@ -1684,7 +1684,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             # it. Gated for the same reason ``supports_data_type_mariadb_xml``
             # is: parse_type must never yield a type this dialect cannot render.
             if not self.supports_data_type_mariadb_xml():
-                return CustomType(self, stripped)
+                return CustomType(dialect=self, raw=stripped)
             return MariaDBXmlType(self)
 
         if self._MARIA_UUID_TYPES.match(upper):
@@ -1706,7 +1706,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             #
             # https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type
             if not self.supports_data_type_uuid():
-                return CustomType(self, stripped)
+                return CustomType(dialect=self, raw=stripped)
             from ..expression.types import MariaDBUUIDType
             return MariaDBUUIDType(self)
 
@@ -1764,5 +1764,6 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         # that used to sit here made ``CustomType`` a function-local name for the
         # whole of ``parse_type``, so any *earlier* branch returning
         # ``CustomType`` hit an ``UnboundLocalError`` on a path that had never
-        # executed it.
-        return CustomType(self, stripped)
+        # executed it. ``raw`` is keyword-only since the core made the fallback's
+        # single payload a named parameter, so it is passed as one.
+        return CustomType(dialect=self, raw=stripped)
