@@ -95,10 +95,14 @@ class MariaDBShowDialectMixin:
     # ========== SHOW COLUMNS/INDEX ==========
 
     def format_show_columns(self, expr: "ShowColumnsExpression") -> Tuple[str, tuple]:
-        """Format SHOW [FULL] COLUMNS statement."""
-        params = expr.get_params()
-        full = params.get("full", False)
-        like_pattern = params.get("like_pattern")
+        """Format SHOW [FULL] COLUMNS statement.
+
+        The parameters are read off the node's declared fields: ``full`` and
+        ``like_pattern`` are construction parameters, so they are always there
+        and ``get_params()`` is not a second way to reach them.
+        """
+        full = expr.full
+        like_pattern = expr.like_pattern
 
         parts = ["SHOW"]
         if full:
@@ -121,10 +125,9 @@ class MariaDBShowDialectMixin:
 
     def format_show_tables(self, expr: "ShowTablesExpression") -> Tuple[str, tuple]:
         """Format SHOW [FULL] TABLES statement."""
-        params = expr.get_params()
-        schema = params.get("schema")
-        full = params.get("full", False)
-        like_pattern = params.get("like_pattern")
+        schema = expr.schema
+        full = expr.full
+        like_pattern = expr.like_pattern
 
         parts = ["SHOW"]
         if full:
@@ -144,8 +147,7 @@ class MariaDBShowDialectMixin:
         self, expr: "ShowDatabasesExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW DATABASES statement."""
-        params = expr.get_params()
-        like_pattern = params.get("like_pattern")
+        like_pattern = expr.like_pattern
 
         if like_pattern:
             return f"SHOW DATABASES LIKE {self.p()}", (like_pattern,)
@@ -155,9 +157,8 @@ class MariaDBShowDialectMixin:
         self, expr: "ShowTableStatusExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW TABLE STATUS statement."""
-        params = expr.get_params()
-        schema = params.get("schema")
-        like_pattern = params.get("like_pattern")
+        schema = expr.schema
+        like_pattern = expr.like_pattern
 
         parts = ["SHOW TABLE STATUS"]
         if schema:
@@ -176,9 +177,8 @@ class MariaDBShowDialectMixin:
         self, expr: "ShowTriggersExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW TRIGGERS statement."""
-        params = expr.get_params()
-        schema = params.get("schema")
-        table_name = params.get("table_name")
+        schema = expr.schema
+        table_name = expr.table_name
 
         parts = ["SHOW TRIGGERS"]
         if schema:
@@ -197,9 +197,8 @@ class MariaDBShowDialectMixin:
         self, expr: "ShowVariablesExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW VARIABLES statement."""
-        params = expr.get_params()
-        session = params.get("session", True)
-        like_pattern = params.get("like_pattern")
+        session = expr.session
+        like_pattern = expr.like_pattern
 
         parts = ["SHOW"]
         if not session:
@@ -215,9 +214,8 @@ class MariaDBShowDialectMixin:
 
     def format_show_status(self, expr: "ShowStatusExpression") -> Tuple[str, tuple]:
         """Format SHOW STATUS statement."""
-        params = expr.get_params()
-        session = params.get("session", True)
-        like_pattern = params.get("like_pattern")
+        session = expr.session
+        like_pattern = expr.like_pattern
 
         parts = ["SHOW"]
         if not session:
@@ -237,8 +235,7 @@ class MariaDBShowDialectMixin:
         self, expr: "ShowProcessListExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW PROCESSLIST statement."""
-        params = expr.get_params()
-        full = params.get("full", False)
+        full = expr.full
 
         if full:
             return "SHOW FULL PROCESSLIST", ()
@@ -248,8 +245,7 @@ class MariaDBShowDialectMixin:
         self, expr: "ShowWarningsExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW WARNINGS statement."""
-        params = expr.get_params()
-        limit = params.get("limit")
+        limit = expr.limit
 
         if limit is not None:
             return f"SHOW WARNINGS LIMIT {limit}", ()
@@ -257,8 +253,7 @@ class MariaDBShowDialectMixin:
 
     def format_show_errors(self, expr: "ShowErrorsExpression") -> Tuple[str, tuple]:
         """Format SHOW ERRORS statement."""
-        params = expr.get_params()
-        limit = params.get("limit")
+        limit = expr.limit
 
         if limit is not None:
             return f"SHOW ERRORS LIMIT {limit}", ()
@@ -272,8 +267,7 @@ class MariaDBShowDialectMixin:
 
     def format_show_charset(self, expr: "ShowCharsetExpression") -> Tuple[str, tuple]:
         """Format SHOW CHARACTER SET statement."""
-        params = expr.get_params()
-        like_pattern = params.get("like_pattern")
+        like_pattern = expr.like_pattern
 
         if like_pattern:
             return f"SHOW CHARACTER SET LIKE {self.p()}", (like_pattern,)
@@ -283,8 +277,7 @@ class MariaDBShowDialectMixin:
         self, expr: "ShowCollationExpression"
     ) -> Tuple[str, tuple]:
         """Format SHOW COLLATION statement."""
-        params = expr.get_params()
-        like_pattern = params.get("like_pattern")
+        like_pattern = expr.like_pattern
 
         if like_pattern:
             return f"SHOW COLLATION LIKE {self.p()}", (like_pattern,)
@@ -294,9 +287,8 @@ class MariaDBShowDialectMixin:
 
     def format_show_grants(self, expr: "ShowGrantsExpression") -> Tuple[str, tuple]:
         """Format SHOW GRANTS statement."""
-        params = expr.get_params()
-        user = params.get("user")
-        host = params.get("host")
+        user = expr.user
+        host = expr.host
 
         if user:
             if host:
