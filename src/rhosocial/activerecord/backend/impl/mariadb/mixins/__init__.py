@@ -13,7 +13,7 @@ Mixin Organization:
 - system_versioning.py: System-versioned tables (MariaDB 10.3+)
 - dml.py: DML operations (INSERT IGNORE, REPLACE, LOAD DATA)
 - spatial.py: Spatial data types and functions
-- locking.py: Row-level locking (FOR UPDATE, FOR SHARE, SKIP LOCKED)
+- locking.py: Row-level locking (FOR UPDATE, LOCK IN SHARE MODE, SKIP LOCKED)
 - trigger.py: Trigger DDL with INSTEAD OF support (MariaDB 10.4+)
 - json.py: JSON functions and arrow operators
 - set_type.py: SET type support

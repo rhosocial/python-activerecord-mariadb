@@ -12,7 +12,7 @@ Directory structure:
 - json.py           - JSON function expressions
 - spatial.py         - Spatial function expressions
 - match_against.py - MATCH...AGAINST expression
-- locking.py        - Row-level locking expressions (FOR UPDATE, FOR SHARE)
+- locking.py        - Row-level locking expressions (FOR UPDATE, LOCK IN SHARE MODE)
 """
 
 from .load_data import MariaDBLoadDataExpression, LoadDataOptions

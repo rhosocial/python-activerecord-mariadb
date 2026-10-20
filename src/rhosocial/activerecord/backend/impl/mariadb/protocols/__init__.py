@@ -18,7 +18,7 @@ Protocol Organization:
 - json.py: JSON function support
 - spatial.py: Spatial data types and functions
 - fulltext_search.py: Full-text search support
-- locking.py: Row-level locking (FOR UPDATE, FOR SHARE, SKIP LOCKED)
+- locking.py: Row-level locking (FOR UPDATE, LOCK IN SHARE MODE, SKIP LOCKED)
 - modify_column.py: MODIFY/CHANGE COLUMN support
 - sequence.py: SEQUENCE storage engine support (MariaDB 10.3+)
 - returning.py: RETURNING clause support (MariaDB 10.5+)
