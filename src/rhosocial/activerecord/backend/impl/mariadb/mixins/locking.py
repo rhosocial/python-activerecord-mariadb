@@ -114,21 +114,25 @@ class MariaDBLockingMixin:
         parts = []
 
         strength = clause.strength
-        if strength == LockStrength.LOCK_IN_SHARE_MODE:
-            if not self.supports_lock_in_share_mode():
-                raise UnsupportedFeatureError(
-                    self.name, "LOCK IN SHARE MODE",
-                    "This MariaDB dialect does not support LOCK IN SHARE MODE."
-                )
-            parts.append("LOCK IN SHARE MODE")
-        elif strength == LockStrength.SHARE:
-            parts.append("FOR SHARE")
-        elif strength == LockStrength.UPDATE:
-            parts.append("FOR UPDATE")
-        else:
+        # The clause text is the enum's ``phrase``, never a copy kept here:
+        # core writes each strength's SQL exactly once (``_LOCK_PHRASES``),
+        # so a hand-maintained duplicate in this override would drift the
+        # moment core adds or renames a member -- and it would have to be
+        # kept in step with the probes below anyway, which are MariaDB's
+        # own answers. What a server accepts stays a per-backend fact, so
+        # the gating is by probe and the spelling is by the enum.
+        if strength == LockStrength.NO_KEY_UPDATE and not self.supports_for_no_key_update():
+            raise UnsupportedFeatureError(self.name, strength.phrase)
+        if strength == LockStrength.SHARE and not self.supports_for_share():
+            raise UnsupportedFeatureError(self.name, strength.phrase)
+        if strength == LockStrength.KEY_SHARE and not self.supports_for_key_share():
+            raise UnsupportedFeatureError(self.name, strength.phrase)
+        if strength == LockStrength.LOCK_IN_SHARE_MODE and not self.supports_lock_in_share_mode():
             raise UnsupportedFeatureError(
-                self.name, f"{strength.value} (unsupported lock strength)"
+                self.name, strength.phrase,
+                "This MariaDB dialect does not support LOCK IN SHARE MODE."
             )
+        parts.append(strength.phrase)
 
         if clause.of_columns:
             # An OF entry is either a bare name or an expression. A schema
