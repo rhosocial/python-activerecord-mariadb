@@ -20,7 +20,9 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
     - SKIP LOCKED: Skip locked rows (MariaDB 10.6+)
 
     Note: MariaDB does NOT support PostgreSQL's FOR NO KEY UPDATE or
-    FOR KEY SHARE lock strengths.
+    FOR KEY SHARE lock strengths, nor the ``OF tbl_name`` scoping suffix
+    MySQL and PostgreSQL put after their lock clause (errno 1064 on every
+    measured version, 10.2.44 through 13.1.1).
 
     Official Documentation:
     - Locking Reads: https://mariadb.com/kb/en/locking-reads/
@@ -64,13 +66,6 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         """Whether FOR UPDATE clause is supported.
 
         MariaDB supports FOR UPDATE in all versions.
-        """
-        ...
-
-    def supports_lock_strength(self) -> bool:
-        """Whether different lock strengths (FOR NO KEY UPDATE, FOR KEY SHARE) are supported.
-
-        MariaDB does NOT support different lock strengths (PostgreSQL feature).
         """
         ...
 

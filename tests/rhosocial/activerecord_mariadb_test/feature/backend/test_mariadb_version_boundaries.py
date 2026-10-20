@@ -441,6 +441,122 @@ class TestSharedLockSpelling:
         assert _render_or_none(_dialect(version), strength="FOR UPDATE") == "FOR UPDATE"
 
 
+class TestOfColumnsRefused:
+    """``OF tbl_name`` is not a MariaDB spelling on any lock clause.
+
+    MySQL and PostgreSQL let a lock clause name its table; MariaDB has never
+    accepted the suffix. The mixin rendered it, so a caller who scoped a lock
+    with ``of_columns`` got SQL that errno 1064's on every server on the grid
+    -- while the backend, whose own formatter produced the clause, said it was
+    supported. The refusal is the point of this class: render nothing, and
+    say so.
+    """
+
+    @pytest.mark.parametrize("version", LOCK_GRID, ids=lambda v: "v" + ".".join(map(str, v)))
+    def test_of_columns_is_refused_on_every_version(self, version):
+        # The suffix is absent on all of them -- the oldest measured server
+        # and the newest alike -- so this is a flat refusal, not a gate.
+        dialect = _dialect(version)
+        with pytest.raises(UnsupportedFeatureError, match="OF"):
+            dialect.format_for_update_clause(
+                _clause(dialect, of_columns=["t"])
+            )
+
+    def test_refusal_names_the_bare_form_maria_accepts(self):
+        # An actionable refusal, in the shape 0429e53 set for the FOR SHARE
+        # probe: the SQL spelling as the feature, and the spelling MariaDB
+        # does accept in the suggestion.
+        dialect = _dialect(RC_131)
+        with pytest.raises(UnsupportedFeatureError) as exc:
+            dialect.format_for_update_clause(
+                _clause(dialect, of_columns=["t"])
+            )
+        assert exc.value.feature_name == "FOR UPDATE OF"
+        message = str(exc.value)
+        assert "1064" in message
+        assert "FOR UPDATE" in message
+        assert "of_columns" in message
+
+    @pytest.mark.parametrize("strength", [
+        LockStrength.UPDATE, LockStrength.LOCK_IN_SHARE_MODE,
+    ])
+    def test_refusal_covers_both_lock_spellings(self, strength):
+        # The exclusive and the shared lock are both bare-only here.
+        dialect = _dialect(RC_131)
+        with pytest.raises(UnsupportedFeatureError) as exc:
+            dialect.format_for_update_clause(
+                _clause(dialect, strength=strength, of_columns=["t"])
+            )
+        assert exc.value.feature_name == f"{strength.phrase} OF"
+
+    def test_a_bare_lock_is_unaffected(self):
+        # The refusal must not disturb the lock it refuses to scope: every
+        # strength that renders still renders, with no OF in the output.
+        for strength in LockStrength:
+            for version in LOCK_GRID:
+                sql = _render_or_none(_dialect(version), strength=strength)
+                assert sql is None or "OF" not in sql, (strength, version, sql)
+        assert _render_or_none(_dialect(RC_131)) == "FOR UPDATE"
+        assert _render_or_none(
+            _dialect(RC_131), strength=LockStrength.LOCK_IN_SHARE_MODE
+        ) == "LOCK IN SHARE MODE"
+        assert _render_or_none(_dialect(RC_131), of_columns=[]) == "FOR UPDATE"
+
+    def test_wait_modifiers_do_not_sneak_of_through(self):
+        # The OF refusal must sit ahead of the modifiers, so a request for
+        # both is refused for OF and never rendered with the suffix.
+        for version in LOCK_GRID:
+            for extra in ({"nowait": True}, {"skip_locked": True}):
+                dialect = _dialect(version)
+                with pytest.raises(UnsupportedFeatureError, match="OF"):
+                    dialect.format_for_update_clause(
+                        _clause(dialect, of_columns=["t"], **extra)
+                    )
+
+    def test_the_refusal_declares_itself_in_the_mariadb_mixin(self):
+        # Core's DQL mixin renders OF for any dialect (dql.py: 'OF
+        # {', '.join(of_parts)}'), so the answer has to come from *this*
+        # override. If the guard drifted out of the MariaDB mixin, the
+        # inherited renderer would take over and the refusal would vanish --
+        # the failure a value assertion cannot see, since the rendering still
+        # looks plausible.
+        declaring = None
+        for klass in MariaDBDialect.__mro__:
+            if "format_for_update_clause" in klass.__dict__:
+                declaring = klass
+                break
+        assert declaring is not None
+        assert declaring.__module__.startswith(
+            "rhosocial.activerecord.backend.impl.mariadb"
+        ), (
+            f"format_for_update_clause resolves to {declaring.__module__}"
+            f".{declaring.__name__}; an inherited core renderer would emit "
+            "the OF suffix MariaDB rejects."
+        )
+        import inspect
+
+        from rhosocial.activerecord.backend.impl.mariadb.mixins import locking as locking_mod
+
+        source = inspect.getsource(locking_mod.MariaDBLockingMixin.format_for_update_clause)
+        assert "of_columns" in source
+        assert "UnsupportedFeatureError" in source
+
+    def test_the_lie_probe_is_gone(self):
+        # ``supports_lock_strength`` claimed a question no caller asks, and
+        # answered it against the strength enum while the protocol declared
+        # it with no parameter at all: the docstring said MariaDB lacked
+        # different lock strengths while the body returned True for SHARE --
+        # the spelling whose sibling probe, measured live, is False. Nothing
+        # in core, the testsuite or this repo consumed it, so it is removed
+        # rather than re-answered.
+        dialect = _dialect(RC_131)
+        assert not hasattr(dialect, "supports_lock_strength")
+
+        from rhosocial.activerecord.backend.impl.mariadb import protocols as mysql_protocols
+
+        assert "supports_lock_strength" not in vars(mysql_protocols.MariaDBLockingSupport)
+
+
 class TestWaitModifierGates:
     """NOWAIT is 10.3, SKIP LOCKED is 10.6 -- they do not travel together.
 
@@ -669,6 +785,61 @@ class TestGatesMatchLiveServer:
         )[0]
         assert rendered == "LOCK IN SHARE MODE"
         mariadb_backend.execute(f"SELECT 1 AS x FROM (SELECT 1 AS x) d {rendered}")
+
+    def test_of_columns_is_refused_by_server_and_dialect(self, mariadb_backend):
+        """``OF tbl_name`` -- errno 1064 live, and the formatter must not emit it.
+
+        Both halves matter: the mixin rendered the suffix, so a caller scoping
+        a lock with ``of_columns`` got SQL every server on the grid rejects,
+        while the formatter -- the thing that produced the clause -- reported
+        success. The gate has to agree with the server on the refusal *and*
+        leave the bare lock standing, because that is the request the caller
+        actually needs served.
+        """
+        version = _parse_version(_server_version(mariadb_backend))
+        dialect = mariadb_backend.dialect
+        mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_of")
+        mariadb_backend.execute("CREATE TABLE t_gate_of (id INT PRIMARY KEY, v INT)")
+        mariadb_backend.execute("INSERT INTO t_gate_of VALUES (1, 10)")
+        try:
+            for spelling in (
+                "FOR UPDATE OF t_gate_of",
+                "FOR UPDATE OF `t_gate_of`",
+                "LOCK IN SHARE MODE OF t_gate_of",
+                "FOR UPDATE NOWAIT OF t_gate_of",
+            ):
+                with pytest.raises(DatabaseError) as exc:
+                    mariadb_backend.execute(
+                        f"SELECT id FROM t_gate_of {spelling}"
+                    )
+                assert "1064" in str(exc.value), spelling
+
+            # The bare lock, on the same server, executes -- the refusal is
+            # about the suffix, not about locking.
+            mariadb_backend.execute("SELECT id FROM t_gate_of FOR UPDATE")
+            mariadb_backend.execute(
+                "SELECT id FROM t_gate_of LOCK IN SHARE MODE"
+            )
+
+            # ...and the dialect refuses the clause instead of rendering it.
+            for strength in (LockStrength.UPDATE, LockStrength.LOCK_IN_SHARE_MODE):
+                with pytest.raises(UnsupportedFeatureError, match="OF"):
+                    dialect.format_for_update_clause(
+                        ForUpdateClause(_dialect(version), strength=strength,
+                                        of_columns=["t_gate_of"])
+                    )
+            # No version, no strength, no modifier renders the suffix.
+            for strength in LockStrength:
+                clause = ForUpdateClause(
+                    dialect, strength=strength, of_columns=["t_gate_of"]
+                )
+                try:
+                    sql, _ = dialect.format_for_update_clause(clause)
+                except UnsupportedFeatureError:
+                    continue
+                assert "OF" not in sql, strength
+        finally:
+            mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_of")
 
     def test_for_share_is_never_rendered(self, mariadb_backend):
         """No strength, on this server's version, writes the FOR SHARE spelling."""

@@ -1,7 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/locking.py
 """MariaDB row-level locking mixin.
 
-MariaDB supports FOR UPDATE, LOCK IN SHARE MODE, NOWAIT, and SKIP LOCKED.
+MariaDB supports FOR UPDATE, LOCK IN SHARE MODE, NOWAIT, and SKIP LOCKED --
+but no OF tbl_name scoping suffix on any of them.
 """
 from typing import Tuple, TYPE_CHECKING
 
@@ -41,6 +42,15 @@ class MariaDBLockingMixin:
     modifiers do not combine either: ``LOCK IN SHARE MODE NOWAIT`` and
     ``LOCK IN SHARE MODE SKIP LOCKED`` are also errno 1064 on every measured
     version, so only ``FOR UPDATE`` carries a wait modifier here.
+
+    Nor the ``OF tbl_name`` scoping suffix: a lock clause that names its
+    table is a parse error here (errno 1064 on every measured version,
+    10.2.44 through 13.1.1, under either lock spelling, aliased, backquoted,
+    joined, or with a wait modifier), so :meth:`format_for_update_clause`
+    refuses a clause carrying ``of_columns`` instead of appending ``OF`` and
+    handing the caller SQL the server rejects. The bare form MariaDB accepts
+    covers every row the statement reads -- that is what MySQL's ``OF`` is
+    narrowed away from, not a feature MariaDB lacks.
     """
 
     def supports_for_update(self) -> bool:
@@ -106,19 +116,6 @@ class MariaDBLockingMixin:
         """Whether the legacy LOCK IN SHARE MODE syntax is supported."""
         return True
 
-    def supports_lock_strength(self, strength: str) -> bool:
-        """Check if a specific lock strength is supported.
-
-        Args:
-            strength: Lock strength name ('UPDATE', 'SHARE').
-
-        Returns:
-            True if supported.
-        """
-        strength_upper = strength.upper() if isinstance(strength, str) else str(strength)
-        valid_strengths = {'UPDATE', 'SHARE'}
-        return strength_upper in valid_strengths
-
     def format_for_update_clause(
         self,
         clause: "ForUpdateClause"
@@ -133,6 +130,14 @@ class MariaDBLockingMixin:
         MariaDB spelling at all, so a ``SHARE`` strength is refused here
         rather than re-written: the spelling MariaDB does accept takes no
         wait modifier (see :meth:`supports_for_share`).
+
+        Nor is there an ``OF tbl_name`` suffix here -- a clause carrying
+        ``of_columns`` is refused rather than rendered or silently narrowed,
+        naming the bare form MariaDB accepts.
+
+        Raises:
+            UnsupportedFeatureError: If the strength, a wait modifier, or the
+                ``OF tbl_name`` scoping suffix is not supported by MariaDB.
 
         Args:
             clause: ForUpdateClause instance.
@@ -185,20 +190,32 @@ class MariaDBLockingMixin:
         parts.append(strength.phrase)
 
         if clause.of_columns:
-            # An OF entry is either a bare name or an expression. A schema
-            # object renders itself -- so a lock can name a table in another
-            # database -- while a bare string is a column name and takes the
-            # identifier formatter. This is core's own contract for the
-            # clause, spelled out because the MariaDB override does not
-            # inherit core's formatter.
-            of_parts = []
-            for entry in clause.of_columns:
-                if isinstance(entry, str):
-                    of_parts.append(self.format_identifier(entry))
-                else:
-                    of_parts.append(entry.to_sql()[0])
-            tables_sql = ", ".join(of_parts)
-            parts.append(f"OF {tables_sql}")
+            # MariaDB has no OF tbl_name on any lock clause: the scoping
+            # suffix MySQL and PostgreSQL accept is a parse error here (errno
+            # 1064 on every measured version, 10.2.44 through 13.1.1, under
+            # FOR UPDATE and LOCK IN SHARE MODE alike, and aliased,
+            # backquoted, joined or carrying a wait modifier). Rendering it
+            # would hand the caller SQL the server rejects while the backend
+            # said it was fine, which is the shape rule 8 rules out; and
+            # silently dropping the columns would change what the caller
+            # asked to lock -- the bare form covers every row the statement
+            # reads, which is exactly the narrowing OF exists to undo. So the
+            # suffix is named in the refusal and nothing is emitted, leaving
+            # the caller to choose between the two spells of the lock this
+            # dialect really accepts.
+            raise UnsupportedFeatureError(
+                self.name,
+                f"{strength.phrase} OF",
+                "MariaDB does not accept the OF tbl_name scoping suffix on "
+                "any lock clause: 'FOR UPDATE OF t', 'LOCK IN SHARE MODE OF "
+                "t', aliased, backquoted, joined and carrying a wait "
+                "modifier are all errno 1064 on every measured version "
+                "(10.2.44 through 13.1.1). Use the bare lock -- "
+                "'FOR UPDATE', or 'LOCK IN SHARE MODE' via "
+                "format_lock_in_share_mode() -- which locks every row the "
+                "statement reads rather than the tables named, and drop "
+                "of_columns.",
+            )
 
         if clause.skip_locked:
             if not self.supports_for_update_skip_locked():
