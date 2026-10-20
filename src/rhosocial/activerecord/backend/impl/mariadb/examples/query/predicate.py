@@ -103,6 +103,7 @@ from rhosocial.activerecord.backend.expression import (
     WhereClause,
 )
 from rhosocial.activerecord.backend.expression.predicates import (
+    LikeOperator,
     ComparisonPredicate,
     LikePredicate,
     InPredicate,
@@ -124,7 +125,7 @@ like_query = QueryStatement(
         dialect,
         condition=LikePredicate(
             dialect,
-            'LIKE',
+            LikeOperator.LIKE,
             Column(dialect, 'name'),
             Literal(dialect, 'A%'),
         ),
