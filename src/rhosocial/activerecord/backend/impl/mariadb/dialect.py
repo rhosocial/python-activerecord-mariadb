@@ -146,6 +146,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
 # Import MariaDB-specific mixins
 from .mixins import (
     MariaDBIntrospectionMixin,  # Must be before IntrospectionMixin
+    MariaDBStatusDialectMixin,
     MariaDBSequenceMixin,
     MariaDBReturningMixin,
     MariaDBSystemVersioningMixin,
@@ -276,6 +277,7 @@ class MariaDBDialect(
     NamespaceMixin,
     RelationSourceMixin,
     MariaDBIntrospectionMixin,
+    MariaDBStatusDialectMixin,
     MariaDBShowDialectMixin,
     MariaDBSequenceMixin,
     MariaDBReturningMixin,

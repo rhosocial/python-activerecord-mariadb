@@ -204,6 +204,27 @@ class MariaDBBackendMixin:
         else:
             print(f"[{logging.getLevelName(level)}] {message}")
 
+    def _liveness_probe(self) -> Tuple[str, tuple]:
+        """The statement that answers "is this connection still usable?".
+
+        Rendered once per backend and kept, because this runs before *every*
+        query and a probe is the one statement whose text never varies. It is a
+        node like any other: the engine is asked for a constant, no relation is
+        read.
+        """
+        cached = getattr(self, "_liveness_probe_sql", None)
+        if cached is None:
+            from rhosocial.activerecord.backend.expression import (
+                Literal,
+                QueryStatement,
+            )
+
+            cached = QueryStatement(
+                self.dialect, select=[Literal(self.dialect, 1, inline=True)]
+            ).to_sql()
+            self._liveness_probe_sql = cached
+        return cached
+
     def _apply_result_mapping(
         self,
         result: QueryResult,

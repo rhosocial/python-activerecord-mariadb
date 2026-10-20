@@ -1,14 +1,18 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/test_show_expressions.py
 """Offline tests for the MariaDB SHOW expression classes.
 
-Covers the keyword-only ``__init__`` parameters folded from the fluent
-API (schema/full/like_pattern/session/limit/user/host/table_name), which
-the introspection-based ``get_params()`` reads back for serialization and
-for the dialect's ``format_show_*`` methods.
+Covers the keyword-only ``__init__`` parameters (schema/full/like_pattern/
+session/limit/user/host/table_name), which the introspection-based
+``get_params()`` reads back for serialization and for the dialect's
+``format_show_*`` methods.
+
+Every parameter is given at construction. There is deliberately no fluent
+surface to test: a statement is complete when it is built, so the artifact is
+the constructor call and nothing else.
 """
 import pytest
 
-from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.objects import Table, Trigger, View
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
     ShowCharsetExpression,
@@ -19,6 +23,10 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
     ShowExpression,
     ShowGrantsExpression,
     ShowProcessListExpression,
+    ShowCreateTableExpression,
+    ShowCreateTriggerExpression,
+    ShowCreateViewExpression,
+    ShowIndexExpression,
     ShowStatusExpression,
     ShowTableStatusExpression,
     ShowTablesExpression,
@@ -33,13 +41,53 @@ def dialect():
     return MariaDBDialect(version=(10, 6, 0))
 
 
-class TestShowExpressionBase:
+class TestShowRelationExpressions:
+    """The four relation-named statements name their target as one object.
+
+    The database lives inside the relation object (``catalog_name``) rather
+    than on the statement, so a qualified target is expressible and the same
+    qualified-name renderer serves every one of them.
+    """
+
+    def test_create_table_qualified_through_the_relation(self, dialect):
+        expr = ShowCreateTableExpression(
+            dialect, Table(dialect, "users", catalog_name="app")
+        )
+        assert expr.to_sql() == ("SHOW CREATE TABLE `app`.`users`", ())
+
+    def test_create_view_takes_a_view(self, dialect):
+        expr = ShowCreateViewExpression(dialect, View(dialect, "v_users"))
+        assert expr.to_sql() == ("SHOW CREATE VIEW `v_users`", ())
+
+    def test_create_trigger_qualified_through_the_trigger(self, dialect):
+        expr = ShowCreateTriggerExpression(
+            dialect, Trigger(dialect, "trg", catalog_name="app")
+        )
+        assert expr.to_sql() == ("SHOW CREATE TRIGGER `app`.`trg`", ())
+
+    def test_index_qualified_through_the_relation(self, dialect):
+        expr = ShowIndexExpression(
+            dialect, Table(dialect, "users", catalog_name="app")
+        )
+        assert expr.to_sql() == ("SHOW INDEX FROM `app`.`users`", ())
+
+    def test_a_tuple_target_is_refused(self, dialect):
+        with pytest.raises(TypeError, match="not \\(database, name\\) tuples"):
+            ShowCreateTableExpression(dialect, ("app", "users"))
+
     def test_schema_init_param(self, dialect):
         expr = ShowExpression(dialect, schema="app")
         assert expr.get_params() == {"schema": "app"}
 
-    def test_schema_fluent(self, dialect):
-        expr = ShowExpression(dialect).with_schema("app")
+    def test_no_fluent_setter_survives(self, dialect):
+        """A SHOW statement has no chained-parameter surface.
+
+        Every parameter is a construction field, so a ``with_*`` method would be
+        a second way to say the same thing -- and the one the artifact cannot
+        express, because the artifact is the constructor call.
+        """
+        expr = ShowExpression(dialect, schema="app")
+        assert not hasattr(expr, "with_schema")
         assert expr.get_params() == {"schema": "app"}
 
     def test_to_sql_not_implemented(self, dialect):
@@ -85,16 +133,12 @@ class TestShowTablesExpression:
         }
         assert expr.to_sql() == ("SHOW FULL TABLES FROM `app`", ())
 
-    def test_schema_set_fluently_renders_the_same(self, dialect):
-        expr = ShowTablesExpression(dialect).with_schema("app")
-        assert expr.to_sql() == ("SHOW TABLES FROM `app`", ())
-
-    def test_fluent_api(self, dialect):
-        expr = ShowTablesExpression(dialect).with_full().like("t%")
+    def test_all_options_at_construction(self, dialect):
+        expr = ShowTablesExpression(dialect, schema="app", full=True, like_pattern="t%")
         assert expr.get_params() == {
-            "schema": None, "full": True, "like_pattern": "t%"
+            "schema": "app", "full": True, "like_pattern": "t%"
         }
-        assert expr.to_sql() == ("SHOW FULL TABLES LIKE %s", ("t%",))
+        assert expr.to_sql() == ("SHOW FULL TABLES FROM `app` LIKE %s", ("t%",))
 
 
 class TestShowDatabasesExpression:

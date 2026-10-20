@@ -8,7 +8,14 @@ like Galera cluster status and thread pool metrics.
 
 from typing import Any, Dict, List, Optional
 
-from ..mixins.introspection import SYSTEM_SCHEMAS_SQL_PREDICATE
+from ..expression.show import ShowStatusExpression, ShowVariablesExpression
+from ..expression.status import (
+    MariaDBDatabaseListQuery,
+    MariaDBSessionInfoQuery,
+    MariaDBStorageSizeQuery,
+    MariaDBUserListQuery,
+    MariaDBVersionQuery,
+)
 from rhosocial.activerecord.backend.introspection.status import (
     StatusItem,
     StatusCategory,
@@ -99,18 +106,18 @@ class MariaDBStatusIntrospectorMixin:
 class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstractStatusIntrospector):
     """Synchronous MariaDB status introspector."""
 
-    def _execute_query(self, sql: str) -> List[tuple]:
+    def _execute_query(self, sql: str, params: tuple = ()) -> List[tuple]:
         cursor = self._backend._connection.cursor()
         try:
-            cursor.execute(sql)
+            cursor.execute(sql, params)
             return cursor.fetchall()
         finally:
             cursor.close()
 
-    def _execute_query_dict(self, sql: str) -> List[Dict[str, Any]]:
+    def _execute_query_dict(self, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
         cursor = self._backend._connection.cursor()
         try:
-            cursor.execute(sql)
+            cursor.execute(sql, params)
             columns = [desc[0].lower() for desc in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
         finally:
@@ -120,7 +127,10 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
         result: Dict[str, str] = {}
         for name in names:
             try:
-                rows = self._execute_query(f"SHOW VARIABLES LIKE '{name}'")
+                sql, params = ShowVariablesExpression(
+                    self._backend.dialect, like_pattern=name
+                ).to_sql()
+                rows = self._execute_query(sql, params)
                 if rows:
                     result[rows[0][0].lower()] = rows[0][1]
             except Exception:
@@ -131,7 +141,10 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
         result: Dict[str, str] = {}
         for name in names:
             try:
-                rows = self._execute_query(f"SHOW GLOBAL STATUS LIKE '{name}'")
+                sql, params = ShowStatusExpression(
+                    self._backend.dialect, like_pattern=name, session=False
+                ).to_sql()
+                rows = self._execute_query(sql, params)
                 if rows:
                     result[rows[0][0]] = rows[0][1]
             except Exception:
@@ -153,7 +166,7 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
 
     def _get_version_string(self) -> str:
         try:
-            rows = self._execute_query("SELECT VERSION()")
+            rows = self._execute_query(*MariaDBVersionQuery(self._backend.dialect).to_sql())
             return rows[0][0] if rows else "Unknown"
         except Exception:
             return "Unknown"
@@ -203,10 +216,7 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
     def get_storage_info(self) -> StorageInfo:
         try:
             rows = self._execute_query_dict(
-                "SELECT SUM(data_length) AS data_bytes,\n"
-                "       SUM(index_length) AS index_bytes\n"
-                "FROM information_schema.TABLES\n"
-                f"WHERE {SYSTEM_SCHEMAS_SQL_PREDICATE}"
+                *MariaDBStorageSizeQuery(self._backend.dialect).to_sql()
             )
             if rows:
                 data = int(rows[0].get("data_bytes") or 0)
@@ -222,17 +232,9 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
 
     def list_databases(self) -> List[DatabaseBriefInfo]:
         try:
-            rows = self._execute_query_dict("""
-                SELECT s.schema_name,
-                       SUM(t.data_length + t.index_length) AS size_bytes,
-                       COUNT(CASE WHEN t.table_type = 'BASE TABLE' THEN 1 END) AS table_count,
-                       COUNT(CASE WHEN t.table_type = 'VIEW' THEN 1 END) AS view_count
-                FROM information_schema.SCHEMATA s
-                LEFT JOIN information_schema.TABLES t
-                    ON s.schema_name = t.table_schema
-                GROUP BY s.schema_name
-                ORDER BY s.schema_name
-            """)
+            rows = self._execute_query_dict(
+                *MariaDBDatabaseListQuery(self._backend.dialect).to_sql()
+            )
         except Exception:
             return []
 
@@ -248,10 +250,9 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
 
     def list_users(self) -> List[UserInfo]:
         try:
-            rows = self._execute_query_dict("""
-                SELECT user, host, Super_priv
-                FROM mysql.user ORDER BY user
-            """)
+            rows = self._execute_query_dict(
+                *MariaDBUserListQuery(self._backend.dialect).to_sql()
+            )
         except Exception:
             return []
 
@@ -266,12 +267,9 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
 
     def get_session_info(self) -> SessionInfo:
         try:
-            rows = self._execute_query_dict("""
-                SELECT CURRENT_USER() AS cur_user,
-                       DATABASE() AS cur_db,
-                       @@hostname AS host,
-                       @@have_ssl AS have_ssl
-            """)
+            rows = self._execute_query_dict(
+                *MariaDBSessionInfoQuery(self._backend.dialect).to_sql()
+            )
         except Exception:
             return SessionInfo()
 
@@ -290,18 +288,20 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
 class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstractStatusIntrospector):
     """Asynchronous MariaDB status introspector."""
 
-    async def _execute_query(self, sql: str) -> List[tuple]:
+    async def _execute_query(self, sql: str, params: tuple = ()) -> List[tuple]:
         cursor = self._backend._connection.cursor()
         try:
-            await cursor.execute(sql)
+            await cursor.execute(sql, params)
             return await cursor.fetchall()
         finally:
             await cursor.close()
 
-    async def _execute_query_dict(self, sql: str) -> List[Dict[str, Any]]:
+    async def _execute_query_dict(
+        self, sql: str, params: tuple = ()
+    ) -> List[Dict[str, Any]]:
         cursor = self._backend._connection.cursor()
         try:
-            await cursor.execute(sql)
+            await cursor.execute(sql, params)
             columns = [desc[0].lower() for desc in cursor.description]
             return [dict(zip(columns, row)) for row in await cursor.fetchall()]
         finally:
@@ -311,7 +311,10 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         result: Dict[str, str] = {}
         for name in names:
             try:
-                rows = await self._execute_query(f"SHOW VARIABLES LIKE '{name}'")
+                sql, params = ShowVariablesExpression(
+                    self._backend.dialect, like_pattern=name
+                ).to_sql()
+                rows = await self._execute_query(sql, params)
                 if rows:
                     result[rows[0][0].lower()] = rows[0][1]
             except Exception:
@@ -322,9 +325,10 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         result: Dict[str, str] = {}
         for name in names:
             try:
-                rows = await self._execute_query(
-                    f"SHOW GLOBAL STATUS LIKE '{name}'"
-                )
+                sql, params = ShowStatusExpression(
+                    self._backend.dialect, like_pattern=name, session=False
+                ).to_sql()
+                rows = await self._execute_query(sql, params)
                 if rows:
                     result[rows[0][0]] = rows[0][1]
             except Exception:
@@ -346,7 +350,9 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
 
     async def _get_version_string(self) -> str:
         try:
-            rows = await self._execute_query("SELECT VERSION()")
+            rows = await self._execute_query(
+                *MariaDBVersionQuery(self._backend.dialect).to_sql()
+            )
             return rows[0][0] if rows else "Unknown"
         except Exception:
             return "Unknown"
@@ -396,10 +402,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
     async def get_storage_info(self) -> StorageInfo:
         try:
             rows = await self._execute_query_dict(
-                "SELECT SUM(data_length) AS data_bytes,\n"
-                "       SUM(index_length) AS index_bytes\n"
-                "FROM information_schema.TABLES\n"
-                f"WHERE {SYSTEM_SCHEMAS_SQL_PREDICATE}"
+                *MariaDBStorageSizeQuery(self._backend.dialect).to_sql()
             )
             if rows:
                 data = int(rows[0].get("data_bytes") or 0)
@@ -415,17 +418,9 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
 
     async def list_databases(self) -> List[DatabaseBriefInfo]:
         try:
-            rows = await self._execute_query_dict("""
-                SELECT s.schema_name,
-                       SUM(t.data_length + t.index_length) AS size_bytes,
-                       COUNT(CASE WHEN t.table_type = 'BASE TABLE' THEN 1 END) AS table_count,
-                       COUNT(CASE WHEN t.table_type = 'VIEW' THEN 1 END) AS view_count
-                FROM information_schema.SCHEMATA s
-                LEFT JOIN information_schema.TABLES t
-                    ON s.schema_name = t.table_schema
-                GROUP BY s.schema_name
-                ORDER BY s.schema_name
-            """)
+            rows = await self._execute_query_dict(
+                *MariaDBDatabaseListQuery(self._backend.dialect).to_sql()
+            )
         except Exception:
             return []
 
@@ -441,10 +436,9 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
 
     async def list_users(self) -> List[UserInfo]:
         try:
-            rows = await self._execute_query_dict("""
-                SELECT user, host, Super_priv
-                FROM mysql.user ORDER BY user
-            """)
+            rows = await self._execute_query_dict(
+                *MariaDBUserListQuery(self._backend.dialect).to_sql()
+            )
         except Exception:
             return []
 
@@ -459,12 +453,9 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
 
     async def get_session_info(self) -> SessionInfo:
         try:
-            rows = await self._execute_query_dict("""
-                SELECT CURRENT_USER() AS cur_user,
-                       DATABASE() AS cur_db,
-                       @@hostname AS host,
-                       @@have_ssl AS have_ssl
-            """)
+            rows = await self._execute_query_dict(
+                *MariaDBSessionInfoQuery(self._backend.dialect).to_sql()
+            )
         except Exception:
             return SessionInfo()
 

@@ -15,6 +15,7 @@ Design principle: Sync and Async are separate and cannot coexist.
 
 from typing import Any, Dict, List, Optional
 
+from rhosocial.activerecord.backend.expression.objects import Trigger
 from rhosocial.activerecord.backend.introspection.executor import (
     SyncIntrospectorExecutor,
     AsyncIntrospectorExecutor,
@@ -57,7 +58,18 @@ class ShowMixin:
         """Get the SQL dialect from the backend."""
         return self._backend.dialect
 
-    def _show_relation(self, expression_cls, relation, schema):
+    def _target(self, object_cls, name, schema):
+        """Name one schema object inside *schema*, database included.
+
+        A table, a view and a trigger are named the same way -- an object in
+        a database -- so the qualifier is folded into the object here rather
+        than concatenated onto a string by each call site.
+        """
+        if schema:
+            return object_cls(self.dialect, name, catalog_name=schema)
+        return object_cls(self.dialect, name)
+
+    def _show_relation(self, expression_cls, relation, schema, **options):
         """Build one of the relation-named SHOW expressions.
 
         A table and a view are both relations and are named the same way,
@@ -66,10 +78,11 @@ class ShowMixin:
         database is folded into the object; nothing concatenates a
         qualified name by hand.
         """
-        expr = expression_cls(self.dialect, relation)
-        if schema:
-            expr.with_schema(schema)
-        return expr
+        return expression_cls(
+            self.dialect,
+            self._target(expression_cls.relation_kind, relation, schema),
+            **options,
+        )
 
     # ------------------------------------------------------------------ #
     # Pure parse helpers (shared by sync and async, no I/O)
@@ -133,7 +146,7 @@ class ShowMixin:
                 sub_part=row.get("Sub_part", row.get("SUB_PART")),
                 packed=row.get("Packed", row.get("PACKED")),
                 null=row.get("Null", row.get("NULLABLE")),
-                index_type=row.get("Index_type", row.get("INDEX_TYPE"), "BTREE"),
+                index_type=row.get("Index_type") or row.get("INDEX_TYPE") or "BTREE",
                 comment=row.get("Comment", row.get("INDEX_COMMENT")),
                 index_comment=row.get("Index_comment", row.get("INDEX_COMMENT")),
                 visible=row.get("Visible", row.get("IS_VISIBLE")),
@@ -368,11 +381,9 @@ class SyncShowIntrospector(ShowMixin):
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = self._show_relation(ShowColumnsExpression, table_name, schema)
-        if full:
-            expr.with_full()
-        if like:
-            expr.like(like)
+        expr = self._show_relation(
+            ShowColumnsExpression, table_name, schema, full=full, like_pattern=like
+        )
         sql, params = expr.to_sql()
         return self._parse_columns(self._exec(sql, params))
 
@@ -389,93 +400,73 @@ class SyncShowIntrospector(ShowMixin):
         full: bool = False,
     ):
         """List tables in the database."""
-        expr = ShowTablesExpression(self.dialect)
-        if schema:
-            expr.with_schema(schema)
-        if like:
-            expr.like(like)
-        if full:
-            expr.with_full()
+        expr = ShowTablesExpression(
+            self.dialect, schema=schema, full=full, like_pattern=like
+        )
         sql, params = expr.to_sql()
         return self._parse_tables(self._exec(sql, params))
 
     def databases(self, like: Optional[str] = None):
         """List databases."""
-        expr = ShowDatabasesExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowDatabasesExpression(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self._parse_databases(self._exec(sql, params))
 
     def table_status(self, schema: Optional[str] = None, like: Optional[str] = None):
         """Get table status information."""
-        expr = ShowTableStatusExpression(self.dialect)
-        if schema:
-            expr.with_schema(schema)
-        if like:
-            expr.like(like)
+        expr = ShowTableStatusExpression(
+            self.dialect, schema=schema, like_pattern=like
+        )
         sql, params = expr.to_sql()
         return self._parse_table_status(self._exec(sql, params))
 
     def triggers(self, schema: Optional[str] = None, table_name: Optional[str] = None):
         """List triggers."""
-        expr = ShowTriggersExpression(self.dialect)
-        if schema:
-            expr.with_schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        expr = ShowTriggersExpression(
+            self.dialect, schema=schema, table_name=table_name
+        )
         sql, params = expr.to_sql()
         return self._parse_triggers(self._exec(sql, params))
 
     def create_trigger(self, trigger_name: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement."""
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
-        if schema:
-            expr.with_schema(schema)
+        expr = ShowCreateTriggerExpression(
+            self.dialect, self._target(Trigger, trigger_name, schema)
+        )
         sql, params = expr.to_sql()
         return self._parse_create_trigger(self._exec(sql, params), trigger_name)
 
     def variables(self, like: Optional[str] = None, session: bool = True):
         """Show server variables."""
-        expr = ShowVariablesExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_vars()
+        expr = ShowVariablesExpression(
+            self.dialect, like_pattern=like, session=session
+        )
         sql, params = expr.to_sql()
         return self._parse_variables(self._exec(sql, params))
 
     def status(self, like: Optional[str] = None, session: bool = True):
         """Show server status."""
-        expr = ShowStatusExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_status()
+        expr = ShowStatusExpression(
+            self.dialect, like_pattern=like, session=session
+        )
         sql, params = expr.to_sql()
         return self._parse_status(self._exec(sql, params))
 
     def processlist(self, full: bool = False):
         """Show process list."""
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.with_full()
+        expr = ShowProcessListExpression(self.dialect, full=full)
         sql, params = expr.to_sql()
         return self._parse_processlist(self._exec(sql, params))
 
     def warnings(self, limit: Optional[int] = None):
         """Show warnings."""
-        expr = ShowWarningsExpression(self.dialect)
-        if limit is not None:
-            expr.with_limit(limit)
+        expr = ShowWarningsExpression(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self._parse_warnings(self._exec(sql, params))
 
     def errors(self, limit: Optional[int] = None):
         """Show errors."""
-        expr = ShowErrorsExpression(self.dialect)
-        if limit is not None:
-            expr.with_limit(limit)
+        expr = ShowErrorsExpression(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self._parse_warnings(self._exec(sql, params))
 
@@ -487,25 +478,19 @@ class SyncShowIntrospector(ShowMixin):
 
     def charset(self, like: Optional[str] = None):
         """Show character sets."""
-        expr = ShowCharsetExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCharsetExpression(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self._parse_charset(self._exec(sql, params))
 
     def collation(self, like: Optional[str] = None):
         """Show collations."""
-        expr = ShowCollationExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCollationExpression(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self._parse_collation(self._exec(sql, params))
 
     def grants(self, user: Optional[str] = None, host: Optional[str] = None):
         """Show grants."""
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
+        expr = ShowGrantsExpression(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         return self._parse_grants(self._exec(sql, params))
 
@@ -561,11 +546,9 @@ class AsyncShowIntrospector(ShowMixin):
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = self._show_relation(ShowColumnsExpression, table_name, schema)
-        if full:
-            expr.with_full()
-        if like:
-            expr.like(like)
+        expr = self._show_relation(
+            ShowColumnsExpression, table_name, schema, full=full, like_pattern=like
+        )
         sql, params = expr.to_sql()
         return self._parse_columns(await self._exec(sql, params))
 
@@ -582,93 +565,73 @@ class AsyncShowIntrospector(ShowMixin):
         full: bool = False,
     ):
         """List tables in the database."""
-        expr = ShowTablesExpression(self.dialect)
-        if schema:
-            expr.with_schema(schema)
-        if like:
-            expr.like(like)
-        if full:
-            expr.with_full()
+        expr = ShowTablesExpression(
+            self.dialect, schema=schema, full=full, like_pattern=like
+        )
         sql, params = expr.to_sql()
         return self._parse_tables(await self._exec(sql, params))
 
     async def databases(self, like: Optional[str] = None):
         """List databases."""
-        expr = ShowDatabasesExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowDatabasesExpression(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self._parse_databases(await self._exec(sql, params))
 
     async def table_status(self, schema: Optional[str] = None, like: Optional[str] = None):
         """Get table status information."""
-        expr = ShowTableStatusExpression(self.dialect)
-        if schema:
-            expr.with_schema(schema)
-        if like:
-            expr.like(like)
+        expr = ShowTableStatusExpression(
+            self.dialect, schema=schema, like_pattern=like
+        )
         sql, params = expr.to_sql()
         return self._parse_table_status(await self._exec(sql, params))
 
     async def triggers(self, schema: Optional[str] = None, table_name: Optional[str] = None):
         """List triggers."""
-        expr = ShowTriggersExpression(self.dialect)
-        if schema:
-            expr.with_schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        expr = ShowTriggersExpression(
+            self.dialect, schema=schema, table_name=table_name
+        )
         sql, params = expr.to_sql()
         return self._parse_triggers(await self._exec(sql, params))
 
     async def create_trigger(self, trigger_name: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement."""
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
-        if schema:
-            expr.with_schema(schema)
+        expr = ShowCreateTriggerExpression(
+            self.dialect, self._target(Trigger, trigger_name, schema)
+        )
         sql, params = expr.to_sql()
         return self._parse_create_trigger(await self._exec(sql, params), trigger_name)
 
     async def variables(self, like: Optional[str] = None, session: bool = True):
         """Show server variables."""
-        expr = ShowVariablesExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_vars()
+        expr = ShowVariablesExpression(
+            self.dialect, like_pattern=like, session=session
+        )
         sql, params = expr.to_sql()
         return self._parse_variables(await self._exec(sql, params))
 
     async def status(self, like: Optional[str] = None, session: bool = True):
         """Show server status."""
-        expr = ShowStatusExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_status()
+        expr = ShowStatusExpression(
+            self.dialect, like_pattern=like, session=session
+        )
         sql, params = expr.to_sql()
         return self._parse_status(await self._exec(sql, params))
 
     async def processlist(self, full: bool = False):
         """Show process list."""
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.with_full()
+        expr = ShowProcessListExpression(self.dialect, full=full)
         sql, params = expr.to_sql()
         return self._parse_processlist(await self._exec(sql, params))
 
     async def warnings(self, limit: Optional[int] = None):
         """Show warnings."""
-        expr = ShowWarningsExpression(self.dialect)
-        if limit is not None:
-            expr.with_limit(limit)
+        expr = ShowWarningsExpression(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self._parse_warnings(await self._exec(sql, params))
 
     async def errors(self, limit: Optional[int] = None):
         """Show errors."""
-        expr = ShowErrorsExpression(self.dialect)
-        if limit is not None:
-            expr.with_limit(limit)
+        expr = ShowErrorsExpression(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self._parse_warnings(await self._exec(sql, params))
 
@@ -680,25 +643,19 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def charset(self, like: Optional[str] = None):
         """Show character sets."""
-        expr = ShowCharsetExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCharsetExpression(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self._parse_charset(await self._exec(sql, params))
 
     async def collation(self, like: Optional[str] = None):
         """Show collations."""
-        expr = ShowCollationExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCollationExpression(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self._parse_collation(await self._exec(sql, params))
 
     async def grants(self, user: Optional[str] = None, host: Optional[str] = None):
         """Show grants."""
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
+        expr = ShowGrantsExpression(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         return self._parse_grants(await self._exec(sql, params))
 

@@ -26,6 +26,7 @@ from rhosocial.activerecord.backend.explain import AsyncExplainBackendMixin
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
+from ..expression.status import MariaDBVersionQuery
 from ..async_transaction import AsyncMariaDBTransactionManager
 from ..mixins import AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin
 
@@ -269,7 +270,7 @@ class AsyncMariaDBBackend(
         cursor = None
         try:
             cursor = await self._get_cursor()
-            await cursor.execute("SELECT VERSION()")
+            await cursor.execute(*MariaDBVersionQuery(self.dialect).to_sql())
             version_row = await cursor.fetchone()
             version_str = version_row[0] if version_row else "10.5.0"
 
@@ -315,9 +316,9 @@ class AsyncMariaDBBackend(
             return False
 
         try:
-            self.log(logging.DEBUG, "Testing connection with SELECT 1")
+            self.log(logging.DEBUG, "Testing the connection with a liveness probe")
             cursor = await self._get_cursor()
-            await cursor.execute("SELECT 1")
+            await cursor.execute(*self._liveness_probe())
             await cursor.fetchone()
             await cursor.close()
 
