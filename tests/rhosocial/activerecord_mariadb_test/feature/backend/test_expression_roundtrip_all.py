@@ -1394,11 +1394,12 @@ LEGITIMATE_NON_RENDERS = {
 #   reports it as a type mismatch naming the member type, which is the
 #   witness these rows pin.
 #
-# A fourth, narrower shape: the XML channel spells a ``str``-enum member as
-# ``str(member)`` -- ``"DateTimeField.YEAR"`` rather than ``"year"`` -- so the
-# reader hands the constructor a word that is neither a member's value nor a
-# member's name and the normaliser refuses it. Only that channel fails; the
-# dict channel carries the member untouched and JSON carries its value.
+# A fourth, narrower shape used to exist: the XML channel spelled a
+# ``str``-enum member as ``str(member)`` -- ``"DateTimeField.YEAR"`` rather
+# than ``"year"`` -- so the reader handed the constructor a word that is
+# neither a member's value nor a member's name and the normaliser refused it.
+# Core fixed the nine enum families that lacked ``__str__ = str.__str__``, so
+# the shape is gone and with it every row it had here.
 #
 # The writer and the reader are core's, so a row in the first block cannot be
 # fixed from a backend repository. The normalisation rows name whichever
@@ -1423,6 +1424,11 @@ SERIALIZATION_GAP = {
     # ``encode_artifact`` refuses it by name. The members of each pair are
     # pinned by the offending type's own name, which is what disappears when
     # the writer learns to carry one.
+    #
+    # The three enum-carrying constraints that used to sit here are in the
+    # normalisation block below now: core made ``ReferentialAction``,
+    # ``GeneratedColumnType`` and ``TriggerEvent`` str enums, so the writer
+    # carries them and only the read back is still lossy.
     "rhosocial.activerecord.backend.expression.graph.ColumnsClause": (
         ("dict", "json", "xml"),
         (TypeError, "GraphColumn is not one of the value kinds"),
@@ -1430,18 +1436,6 @@ SERIALIZATION_GAP = {
     "rhosocial.activerecord.backend.expression.graph.GraphTableExpression": (
         ("dict", "json", "xml"),
         (TypeError, "GraphColumn is not one of the value kinds"),
-    ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnGeneratedConstraint": (
-        ("dict", "json", "xml"),
-        (TypeError, "GeneratedColumnType is not one of the value kinds"),
-    ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_table.ForeignKeyConstraint": (
-        ("dict", "json", "xml"),
-        (TypeError, "ReferentialAction is not one of the value kinds"),
-    ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerStatement": (
-        ("dict", "json", "xml"),
-        (TypeError, "TriggerEvent is not one of the value kinds"),
     ),
     "rhosocial.activerecord.backend.expression.statements.ddl_view.CreateViewStatement": (
         ("dict", "json", "xml"),
@@ -1495,6 +1489,22 @@ SERIALIZATION_GAP = {
         ("json", "xml"),
         "type mismatch str vs XMLSerializeDocumentType",
     ),
+    # Core made these three enums str subclasses, so the writer stopped
+    # refusing them and the dict channel carries the member untouched. What
+    # is left is the read: these constructors store the parameter the
+    # artifact hands back, so the word arrives where the member went in.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnGeneratedConstraint": (
+        ("json", "xml"),
+        "type mismatch str vs GeneratedColumnType",
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ForeignKeyConstraint": (
+        ("json", "xml"),
+        "type mismatch str vs ReferentialAction",
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerStatement": (
+        ("json", "xml"),
+        "type mismatch str vs TriggerTiming",
+    ),
     # This backend's own ``KillTarget`` takes the org's enum spelling -- a
     # ``str`` base with ``__str__`` pinned -- so the member *is* a string and
     # the writer carries it as ``string_value`` instead of refusing it by name.
@@ -1507,45 +1517,11 @@ SERIALIZATION_GAP = {
         "type mismatch str vs KillTarget",
     ),
     # ---- the XML channel spells a str-enum member as str(member) -----------
-    # ``DateTimeField`` and ``IntervalUnit`` are str-enums, so JSON writes the
-    # value and round-trips. The XML writer calls ``str()`` on the member and
-    # gets the repr-shaped spelling back, which the normaliser refuses.
-    "rhosocial.activerecord.backend.expression.datetime.DatePartExpression": (
-        ("xml",),
-        (ValueError, "unsupported datetime field: 'DateTimeField.YEAR'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime.DateTruncExpression": (
-        ("xml",),
-        (ValueError, "unsupported datetime field: 'DateTimeField.YEAR'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime.ExtractExpression": (
-        ("xml",),
-        (ValueError, "unsupported datetime field: 'DateTimeField.YEAR'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime.ExtractFieldExpression": (
-        ("xml",),
-        (ValueError, "unsupported datetime field: 'DateTimeField.YEAR'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime._ExtractBase": (
-        ("xml",),
-        (ValueError, "unsupported datetime field: 'DateTimeField.YEAR'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime.DateTimeAddExpression": (
-        ("xml",),
-        (ValueError, "unsupported interval unit: 'IntervalUnit.DAY'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime.DateTimeDiffExpression": (
-        ("xml",),
-        (ValueError, "unsupported interval unit: 'IntervalUnit.DAY'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime.DateTimeSubtractExpression": (
-        ("xml",),
-        (ValueError, "unsupported interval unit: 'IntervalUnit.DAY'"),
-    ),
-    "rhosocial.activerecord.backend.expression.datetime.IntervalExpression": (
-        ("xml",),
-        (ValueError, "unsupported interval unit: 'IntervalUnit.DAY'"),
-    ),
+    # Empty now: core gave ``DateTimeField`` / ``IntervalUnit`` the
+    # ``__str__ = str.__str__`` they were missing, so the XML writer spells the
+    # word and the normaliser accepts it. Keeping a row here would be pinning a
+    # defect that no longer exists -- ``test_pinned_serialization_\
+    # gap_really_fails`` reports it as stale and the row is deleted.
 }
 
 _CHANNELS = ("dict", "json", "xml")
