@@ -175,13 +175,19 @@ class TestCharsetParityAcrossVersions:
     def test_predicate_constant_is_shared_by_every_call_site(self):
         from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
             SYSTEM_SCHEMAS,
-            SYSTEM_SCHEMAS_SQL_PREDICATE,
+            MariaDBIntrospectionMixin,
         )
 
-        # One definition, not an inline tuple repeated per query.
+        # One definition, not an inline tuple repeated per query: the list is
+        # data, and the predicate that excludes it is built from that list by
+        # one method rather than spelled into each query.
         assert SYSTEM_SCHEMAS == ("information_schema", "performance_schema", "mysql", "sys")
+
+        dialect = _dialect(LTS_123)
+        sql, params = MariaDBIntrospectionMixin.system_schemas_predicate(dialect).to_sql()
+        assert params == ()
         for schema in SYSTEM_SCHEMAS:
-            assert f"'{schema}'" in SYSTEM_SCHEMAS_SQL_PREDICATE
+            assert f"'{schema}'" in sql
 
 
 class TestCharsetParityOnLiveServer:
