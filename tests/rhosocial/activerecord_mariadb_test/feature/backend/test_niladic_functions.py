@@ -18,6 +18,7 @@ import pytest_asyncio
 from rhosocial.activerecord.backend.expression import (
     CreateTableStatement,
     DropTableStatement,
+    Literal,
     QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.core import FunctionCall
@@ -206,7 +207,13 @@ class TestMySQLNiladicDDLContext:
                     ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect, 6), constraints=[
-                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect, 6))),
+                    ColumnConstraint(
+                        dialect,
+                        branch=ColumnDefaultConstraint(
+                            dialect,
+                            current_timestamp(dialect, Literal(dialect, 6, inline=True)),
+                        ),
+                    ),
                 ]),
             ],
             if_not_exists=True,
@@ -215,7 +222,11 @@ class TestMySQLNiladicDDLContext:
         # A DEFAULT position carries no bind parameters, so the precision
         # argument renders as an inline literal rather than a placeholder --
         # ``TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6)`` is what the server
-        # accepts, and a bind placeholder in DDL was never valid at all.
+        # accepts, and a bind placeholder in DDL was never valid at all. The
+        # DEFAULT clause marks the value it is handed, not the literals inside
+        # it, so the precision literal is written ``inline=True`` here: the
+        # factory normalises a bare int into a binding literal, and a value
+        # that still binds in a position that cannot is refused by name.
         assert "CURRENT_TIMESTAMP(6)" in sql
         assert params == ()
 
