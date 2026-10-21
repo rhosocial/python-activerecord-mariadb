@@ -156,6 +156,32 @@ def test_mysql_json_table_json_doc_escaped(json_table_dialect):
     assert "b''; DROP TABLE users--" in sql
 
 
+def test_mysql_json_table_json_doc_backslash_escaped(json_table_dialect):
+    """A backslash in a json_doc is doubled, as MariaDB's own policy says.
+
+    MariaDB treats the backslash as an escape character under the default
+    SQL mode, so ``'a\\b'`` is not the three characters ``a``, ``\\``, ``b``
+    -- it is ``a`` followed by a backspace. A literal that does not double
+    the backslash therefore stores a value the caller never sent.
+
+    The escaping must be the dialect's, not the base class's: the two spell
+    the escape differently, and only the dialect knows which one the server
+    will read back unchanged.
+    """
+    dialect = json_table_dialect
+    expr = MariaDBJSONTableExpression(
+        dialect=dialect,
+        json_doc=r'{"a": "b\c"}',
+        path="$.a",
+        columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
+    )
+
+    sql, _ = dialect.format_json_table_expression(expr)
+    assert r"b\\c" in sql
+    # The dialect's own spelling is what must appear.
+    assert dialect.escape_sql_string(r"b\c") in sql
+
+
 def test_mysql_json_table_alias_quoted(json_table_dialect):
     """The JSON_TABLE alias is emitted as a quoted identifier."""
     dialect = json_table_dialect

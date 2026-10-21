@@ -271,21 +271,19 @@ class MariaDBJSONMixin:
             sql += f" AS {self.format_identifier(expr.alias)}"
         return sql, params
 
-    @staticmethod
-    def _json_document_sql(json_doc) -> Tuple[str, tuple]:
+    def _json_document_sql(self, json_doc) -> Tuple[str, tuple]:
         """Render a JSON document argument.
 
         A :class:`~...expression.bases.BaseExpression` is rendered as SQL; a
         plain string is a JSON document and is emitted as a quoted literal, so
         a caller cannot smuggle SQL in through it.
         """
-        from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
         from rhosocial.activerecord.backend.expression import bases
 
         if isinstance(json_doc, bases.BaseExpression):
             return json_doc.to_sql()
         if isinstance(json_doc, str):
-            return f"'{SQLDialectBase._escape_sql_string(json_doc)}'", ()
+            return f"'{self._escape_sql_string(json_doc)}'", ()
         raise TypeError(
             f"json_doc must be a str or expression, got {type(json_doc).__name__}"
         )
