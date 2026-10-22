@@ -79,7 +79,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_view import (
 )
 from rhosocial.activerecord.backend.expression.transaction import (
     BeginTransactionStatement,
-    SetTransactionExpression,
+    SetTransactionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
@@ -311,8 +311,8 @@ PAIR_CASES = (
         ("refused", "TRANSACTION NOT DEFERRABLE"),
     ),
     PairCase(
-        "SetTransactionExpression.deferrable",
-        lambda d, **kw: SetTransactionExpression(d, **kw),
+        "SetTransactionStatement.deferrable",
+        lambda d, **kw: SetTransactionStatement(d, **kw),
         "deferrable",
         "not_deferrable",
         {"deferrable": True},
@@ -540,7 +540,7 @@ class TestPairParametersSurviveSerialization:
             (lambda d: _check(d, not_enforced=True), "not_enforced"),
             (lambda d: _fk(d, deferrable=True), "deferrable"),
             (lambda d: BeginTransactionStatement(d, deferrable=True), "deferrable"),
-            (lambda d: SetTransactionExpression(d, not_deferrable=True), "not_deferrable"),
+            (lambda d: SetTransactionStatement(d, not_deferrable=True), "not_deferrable"),
             (
                 lambda d: MariaDBExchangePartitionExpression(
                     d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), with_validation=True
@@ -563,7 +563,7 @@ class TestPairParametersSurviveSerialization:
             "TableConstraint.not_enforced",
             "TableConstraint.deferrable",
             "BeginTransactionStatement.deferrable",
-            "SetTransactionExpression.not_deferrable",
+            "SetTransactionStatement.not_deferrable",
             "MariaDBExchangePartitionExpression.with_validation",
             "MariaDBExchangePartitionExpression.without_validation",
         ],

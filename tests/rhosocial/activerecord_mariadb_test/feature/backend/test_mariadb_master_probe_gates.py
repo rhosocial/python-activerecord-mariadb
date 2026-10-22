@@ -59,7 +59,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
 )
 from rhosocial.activerecord.backend.expression.transaction import (
     BeginTransactionStatement,
-    SetTransactionExpression,
+    SetTransactionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
@@ -171,7 +171,7 @@ class TestGatedSpellingsAreConsumed:
 
     def test_transaction_no_wait_is_refused_by_name(self):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            SetTransactionExpression(_dialect(), no_wait=True).to_sql()
+            SetTransactionStatement(_dialect(), no_wait=True).to_sql()
         assert "TRANSACTION NO WAIT" in str(excinfo.value)
 
 
@@ -228,8 +228,8 @@ class TestProbesAreLoadBearing:
         dialect = _WaitDialect(VERSION)
         assert BeginTransactionStatement(dialect, wait=True).to_sql() == ("START TRANSACTION WAIT", ())
         assert BeginTransactionStatement(dialect, no_wait=True).to_sql() == ("START TRANSACTION NO WAIT", ())
-        assert SetTransactionExpression(dialect, wait=True).to_sql() == ("SET TRANSACTION WAIT", ())
-        assert SetTransactionExpression(dialect, no_wait=True).to_sql() == ("SET TRANSACTION NO WAIT", ())
+        assert SetTransactionStatement(dialect, wait=True).to_sql() == ("SET TRANSACTION WAIT", ())
+        assert SetTransactionStatement(dialect, no_wait=True).to_sql() == ("SET TRANSACTION NO WAIT", ())
 
     def test_transaction_wait_declaration_owner_is_a_mariadb_class(self):
         # The probe starts as the inherited protocol stub (answering None), so

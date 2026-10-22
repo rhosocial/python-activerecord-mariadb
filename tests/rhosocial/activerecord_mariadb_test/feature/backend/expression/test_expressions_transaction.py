@@ -5,7 +5,7 @@ MariaDB Transaction Behavior:
 - Isolation level must be set BEFORE START TRANSACTION using SET TRANSACTION
 - START TRANSACTION can include READ ONLY / READ WRITE modes
 - The dialect's format_begin_transaction_statement() only returns START TRANSACTION
-- SetTransactionExpression is used for isolation level settings
+- SetTransactionStatement is used for isolation level settings
 """
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -15,7 +15,7 @@ from rhosocial.activerecord.backend.expression.transaction import (
     RollbackStatement,
     SavepointStatement,
     ReleaseSavepointStatement,
-    SetTransactionExpression,
+    SetTransactionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.transaction import IsolationLevel
@@ -66,11 +66,11 @@ class TestMariaDBBeginTransactionExpression:
 
 
 class TestMariaDBSetTransactionExpression:
-    """Tests for MariaDB SetTransactionExpression."""
+    """Tests for MariaDB SetTransactionStatement."""
 
     def test_set_isolation_level(self, mariadb_dialect):
         """Test SET TRANSACTION ISOLATION LEVEL."""
-        expr = SetTransactionExpression(mariadb_dialect)
+        expr = SetTransactionStatement(mariadb_dialect)
         expr.with_isolation_level(IsolationLevel.SERIALIZABLE)
         sql, params = expr.to_sql()
         assert sql == "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
@@ -84,7 +84,7 @@ class TestMariaDBSetTransactionExpression:
     ])
     def test_all_isolation_levels(self, mariadb_dialect, level, expected_name):
         """Test all isolation levels in SET TRANSACTION."""
-        expr = SetTransactionExpression(mariadb_dialect)
+        expr = SetTransactionStatement(mariadb_dialect)
         expr.with_isolation_level(level)
         sql, params = expr.to_sql()
         assert expected_name in sql
@@ -92,7 +92,7 @@ class TestMariaDBSetTransactionExpression:
 
     def test_set_read_only(self, mariadb_dialect):
         """Test SET TRANSACTION READ ONLY."""
-        expr = SetTransactionExpression(mariadb_dialect)
+        expr = SetTransactionStatement(mariadb_dialect)
         expr.read_only()
         sql, params = expr.to_sql()
         assert sql == "SET TRANSACTION READ ONLY"
@@ -100,7 +100,7 @@ class TestMariaDBSetTransactionExpression:
 
     def test_set_read_write(self, mariadb_dialect):
         """Test SET TRANSACTION READ WRITE."""
-        expr = SetTransactionExpression(mariadb_dialect)
+        expr = SetTransactionStatement(mariadb_dialect)
         expr.read_write()
         sql, params = expr.to_sql()
         assert sql == "SET TRANSACTION READ WRITE"
@@ -201,13 +201,13 @@ class TestMariaDBDeferrableIsConsumed:
         assert "TRANSACTION NOT DEFERRABLE" in str(excinfo.value)
 
     def test_set_transaction_deferrable_refused_by_name(self, mariadb_dialect):
-        expr = SetTransactionExpression(mariadb_dialect, deferrable=True)
+        expr = SetTransactionStatement(mariadb_dialect, deferrable=True)
         with pytest.raises(UnsupportedFeatureError) as excinfo:
             expr.to_sql()
         assert "TRANSACTION DEFERRABLE" in str(excinfo.value)
 
     def test_set_transaction_not_deferrable_refused_by_name(self, mariadb_dialect):
-        expr = SetTransactionExpression(mariadb_dialect, not_deferrable=True)
+        expr = SetTransactionStatement(mariadb_dialect, not_deferrable=True)
         with pytest.raises(UnsupportedFeatureError) as excinfo:
             expr.to_sql()
         assert "TRANSACTION NOT DEFERRABLE" in str(excinfo.value)

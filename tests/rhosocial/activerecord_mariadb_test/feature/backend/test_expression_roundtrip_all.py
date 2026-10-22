@@ -1101,7 +1101,7 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.statements.dml.InsertDataSource": (
         NotImplementedError, _NO_FORMATTER
     ),
-    "rhosocial.activerecord.backend.expression.transaction.TransactionExpression": (
+    "rhosocial.activerecord.backend.expression.transaction.TransactionStatement": (
         NotImplementedError, _NO_FORMATTER
     ),
     "rhosocial.activerecord.backend.expression.datetime._TemporalValue": (
