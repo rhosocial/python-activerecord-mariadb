@@ -9,7 +9,6 @@ Tests are run against the actual MySQL dialect.
 import pytest
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.expression import Column
 from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
@@ -77,22 +76,27 @@ def test_mysqlescape_sql_string(dialect):
     assert result == "Table''s comment"
 
 
-def test_mariadb_owns_its_type_name_rule(dialect):
-    """MariaDB's own rule, because a type specification is MariaDB's to spell.
+def test_mariadb_type_names_are_the_grammar_rule(dialect):
+    """The type-name rule is the framework's, not a character filter of ours.
 
-    A type name is validated rather than escaped, and a type node needs no
-    check at all: the dialect renders it, and the name it renders is the
-    model's.
+    MariaDB used to police the type specification with a private filter.  It
+    rejected names it did not recognise and could not see the payloads it was
+    meant to stop, so the rule moved to the grammar every backend shares.
+    What a name may be is one rule for all of them; whether the server knows
+    the type is the server's answer, not ours.
     """
-    from rhosocial.activerecord.backend.expression.types import DataType
+    from rhosocial.activerecord.backend.expression.type_name import (
+        InvalidTypeNameError,
+        validate_type_name,
+    )
 
-    assert dialect._validate_data_type_name([]) is True
-    assert dialect._validate_data_type_name(
-        [type("C", (), {"type": "VARCHAR(255)"})()]
-    ) is True
-    assert dialect._validate_data_type_name(
-        [type("C", (), {"type": "INT; DROP TABLE users--"})()]
-    ) is False
+    # A name is a name, whatever the server will make of it.
+    validate_type_name("VARCHAR(255)")
+    validate_type_name("INT")
+
+    # A specification that is not a name never becomes one.
+    with pytest.raises(InvalidTypeNameError):
+        validate_type_name("INT; DROP TABLE users--")
 
 
 def test_mariadba_type_position_refuses_a_payload(dialect):
@@ -287,8 +291,14 @@ class TestMySQLJSONTableTypeValidation:
         assert "`col1` VARCHAR(255) PATH '$.col1'" in sql
 
     def test_injected_type_rejected(self, json_table_dialect):
-        from rhosocial.activerecord.backend.dialect.exceptions import (
-            UnsupportedFeatureError,
+        """A type that is not a name never reaches the statement.
+
+        The column's type is read at render time through the framework's type
+        model, whose grammar decides what a name may be.  The payload is
+        refused there, before any statement text is built.
+        """
+        from rhosocial.activerecord.backend.expression.type_name import (
+            InvalidTypeNameError,
         )
         dialect = json_table_dialect
         expr = MariaDBJSONTableExpression(
@@ -303,7 +313,7 @@ class TestMySQLJSONTableTypeValidation:
                 ),
             ],
         )
-        with pytest.raises(UnsupportedFeatureError):
+        with pytest.raises(InvalidTypeNameError):
             dialect.format_json_table_expression(expr)
 
 

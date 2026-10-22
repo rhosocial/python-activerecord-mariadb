@@ -348,6 +348,23 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
+    def format_mariadb_json_table_column(
+        self, column: Any
+    ) -> Tuple[str, tuple]:
+        """Render one entry of a MariaDB ``JSON_TABLE`` column list.
+
+        MariaDB's column carries ``FOR ORDINALITY``, ``EXISTS`` and the error
+        handling, none of which the core column has, so the two shapes render
+        through separate paths rather than one branching on the instance.
+
+        Args:
+            column: MariaDBJSONTableColumn instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
     def format_json_keys(
         self,
         json_doc: str,
