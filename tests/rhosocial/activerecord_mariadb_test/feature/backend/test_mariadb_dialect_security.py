@@ -71,18 +71,62 @@ def test_mysql_format_column_definition_comment_string_escaping(dialect):
     assert "Comment with ''single quote''" in sql
 
 
-def test_mysql_escape_sql_string(dialect):
-    """Test MySQL inherits _escape_sql_string."""
-    result = dialect._escape_sql_string("Table's comment")
+def test_mysqlescape_sql_string(dialect):
+    """Test MySQL inherits escape_sql_string."""
+    result = dialect.escape_sql_string("Table's comment")
     assert result == "Table''s comment"
 
 
-def test_mysql_validate_data_type(dialect):
-    """Test MySQL inherits _validate_data_type."""
-    assert dialect._validate_data_type("VARCHAR(255)")
-    assert dialect._validate_data_type("INT")
-    assert dialect._validate_data_type("BIGINT")
-    assert not dialect._validate_data_type("INT; DROP TABLE users--")
+def test_mariadb_owns_its_type_name_rule(dialect):
+    """MariaDB's own rule, because a type specification is MariaDB's to spell.
+
+    A type name is validated rather than escaped, and a type node needs no
+    check at all: the dialect renders it, and the name it renders is the
+    model's.
+    """
+    from rhosocial.activerecord.backend.expression.types import DataType
+
+    assert dialect._validate_data_type_name([]) is True
+    assert dialect._validate_data_type_name(
+        [type("C", (), {"type": "VARCHAR(255)"})()]
+    ) is True
+    assert dialect._validate_data_type_name(
+        [type("C", (), {"type": "INT; DROP TABLE users--"})()]
+    ) is False
+
+
+def test_mariadba_type_position_refuses_a_payload(dialect):
+    """A type name is a name, and the grammar is what says so.
+
+    The backend has no character filter of its own any more: the type
+    position is guarded by the grammar, which is the framework's rule for
+    what a name may be, and the server decides whether the type exists.
+    """
+    from rhosocial.activerecord.backend.expression import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        AlterColumnAction,
+    )
+    from rhosocial.activerecord.backend.expression.type_name import (
+        InvalidTypeNameError,
+    )
+    from rhosocial.activerecord.backend.expression.xml import (
+        XMLSerializeExpression,
+    )
+
+    # A name is a name: the position takes it.
+    XMLSerializeExpression(dialect, Literal(dialect, "x"), "TEXT")
+    AlterColumnAction(dialect, "c", "SET DATA TYPE", new_value="TEXT")
+
+    # A value that is not a name is refused, and refused before the
+    # statement is ever rendered.
+    with pytest.raises(InvalidTypeNameError):
+        XMLSerializeExpression(
+            dialect, Literal(dialect, "x"), "TEXT; DROP TABLE users--"
+        )
+    with pytest.raises(InvalidTypeNameError):
+        AlterColumnAction(
+            dialect, "c", "SET DATA TYPE", new_value="TEXT; DROP TABLE users--"
+        )
 
 
 def test_mysql_format_column_definition_data_type_validation(dialect):

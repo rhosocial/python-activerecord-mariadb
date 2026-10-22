@@ -12,7 +12,7 @@ from rhosocial.activerecord.backend.expression import (
     CreateTableStatement,
     DropTableStatement,
 )
-from rhosocial.activerecord.backend.expression.functions.datetime import current_timestamp
+from rhosocial.activerecord.backend.expression import functions as F
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -66,7 +66,7 @@ create_table = CreateTableStatement(
             'created_at',
             TimestampType(dialect),
             constraints=[
-                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
             ],
         ),
     ],

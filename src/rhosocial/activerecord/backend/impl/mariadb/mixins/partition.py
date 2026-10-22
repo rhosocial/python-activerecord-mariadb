@@ -405,7 +405,7 @@ class MariaDBPartitionMixin:
             elif name in {"comment", "data_directory", "index_directory"}:
                 if not isinstance(value, str):
                     raise TypeError(f"{name} option must be a string")
-                escaped = self._escape_sql_string(value)
+                escaped = self.escape_sql_string(value)
                 parts.append(f"{keyword} '{escaped}'")
             elif name in {"max_rows", "min_rows"}:
                 if not isinstance(value, int) or value < 0:
@@ -460,13 +460,13 @@ class MariaDBPartitionMixin:
                 raise ValueError("partition value Decimal must be finite")
             return str(value), ()
         if isinstance(value, datetime):
-            escaped = self._escape_sql_string(value.isoformat(sep=" "))
+            escaped = self.escape_sql_string(value.isoformat(sep=" "))
             return f"'{escaped}'", ()
         if isinstance(value, date):
-            escaped = self._escape_sql_string(value.isoformat())
+            escaped = self.escape_sql_string(value.isoformat())
             return f"'{escaped}'", ()
         if isinstance(value, str):
-            escaped = self._escape_sql_string(value)
+            escaped = self.escape_sql_string(value)
             return f"'{escaped}'", ()
         raise TypeError(
             "partition value must be str, int, float, Decimal, "

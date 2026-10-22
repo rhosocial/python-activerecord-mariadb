@@ -235,6 +235,14 @@ _SUGGESTION_TEMPORAL = "MariaDB system-versioned tables require specific table c
 
 
 class MariaDBDialect(
+    # The bases below come in bundles: a backend mixin, then the core bundle
+    # it stands in for. The backend's answer has to come first -- a mixin
+    # placed after the class it overrides never wins -- so a new mixin goes
+    # immediately before the core mixin it overrides, and the pairing is read
+    # off the list. Two positions sit outside that pairing and are called out
+    # where they occur: a mixin that overrides a method ``SQLDialectBase``
+    # defines has to precede the base, and a mixin that subclasses a core
+    # mixin has to precede it too (C3: a subclass precedes its base).
     # Ahead of SQLDialectBase, unlike every other MariaDB mixin. Those add
     # methods the base does not have, so their position is a readability
     # choice; this one overrides ``format_literal``, which the base defines,
@@ -1403,8 +1411,7 @@ class MariaDBDialect(
 
     # region DDL Support - format_create_table_statement
 
-    @staticmethod
-    def _escape_sql_string(value: str) -> str:
+    def escape_sql_string(self, value: str) -> str:
         value = value.replace('\\', '\\\\')
         value = value.replace("'", "''")
         return value

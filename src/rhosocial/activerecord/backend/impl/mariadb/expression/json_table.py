@@ -7,12 +7,13 @@ for MariaDB's JSON_TABLE functionality.
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING, Union
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
+    from rhosocial.activerecord.backend.expression.types import DataType
 
 
 @dataclass
@@ -21,7 +22,8 @@ class JSONTableColumn:
 
     Attributes:
         name: Column name
-        type: SQL data type (e.g., 'VARCHAR(255)', 'INT')
+        type: The column's type -- a type node (``VarCharType(dialect, 255)``)
+            or a type name, which this backend's own rule decides
         path: JSON path expression for the column value
         ordinality: If True, use FOR ORDINALITY (row number)
         exists: If True, use EXISTS (boolean for path existence)
@@ -29,7 +31,7 @@ class JSONTableColumn:
         default_value: Default value when error handling is 'DEFAULT'
     """
     name: str
-    type: Optional[str] = None
+    type: Optional[Union[str, "DataType"]] = None
     path: Optional[str] = None
     ordinality: bool = False
     exists: bool = False

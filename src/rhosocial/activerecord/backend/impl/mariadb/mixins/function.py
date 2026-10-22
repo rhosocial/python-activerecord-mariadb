@@ -158,7 +158,11 @@ class MariaDBFunctionMixin:
         rendered: the unit is a semantic the node declares, and
         ``CHAR_LENGTH`` is this backend's one spelling for it.
         """
-        return self._format_scalar_function("CHAR_LENGTH", expr)
+        operand_sql, operand_params = expr.operand.to_sql()
+        sql = f"CHAR_LENGTH({operand_sql})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, tuple(operand_params)
 
 
 __all__ = ['MariaDBFunctionMixin']

@@ -36,6 +36,15 @@ class MariaDBTableMixin:
         """MariaDB supports CREATE TABLE ... LIKE syntax."""
         return True
 
+
+    def supports_create_table_as_bind_parameters(self) -> bool:
+        """MariaDB accepts bind parameters in a CTAS body.
+
+        Measured on 13.1rc: ``CREATE TABLE t AS SELECT %s FROM s`` is
+        accepted and the table is created. MariaDB's "parameters" are
+        interpolated client-side, so the value is baked into the text.
+        """
+        return True
     def format_create_table_like_statement(self, expr) -> Tuple[str, tuple]:
         """Format CREATE TABLE ... LIKE by delegating to the generic renderer.
 

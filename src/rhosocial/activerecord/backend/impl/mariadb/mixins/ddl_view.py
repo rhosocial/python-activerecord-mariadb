@@ -20,6 +20,15 @@ class MariaDBViewMixin:
     def supports_temporary_view(self) -> bool:
         return True
 
+
+    def supports_create_view_bind_parameters(self) -> bool:
+        """MariaDB accepts bind parameters in a view body.
+
+        Measured on 13.1rc: a view whose definition binds is accepted,
+        because MariaDB's "parameters" are interpolated client-side and the
+        value is baked into the stored definition.
+        """
+        return True
     def supports_if_exists_view(self) -> bool:
         return True
 
