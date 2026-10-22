@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
     ShowExpression,
     ShowGrantsExpression,
     ShowProcessListExpression,
-    ShowCreateTableExpression,
+    ShowCreateTableStatement,
     ShowCreateTriggerExpression,
     ShowCreateViewExpression,
     ShowIndexExpression,
@@ -50,7 +50,7 @@ class TestShowRelationExpressions:
     """
 
     def test_create_table_qualified_through_the_relation(self, dialect):
-        expr = ShowCreateTableExpression(
+        expr = ShowCreateTableStatement(
             dialect, Table(dialect, "users", catalog_name="app")
         )
         assert expr.to_sql() == ("SHOW CREATE TABLE `app`.`users`", ())
@@ -73,7 +73,7 @@ class TestShowRelationExpressions:
 
     def test_a_tuple_target_is_refused(self, dialect):
         with pytest.raises(TypeError, match="not \\(database, name\\) tuples"):
-            ShowCreateTableExpression(dialect, ("app", "users"))
+            ShowCreateTableStatement(dialect, ("app", "users"))
 
     def test_schema_init_param(self, dialect):
         expr = ShowExpression(dialect, schema="app")

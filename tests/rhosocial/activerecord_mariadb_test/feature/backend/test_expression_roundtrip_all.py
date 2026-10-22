@@ -825,8 +825,8 @@ def register_specials():
         lambda d: maria_show.ShowColumnsExpression(d, _table_obj(d, "probe_cols")),
     )
     register_special_constructor(
-        "show.ShowCreateTableExpression",
-        lambda d: maria_show.ShowCreateTableExpression(d, _table_obj(d, "probe_ct")),
+        "show.ShowCreateTableStatement",
+        lambda d: maria_show.ShowCreateTableStatement(d, _table_obj(d, "probe_ct")),
     )
     register_special_constructor(
         "show.ShowCreateViewExpression",

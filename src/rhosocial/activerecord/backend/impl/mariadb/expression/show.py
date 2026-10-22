@@ -76,7 +76,7 @@ class ShowRelationExpression(ShowExpression):
     between them is the verb and the options, not the name.
     """
 
-    #: The relation kind a bare name is read as. ``ShowCreateTableExpression``
+    #: The relation kind a bare name is read as. ``ShowCreateTableStatement``
     #: and the table-shaped statements leave this as :class:`Table`;
     #: ``ShowCreateViewExpression`` narrows it to :class:`View`. Both are
     #: relations, so both render through the same qualified-name path.
@@ -114,7 +114,7 @@ class ShowRelationExpression(ShowExpression):
         return self._relation
 
 
-class ShowCreateTableExpression(ShowRelationExpression):
+class ShowCreateTableStatement(ShowRelationExpression):
     """Expression for SHOW CREATE TABLE command."""
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -379,7 +379,7 @@ class ShowPluginsExpression(ShowExpression):
 __all__ = [
     "ShowExpression",
     "ShowRelationExpression",
-    "ShowCreateTableExpression",
+    "ShowCreateTableStatement",
     "ShowCreateViewExpression",
     "ShowColumnsExpression",
     "ShowIndexExpression",

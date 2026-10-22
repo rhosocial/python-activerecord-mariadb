@@ -11,7 +11,7 @@ Design principle: Sync and Async are separate and cannot coexist.
 from ..expression.show import (
     ShowExpression,
     ShowRelationExpression,
-    ShowCreateTableExpression,
+    ShowCreateTableStatement,
     ShowCreateViewExpression,
     ShowColumnsExpression,
     ShowIndexExpression,
@@ -62,7 +62,7 @@ __all__ = [
     # Base for the SHOW commands that name one relation (table or view)
     "ShowRelationExpression",
     # Expressions
-    "ShowCreateTableExpression",
+    "ShowCreateTableStatement",
     "ShowCreateViewExpression",
     "ShowColumnsExpression",
     "ShowIndexExpression",

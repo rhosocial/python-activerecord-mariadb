@@ -17,7 +17,7 @@ from typing import Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.objects import Trigger
 from ..expression.show import (
-    ShowCreateTableExpression,
+    ShowCreateTableStatement,
     ShowCreateViewExpression,
     ShowColumnsExpression,
     ShowIndexExpression,
@@ -408,7 +408,7 @@ class MariaDBShowFunctionality:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = self._show_relation(ShowCreateTableExpression, table_name, schema)
+        expr = self._show_relation(ShowCreateTableStatement, table_name, schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_table_result(result, table_name)
@@ -788,7 +788,7 @@ class AsyncMariaDBShowFunctionality:
         self, table_name: str, schema: Optional[str] = None
     ):
         """Async version of create_table."""
-        expr = self._sync_impl._show_relation(ShowCreateTableExpression, table_name, schema)
+        expr = self._sync_impl._show_relation(ShowCreateTableStatement, table_name, schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_create_table_result(result, table_name)

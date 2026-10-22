@@ -19,7 +19,7 @@ from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..expression.show import (
-        ShowCreateTableExpression,
+        ShowCreateTableStatement,
         ShowCreateViewExpression,
         ShowColumnsExpression,
         ShowIndexExpression,
@@ -69,7 +69,7 @@ class MariaDBShowDialectMixin:
         return relation_sql
 
     def format_show_create_table(
-        self, expr: "ShowCreateTableExpression"
+        self, expr: "ShowCreateTableStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW CREATE TABLE statement."""
         return f"SHOW CREATE TABLE {self._show_relation_target(expr)}", ()

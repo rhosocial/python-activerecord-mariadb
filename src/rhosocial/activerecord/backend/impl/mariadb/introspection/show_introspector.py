@@ -21,7 +21,7 @@ from rhosocial.activerecord.backend.introspection.executor import (
     AsyncIntrospectorExecutor,
 )
 from ..expression.show import (
-    ShowCreateTableExpression,
+    ShowCreateTableStatement,
     ShowCreateViewExpression,
     ShowColumnsExpression,
     ShowIndexExpression,
@@ -363,7 +363,7 @@ class SyncShowIntrospector(ShowMixin):
 
     def create_table(self, table_name: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = self._show_relation(ShowCreateTableExpression, table_name, schema)
+        expr = self._show_relation(ShowCreateTableStatement, table_name, schema)
         sql, params = expr.to_sql()
         return self._parse_create_table(self._exec(sql, params), table_name)
 
@@ -528,7 +528,7 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def create_table(self, table_name: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = self._show_relation(ShowCreateTableExpression, table_name, schema)
+        expr = self._show_relation(ShowCreateTableStatement, table_name, schema)
         sql, params = expr.to_sql()
         return self._parse_create_table(await self._exec(sql, params), table_name)
 
