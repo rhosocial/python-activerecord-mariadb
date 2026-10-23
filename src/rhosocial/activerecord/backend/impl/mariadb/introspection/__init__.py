@@ -25,6 +25,7 @@ from .status_introspector import (
     SyncMariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
 )
+from .types import SequenceInfo, TableOptionsInfo
 
 __all__ = [
     "SyncMariaDBIntrospector",
@@ -33,4 +34,6 @@ __all__ = [
     "AsyncShowIntrospector",
     "SyncMariaDBStatusIntrospector",
     "AsyncMariaDBStatusIntrospector",
+    "SequenceInfo",
+    "TableOptionsInfo",
 ]

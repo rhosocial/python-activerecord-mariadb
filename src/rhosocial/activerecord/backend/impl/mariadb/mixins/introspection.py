@@ -26,6 +26,10 @@ if TYPE_CHECKING:
     )
     from rhosocial.activerecord.backend.expression.sources.relation import NamedRelationRef
     from rhosocial.activerecord.backend.expression.objects import Table
+    from rhosocial.activerecord.backend.impl.mariadb.expression.introspection import (
+        MariaDBSequenceQuery,
+        MariaDBTableOptionsQuery,
+    )
 
 #: Schemas owned by the server rather than the user. Excluded from user-facing
 #: listings and from disk-usage totals.
@@ -42,6 +46,18 @@ SYSTEM_SCHEMAS = ("information_schema", "performance_schema", "mysql", "sys")
 #: on MariaDB like any other, so it belongs in the catalog slot of a schema
 #: object rather than being spelled into each query as a literal prefix.
 INFORMATION_SCHEMA_DATABASE = "information_schema"
+
+#: MariaDB 10.3 added sequences, and a sequence is a table: it appears in
+#: `information_schema.TABLES` with `TABLE_TYPE='SEQUENCE'` from that release on.
+SEQUENCES_SINCE = (10, 3)
+
+#: The `information_schema.SEQUENCES` view -- a sequence's start, bounds,
+#: increment and cycle -- only exists from 11.7. Measured across the wired
+#: servers: 10.2 through 11.4 report `Unknown table 'SEQUENCES' in
+#: information_schema`; 11.7 and later answer it. Below 11.7 a sequence is
+#: still listable from `TABLES`, and these facts are unknown rather than
+#: absent from the server.
+SEQUENCE_DETAILS_SINCE = (11, 7)
 
 
 class MariaDBIntrospectionMixin:
@@ -105,10 +121,21 @@ class MariaDBIntrospectionMixin:
         """MariaDB supports trigger introspection via information_schema.TRIGGERS."""
         return True
 
+    def supports_sequence_introspection(self) -> bool:
+        """Sequences, read from information_schema.TABLES (MariaDB 10.3+).
+
+        A sequence is a table on MariaDB, so listing one needs nothing newer
+        than the release that introduced ``CREATE SEQUENCE``. The numeric
+        details in ``information_schema.SEQUENCES`` do need 11.7, but they are
+        an enrichment of the same row: the sequence itself is listable from
+        10.3 on.
+        """
+        return self.version >= SEQUENCES_SINCE
+
     def get_supported_introspection_scopes(self) -> List["IntrospectionScope"]:
         """Get list of supported introspection scopes."""
         from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
-        return [
+        scopes = [
             IntrospectionScope.DATABASE,
             IntrospectionScope.TABLE,
             IntrospectionScope.COLUMN,
@@ -117,6 +144,9 @@ class MariaDBIntrospectionMixin:
             IntrospectionScope.VIEW,
             IntrospectionScope.TRIGGER,
         ]
+        if self.supports_sequence_introspection():
+            scopes.append(IntrospectionScope.SEQUENCE)
+        return scopes
 
     # ========== Query Formatting ==========
 
@@ -692,5 +722,169 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
+    def format_mariadb_sequence_query(
+        self, expr: "MariaDBSequenceQuery"
+    ) -> Tuple[str, tuple]:
+        """Format the sequence read.
 
-__all__ = ['MariaDBIntrospectionMixin', 'SYSTEM_SCHEMAS', 'INFORMATION_SCHEMA_DATABASE']
+        The list is ``information_schema.TABLES`` filtered to
+        ``TABLE_TYPE='SEQUENCE'``: a sequence is a table, and that row is the
+        only thing every sequence-bearing server reports. The numeric facts
+        live in ``information_schema.SEQUENCES``, which MariaDB added in 11.7,
+        so the join is written only when the server has the view. Below it the
+        detail columns are left out of the projection entirely rather than
+        projected as NULL: the rows would carry the same ``None`` either way,
+        and not naming a relation that does not exist keeps the query runnable.
+
+        Args:
+            expr: Sequence expression with the schema and an optional name.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            JoinClause,
+            JoinType,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
+        tables = self._relation_ref(self._information_schema("TABLES"), "t")
+
+        conditions = [
+            ComparisonPredicate(
+                self, "eq", Column(self, "TABLE_SCHEMA", table="t"), Literal(self, expr.schema)
+            ),
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "TABLE_TYPE", table="t"),
+                Literal(self, "SEQUENCE", inline=True),
+            ),
+        ]
+        if expr.name is not None:
+            conditions.append(
+                ComparisonPredicate(
+                    self, "eq", Column(self, "TABLE_NAME", table="t"), Literal(self, expr.name)
+                )
+            )
+
+        select = [Column(self, "TABLE_NAME", table="t")]
+        from_: object = tables
+
+        if self.version >= SEQUENCE_DETAILS_SINCE:
+            select.extend(
+                [
+                    Column(self, "DATA_TYPE", table="s"),
+                    Column(self, "START_VALUE", table="s"),
+                    Column(self, "MINIMUM_VALUE", table="s"),
+                    Column(self, "MAXIMUM_VALUE", table="s"),
+                    Column(self, "INCREMENT", table="s"),
+                    Column(self, "CYCLE_OPTION", table="s"),
+                ]
+            )
+            from_ = JoinClause(
+                self,
+                left_table=tables,
+                right_table=self._relation_ref(self._information_schema("SEQUENCES"), "s"),
+                join_type=JoinType.LEFT,
+                condition=LogicalPredicate(
+                    self,
+                    "AND",
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Column(self, "SEQUENCE_SCHEMA", table="s"),
+                        Column(self, "TABLE_SCHEMA", table="t"),
+                    ),
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Column(self, "SEQUENCE_NAME", table="s"),
+                        Column(self, "TABLE_NAME", table="t"),
+                    ),
+                ),
+            )
+
+        query = QueryStatement(
+            self,
+            select=select,
+            from_=from_,
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "TABLE_NAME", table="t")]),
+        )
+        return query.to_sql()
+
+    def format_mariadb_table_options_query(
+        self, expr: "MariaDBTableOptionsQuery"
+    ) -> Tuple[str, tuple]:
+        """Format the table-options read.
+
+        One row per relation in ``information_schema.TABLES``. ``TABLES``
+        carries base tables, views and sequences in one list, and the row's
+        ``TABLE_TYPE`` says which it is; the caller decides whether that
+        matters. Selecting the type as well as the options is what makes the
+        answer self-describing rather than requiring the caller to know it.
+
+        Args:
+            expr: Table options expression with the schema and an optional name.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
+        conditions = [
+            ComparisonPredicate(
+                self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, expr.schema)
+            )
+        ]
+        if expr.table_name is not None:
+            conditions.append(
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "TABLE_NAME"),
+                    Literal(self, expr.table_name),
+                )
+            )
+
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "TABLE_NAME"),
+                Column(self, "TABLE_TYPE"),
+                Column(self, "ENGINE"),
+                Column(self, "ROW_FORMAT"),
+                Column(self, "TABLE_COLLATION"),
+                Column(self, "AUTO_INCREMENT"),
+                Column(self, "TABLE_COMMENT"),
+                Column(self, "CREATE_OPTIONS"),
+            ],
+            from_=self._information_schema("TABLES"),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "TABLE_NAME")]),
+        )
+        return query.to_sql()
+
+
+__all__ = [
+    'MariaDBIntrospectionMixin',
+    'SYSTEM_SCHEMAS',
+    'INFORMATION_SCHEMA_DATABASE',
+    'SEQUENCES_SINCE',
+    'SEQUENCE_DETAILS_SINCE',
+]

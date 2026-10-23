@@ -17,6 +17,8 @@ Architecture:
 Key behaviours:
   - Queries information_schema.TABLES, COLUMNS, STATISTICS,
     KEY_COLUMN_USAGE, REFERENTIAL_CONSTRAINTS, VIEWS, TRIGGERS
+  - Queries information_schema.TABLES/SEQUENCES for the two MariaDB-only
+    families: sequences (10.3+; numeric details 11.7+) and table options
   - _parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
@@ -62,6 +64,8 @@ from .status_introspector import (
     SyncMariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
 )
+from .types import SequenceInfo, TableOptionsInfo
+from ..mixins.introspection import SEQUENCES_SINCE
 
 
 class MariaDBIntrospectorMixin(IntrospectorMixin):
@@ -354,6 +358,123 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             for row in rows
         ]
 
+    # ------------------------------------------------------------------ #
+    # MariaDB-only families: sequences and table options
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _as_int(value: Any) -> Optional[int]:
+        """Read one catalogue integer, keeping "not reported" as ``None``.
+
+        ``information_schema`` reports these as ``Decimal``, and on a server
+        without ``information_schema.SEQUENCES`` the column is not in the row
+        at all. Both mean "this server told us nothing", which is exactly what
+        the typed field's ``None`` says, so everything else is coerced and
+        nothing is defaulted.
+        """
+        return None if value is None else int(value)
+
+    @staticmethod
+    def _as_cycle(value: Any) -> Optional[bool]:
+        """Read ``CYCLE_OPTION``; MariaDB spells it ``'1'`` / ``'0'``."""
+        if value is None:
+            return None
+        return str(value).strip().lower() in ("1", "y", "yes", "true")
+
+    def _parse_sequence_row(self, row: Dict[str, Any], schema: str) -> SequenceInfo:
+        """Read one ``TABLES``/``SEQUENCES`` row into a :class:`SequenceInfo`.
+
+        The detail columns are read with ``.get`` because the query only names
+        them on servers that have the view; on older servers their absence is
+        the answer, not a parsing error.
+        """
+        return SequenceInfo(
+            name=row.get("TABLE_NAME", ""),
+            schema=schema,
+            start_value=self._as_int(row.get("START_VALUE")),
+            minimum_value=self._as_int(row.get("MINIMUM_VALUE")),
+            maximum_value=self._as_int(row.get("MAXIMUM_VALUE")),
+            increment=self._as_int(row.get("INCREMENT")),
+            cycle=self._as_cycle(row.get("CYCLE_OPTION")),
+            # No information_schema view carries a sequence's cache size: it
+            # survives only in the text of SHOW CREATE SEQUENCE. Reported as
+            # not exposed rather than parsed out of a different kind of source.
+            cache_size=None,
+            data_type=row.get("DATA_TYPE"),
+        )
+
+    def _parse_sequences(
+        self, rows: List[Dict[str, Any]], schema: str
+    ) -> List[SequenceInfo]:
+        return [self._parse_sequence_row(row, schema) for row in rows]
+
+    def _parse_sequence_info(
+        self, rows: List[Dict[str, Any]], name: str, schema: str
+    ) -> Optional[SequenceInfo]:
+        if not rows:
+            return None
+        return self._parse_sequence_row(rows[0], schema)
+
+    def _parse_table_options(
+        self, rows: List[Dict[str, Any]], schema: str
+    ) -> List[TableOptionsInfo]:
+        return [self._parse_table_options_row(row, schema) for row in rows]
+
+    @staticmethod
+    def _parse_table_options_row(
+        row: Dict[str, Any], schema: str
+    ) -> TableOptionsInfo:
+        auto_increment = row.get("AUTO_INCREMENT")
+        return TableOptionsInfo(
+            name=row.get("TABLE_NAME", ""),
+            schema=schema,
+            table_type=row.get("TABLE_TYPE"),
+            engine=row.get("ENGINE"),
+            row_format=row.get("ROW_FORMAT"),
+            collation=row.get("TABLE_COLLATION"),
+            auto_increment=None if auto_increment is None else int(auto_increment),
+            comment=row.get("TABLE_COMMENT"),
+            create_options=row.get("CREATE_OPTIONS"),
+        )
+
+    def _parse_table_options_info(
+        self, rows: List[Dict[str, Any]], table_name: str, schema: str
+    ) -> Optional[TableOptionsInfo]:
+        if not rows:
+            return None
+        return self._parse_table_options_row(rows[0], schema)
+
+    # ------------------------------------------------------------------ #
+    # SQL building — one node per question, rendered by the dialect
+    # ------------------------------------------------------------------ #
+
+    def _sequence_target_schema(self, schema: Optional[str]) -> str:
+        return schema if schema is not None else self._get_default_schema()
+
+    def _build_sequence_list_sql(self, schema: Optional[str]) -> tuple:
+        from ..expression.introspection import MariaDBSequenceQuery
+
+        expr = MariaDBSequenceQuery(self.dialect, self._sequence_target_schema(schema))
+        return expr.to_sql()
+
+    def _build_sequence_info_sql(self, name: str, schema: Optional[str]) -> tuple:
+        from ..expression.introspection import MariaDBSequenceQuery
+
+        expr = MariaDBSequenceQuery(
+            self.dialect, self._sequence_target_schema(schema), name=name
+        )
+        return expr.to_sql()
+
+    def _build_table_options_sql(
+        self, table_name: Optional[str], schema: Optional[str]
+    ) -> tuple:
+        from ..expression.introspection import MariaDBTableOptionsQuery
+
+        expr = MariaDBTableOptionsQuery(
+            self.dialect, self._sequence_target_schema(schema), table_name=table_name
+        )
+        return expr.to_sql()
+
 
 class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector):
     """Synchronous introspector for MariaDB backends.
@@ -419,6 +540,125 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         self._cache.set(key, table)
         return table
 
+    # ------------------------------------------------------------------ #
+    # MariaDB-only families: sequences and table options
+    # ------------------------------------------------------------------ #
+
+    def list_sequences(self, schema: Optional[str] = None) -> List[SequenceInfo]:
+        """List the sequences in *schema*.
+
+        Read from ``information_schema.TABLES`` where ``TABLE_TYPE='SEQUENCE'``,
+        because a sequence is a table on MariaDB. The numeric facts come from
+        ``information_schema.SEQUENCES`` when the server has that view (11.7+)
+        and are ``None`` on older servers; see :class:`SequenceInfo`.
+
+        Servers older than 10.3 cannot hold a sequence, so the answer there is
+        an empty list and no query is sent -- the cache entry is still written,
+        so asking twice costs nothing.
+
+        The result shares ``IntrospectionScope.SEQUENCE`` with nothing else, but
+        carries the ``mariadb`` namespace so a generic sequence list added to
+        core later cannot answer this one's cache entry.
+        """
+        key = self._cache.key(
+            IntrospectionScope.SEQUENCE, schema=schema, extra="mariadb"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        if self._get_version() < SEQUENCES_SINCE:
+            result: List[SequenceInfo] = []
+        else:
+            sql, params = self._build_sequence_list_sql(schema)
+            result = self._parse_sequences(
+                self._executor.execute(sql, params),
+                self._sequence_target_schema(schema),
+            )
+        self._cache.set(key, result)
+        return result
+
+    def get_sequence_info(
+        self, name: str, schema: Optional[str] = None
+    ) -> Optional[SequenceInfo]:
+        """Return the named sequence, or ``None`` when it does not exist.
+
+        A miss is not cached: this backend's other lookups by name follow the
+        same rule, and caching an absence would keep a sequence invisible
+        after the next ``CREATE SEQUENCE``.
+        """
+        key = self._cache.key(
+            IntrospectionScope.SEQUENCE, name, schema=schema, extra="mariadb"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        if self._get_version() < SEQUENCES_SINCE:
+            return None
+        sql, params = self._build_sequence_info_sql(name, schema)
+        result = self._parse_sequence_info(
+            self._executor.execute(sql, params),
+            name,
+            self._sequence_target_schema(schema),
+        )
+        if result is not None:
+            self._cache.set(key, result)
+        return result
+
+    def list_table_options(
+        self, schema: Optional[str] = None
+    ) -> List[TableOptionsInfo]:
+        """List the storage options of every relation in *schema*.
+
+        ``information_schema.TABLES`` holds base tables, views and sequences in
+        one list, and every row is returned with its ``table_type``; a caller
+        wanting only base tables filters on that rather than having the family
+        hidden here.
+
+        The cache entry lives under ``IntrospectionScope.TABLE`` -- these are
+        table facts -- with its own ``mariadb:table-options`` namespace, so it
+        cannot be answered by (or answer) the generic table list.
+        """
+        key = self._cache.key(
+            IntrospectionScope.TABLE, schema=schema, extra="mariadb:table-options"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self._build_table_options_sql(None, schema)
+        result = self._parse_table_options(
+            self._executor.execute(sql, params),
+            self._sequence_target_schema(schema),
+        )
+        self._cache.set(key, result)
+        return result
+
+    def get_table_options(
+        self, table_name: str, schema: Optional[str] = None
+    ) -> Optional[TableOptionsInfo]:
+        """Return the storage options of one relation, or ``None``."""
+        key = self._cache.key(
+            IntrospectionScope.TABLE,
+            table_name,
+            schema=schema,
+            extra="mariadb:table-options",
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self._build_table_options_sql(table_name, schema)
+        result = self._parse_table_options_info(
+            self._executor.execute(sql, params),
+            table_name,
+            self._sequence_target_schema(schema),
+        )
+        if result is not None:
+            self._cache.set(key, result)
+        return result
+
 
 class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospector):
     """Asynchronous introspector for MariaDB backends.
@@ -483,3 +723,109 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         table.foreign_keys = await self.list_foreign_keys(table_name, schema)
         self._cache.set(key, table)
         return table
+
+    # ------------------------------------------------------------------ #
+    # MariaDB-only families: sequences and table options
+    # ------------------------------------------------------------------ #
+
+    async def list_sequences(self, schema: Optional[str] = None) -> List[SequenceInfo]:
+        """List the sequences in *schema*.
+
+        Read from ``information_schema.TABLES`` where ``TABLE_TYPE='SEQUENCE'``,
+        because a sequence is a table on MariaDB. The numeric facts come from
+        ``information_schema.SEQUENCES`` when the server has that view (11.7+)
+        and are ``None`` on older servers; see :class:`SequenceInfo`.
+
+        Servers older than 10.3 cannot hold a sequence, so the answer there is
+        an empty list and no query is sent -- the cache entry is still written,
+        so asking twice costs nothing.
+        """
+        key = self._cache.key(
+            IntrospectionScope.SEQUENCE, schema=schema, extra="mariadb"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        if self._get_version() < SEQUENCES_SINCE:
+            result: List[SequenceInfo] = []
+        else:
+            sql, params = self._build_sequence_list_sql(schema)
+            result = self._parse_sequences(
+                await self._executor.execute(sql, params),
+                self._sequence_target_schema(schema),
+            )
+        self._cache.set(key, result)
+        return result
+
+    async def get_sequence_info(
+        self, name: str, schema: Optional[str] = None
+    ) -> Optional[SequenceInfo]:
+        """Return the named sequence, or ``None`` when it does not exist."""
+        key = self._cache.key(
+            IntrospectionScope.SEQUENCE, name, schema=schema, extra="mariadb"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        if self._get_version() < SEQUENCES_SINCE:
+            return None
+        sql, params = self._build_sequence_info_sql(name, schema)
+        result = self._parse_sequence_info(
+            await self._executor.execute(sql, params),
+            name,
+            self._sequence_target_schema(schema),
+        )
+        if result is not None:
+            self._cache.set(key, result)
+        return result
+
+    async def list_table_options(
+        self, schema: Optional[str] = None
+    ) -> List[TableOptionsInfo]:
+        """List the storage options of every relation in *schema*.
+
+        ``information_schema.TABLES`` holds base tables, views and sequences in
+        one list, and every row is returned with its ``table_type``; a caller
+        wanting only base tables filters on that rather than having the family
+        hidden here.
+        """
+        key = self._cache.key(
+            IntrospectionScope.TABLE, schema=schema, extra="mariadb:table-options"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self._build_table_options_sql(None, schema)
+        result = self._parse_table_options(
+            await self._executor.execute(sql, params),
+            self._sequence_target_schema(schema),
+        )
+        self._cache.set(key, result)
+        return result
+
+    async def get_table_options(
+        self, table_name: str, schema: Optional[str] = None
+    ) -> Optional[TableOptionsInfo]:
+        """Return the storage options of one relation, or ``None``."""
+        key = self._cache.key(
+            IntrospectionScope.TABLE,
+            table_name,
+            schema=schema,
+            extra="mariadb:table-options",
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self._build_table_options_sql(table_name, schema)
+        result = self._parse_table_options_info(
+            await self._executor.execute(sql, params),
+            table_name,
+            self._sequence_target_schema(schema),
+        )
+        if result is not None:
+            self._cache.set(key, result)
+        return result

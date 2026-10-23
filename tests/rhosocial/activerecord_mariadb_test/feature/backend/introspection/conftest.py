@@ -196,6 +196,73 @@ def backend_with_trigger(mariadb_backend):
         pass
 
 
+# One sequence with every clause spelled out, so a server that reports the
+# numeric details gives the deck back rather than a guess at the defaults.
+_SEQUENCE_SQL = """
+    DROP SEQUENCE IF EXISTS intro_seq;
+    CREATE SEQUENCE intro_seq
+        START WITH 10 INCREMENT BY 2
+        MINVALUE 5 MAXVALUE 100
+        CYCLE;
+"""
+
+_CLEANUP_SEQUENCE_SQL = """
+    DROP SEQUENCE IF EXISTS intro_seq;
+"""
+
+# A sequence is a table, so it lands in information_schema.TABLES beside the
+# base tables -- the same list table options reads.
+_SEQUENCE_TABLE_SQL = _SEQUENCE_SQL + """
+    CREATE TABLE IF NOT EXISTS intro_options (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        note VARCHAR(64) NOT NULL
+    ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+"""
+
+_CLEANUP_SEQUENCE_TABLE_SQL = """
+    DROP TABLE IF EXISTS intro_options;
+""" + _CLEANUP_SEQUENCE_SQL
+
+
+@pytest.fixture(scope="function")
+def backend_with_sequence(mariadb_backend):
+    """Fixture providing backend with a sequence that states its own limits."""
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_SEQUENCE_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_SEQUENCE_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_sequence(async_mariadb_backend):
+    """Async fixture providing backend with a sequence."""
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_SEQUENCE_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_SEQUENCE_SQL)
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="function")
+def backend_with_sequence_and_table(mariadb_backend):
+    """A sequence and a table in one schema, for the list families."""
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_SEQUENCE_TABLE_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_SEQUENCE_TABLE_SQL)
+    except Exception:
+        pass
+
+
 @pytest_asyncio.fixture(scope="function")
 async def async_backend_with_trigger(async_mariadb_backend):
     """Async fixture providing backend with a test trigger."""
@@ -205,5 +272,18 @@ async def async_backend_with_trigger(async_mariadb_backend):
     try:
         async_mariadb_backend.introspector.clear_cache()
         await async_mariadb_backend.executescript(_CLEANUP_TRIGGER_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_sequence_and_table(async_mariadb_backend):
+    """Async counterpart of :func:`backend_with_sequence_and_table`."""
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_SEQUENCE_TABLE_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_SEQUENCE_TABLE_SQL)
     except Exception:
         pass

@@ -19,7 +19,8 @@ OUTPUT_CHOICES = ['table', 'json', 'csv', 'tsv']
 
 INTROSPECT_TYPES = [
     "tables", "views", "table", "columns",
-    "indexes", "foreign-keys", "triggers", "database"
+    "indexes", "foreign-keys", "triggers", "database",
+    "sequences", "table-options",
 ]
 
 
@@ -43,6 +44,14 @@ def create_parser(subparsers):
 
   # Output as JSON
   %(prog)s tables --database mydb -o json
+
+  # List sequences, and one sequence's own limits
+  %(prog)s sequences --database mydb
+  %(prog)s sequences my_seq --database mydb
+
+  # Show storage options for every table, or for one
+  %(prog)s table-options --database mydb
+  %(prog)s table-options users --database mydb
 
   # Using environment variables for connection
   export MARIADB_HOST=localhost MARIADB_DATABASE=mydb MARIADB_USER=root MARIADB_PASSWORD=secret
@@ -73,7 +82,8 @@ def create_parser(subparsers):
     parser.add_argument(
         "type",
         choices=INTROSPECT_TYPES,
-        help="Introspection type: tables, views, table, columns, indexes, foreign-keys, triggers, database",
+        help="Introspection type: tables, views, table, columns, indexes, foreign-keys, triggers, database, "
+             "sequences, table-options",
     )
     parser.add_argument(
         "name",
@@ -252,6 +262,48 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
 
+        elif args.type == "sequences":
+            if args.name:
+                info = introspector.get_sequence_info(
+                    args.name, schema=args.schema
+                )
+                if info is None:
+                    print(
+                        f"Error: Sequence '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"Sequence {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    introspector.list_sequences(schema=args.schema)
+                )
+                provider.display_results(data, title="Sequences")
+
+        elif args.type == "table-options":
+            if args.name:
+                options = introspector.get_table_options(
+                    args.name, schema=args.schema
+                )
+                if options is None:
+                    print(
+                        f"Error: Table '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(options)]
+                provider.display_results(
+                    data, title=f"Table Options of {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    introspector.list_table_options(schema=args.schema)
+                )
+                provider.display_results(data, title="Table Options")
+
         elif args.type == "database":
             info = introspector.get_database_info()
             data = _serialize_for_output(info)
@@ -377,6 +429,48 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
             )
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
+
+        elif args.type == "sequences":
+            if args.name:
+                info = await introspector.get_sequence_info(
+                    args.name, schema=args.schema
+                )
+                if info is None:
+                    print(
+                        f"Error: Sequence '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"Sequence {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    await introspector.list_sequences(schema=args.schema)
+                )
+                provider.display_results(data, title="Sequences")
+
+        elif args.type == "table-options":
+            if args.name:
+                options = await introspector.get_table_options(
+                    args.name, schema=args.schema
+                )
+                if options is None:
+                    print(
+                        f"Error: Table '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(options)]
+                provider.display_results(
+                    data, title=f"Table Options of {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    await introspector.list_table_options(schema=args.schema)
+                )
+                provider.display_results(data, title="Table Options")
 
         elif args.type == "database":
             info = await introspector.get_database_info()
