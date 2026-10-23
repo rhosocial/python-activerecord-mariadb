@@ -35,7 +35,7 @@ class TestFullTextProtocol:
         assert dialect_100.supports_fulltext_index()
 
     def test_format_match_against(self):
-        """Test format_match_against method via expression."""
+        """Test format_match_against_expression method via expression."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
         expr = MariaDBMatchAgainstExpression(

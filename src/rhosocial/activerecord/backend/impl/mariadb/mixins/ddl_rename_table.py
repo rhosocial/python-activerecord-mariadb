@@ -14,7 +14,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.rename_table import (
-        MariaDBRenameTableExpression,
+        MariaDBRenameTableStatement,
     )
 
 
@@ -60,7 +60,7 @@ class MariaDBRenameTableMixin:
 
     def format_rename_table_statement(
         self,
-        expr: "MariaDBRenameTableExpression",
+        expr: "MariaDBRenameTableStatement",
     ) -> Tuple[str, tuple]:
         """Format a MariaDB ``RENAME TABLE ...`` statement."""
         expr.validate(strict=self.strict_validation)

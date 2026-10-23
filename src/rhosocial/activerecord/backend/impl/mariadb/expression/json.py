@@ -46,7 +46,7 @@ class MariaDBJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_extract"
+        return "format_json_extract_expression"
 
 
 class MariaDBJSONObjectExpression(AliasableMixin, SQLValue):
@@ -86,7 +86,7 @@ class MariaDBJSONObjectExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_object"
+        return "format_json_object_expression"
 
 
 class MariaDBJSONArrayExpression(AliasableMixin, SQLValue):
@@ -132,7 +132,7 @@ class MariaDBJSONArrayExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_array"
+        return "format_json_array_expression"
 
 
 class MariaDBJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -162,7 +162,7 @@ class MariaDBJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_contains"
+        return "format_json_contains_expression"
 
 
 __all__ = [

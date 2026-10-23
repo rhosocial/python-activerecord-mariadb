@@ -78,7 +78,7 @@ class ShowRelationExpression(ShowExpression):
 
     #: The relation kind a bare name is read as. ``ShowCreateTableStatement``
     #: and the table-shaped statements leave this as :class:`Table`;
-    #: ``ShowCreateViewExpression`` narrows it to :class:`View`. Both are
+    #: ``ShowCreateViewStatement`` narrows it to :class:`View`. Both are
     #: relations, so both render through the same qualified-name path.
     relation_kind: type = Table
 
@@ -118,10 +118,10 @@ class ShowCreateTableStatement(ShowRelationExpression):
     """Expression for SHOW CREATE TABLE command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_table(self)
+        return self._dialect.format_show_create_table_statement(self)
 
 
-class ShowCreateViewExpression(ShowRelationExpression):
+class ShowCreateViewStatement(ShowRelationExpression):
     """Expression for SHOW CREATE VIEW command."""
 
     #: A view is a relation; naming it as one is what lets the same
@@ -129,10 +129,10 @@ class ShowCreateViewExpression(ShowRelationExpression):
     relation_kind = View
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_view(self)
+        return self._dialect.format_show_create_view_statement(self)
 
 
-class ShowColumnsExpression(ShowRelationExpression):
+class ShowColumnsStatement(ShowRelationExpression):
     """Expression for SHOW [FULL] COLUMNS command."""
 
     def __init__(self, dialect: "MariaDBDialect", relation: Union[RelationObject, str],
@@ -145,17 +145,17 @@ class ShowColumnsExpression(ShowRelationExpression):
         self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_columns(self)
+        return self._dialect.format_show_columns_statement(self)
 
 
-class ShowIndexExpression(ShowRelationExpression):
+class ShowIndexStatement(ShowRelationExpression):
     """Expression for SHOW INDEX command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_index(self)
+        return self._dialect.format_show_index_statement(self)
 
 
-class ShowTablesExpression(ShowExpression):
+class ShowTablesStatement(ShowExpression):
     """Expression for SHOW [FULL] TABLES command.
 
     ``schema`` is declared on this class, not only on the base, because
@@ -172,10 +172,10 @@ class ShowTablesExpression(ShowExpression):
         self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_tables(self)
+        return self._dialect.format_show_tables_statement(self)
 
 
-class ShowDatabasesExpression(ShowExpression):
+class ShowDatabasesStatement(ShowExpression):
     """Expression for SHOW DATABASES command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -184,14 +184,14 @@ class ShowDatabasesExpression(ShowExpression):
         self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_databases(self)
+        return self._dialect.format_show_databases_statement(self)
 
 
-class ShowTableStatusExpression(ShowExpression):
+class ShowTableStatusStatement(ShowExpression):
     """Expression for SHOW TABLE STATUS command.
 
     ``schema`` is declared here for the same reason as on
-    :class:`ShowTablesExpression`: the ``FROM`` qualifier has to be a
+    :class:`ShowTablesStatement`: the ``FROM`` qualifier has to be a
     parameter of the class the serializer reads.
     """
 
@@ -202,10 +202,10 @@ class ShowTableStatusExpression(ShowExpression):
         self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_table_status(self)
+        return self._dialect.format_show_table_status_statement(self)
 
 
-class ShowTriggersExpression(ShowExpression):
+class ShowTriggersStatement(ShowExpression):
     """Expression for SHOW TRIGGERS command.
 
     ``table_name`` here is a **LIKE pattern**, not a relation reference:
@@ -213,7 +213,7 @@ class ShowTriggersExpression(ShowExpression):
     resolved object. It is therefore kept as a plain string and never
     qualified -- the database comes from ``schema``, which is the ``FROM``
     clause and is declared on this class for the same reason as on
-    :class:`ShowTablesExpression`.
+    :class:`ShowTablesStatement`.
     """
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -223,10 +223,10 @@ class ShowTriggersExpression(ShowExpression):
         self.table_name = table_name
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_triggers(self)
+        return self._dialect.format_show_triggers_statement(self)
 
 
-class ShowCreateTriggerExpression(ShowExpression):
+class ShowCreateTriggerStatement(ShowExpression):
     """Expression for SHOW CREATE TRIGGER command."""
 
     def __init__(self, dialect: "MariaDBDialect", trigger: Union[Trigger, str]):
@@ -260,10 +260,10 @@ class ShowCreateTriggerExpression(ShowExpression):
         return self._trigger
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_trigger(self)
+        return self._dialect.format_show_create_trigger_statement(self)
 
 
-class ShowVariablesExpression(ShowExpression):
+class ShowVariablesStatement(ShowExpression):
     """Expression for SHOW [GLOBAL] VARIABLES command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -273,10 +273,10 @@ class ShowVariablesExpression(ShowExpression):
         self.session = session
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_variables(self)
+        return self._dialect.format_show_variables_statement(self)
 
 
-class ShowStatusExpression(ShowExpression):
+class ShowStatusStatement(ShowExpression):
     """Expression for SHOW [GLOBAL] STATUS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -286,10 +286,10 @@ class ShowStatusExpression(ShowExpression):
         self.session = session
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_status(self)
+        return self._dialect.format_show_status_statement(self)
 
 
-class ShowProcessListExpression(ShowExpression):
+class ShowProcessListStatement(ShowExpression):
     """Expression for SHOW [FULL] PROCESSLIST command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -298,10 +298,10 @@ class ShowProcessListExpression(ShowExpression):
         self.full = full
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_processlist(self)
+        return self._dialect.format_show_process_list_statement(self)
 
 
-class ShowWarningsExpression(ShowExpression):
+class ShowWarningsStatement(ShowExpression):
     """Expression for SHOW WARNINGS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -310,10 +310,10 @@ class ShowWarningsExpression(ShowExpression):
         self.limit = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_warnings(self)
+        return self._dialect.format_show_warnings_statement(self)
 
 
-class ShowErrorsExpression(ShowExpression):
+class ShowErrorsStatement(ShowExpression):
     """Expression for SHOW ERRORS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -322,17 +322,17 @@ class ShowErrorsExpression(ShowExpression):
         self.limit = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_errors(self)
+        return self._dialect.format_show_errors_statement(self)
 
 
-class ShowEnginesExpression(ShowExpression):
+class ShowEnginesStatement(ShowExpression):
     """Expression for SHOW ENGINES command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_engines(self)
+        return self._dialect.format_show_engines_statement(self)
 
 
-class ShowCharsetExpression(ShowExpression):
+class ShowCharsetStatement(ShowExpression):
     """Expression for SHOW CHARACTER SET command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -341,10 +341,10 @@ class ShowCharsetExpression(ShowExpression):
         self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_charset(self)
+        return self._dialect.format_show_charset_statement(self)
 
 
-class ShowCollationExpression(ShowExpression):
+class ShowCollationStatement(ShowExpression):
     """Expression for SHOW COLLATION command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -353,10 +353,10 @@ class ShowCollationExpression(ShowExpression):
         self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_collation(self)
+        return self._dialect.format_show_collation_statement(self)
 
 
-class ShowGrantsExpression(ShowExpression):
+class ShowGrantsStatement(ShowExpression):
     """Expression for SHOW GRANTS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
@@ -366,36 +366,36 @@ class ShowGrantsExpression(ShowExpression):
         self.host = host
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_grants(self)
+        return self._dialect.format_show_grants_statement(self)
 
 
-class ShowPluginsExpression(ShowExpression):
+class ShowPluginsStatement(ShowExpression):
     """Expression for SHOW PLUGINS command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_plugins(self)
+        return self._dialect.format_show_plugins_statement(self)
 
 
 __all__ = [
     "ShowExpression",
     "ShowRelationExpression",
     "ShowCreateTableStatement",
-    "ShowCreateViewExpression",
-    "ShowColumnsExpression",
-    "ShowIndexExpression",
-    "ShowTablesExpression",
-    "ShowDatabasesExpression",
-    "ShowTableStatusExpression",
-    "ShowTriggersExpression",
-    "ShowCreateTriggerExpression",
-    "ShowVariablesExpression",
-    "ShowStatusExpression",
-    "ShowProcessListExpression",
-    "ShowWarningsExpression",
-    "ShowErrorsExpression",
-    "ShowEnginesExpression",
-    "ShowCharsetExpression",
-    "ShowCollationExpression",
-    "ShowGrantsExpression",
-    "ShowPluginsExpression",
+    "ShowCreateViewStatement",
+    "ShowColumnsStatement",
+    "ShowIndexStatement",
+    "ShowTablesStatement",
+    "ShowDatabasesStatement",
+    "ShowTableStatusStatement",
+    "ShowTriggersStatement",
+    "ShowCreateTriggerStatement",
+    "ShowVariablesStatement",
+    "ShowStatusStatement",
+    "ShowProcessListStatement",
+    "ShowWarningsStatement",
+    "ShowErrorsStatement",
+    "ShowEnginesStatement",
+    "ShowCharsetStatement",
+    "ShowCollationStatement",
+    "ShowGrantsStatement",
+    "ShowPluginsStatement",
 ]

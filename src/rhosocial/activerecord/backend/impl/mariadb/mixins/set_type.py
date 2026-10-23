@@ -36,7 +36,7 @@ class MariaDBSetTypeMixin:
         """MariaDB supports SET type in all versions."""
         return True
 
-    def format_set_literal(
+    def format_set_literal_expression(
         self,
         expr: "MariaDBSetLiteralExpression",
     ) -> Tuple[str, tuple]:
@@ -68,7 +68,7 @@ class MariaDBSetTypeMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, (literal,)
 
-    def format_find_in_set(
+    def format_find_in_set_expression(
         self,
         expr: "MariaDBFindInSetExpression",
     ) -> Tuple[str, tuple]:
@@ -78,7 +78,7 @@ class MariaDBSetTypeMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, (expr.value,)
 
-    def format_set_contains(
+    def format_set_contains_expression(
         self,
         expr: "MariaDBSetContainsExpression",
     ) -> Tuple[str, tuple]:

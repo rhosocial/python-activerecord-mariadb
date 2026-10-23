@@ -55,7 +55,7 @@ class MariaDBDMLOperationSupport(Protocol):
         """Format LOAD DATA INFILE statement.
 
         Args:
-            expr: MariaDBLoadDataExpression instance
+            expr: MariaDBLoadDataStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

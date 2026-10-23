@@ -27,38 +27,38 @@ from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBAlterTableExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
-    MariaDBRenameIndexExpression,
+    MariaDBRenameIndexStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.admin import (
     AccountSpec,
     GrantPrivilege,
-    MariaDBAlterUserExpression,
-    MariaDBCreateRoleExpression,
-    MariaDBCreateUserExpression,
-    MariaDBDenyExpression,
-    MariaDBDropRoleExpression,
-    MariaDBDropUserExpression,
-    MariaDBFlushExpression,
-    MariaDBGrantExpression,
-    MariaDBKillExpression,
-    MariaDBRevokeExpression,
-    MariaDBShutdownExpression,
+    MariaDBAlterUserStatement,
+    MariaDBCreateRoleStatement,
+    MariaDBCreateUserStatement,
+    MariaDBDenyStatement,
+    MariaDBDropRoleStatement,
+    MariaDBDropUserStatement,
+    MariaDBFlushStatement,
+    MariaDBGrantStatement,
+    MariaDBKillStatement,
+    MariaDBRevokeStatement,
+    MariaDBShutdownStatement,
     FlushOption,
     KillTarget,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.maintenance import (
-    MariaDBTableMaintenanceExpression,
+    MariaDBTableMaintenanceStatement,
     TableMaintenanceOperation,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
-    MariaDBCallExpression,
-    MariaDBCreateFunctionExpression,
-    MariaDBCreateProcedureExpression,
-    MariaDBDropFunctionExpression,
-    MariaDBDropProcedureExpression,
+    MariaDBCallStatement,
+    MariaDBCreateFunctionStatement,
+    MariaDBCreateProcedureStatement,
+    MariaDBDropFunctionStatement,
+    MariaDBDropProcedureStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.rename_table import (
-    MariaDBRenameTableExpression,
+    MariaDBRenameTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import (
     Function,
@@ -77,7 +77,7 @@ class TestMariaDBRenameTable:
 
     def test_single_rename(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRenameTableExpression(
+        expr = MariaDBRenameTableStatement(
             dialect, [(Table(dialect, 'old_table'), Table(dialect, 'new_table'))]
         )
         sql, params = expr.to_sql()
@@ -86,7 +86,7 @@ class TestMariaDBRenameTable:
 
     def test_multi_table_rename(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRenameTableExpression(
+        expr = MariaDBRenameTableStatement(
             dialect, [(Table(dialect, 't1'), Table(dialect, 't2')), (Table(dialect, 't3'), Table(dialect, 't4'))]
         )
         sql, params = expr.to_sql()
@@ -97,7 +97,7 @@ class TestMariaDBRenameTable:
 
     def test_if_exists_supported_on_10_5(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRenameTableExpression(
+        expr = MariaDBRenameTableStatement(
             dialect, [(Table(dialect, 'old_table'), Table(dialect, 'new_table'))],
             if_exists=True,
         )
@@ -106,7 +106,7 @@ class TestMariaDBRenameTable:
 
     def test_if_exists_version_gated(self):
         dialect = _dialect((10, 4, 0))
-        expr = MariaDBRenameTableExpression(
+        expr = MariaDBRenameTableStatement(
             dialect, [(Table(dialect, 'old_table'), Table(dialect, 'new_table'))],
             if_exists=True,
         )
@@ -115,7 +115,7 @@ class TestMariaDBRenameTable:
 
     def test_wait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRenameTableExpression(
+        expr = MariaDBRenameTableStatement(
             dialect, [(Table(dialect, 'old_table'), Table(dialect, 'new_table'))],
             wait=5,
         )
@@ -124,7 +124,7 @@ class TestMariaDBRenameTable:
 
     def test_nowait_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRenameTableExpression(
+        expr = MariaDBRenameTableStatement(
             dialect, [(Table(dialect, 'old_table'), Table(dialect, 'new_table'))],
             nowait=True,
         )
@@ -133,7 +133,7 @@ class TestMariaDBRenameTable:
 
     def test_wait_version_gated(self):
         dialect = _dialect((10, 2, 0))
-        expr = MariaDBRenameTableExpression(
+        expr = MariaDBRenameTableStatement(
             dialect, [(Table(dialect, 'old_table'), Table(dialect, 'new_table'))],
             nowait=True,
         )
@@ -142,7 +142,7 @@ class TestMariaDBRenameTable:
 
     def test_invalid_pair_raises(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRenameTableExpression(dialect, [])
+        expr = MariaDBRenameTableStatement(dialect, [])
         with pytest.raises(ValueError):
             expr.validate()
 
@@ -273,7 +273,7 @@ class TestMariaDBRenameIndex:
 
     def test_basic(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRenameIndexExpression(
+        expr = MariaDBRenameIndexStatement(
             dialect, Table(dialect, 'users'), Index(dialect, 'idx_old'), Index(dialect, 'idx_new')
         )
         sql, params = expr.to_sql()
@@ -287,7 +287,7 @@ class TestMariaDBRenameIndex:
     def test_version_gated_below_10_5_3(self):
         dialect = _dialect((10, 5, 2))
         assert dialect.supports_rename_index() is False
-        expr = MariaDBRenameIndexExpression(
+        expr = MariaDBRenameIndexStatement(
             dialect, Table(dialect, 'users'), Index(dialect, 'idx_old'), Index(dialect, 'idx_new')
         )
         with pytest.raises(UnsupportedFeatureError):
@@ -298,7 +298,7 @@ class TestMariaDBTableMaintenance:
     """Tests for MariaDB table maintenance statements."""
 
     def _expr(self, dialect, operation, tables, **options):
-        return MariaDBTableMaintenanceExpression(
+        return MariaDBTableMaintenanceStatement(
             dialect, operation,
             [Table(dialect, name) for name in tables],
             **options,
@@ -477,7 +477,7 @@ class TestMariaDBRoutine:
 
     def test_create_procedure_basic(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateProcedureExpression(
+        expr = MariaDBCreateProcedureStatement(
             dialect, Procedure(dialect, 'get_user'), body='BEGIN SELECT * FROM users; END'
         )
         sql, params = expr.to_sql()
@@ -486,7 +486,7 @@ class TestMariaDBRoutine:
 
     def test_create_procedure_params(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateProcedureExpression(
+        expr = MariaDBCreateProcedureStatement(
             dialect, Procedure(dialect, 'get_user'),
             params=[('IN', 'uid', 'INT'), ('OUT', 'name', 'VARCHAR(50)')],
             body='BEGIN SELECT name INTO name FROM users WHERE id = uid; END',
@@ -499,7 +499,7 @@ class TestMariaDBRoutine:
 
     def test_create_procedure_or_replace(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateProcedureExpression(
+        expr = MariaDBCreateProcedureStatement(
             dialect, Procedure(dialect, 'get_user'), or_replace=True, body='BEGIN END'
         )
         sql, params = expr.to_sql()
@@ -507,7 +507,7 @@ class TestMariaDBRoutine:
 
     def test_create_procedure_if_not_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateProcedureExpression(
+        expr = MariaDBCreateProcedureStatement(
             dialect, Procedure(dialect, 'get_user'), if_not_exists=True, body='BEGIN END'
         )
         sql, params = expr.to_sql()
@@ -516,7 +516,7 @@ class TestMariaDBRoutine:
     def test_create_procedure_or_replace_version_gated(self):
         dialect = _dialect((10, 1, 2))
         assert dialect.supports_routine_or_replace() is False
-        expr = MariaDBCreateProcedureExpression(
+        expr = MariaDBCreateProcedureStatement(
             dialect, Procedure(dialect, 'get_user'), or_replace=True, body='BEGIN END'
         )
         with pytest.raises(UnsupportedFeatureError):
@@ -525,7 +525,7 @@ class TestMariaDBRoutine:
     def test_create_procedure_if_not_exists_version_gated(self):
         dialect = _dialect((10, 1, 2))
         assert dialect.supports_routine_if_not_exists() is False
-        expr = MariaDBCreateProcedureExpression(
+        expr = MariaDBCreateProcedureStatement(
             dialect, Procedure(dialect, 'get_user'), if_not_exists=True, body='BEGIN END'
         )
         with pytest.raises(UnsupportedFeatureError):
@@ -533,7 +533,7 @@ class TestMariaDBRoutine:
 
     def test_create_procedure_schema_qualified(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateProcedureExpression(
+        expr = MariaDBCreateProcedureStatement(
             dialect, Procedure(dialect, 'get_user', catalog_name='app'), body='BEGIN END'
         )
         sql, params = expr.to_sql()
@@ -541,19 +541,19 @@ class TestMariaDBRoutine:
 
     def test_drop_procedure(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBDropProcedureExpression(dialect, Procedure(dialect, 'get_user'))
+        expr = MariaDBDropProcedureStatement(dialect, Procedure(dialect, 'get_user'))
         sql, params = expr.to_sql()
         assert sql == 'DROP PROCEDURE `get_user`'
 
     def test_drop_procedure_if_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBDropProcedureExpression(dialect, Procedure(dialect, 'get_user'), if_exists=True)
+        expr = MariaDBDropProcedureStatement(dialect, Procedure(dialect, 'get_user'), if_exists=True)
         sql, params = expr.to_sql()
         assert sql == 'DROP PROCEDURE IF EXISTS `get_user`'
 
     def test_create_function_basic(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateFunctionExpression(
+        expr = MariaDBCreateFunctionStatement(
             dialect, Function(dialect, 'add_one'), returns='INT',
             params=[('IN', 'x', 'INT')],
             body='RETURN x + 1;',
@@ -566,7 +566,7 @@ class TestMariaDBRoutine:
 
     def test_create_function_deterministic(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateFunctionExpression(
+        expr = MariaDBCreateFunctionStatement(
             dialect, Function(dialect, 'add_one'), returns='INT', deterministic=True,
         )
         sql, params = expr.to_sql()
@@ -575,7 +575,7 @@ class TestMariaDBRoutine:
     def test_create_aggregate_function(self):
         dialect = _dialect((10, 6, 0))
         assert dialect.supports_aggregate_function() is True
-        expr = MariaDBCreateFunctionExpression(
+        expr = MariaDBCreateFunctionStatement(
             dialect, Function(dialect, 'my_sum'), returns='INT', aggregate=True,
             body='...',
         )
@@ -584,13 +584,13 @@ class TestMariaDBRoutine:
 
     def test_drop_function(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBDropFunctionExpression(dialect, Function(dialect, 'add_one'))
+        expr = MariaDBDropFunctionStatement(dialect, Function(dialect, 'add_one'))
         sql, params = expr.to_sql()
         assert sql == 'DROP FUNCTION `add_one`'
 
     def test_drop_function_if_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBDropFunctionExpression(dialect, Function(dialect, 'add_one'), if_exists=True)
+        expr = MariaDBDropFunctionStatement(dialect, Function(dialect, 'add_one'), if_exists=True)
         sql, params = expr.to_sql()
         assert sql == 'DROP FUNCTION IF EXISTS `add_one`'
 
@@ -614,21 +614,21 @@ class TestMariaDBRoutine:
 
     def test_call_basic(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCallExpression(dialect, Procedure(dialect, 'get_user'))
+        expr = MariaDBCallStatement(dialect, Procedure(dialect, 'get_user'))
         sql, params = expr.to_sql()
         assert sql == 'CALL `get_user` ()'
         assert params == ()
 
     def test_call_args(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCallExpression(dialect, Procedure(dialect, 'get_user'), args=[1, 'alice'])
+        expr = MariaDBCallStatement(dialect, Procedure(dialect, 'get_user'), args=[1, 'alice'])
         sql, params = expr.to_sql()
         assert sql == 'CALL `get_user` (%s, %s)'
         assert params == (1, 'alice')
 
     def test_call_schema_qualified(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCallExpression(
+        expr = MariaDBCallStatement(
             dialect, Procedure(dialect, 'get_user', catalog_name='app'), args=[]
         )
         sql, params = expr.to_sql()
@@ -652,7 +652,7 @@ class TestMariaDBAdmin:
 
     def test_create_user(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateUserExpression(
+        expr = MariaDBCreateUserStatement(
             dialect, self._users(), identified_by='secret'
         )
         sql, params = expr.to_sql()
@@ -660,7 +660,7 @@ class TestMariaDBAdmin:
 
     def test_create_user_if_not_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateUserExpression(
+        expr = MariaDBCreateUserStatement(
             dialect, self._users(), if_not_exists=True
         )
         sql, params = expr.to_sql()
@@ -668,7 +668,7 @@ class TestMariaDBAdmin:
 
     def test_alter_user(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBAlterUserExpression(
+        expr = MariaDBAlterUserStatement(
             dialect, self._users(), identified_by='newpass'
         )
         sql, params = expr.to_sql()
@@ -676,25 +676,25 @@ class TestMariaDBAdmin:
 
     def test_alter_user_if_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBAlterUserExpression(dialect, self._users(), if_exists=True)
+        expr = MariaDBAlterUserStatement(dialect, self._users(), if_exists=True)
         sql, params = expr.to_sql()
         assert sql == "ALTER USER IF EXISTS 'app_user'@'localhost'"
 
     def test_drop_user(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBDropUserExpression(dialect, self._users())
+        expr = MariaDBDropUserStatement(dialect, self._users())
         sql, params = expr.to_sql()
         assert sql == "DROP USER 'app_user'@'localhost'"
 
     def test_drop_user_if_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBDropUserExpression(dialect, self._users(), if_exists=True)
+        expr = MariaDBDropUserStatement(dialect, self._users(), if_exists=True)
         sql, params = expr.to_sql()
         assert sql == "DROP USER IF EXISTS 'app_user'@'localhost'"
 
     def test_default_host_is_percent(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateUserExpression(
+        expr = MariaDBCreateUserStatement(
             dialect, [AccountSpec('app_user')]
         )
         sql, params = expr.to_sql()
@@ -702,13 +702,13 @@ class TestMariaDBAdmin:
 
     def test_create_role(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateRoleExpression(dialect, ['app_role'])
+        expr = MariaDBCreateRoleStatement(dialect, ['app_role'])
         sql, params = expr.to_sql()
         assert sql == 'CREATE ROLE `app_role`'
 
     def test_create_role_if_not_exists_multi(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBCreateRoleExpression(
+        expr = MariaDBCreateRoleStatement(
             dialect, ['a_role', 'b_role'], if_not_exists=True
         )
         sql, params = expr.to_sql()
@@ -716,13 +716,13 @@ class TestMariaDBAdmin:
 
     def test_drop_role(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBDropRoleExpression(dialect, ['app_role'], if_exists=True)
+        expr = MariaDBDropRoleStatement(dialect, ['app_role'], if_exists=True)
         sql, params = expr.to_sql()
         assert sql == 'DROP ROLE IF EXISTS `app_role`'
 
     def test_grant(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBGrantExpression(
+        expr = MariaDBGrantStatement(
             dialect,
             [GrantPrivilege('SELECT')],
             self._users(),
@@ -733,7 +733,7 @@ class TestMariaDBAdmin:
 
     def test_grant_multi_privilege_with_columns(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBGrantExpression(
+        expr = MariaDBGrantStatement(
             dialect,
             [GrantPrivilege('SELECT', ['id', 'name']), GrantPrivilege('UPDATE')],
             self._users(),
@@ -747,7 +747,7 @@ class TestMariaDBAdmin:
 
     def test_grant_with_grant_option(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBGrantExpression(
+        expr = MariaDBGrantStatement(
             dialect,
             [GrantPrivilege('SELECT')],
             self._users(),
@@ -759,7 +759,7 @@ class TestMariaDBAdmin:
     def test_grant_or_replace(self):
         dialect = _dialect((10, 6, 0))
         assert dialect.supports_grant_or_replace() is True
-        expr = MariaDBGrantExpression(
+        expr = MariaDBGrantStatement(
             dialect,
             [GrantPrivilege('SELECT')],
             self._users(),
@@ -771,7 +771,7 @@ class TestMariaDBAdmin:
     def test_grant_or_replace_version_gated(self):
         dialect = _dialect((10, 1, 3))
         assert dialect.supports_grant_or_replace() is False
-        expr = MariaDBGrantExpression(
+        expr = MariaDBGrantStatement(
             dialect,
             [GrantPrivilege('SELECT')],
             self._users(),
@@ -783,7 +783,7 @@ class TestMariaDBAdmin:
     def test_grant_if_exists(self):
         dialect = _dialect((10, 6, 0))
         assert dialect.supports_grant_if_exists() is True
-        expr = MariaDBGrantExpression(
+        expr = MariaDBGrantStatement(
             dialect,
             [GrantPrivilege('SELECT')],
             self._users(),
@@ -794,7 +794,7 @@ class TestMariaDBAdmin:
 
     def test_revoke(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRevokeExpression(
+        expr = MariaDBRevokeStatement(
             dialect,
             [GrantPrivilege('SELECT')],
             self._users(),
@@ -805,7 +805,7 @@ class TestMariaDBAdmin:
 
     def test_revoke_if_exists(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBRevokeExpression(
+        expr = MariaDBRevokeStatement(
             dialect,
             [GrantPrivilege('SELECT')],
             self._users(),
@@ -817,7 +817,7 @@ class TestMariaDBAdmin:
     def test_deny(self):
         dialect = _dialect((13, 1, 0))
         assert dialect.supports_deny() is True
-        expr = MariaDBDenyExpression(
+        expr = MariaDBDenyStatement(
             dialect,
             [GrantPrivilege('DELETE')],
             self._users(),
@@ -829,7 +829,7 @@ class TestMariaDBAdmin:
     def test_deny_version_gated(self):
         dialect = _dialect((13, 0, 0))
         assert dialect.supports_deny() is False
-        expr = MariaDBDenyExpression(
+        expr = MariaDBDenyStatement(
             dialect,
             [GrantPrivilege('DELETE')],
             self._users(),
@@ -839,13 +839,13 @@ class TestMariaDBAdmin:
 
     def test_flush(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBFlushExpression(dialect, [FlushOption.PRIVILEGES])
+        expr = MariaDBFlushStatement(dialect, [FlushOption.PRIVILEGES])
         sql, params = expr.to_sql()
         assert sql == 'FLUSH PRIVILEGES'
 
     def test_flush_multiple_no_binlog(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBFlushExpression(
+        expr = MariaDBFlushStatement(
             dialect, [FlushOption.LOGS, FlushOption.STATUS],
             no_write_to_binlog=True,
         )
@@ -854,25 +854,25 @@ class TestMariaDBAdmin:
 
     def test_flush_invalid_empty(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBFlushExpression(dialect, [])
+        expr = MariaDBFlushStatement(dialect, [])
         with pytest.raises(ValueError):
             expr.validate()
 
     def test_kill_connection(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBKillExpression(dialect, 42)
+        expr = MariaDBKillStatement(dialect, 42)
         sql, params = expr.to_sql()
         assert sql == 'KILL CONNECTION 42'
 
     def test_kill_query(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBKillExpression(dialect, 42, target=KillTarget.QUERY)
+        expr = MariaDBKillStatement(dialect, 42, target=KillTarget.QUERY)
         sql, params = expr.to_sql()
         assert sql == 'KILL QUERY 42'
 
     def test_shutdown(self):
         dialect = _dialect((10, 6, 0))
-        expr = MariaDBShutdownExpression(dialect)
+        expr = MariaDBShutdownStatement(dialect)
         sql, params = expr.to_sql()
         assert sql == 'SHUTDOWN'
 

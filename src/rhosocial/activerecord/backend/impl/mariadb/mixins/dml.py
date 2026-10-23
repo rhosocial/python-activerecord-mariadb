@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
         InsertStatement,
     )
-    from ..expression.load_data import MariaDBLoadDataExpression
+    from ..expression.load_data import MariaDBLoadDataStatement
 
 
 class MariaDBDMLOperationMixin:
@@ -254,7 +254,7 @@ class MariaDBDMLOperationMixin:
 
         return " ".join(parts), tuple(all_params)
 
-    def format_load_data_statement(self, expr: "MariaDBLoadDataExpression") -> Tuple[str, tuple]:
+    def format_load_data_statement(self, expr: "MariaDBLoadDataStatement") -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
 
         Args:
@@ -272,7 +272,7 @@ class MariaDBDMLOperationMixin:
 
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"MariaDBLoadDataExpression.table must be a Table, "
+                f"MariaDBLoadDataStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         expr.validate(strict=self.strict_validation)

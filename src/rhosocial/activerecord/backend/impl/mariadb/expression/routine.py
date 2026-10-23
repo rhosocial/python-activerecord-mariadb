@@ -75,14 +75,14 @@ class MariaDBRoutineExpression(BaseExpression):
             )
 
 
-class MariaDBCreateProcedureExpression(MariaDBRoutineExpression):
+class MariaDBCreateProcedureStatement(MariaDBRoutineExpression):
     """Represent ``CREATE [OR REPLACE] PROCEDURE``."""
 
     def to_sql(self) -> Tuple[str, tuple]:
         return self.dialect.format_create_procedure_statement(self)
 
 
-class MariaDBDropProcedureExpression(MariaDBRoutineExpression):
+class MariaDBDropProcedureStatement(MariaDBRoutineExpression):
     """Represent ``DROP PROCEDURE [IF EXISTS]``."""
 
     def __init__(
@@ -99,7 +99,7 @@ class MariaDBDropProcedureExpression(MariaDBRoutineExpression):
         return self.dialect.format_drop_procedure_statement(self)
 
 
-class MariaDBCreateFunctionExpression(MariaDBRoutineExpression):
+class MariaDBCreateFunctionStatement(MariaDBRoutineExpression):
     """Represent ``CREATE [OR REPLACE] [AGGREGATE] FUNCTION`` (stored function)."""
 
     routine_kind = Function
@@ -133,7 +133,7 @@ class MariaDBCreateFunctionExpression(MariaDBRoutineExpression):
         return self.dialect.format_create_function_statement(self)
 
 
-class MariaDBDropFunctionExpression(MariaDBRoutineExpression):
+class MariaDBDropFunctionStatement(MariaDBRoutineExpression):
     """Represent ``DROP FUNCTION [IF EXISTS]`` (stored / aggregate function)."""
 
     routine_kind = Function
@@ -152,7 +152,7 @@ class MariaDBDropFunctionExpression(MariaDBRoutineExpression):
         return self.dialect.format_drop_function_statement(self)
 
 
-class MariaDBCallExpression(BaseExpression):
+class MariaDBCallStatement(BaseExpression):
     """Represent ``CALL procedure_name([args])``.
 
     Attributes:

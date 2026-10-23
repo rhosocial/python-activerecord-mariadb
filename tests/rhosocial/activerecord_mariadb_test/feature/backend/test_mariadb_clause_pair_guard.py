@@ -83,7 +83,7 @@ from rhosocial.activerecord.backend.expression.transaction import (
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-    MariaDBExchangePartitionExpression,
+    MariaDBExchangePartitionStatement,
 )
 
 VERSION = (10, 6, 0)
@@ -323,8 +323,8 @@ PAIR_CASES = (
         ("refused", "TRANSACTION NOT DEFERRABLE"),
     ),
     PairCase(
-        "MariaDBExchangePartitionExpression.with_validation",
-        lambda d, **kw: MariaDBExchangePartitionExpression(
+        "MariaDBExchangePartitionStatement.with_validation",
+        lambda d, **kw: MariaDBExchangePartitionStatement(
             d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), **kw
         ),
         "with_validation",
@@ -450,7 +450,7 @@ class TestExchangePartitionValidationBoundary:
 
     def _expr(self, version, **kw):
         dialect = MariaDBDialect(version)
-        return MariaDBExchangePartitionExpression(
+        return MariaDBExchangePartitionStatement(
             dialect, _table(dialect, "probe_part"), "p0", _table(dialect, "probe_exch"), **kw
         )
 
@@ -493,7 +493,7 @@ class TestExchangePartitionValidationBoundary:
     def test_exchange_table_must_be_a_table(self):
         dialect = _dialect()
         with pytest.raises(TypeError, match="exchange_table"):
-            MariaDBExchangePartitionExpression(
+            MariaDBExchangePartitionStatement(
                 dialect, _table(dialect, "probe_part"), "p0", "probe_exch"
             )
 
@@ -542,13 +542,13 @@ class TestPairParametersSurviveSerialization:
             (lambda d: BeginTransactionStatement(d, deferrable=True), "deferrable"),
             (lambda d: SetTransactionStatement(d, not_deferrable=True), "not_deferrable"),
             (
-                lambda d: MariaDBExchangePartitionExpression(
+                lambda d: MariaDBExchangePartitionStatement(
                     d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), with_validation=True
                 ),
                 "with_validation",
             ),
             (
-                lambda d: MariaDBExchangePartitionExpression(
+                lambda d: MariaDBExchangePartitionStatement(
                     d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), without_validation=True
                 ),
                 "without_validation",
@@ -564,8 +564,8 @@ class TestPairParametersSurviveSerialization:
             "TableConstraint.deferrable",
             "BeginTransactionStatement.deferrable",
             "SetTransactionStatement.not_deferrable",
-            "MariaDBExchangePartitionExpression.with_validation",
-            "MariaDBExchangePartitionExpression.without_validation",
+            "MariaDBExchangePartitionStatement.with_validation",
+            "MariaDBExchangePartitionStatement.without_validation",
         ],
     )
     def test_second_spelling_survives_the_round_trip(self, factory, field):

@@ -225,7 +225,7 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.match_against import
     MariaDBMatchAgainstExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-    MariaDBExchangePartitionExpression,
+    MariaDBExchangePartitionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
     MariaDBSTDistanceExpression,
@@ -805,7 +805,7 @@ def register_specials():
 
     # -- MariaDB's own expressions ------------------------------------------
     # Each of these guesses a bare string where the formatter wants an object.
-    # `MariaDBFlushExpression` and friends are absent from this list on purpose:
+    # `MariaDBFlushStatement` and friends are absent from this list on purpose:
     # their one-line constructors are guessed correctly, and the three that
     # refuse an empty collection are pinned in LEGITIMATE_NON_RENDERS with the
     # reason, because an instance with no options is not a statement.
@@ -821,38 +821,38 @@ def register_specials():
         lambda d: maria_show.ShowRelationExpression(d, _table_obj(d, "probe_rel")),
     )
     register_special_constructor(
-        "show.ShowColumnsExpression",
-        lambda d: maria_show.ShowColumnsExpression(d, _table_obj(d, "probe_cols")),
+        "show.ShowColumnsStatement",
+        lambda d: maria_show.ShowColumnsStatement(d, _table_obj(d, "probe_cols")),
     )
     register_special_constructor(
         "show.ShowCreateTableStatement",
         lambda d: maria_show.ShowCreateTableStatement(d, _table_obj(d, "probe_ct")),
     )
     register_special_constructor(
-        "show.ShowCreateViewExpression",
-        lambda d: maria_show.ShowCreateViewExpression(d, View(d, "probe_cv")),
+        "show.ShowCreateViewStatement",
+        lambda d: maria_show.ShowCreateViewStatement(d, View(d, "probe_cv")),
     )
     register_special_constructor(
-        "show.ShowCreateTriggerExpression",
-        lambda d: maria_show.ShowCreateTriggerExpression(d, Trigger(d, "probe_trg")),
+        "show.ShowCreateTriggerStatement",
+        lambda d: maria_show.ShowCreateTriggerStatement(d, Trigger(d, "probe_trg")),
     )
     register_special_constructor(
-        "show.ShowIndexExpression",
-        lambda d: maria_show.ShowIndexExpression(d, _table_obj(d, "probe_idx")),
+        "show.ShowIndexStatement",
+        lambda d: maria_show.ShowIndexStatement(d, _table_obj(d, "probe_idx")),
     )
     register_special_constructor(
-        "routine.MariaDBCreateProcedureExpression",
-        lambda d: maria_routine.MariaDBCreateProcedureExpression(
+        "routine.MariaDBCreateProcedureStatement",
+        lambda d: maria_routine.MariaDBCreateProcedureStatement(
             d, Procedure(d, "pr"), params=["IN a INT"], body="BEGIN END"
         ),
     )
     register_special_constructor(
-        "routine.MariaDBDropProcedureExpression",
-        lambda d: maria_routine.MariaDBDropProcedureExpression(d, Procedure(d, "pr")),
+        "routine.MariaDBDropProcedureStatement",
+        lambda d: maria_routine.MariaDBDropProcedureStatement(d, Procedure(d, "pr")),
     )
     register_special_constructor(
-        "routine.MariaDBCallExpression",
-        lambda d: maria_routine.MariaDBCallExpression(
+        "routine.MariaDBCallStatement",
+        lambda d: maria_routine.MariaDBCallStatement(
             d, Procedure(d, "pr"), args=[Literal(d, 1)]
         ),
     )
@@ -895,8 +895,8 @@ def register_specials():
         lambda d: MariaDBSTDistanceExpression(d, "g1", "g2"),
     )
     register_special_constructor(
-        "partition.MariaDBExchangePartitionExpression",
-        lambda d: MariaDBExchangePartitionExpression(
+        "partition.MariaDBExchangePartitionStatement",
+        lambda d: MariaDBExchangePartitionStatement(
             d, _table_obj(d, "probe_part"), "p0", _table_obj(d, "probe_exch")
         ),
     )
@@ -1142,11 +1142,11 @@ LEGITIMATE_NON_RENDERS = {
     ),
     # Two introspection roots that ask a subclass to name its own query, rather
     # than dispatching on a `format_method` property the way the other bases do.
-    "rhosocial.activerecord.backend.expression.introspection.TableInfoExpression": (
-        NotImplementedError, "Subclass must implement format_table_info_query"
+    "rhosocial.activerecord.backend.expression.introspection.TableInfoQueryStatement": (
+        NotImplementedError, "Subclass must implement format_table_info_query_statement"
     ),
-    "rhosocial.activerecord.backend.expression.introspection.TriggerInfoExpression": (
-        NotImplementedError, "Subclass must implement format_trigger_info_query"
+    "rhosocial.activerecord.backend.expression.introspection.TriggerInfoQueryStatement": (
+        NotImplementedError, "Subclass must implement format_trigger_info_query_statement"
     ),
     # The declared-result base. ``format_declared_result`` reads ``expr.alias``
     # on the node it renders, and this base declares none: ``alias`` belongs to
@@ -1166,15 +1166,15 @@ LEGITIMATE_NON_RENDERS = {
     # statement needs. The refusal is the point: an ANALYZE with no operation or
     # a RENAME with no pairs is not a statement, and rendering one would emit
     # SQL the server would reject with a far worse message.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBFlushExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBFlushStatement": (
         ValueError, "FLUSH requires at least one option"
     ),
-    "rhosocial.activerecord.backend.impl.mariadb.expression.rename_table.MariaDBRenameTableExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.rename_table.MariaDBRenameTableStatement": (
         ValueError, "RENAME TABLE requires at least one <table> TO <table> pair"
     ),
     # The guess supplies the operation as its bare string; the enum member is
     # what the formatter dispatches on, so it refuses the string by name.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.maintenance.MariaDBTableMaintenanceExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.maintenance.MariaDBTableMaintenanceStatement": (
         TypeError, "operation must be a TableMaintenanceOperation"
     ),
     # COLLATE validates its collation against MariaDB's own list; the guess's
@@ -1196,47 +1196,47 @@ LEGITIMATE_NON_RENDERS = {
     # SQL/XML. Thirteen separate statements, no MariaDB implementation of any
     # of them. Grouped because they share one cause.
     "rhosocial.activerecord.backend.expression.xml.XMLAggExpression": (
-        UnsupportedFeatureError, "format_xmlagg_expression"
+        UnsupportedFeatureError, "format_xml_agg_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLAttributesExpression": (
-        UnsupportedFeatureError, "format_xmlattributes_expression"
+        UnsupportedFeatureError, "format_xml_attributes_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLCommentExpression": (
-        UnsupportedFeatureError, "format_xmlcomment_expression"
+        UnsupportedFeatureError, "format_xml_comment_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLConcatExpression": (
-        UnsupportedFeatureError, "format_xmlconcat_expression"
+        UnsupportedFeatureError, "format_xml_concat_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLElementExpression": (
-        UnsupportedFeatureError, "format_xmlelement_expression"
+        UnsupportedFeatureError, "format_xml_element_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLExistsPredicate": (
         UnsupportedFeatureError, "format_xmlexists_predicate"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLForestExpression": (
-        UnsupportedFeatureError, "format_xmlforest_expression"
+        UnsupportedFeatureError, "format_xml_forest_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLPIExpression": (
         UnsupportedFeatureError, "format_xmlpi_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": (
-        UnsupportedFeatureError, "format_xmlparse_expression"
+        UnsupportedFeatureError, "format_xml_parse_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLQueryExpression": (
-        UnsupportedFeatureError, "format_xmlquery_expression"
+        UnsupportedFeatureError, "format_xml_query_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLRootExpression": (
-        UnsupportedFeatureError, "format_xmlroot_expression"
+        UnsupportedFeatureError, "format_xml_root_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": (
-        UnsupportedFeatureError, "format_xmlserialize_expression"
+        UnsupportedFeatureError, "format_xml_serialize_expression"
     ),
     # XMLTABLE. Pinned in UNCONSTRUCTIBLE until the harness stopped reading
     # `Sequence[XMLTableColumn]` as a request for a catalogue Sequence; the
     # class itself never had a construction gap, so it belongs here with the
     # other twelve SQL/XML statements rather than back in the tuple.
     "rhosocial.activerecord.backend.expression.xml.XMLTableExpression": (
-        UnsupportedFeatureError, "format_xmltable_expression"
+        UnsupportedFeatureError, "format_xml_table_expression"
     ),
     # Property graphs. MariaDB has a MATCH *predicate* but no property-graph DDL
     # and no GRAPH_TABLE row source; these are the eight pieces of that feature.
@@ -1278,7 +1278,7 @@ LEGITIMATE_NON_RENDERS = {
     # implemented. Worth pinning by name because it is a real gap rather than a
     # MariaDB refusal, and the table-option path renders today.
     "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnStatement": (
-        UnsupportedFeatureError, "format_comment_statement"
+        UnsupportedFeatureError, "format_comment_on_statement"
     ),
     # The root of the row-source tree. No concrete source renders through
     # `format_table_source`; each overrides `format_method`. This is a base that
@@ -1449,7 +1449,7 @@ SERIALIZATION_GAP = {
         ("dict", "json", "xml"),
         (TypeError, "XMLForestItem is not one of the value kinds"),
     ),
-    "rhosocial.activerecord.backend.impl.mariadb.expression.load_data.MariaDBLoadDataExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.load_data.MariaDBLoadDataStatement": (
         ("dict", "json", "xml"),
         (TypeError, "LoadDataOptions is not one of the value kinds"),
     ),
@@ -1512,7 +1512,7 @@ SERIALIZATION_GAP = {
     # does not normalise it back into a member, so the parameter comes back
     # as the ``str`` the wire carried. The dict channel hands the member
     # through untouched and still round-trips.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBKillExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBKillStatement": (
         ("json", "xml"),
         "type mismatch str vs KillTarget",
     ),
@@ -1676,19 +1676,19 @@ def _dispatched_formatter(exc):
 #: property graphs, no COMMENT ON, no PIVOT" says what the dialect is.
 UNMODELLED_FORMATTERS = {
     "SQL/XML (MariaDB implements no part of SQL/XML)": (
-        "format_xmlagg_expression",
-        "format_xmlattributes_expression",
-        "format_xmlcomment_expression",
-        "format_xmlconcat_expression",
-        "format_xmlelement_expression",
+        "format_xml_agg_expression",
+        "format_xml_attributes_expression",
+        "format_xml_comment_expression",
+        "format_xml_concat_expression",
+        "format_xml_element_expression",
         "format_xmlexists_predicate",
-        "format_xmlforest_expression",
+        "format_xml_forest_expression",
         "format_xmlpi_expression",
-        "format_xmlparse_expression",
-        "format_xmlquery_expression",
-        "format_xmlroot_expression",
-        "format_xmlserialize_expression",
-        "format_xmltable_expression",
+        "format_xml_parse_expression",
+        "format_xml_query_expression",
+        "format_xml_root_expression",
+        "format_xml_serialize_expression",
+        "format_xml_table_expression",
         # S1-c's PASSING clause belongs to the same absent family: it carries the
         # BY VALUE / BY REF argument list the XML querying expressions pass with,
         # and MariaDB has none of them, so the dialect declares no
@@ -1708,7 +1708,7 @@ UNMODELLED_FORMATTERS = {
     ),
     "COMMENT ON (MariaDB's COMMENT is a table option and a column attribute, "
     "both rendered by this dialect; the standalone statement is not "
-    "implemented)": ("format_comment_statement",),
+    "implemented)": ("format_comment_on_statement",),
     "PIVOT / UNPIVOT (not MariaDB syntax, and no formatter for either)": (
         "format_pivot",
         "format_unpivot",

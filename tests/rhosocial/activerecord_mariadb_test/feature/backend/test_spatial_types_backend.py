@@ -136,7 +136,7 @@ class TestMariaDBSpatialTypeBackend:
         mariadb_backend.execute("DROP TEMPORARY TABLE IF EXISTS test_spatial_srid")
 
     def test_format_st_geom_from_text_without_srid(self, mariadb_backend):
-        """Test format_st_geom_from_text generates correct SQL without SRID."""
+        """Test format_st_geom_from_text_expression generates correct SQL without SRID."""
         dialect = mariadb_backend.dialect
         sql, params = dialect._format_spatial_literal_parts('POINT(3 4)')
 
@@ -148,7 +148,7 @@ class TestMariaDBSpatialTypeBackend:
         assert 'POINT(3 4)' in result.data[0]['wkt']
 
     def test_format_st_geom_from_text_with_srid(self, mariadb_backend):
-        """Test format_st_geom_from_text generates correct SQL with SRID."""
+        """Test format_st_geom_from_text_expression generates correct SQL with SRID."""
         dialect = mariadb_backend.dialect
         sql, params = dialect._format_spatial_literal_parts('POINT(1 1)', 4326)
 
@@ -215,7 +215,7 @@ class TestMariaDBSpatialTypeBackend:
         mariadb_backend.execute("DROP TEMPORARY TABLE IF EXISTS test_geojson")
 
     def test_format_st_distance(self, mariadb_backend):
-        """Test format_st_distance generates correct SQL."""
+        """Test format_st_distance_expression generates correct SQL."""
         dialect = mariadb_backend.dialect
 
         point1_sql, point1_params = dialect._format_spatial_literal_parts('POINT(0 0)')
@@ -231,7 +231,7 @@ class TestMariaDBSpatialTypeBackend:
         assert abs(result.data[0]['distance'] - 5.0) < 0.001
 
     def test_format_st_within(self, mariadb_backend):
-        """Test format_st_within generates correct SQL."""
+        """Test format_st_within_expression generates correct SQL."""
         dialect = mariadb_backend.dialect
 
         point_sql, point_params = dialect._format_spatial_literal_parts('POINT(5 5)')
@@ -249,7 +249,7 @@ class TestMariaDBSpatialTypeBackend:
         assert result.data[0]['is_within'] == 1
 
     def test_format_st_contains(self, mariadb_backend):
-        """Test format_st_contains generates correct SQL."""
+        """Test format_st_contains_expression generates correct SQL."""
         dialect = mariadb_backend.dialect
 
         polygon_sql, polygon_params = dialect._format_spatial_literal_parts(
@@ -344,7 +344,7 @@ class TestAsyncMariaDBSpatialTypeBackend:
 
     @pytest.mark.asyncio
     async def test_async_format_st_geom_from_text(self, async_mariadb_backend):
-        """Test format_st_geom_from_text generates correct SQL (async)."""
+        """Test format_st_geom_from_text_expression generates correct SQL (async)."""
         dialect = async_mariadb_backend.dialect
         sql, params = dialect._format_spatial_literal_parts('POINT(10 20)', 4326)
 
@@ -357,7 +357,7 @@ class TestAsyncMariaDBSpatialTypeBackend:
 
     @pytest.mark.asyncio
     async def test_async_format_st_distance(self, async_mariadb_backend):
-        """Test format_st_distance generates correct SQL (async)."""
+        """Test format_st_distance_expression generates correct SQL (async)."""
         dialect = async_mariadb_backend.dialect
 
         point1_sql, point1_params = dialect._format_spatial_literal_parts('POINT(0 0)')
@@ -374,7 +374,7 @@ class TestAsyncMariaDBSpatialTypeBackend:
 
     @pytest.mark.asyncio
     async def test_async_format_st_within(self, async_mariadb_backend):
-        """Test format_st_within generates correct SQL (async)."""
+        """Test format_st_within_expression generates correct SQL (async)."""
         dialect = async_mariadb_backend.dialect
 
         point_sql, point_params = dialect._format_spatial_literal_parts('POINT(5 5)')

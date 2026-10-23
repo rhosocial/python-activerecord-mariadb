@@ -296,7 +296,7 @@ class MariaDBPartitionByKey(MariaDBPartitionClause):
         self.linear = linear
 
 
-class MariaDBExchangePartitionExpression(BaseExpression):
+class MariaDBExchangePartitionStatement(BaseExpression):
     """Expression for ``ALTER TABLE ... EXCHANGE PARTITION``.
 
     The validation clause is a two-spelling alternative, so each spelling has
@@ -376,5 +376,5 @@ __all__ = [
     "MariaDBPartitionByListColumns",
     "MariaDBPartitionByHash",
     "MariaDBPartitionByKey",
-    "MariaDBExchangePartitionExpression",
+    "MariaDBExchangePartitionStatement",
 ]

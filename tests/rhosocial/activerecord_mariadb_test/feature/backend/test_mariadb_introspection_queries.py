@@ -15,14 +15,14 @@ import pytest
 
 from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 from rhosocial.activerecord.backend.expression.introspection import (
-    ColumnInfoExpression,
-    DatabaseInfoExpression,
-    ForeignKeyExpression,
-    IndexInfoExpression,
-    TableListExpression,
-    TriggerListExpression,
-    ViewInfoExpression,
-    ViewListExpression,
+    ColumnInfoQueryStatement,
+    DatabaseInfoQueryStatement,
+    ForeignKeyQueryStatement,
+    IndexInfoQueryStatement,
+    TableListQueryStatement,
+    TriggerListQueryStatement,
+    ViewInfoQueryStatement,
+    ViewListQueryStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
@@ -40,14 +40,14 @@ class TestIntrospectionQueries:
     """The eight ``format_*_query`` formatters, rendered from their trees."""
 
     def test_database_info(self, dialect):
-        assert DatabaseInfoExpression(dialect, schema="app").to_sql() == (
+        assert DatabaseInfoQueryStatement(dialect, schema="app").to_sql() == (
             "SELECT `DEFAULT_CHARACTER_SET_NAME`, `DEFAULT_COLLATION_NAME` "
             "FROM `information_schema`.`SCHEMATA` WHERE `SCHEMA_NAME` = %s",
             ("app",),
         )
 
     def test_table_list_projects_in_declared_order(self, dialect):
-        sql, params = TableListExpression(dialect, schema="app").to_sql()
+        sql, params = TableListQueryStatement(dialect, schema="app").to_sql()
         assert sql == (
             "SELECT `TABLE_NAME`, `TABLE_TYPE`, `TABLE_COMMENT`, `TABLE_ROWS`, "
             "`DATA_LENGTH`, `AUTO_INCREMENT`, `CREATE_TIME`, `UPDATE_TIME` "
@@ -60,28 +60,28 @@ class TestIntrospectionQueries:
         assert params == ("app",)
 
     def test_table_list_include_system_drops_the_exclusion(self, dialect):
-        sql, params = TableListExpression(
+        sql, params = TableListQueryStatement(
             dialect, schema="app", include_system=True
         ).to_sql()
         assert "NOT (" not in sql
         assert params == ("app",)
 
     def test_table_list_without_views_pins_the_type_inline(self, dialect):
-        sql, params = TableListExpression(
+        sql, params = TableListQueryStatement(
             dialect, schema="app", include_views=False
         ).to_sql()
         assert sql.endswith("AND `TABLE_TYPE` = 'BASE TABLE'")
         assert params == ("app",)
 
     def test_table_list_type_filter_is_bound(self, dialect):
-        sql, params = TableListExpression(
+        sql, params = TableListQueryStatement(
             dialect, schema="app", table_type="BASE TABLE"
         ).to_sql()
         assert sql.endswith("AND `TABLE_TYPE` = %s")
         assert params == ("app", "BASE TABLE")
 
     def test_column_info_keeps_the_srid_join_and_its_alias(self, dialect):
-        sql, params = ColumnInfoExpression(dialect, "users", schema="app").to_sql()
+        sql, params = ColumnInfoQueryStatement(dialect, "users", schema="app").to_sql()
         assert sql == (
             "SELECT `c`.`COLUMN_NAME`, `c`.`ORDINAL_POSITION`, `c`.`COLUMN_DEFAULT`, "
             "`c`.`IS_NULLABLE`, `c`.`DATA_TYPE`, `c`.`CHARACTER_MAXIMUM_LENGTH`, "
@@ -99,7 +99,7 @@ class TestIntrospectionQueries:
         assert params == ("app", "users")
 
     def test_index_info_orders_by_name_then_position(self, dialect):
-        sql, params = IndexInfoExpression(dialect, "users", schema="app").to_sql()
+        sql, params = IndexInfoQueryStatement(dialect, "users", schema="app").to_sql()
         assert sql == (
             "SELECT `INDEX_NAME`, `NON_UNIQUE`, `SEQ_IN_INDEX`, `COLUMN_NAME`, "
             "`INDEX_TYPE`, `SUB_PART`, `NULLABLE` "
@@ -110,7 +110,7 @@ class TestIntrospectionQueries:
         assert params == ("app", "users")
 
     def test_foreign_key_joins_on_both_name_and_schema(self, dialect):
-        sql, params = ForeignKeyExpression(dialect, "users", schema="app").to_sql()
+        sql, params = ForeignKeyQueryStatement(dialect, "users", schema="app").to_sql()
         assert sql == (
             "SELECT `kcu`.`CONSTRAINT_NAME`, `kcu`.`COLUMN_NAME`, "
             "`kcu`.`ORDINAL_POSITION`, `kcu`.`REFERENCED_TABLE_NAME`, "
@@ -127,7 +127,7 @@ class TestIntrospectionQueries:
         assert params == ("app", "users")
 
     def test_view_list_orders_by_name(self, dialect):
-        sql, params = ViewListExpression(dialect, schema="app").to_sql()
+        sql, params = ViewListQueryStatement(dialect, schema="app").to_sql()
         assert sql == (
             "SELECT `TABLE_NAME`, `VIEW_DEFINITION`, `CHECK_OPTION`, `IS_UPDATABLE` "
             "FROM `information_schema`.`VIEWS` "
@@ -138,14 +138,14 @@ class TestIntrospectionQueries:
         assert params == ("app",)
 
     def test_view_list_include_system(self, dialect):
-        sql, params = ViewListExpression(
+        sql, params = ViewListQueryStatement(
             dialect, schema="app", include_system=True
         ).to_sql()
         assert "NOT (" not in sql
         assert params == ("app",)
 
     def test_view_info_has_no_ordering(self, dialect):
-        sql, params = ViewInfoExpression(dialect, "v_users", schema="app").to_sql()
+        sql, params = ViewInfoQueryStatement(dialect, "v_users", schema="app").to_sql()
         assert sql == (
             "SELECT `TABLE_NAME`, `VIEW_DEFINITION`, `CHECK_OPTION`, `IS_UPDATABLE` "
             "FROM `information_schema`.`VIEWS` "
@@ -154,7 +154,7 @@ class TestIntrospectionQueries:
         assert params == ("app", "v_users")
 
     def test_trigger_list_without_a_table(self, dialect):
-        sql, params = TriggerListExpression(dialect, schema="app").to_sql()
+        sql, params = TriggerListQueryStatement(dialect, schema="app").to_sql()
         assert sql == (
             "SELECT `TRIGGER_NAME`, `EVENT_MANIPULATION`, `EVENT_OBJECT_TABLE`, "
             "`ACTION_TIMING`, `ACTION_STATEMENT`, `CREATED` "
@@ -164,7 +164,7 @@ class TestIntrospectionQueries:
         assert params == ("app",)
 
     def test_trigger_list_with_a_table_binds_it(self, dialect):
-        sql, params = TriggerListExpression(
+        sql, params = TriggerListQueryStatement(
             dialect, schema="app", table_name="users"
         ).to_sql()
         assert sql == (
@@ -200,7 +200,7 @@ class TestQueryNodesStayStructures:
     def test_a_value_with_a_quote_cannot_break_the_statement(self, dialect):
         """A bound value is data; the formatter never splices it into text."""
         hostile = "app'; DROP TABLE users; --"
-        sql, params = TableListExpression(dialect, schema=hostile).to_sql()
+        sql, params = TableListQueryStatement(dialect, schema=hostile).to_sql()
         assert hostile not in sql
         assert params == (hostile,)
 

@@ -110,7 +110,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """Alias for :meth:`supports_json_arrow_operators`."""
         ...
 
-    def format_json_extract(
+    def format_json_extract_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -135,7 +135,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_object(
+    def format_json_object_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -149,7 +149,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_array(self, expr: Any) -> Tuple[str, tuple]:
+    def format_json_array_expression(self, expr: Any) -> Tuple[str, tuple]:
         """Format JSON_ARRAY function call.
 
         Args:
@@ -160,7 +160,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_contains(
+    def format_json_contains_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:

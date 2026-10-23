@@ -42,7 +42,7 @@ class MariaDBFullTextSearchSupport(Protocol):
         """Whether query expansion mode is supported (MariaDB 5.x+)."""
         ...
 
-    def format_match_against(
+    def format_match_against_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:

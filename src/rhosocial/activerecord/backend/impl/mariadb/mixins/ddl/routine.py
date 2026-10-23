@@ -18,11 +18,11 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
-        MariaDBCallExpression,
-        MariaDBCreateFunctionExpression,
-        MariaDBCreateProcedureExpression,
-        MariaDBDropFunctionExpression,
-        MariaDBDropProcedureExpression,
+        MariaDBCallStatement,
+        MariaDBCreateFunctionStatement,
+        MariaDBCreateProcedureStatement,
+        MariaDBDropFunctionStatement,
+        MariaDBDropProcedureStatement,
     )
 
 
@@ -120,7 +120,7 @@ class MariaDBRoutineMixin:
 
     def format_create_procedure_statement(
         self,
-        expr: "MariaDBCreateProcedureExpression",
+        expr: "MariaDBCreateProcedureStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CREATE [OR REPLACE] [IF NOT EXISTS] PROCEDURE name(params) body``.
 
@@ -170,7 +170,7 @@ class MariaDBRoutineMixin:
 
     def format_drop_procedure_statement(
         self,
-        expr: "MariaDBDropProcedureExpression",
+        expr: "MariaDBDropProcedureStatement",
     ) -> Tuple[str, tuple]:
         """Format ``DROP PROCEDURE [IF EXISTS] name``.
 
@@ -194,7 +194,7 @@ class MariaDBRoutineMixin:
 
     def format_create_function_statement(
         self,
-        expr: "MariaDBCreateFunctionExpression",
+        expr: "MariaDBCreateFunctionStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CREATE [OR REPLACE] [IF NOT EXISTS] [AGGREGATE] FUNCTION ...``.
 
@@ -299,7 +299,7 @@ class MariaDBRoutineMixin:
 
     def format_drop_function_statement(
         self,
-        expr: "MariaDBDropFunctionExpression",
+        expr: "MariaDBDropFunctionStatement",
     ) -> Tuple[str, tuple]:
         """Format ``DROP FUNCTION [IF EXISTS] name`` (stored / aggregate function).
 
@@ -368,7 +368,7 @@ class MariaDBRoutineMixin:
 
     def format_call_statement(
         self,
-        expr: "MariaDBCallExpression",
+        expr: "MariaDBCallStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CALL name([args])``.
 
@@ -379,7 +379,7 @@ class MariaDBRoutineMixin:
 
         if not isinstance(expr.procedure, Procedure):
             raise TypeError(
-                f"MariaDBCallExpression.procedure must be a Procedure, "
+                f"MariaDBCallStatement.procedure must be a Procedure, "
                 f"got {type(expr.procedure).__name__}"
             )
         expr.validate(strict=self.strict_validation)

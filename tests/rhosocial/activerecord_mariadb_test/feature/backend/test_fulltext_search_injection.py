@@ -13,7 +13,7 @@ interpolating ``search_string`` into an f-string and returning the result as a
 
 A quote in the input therefore escaped the literal and reached the driver verbatim.
 The correct implementation was not missing: ``MariaDBMatchAgainstExpression`` and
-the dialect's ``format_match_against`` already existed, already bound the search
+the dialect's ``format_match_against_expression`` already existed, already bound the search
 string through the dialect placeholder, and were already covered by
 ``test_fulltext_index.py`` and the protocol-conformance assertion. Only this entry
 point bypassed them, and because **no test called the factory**, the divergence

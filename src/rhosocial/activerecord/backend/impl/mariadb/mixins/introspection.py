@@ -15,14 +15,14 @@ from typing import List, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
     from rhosocial.activerecord.backend.expression.introspection import (
-        DatabaseInfoExpression,
-        TableListExpression,
-        ColumnInfoExpression,
-        IndexInfoExpression,
-        ForeignKeyExpression,
-        ViewListExpression,
-        ViewInfoExpression,
-        TriggerListExpression,
+        DatabaseInfoQueryStatement,
+        TableListQueryStatement,
+        ColumnInfoQueryStatement,
+        IndexInfoQueryStatement,
+        ForeignKeyQueryStatement,
+        ViewListQueryStatement,
+        ViewInfoQueryStatement,
+        TriggerListQueryStatement,
     )
     from rhosocial.activerecord.backend.expression.sources.relation import NamedRelationRef
     from rhosocial.activerecord.backend.expression.objects import Table
@@ -165,8 +165,8 @@ class MariaDBIntrospectionMixin:
             ),
         )
 
-    def format_database_info_query(
-        self, expr: "DatabaseInfoExpression"
+    def format_database_info_query_statement(
+        self, expr: "DatabaseInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format database information query.
 
@@ -205,8 +205,8 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_table_list_query(
-        self, expr: "TableListExpression"
+    def format_table_list_query_statement(
+        self, expr: "TableListQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format table list query.
 
@@ -272,8 +272,8 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_column_info_query(
-        self, expr: "ColumnInfoExpression"
+    def format_column_info_query_statement(
+        self, expr: "ColumnInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format column information query.
 
@@ -383,8 +383,8 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_index_info_query(
-        self, expr: "IndexInfoExpression"
+    def format_index_info_query_statement(
+        self, expr: "IndexInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format index information query.
 
@@ -441,8 +441,8 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_foreign_key_query(
-        self, expr: "ForeignKeyExpression"
+    def format_foreign_key_query_statement(
+        self, expr: "ForeignKeyQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format foreign key information query.
 
@@ -539,8 +539,8 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_view_list_query(
-        self, expr: "ViewListExpression"
+    def format_view_list_query_statement(
+        self, expr: "ViewListQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format view list query.
 
@@ -587,8 +587,8 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_view_info_query(
-        self, expr: "ViewInfoExpression"
+    def format_view_info_query_statement(
+        self, expr: "ViewInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format single view information query.
 
@@ -638,8 +638,8 @@ class MariaDBIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_trigger_list_query(
-        self, expr: "TriggerListExpression"
+    def format_trigger_list_query_statement(
+        self, expr: "TriggerListQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format trigger list query.
 

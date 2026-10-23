@@ -11,7 +11,7 @@ ON DELETE CASCADE / TINYINT(1) / DATETIME(6) / ENUM / JSON).  The pre-existing
 remain as the authoritative reference for what the expressions here must
 produce; they are simply no longer read at runtime by the providers.
 
-Because the MariaDB backend's ``format_storage_options`` emits quoted values
+Because the MariaDB backend's ``format_storage_options_expression`` emits quoted values
 (e.g. ``ENGINE='InnoDB'``) while the reference SQL files use the unquoted
 form, each factory routes its expression through :func:`to_mariadb_ddl_sql`
 which post-processes the storage option clause to drop the quotes, producing

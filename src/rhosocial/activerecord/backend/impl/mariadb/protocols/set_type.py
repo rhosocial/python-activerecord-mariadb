@@ -28,7 +28,7 @@ class MariaDBSetTypeSupport(Protocol):
         """Whether SET type is supported."""
         ...
 
-    def format_set_literal(
+    def format_set_literal_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -42,7 +42,7 @@ class MariaDBSetTypeSupport(Protocol):
         """
         ...
 
-    def format_find_in_set(
+    def format_find_in_set_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -56,7 +56,7 @@ class MariaDBSetTypeSupport(Protocol):
         """
         ...
 
-    def format_set_contains(
+    def format_set_contains_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:

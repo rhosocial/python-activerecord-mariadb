@@ -505,12 +505,12 @@ class MariaDBPartitionMixin:
             raise UnsupportedFeatureError(self.name, "EXCHANGE PARTITION")
         if not isinstance(expr.table, Table):
             raise TypeError(
-                "MariaDBExchangePartitionExpression.table must be a Table, "
+                "MariaDBExchangePartitionStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if not isinstance(expr.exchange_table, Table):
             raise TypeError(
-                "MariaDBExchangePartitionExpression.exchange_table must be a Table, "
+                "MariaDBExchangePartitionStatement.exchange_table must be a Table, "
                 f"got {type(expr.exchange_table).__name__}"
             )
         if expr.with_validation:

@@ -1331,7 +1331,7 @@ class MariaDBDialect(
 
         return f"{set_isolation}{begin_sql}", ()
 
-    def format_set_transaction(self, expr) -> Tuple[str, tuple]:
+    def format_set_transaction_statement(self, expr) -> Tuple[str, tuple]:
         """Format SET TRANSACTION statement for MariaDB.
 
         ``DEFERRABLE`` / ``NOT DEFERRABLE`` is consumed through the transaction

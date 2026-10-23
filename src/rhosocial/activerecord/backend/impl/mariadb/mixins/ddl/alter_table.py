@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
         AlterTableStatement,
     )
     from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
-        MariaDBRenameIndexExpression,
+        MariaDBRenameIndexStatement,
     )
 
 
@@ -151,7 +151,7 @@ class MariaDBAlterTableMixin:
 
     def format_rename_index_statement(
         self,
-        expr: "MariaDBRenameIndexExpression",
+        expr: "MariaDBRenameIndexStatement",
     ) -> Tuple[str, tuple]:
         """Format MariaDB ``ALTER TABLE ... RENAME INDEX``.
 
@@ -173,7 +173,7 @@ class MariaDBAlterTableMixin:
         ):
             if not isinstance(value, kind):
                 raise TypeError(
-                    f"MariaDBRenameIndexExpression.{name} must be a "
+                    f"MariaDBRenameIndexStatement.{name} must be a "
                     f"{kind.__name__}, got {type(value).__name__}"
                 )
         expr.validate(strict=self.strict_validation)

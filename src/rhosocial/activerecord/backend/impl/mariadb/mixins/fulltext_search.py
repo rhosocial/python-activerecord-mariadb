@@ -56,7 +56,7 @@ class MariaDBFullTextSearchMixin:
             sql += f" WITH PARSER {self.format_identifier(parser_name)}"
         return sql, ()
 
-    def format_match_against(self, expr) -> Tuple[str, tuple]:
+    def format_match_against_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBMatchAgainstExpression` node."""
         cols_sql = ", ".join(self.format_identifier(c) for c in expr.columns)
 

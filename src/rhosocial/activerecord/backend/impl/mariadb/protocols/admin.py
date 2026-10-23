@@ -5,17 +5,17 @@ from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.admin import (
-        MariaDBAlterUserExpression,
-        MariaDBCreateRoleExpression,
-        MariaDBCreateUserExpression,
-        MariaDBDenyExpression,
-        MariaDBDropRoleExpression,
-        MariaDBDropUserExpression,
-        MariaDBFlushExpression,
-        MariaDBGrantExpression,
-        MariaDBKillExpression,
-        MariaDBRevokeExpression,
-        MariaDBShutdownExpression,
+        MariaDBAlterUserStatement,
+        MariaDBCreateRoleStatement,
+        MariaDBCreateUserStatement,
+        MariaDBDenyStatement,
+        MariaDBDropRoleStatement,
+        MariaDBDropUserStatement,
+        MariaDBFlushStatement,
+        MariaDBGrantStatement,
+        MariaDBKillStatement,
+        MariaDBRevokeStatement,
+        MariaDBShutdownStatement,
     )
 
 
@@ -91,73 +91,73 @@ class MariaDBAdminSupport(Protocol):
         """Whether DENY is supported (MariaDB 13.1+)."""
         ...
 
-    def format_flush_statement(self, expr: "MariaDBFlushExpression") -> Tuple[str, tuple]:
+    def format_flush_statement(self, expr: "MariaDBFlushStatement") -> Tuple[str, tuple]:
         """Format FLUSH."""
         ...
 
-    def format_kill_statement(self, expr: "MariaDBKillExpression") -> Tuple[str, tuple]:
+    def format_kill_statement(self, expr: "MariaDBKillStatement") -> Tuple[str, tuple]:
         """Format KILL."""
         ...
 
     def format_shutdown_statement(
         self,
-        expr: "MariaDBShutdownExpression",
+        expr: "MariaDBShutdownStatement",
     ) -> Tuple[str, tuple]:
         """Format SHUTDOWN."""
         ...
 
     def format_create_user_statement(
         self,
-        expr: "MariaDBCreateUserExpression",
+        expr: "MariaDBCreateUserStatement",
     ) -> Tuple[str, tuple]:
         """Format CREATE USER."""
         ...
 
     def format_alter_user_statement(
         self,
-        expr: "MariaDBAlterUserExpression",
+        expr: "MariaDBAlterUserStatement",
     ) -> Tuple[str, tuple]:
         """Format ALTER USER."""
         ...
 
     def format_drop_user_statement(
         self,
-        expr: "MariaDBDropUserExpression",
+        expr: "MariaDBDropUserStatement",
     ) -> Tuple[str, tuple]:
         """Format DROP USER."""
         ...
 
     def format_create_role_statement(
         self,
-        expr: "MariaDBCreateRoleExpression",
+        expr: "MariaDBCreateRoleStatement",
     ) -> Tuple[str, tuple]:
         """Format CREATE ROLE."""
         ...
 
     def format_drop_role_statement(
         self,
-        expr: "MariaDBDropRoleExpression",
+        expr: "MariaDBDropRoleStatement",
     ) -> Tuple[str, tuple]:
         """Format DROP ROLE."""
         ...
 
     def format_grant_statement(
         self,
-        expr: "MariaDBGrantExpression",
+        expr: "MariaDBGrantStatement",
     ) -> Tuple[str, tuple]:
         """Format GRANT."""
         ...
 
     def format_revoke_statement(
         self,
-        expr: "MariaDBRevokeExpression",
+        expr: "MariaDBRevokeStatement",
     ) -> Tuple[str, tuple]:
         """Format REVOKE."""
         ...
 
     def format_deny_statement(
         self,
-        expr: "MariaDBDenyExpression",
+        expr: "MariaDBDenyStatement",
     ) -> Tuple[str, tuple]:
         """Format DENY."""
         ...

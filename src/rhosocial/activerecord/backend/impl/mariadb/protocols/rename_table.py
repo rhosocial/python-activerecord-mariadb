@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.rename_table import (
-        MariaDBRenameTableExpression,
+        MariaDBRenameTableStatement,
     )
 
 
@@ -47,12 +47,12 @@ class MariaDBRenameTableSupport(Protocol):
 
     def format_rename_table_statement(
         self,
-        expr: "MariaDBRenameTableExpression",
+        expr: "MariaDBRenameTableStatement",
     ) -> Tuple[str, tuple]:
         """Format a MariaDB RENAME TABLE statement.
 
         Args:
-            expr: MariaDBRenameTableExpression with typed fields:
+            expr: MariaDBRenameTableStatement with typed fields:
                 ``if_exists`` (MariaDB 10.5+), ``wait`` / ``nowait``
                 (MariaDB 10.3+).
         """

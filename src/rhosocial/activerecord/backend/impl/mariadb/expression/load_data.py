@@ -2,7 +2,7 @@
 """
 MariaDB-specific LOAD DATA expression.
 
-This module provides MariaDBLoadDataExpression and LoadDataOptions for
+This module provides MariaDBLoadDataStatement and LoadDataOptions for
 MariaDB's LOAD DATA INFILE functionality.
 """
 
@@ -48,7 +48,7 @@ class LoadDataOptions:
     set_assignments: Optional[Dict[str, Any]] = None
 
 
-class MariaDBLoadDataExpression(BaseExpression):
+class MariaDBLoadDataStatement(BaseExpression):
     """MariaDB LOAD DATA INFILE expression.
 
     Collects parameters for LOAD DATA [LOCAL] INFILE statement.

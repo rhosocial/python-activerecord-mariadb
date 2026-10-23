@@ -44,7 +44,7 @@ class MariaDBSTGeomFromTextExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_geom_from_text"
+        return "format_st_geom_from_text_expression"
 
 
 class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -72,7 +72,7 @@ class MariaDBSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_distance"
+        return "format_st_distance_expression"
 
 
 class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -100,7 +100,7 @@ class MariaDBSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_within"
+        return "format_st_within_expression"
 
 
 class MariaDBSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -128,7 +128,7 @@ class MariaDBSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_contains"
+        return "format_st_contains_expression"
 
 
 __all__ = [

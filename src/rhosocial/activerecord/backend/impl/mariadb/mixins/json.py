@@ -367,7 +367,7 @@ class MariaDBJSONMixin:
             f"json_column must be a str or expression, got {type(json_column).__name__}"
         )
 
-    def format_json_extract(self, expr) -> Tuple[str, tuple]:
+    def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONExtractExpression` node."""
         sql, params = self._format_json_extract_parts(expr.json_column, expr.path)
         if expr.alias:
@@ -395,7 +395,7 @@ class MariaDBJSONMixin:
         """
         return f"JSON_UNQUOTE({json_val})", ()
 
-    def format_json_object(self, expr) -> Tuple[str, tuple]:
+    def format_json_object_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONObjectExpression` node."""
         sql, params = self._format_json_object_parts(expr.pairs)
         if expr.alias:
@@ -420,7 +420,7 @@ class MariaDBJSONMixin:
 
         return f"JSON_OBJECT({', '.join(parts)})", tuple(params)
 
-    def format_json_array(self, expr) -> Tuple[str, tuple]:
+    def format_json_array_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONArrayExpression` node."""
         sql, params = self._format_json_array_parts(expr.values)
         if expr.alias:
@@ -434,7 +434,7 @@ class MariaDBJSONMixin:
         placeholders = ', '.join([self.p() for _ in values])
         return f"JSON_ARRAY({placeholders})", tuple(values)
 
-    def format_json_contains(self, expr) -> Tuple[str, tuple]:
+    def format_json_contains_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONContainsExpression` node."""
         sql, params = self._format_json_contains_parts(
             expr.json_column, expr.value, expr.path

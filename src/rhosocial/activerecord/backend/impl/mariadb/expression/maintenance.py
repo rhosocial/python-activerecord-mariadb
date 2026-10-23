@@ -44,7 +44,7 @@ class TableMaintenanceOperation(str, Enum):
     REPAIR = "REPAIR"
 
 
-class MariaDBTableMaintenanceExpression(BaseExpression):
+class MariaDBTableMaintenanceStatement(BaseExpression):
     """Represent a MariaDB table maintenance statement.
 
     Attributes:

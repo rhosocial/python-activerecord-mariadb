@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.maintenance import (
-        MariaDBTableMaintenanceExpression,
+        MariaDBTableMaintenanceStatement,
     )
 
 
@@ -53,11 +53,11 @@ class MariaDBMaintenanceSupport(Protocol):
 
     def format_table_maintenance_statement(
         self,
-        expr: "MariaDBTableMaintenanceExpression",
+        expr: "MariaDBTableMaintenanceStatement",
     ) -> Tuple[str, tuple]:
         """Format a MariaDB table maintenance statement.
 
-        Options are typed fields on ``MariaDBTableMaintenanceExpression``:
+        Options are typed fields on ``MariaDBTableMaintenanceStatement``:
             - ``no_write_to_binlog`` / ``local``: render NO_WRITE_TO_BINLOG
             - ``persistent``: 'all' or {'columns': [...], 'indexes': [...]}
               (ANALYZE only, MariaDB 10.5+)

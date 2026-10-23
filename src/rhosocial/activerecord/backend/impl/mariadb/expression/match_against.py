@@ -85,7 +85,7 @@ class MariaDBMatchAgainstExpression(
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_match_against"
+        return "format_match_against_expression"
 
 
 __all__ = [

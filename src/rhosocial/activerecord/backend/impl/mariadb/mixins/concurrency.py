@@ -9,7 +9,7 @@ from typing import Optional
 
 from rhosocial.activerecord.backend.protocols import ConcurrencyHint
 
-from ..expression.show import ShowVariablesExpression
+from ..expression.show import ShowVariablesStatement
 
 
 class MariaDBConcurrencyMixin:
@@ -31,7 +31,7 @@ class MariaDBConcurrencyMixin:
         """Fetch max_connections from MariaDB server and compute concurrency hint."""
         try:
             cursor = self._connection.cursor(dictionary=True)
-            sql, params = ShowVariablesExpression(
+            sql, params = ShowVariablesStatement(
                 self.dialect, like_pattern="max_connections"
             ).to_sql()
             cursor.execute(sql, params)
@@ -78,7 +78,7 @@ class AsyncMariaDBConcurrencyMixin:
         """Fetch max_connections from MariaDB server and compute concurrency hint."""
         try:
             cursor = self._connection.cursor(dictionary=True)
-            sql, params = ShowVariablesExpression(
+            sql, params = ShowVariablesStatement(
                 self.dialect, like_pattern="max_connections"
             ).to_sql()
             await cursor.execute(sql, params)

@@ -8,7 +8,7 @@ like Galera cluster status and thread pool metrics.
 
 from typing import Any, Dict, List, Optional
 
-from ..expression.show import ShowStatusExpression, ShowVariablesExpression
+from ..expression.show import ShowStatusStatement, ShowVariablesStatement
 from ..expression.status import (
     MariaDBDatabaseListQuery,
     MariaDBSessionInfoQuery,
@@ -127,7 +127,7 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowVariablesExpression(
+                sql, params = ShowVariablesStatement(
                     self._backend.dialect, like_pattern=name
                 ).to_sql()
                 rows = self._execute_query(sql, params)
@@ -141,7 +141,7 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowStatusExpression(
+                sql, params = ShowStatusStatement(
                     self._backend.dialect, like_pattern=name, session=False
                 ).to_sql()
                 rows = self._execute_query(sql, params)
@@ -311,7 +311,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowVariablesExpression(
+                sql, params = ShowVariablesStatement(
                     self._backend.dialect, like_pattern=name
                 ).to_sql()
                 rows = await self._execute_query(sql, params)
@@ -325,7 +325,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowStatusExpression(
+                sql, params = ShowStatusStatement(
                     self._backend.dialect, like_pattern=name, session=False
                 ).to_sql()
                 rows = await self._execute_query(sql, params)

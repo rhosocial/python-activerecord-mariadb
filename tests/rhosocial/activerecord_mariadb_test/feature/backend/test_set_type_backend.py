@@ -106,7 +106,7 @@ class TestMariaDBSetTypeBackend:
         mariadb_backend.execute("DROP TEMPORARY TABLE IF EXISTS test_find_in_set")
 
     def test_format_set_literal_integration(self, mariadb_backend):
-        """Test format_set_literal with database execution."""
+        """Test format_set_literal_expression with database execution."""
         mariadb_backend.execute("""
             CREATE TEMPORARY TABLE test_set_literal (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -134,7 +134,7 @@ class TestMariaDBSetTypeBackend:
         mariadb_backend.execute("DROP TEMPORARY TABLE IF EXISTS test_set_literal")
 
     def test_format_find_in_set_integration(self, mariadb_backend):
-        """Test format_find_in_set with database execution."""
+        """Test format_find_in_set_expression with database execution."""
         mariadb_backend.execute("""
             CREATE TEMPORARY TABLE test_find_format (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -162,7 +162,7 @@ class TestMariaDBSetTypeBackend:
         mariadb_backend.execute("DROP TEMPORARY TABLE IF EXISTS test_find_format")
 
     def test_format_set_contains_integration(self, mariadb_backend):
-        """Test format_set_contains with database execution."""
+        """Test format_set_contains_expression with database execution."""
         mariadb_backend.execute("""
             CREATE TEMPORARY TABLE test_contains_format (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -321,7 +321,7 @@ class TestAsyncMariaDBSetTypeBackend:
 
     @pytest.mark.asyncio
     async def test_async_format_set_literal_integration(self, async_mariadb_backend):
-        """Test format_set_literal with database execution (async)."""
+        """Test format_set_literal_expression with database execution (async)."""
         await async_mariadb_backend.execute("""
             CREATE TEMPORARY TABLE test_async_set_literal (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -350,7 +350,7 @@ class TestAsyncMariaDBSetTypeBackend:
 
     @pytest.mark.asyncio
     async def test_async_format_find_in_set_integration(self, async_mariadb_backend):
-        """Test format_find_in_set with database execution (async)."""
+        """Test format_find_in_set_expression with database execution (async)."""
         await async_mariadb_backend.execute("""
             CREATE TEMPORARY TABLE test_async_find_format (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -376,7 +376,7 @@ class TestAsyncMariaDBSetTypeBackend:
 
     @pytest.mark.asyncio
     async def test_async_format_set_contains_integration(self, async_mariadb_backend):
-        """Test format_set_contains with database execution (async)."""
+        """Test format_set_contains_expression with database execution (async)."""
         await async_mariadb_backend.execute("""
             CREATE TEMPORARY TABLE test_async_contains (
                 id INT AUTO_INCREMENT PRIMARY KEY,

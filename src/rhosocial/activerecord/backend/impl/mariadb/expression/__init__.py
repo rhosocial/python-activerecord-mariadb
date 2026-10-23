@@ -15,7 +15,7 @@ Directory structure:
 - locking.py        - Row-level locking expressions (FOR UPDATE, LOCK IN SHARE MODE)
 """
 
-from .load_data import MariaDBLoadDataExpression, LoadDataOptions
+from .load_data import MariaDBLoadDataStatement, LoadDataOptions
 from .json_table import MariaDBJSONTableExpression, JSONTableColumn, NestedPath
 from .json import (
     MariaDBJSONExtractExpression,
@@ -30,14 +30,14 @@ from .spatial import (
     MariaDBSTContainsExpression,
 )
 from .match_against import MariaDBMatchAgainstExpression, MatchAgainstMode
-from .rename_table import MariaDBRenameTableExpression
-from .rename_index import MariaDBRenameIndexExpression
+from .rename_table import MariaDBRenameTableStatement
+from .rename_index import MariaDBRenameIndexStatement
 from .routine import (
-    MariaDBCallExpression,
-    MariaDBCreateFunctionExpression,
-    MariaDBCreateProcedureExpression,
-    MariaDBDropFunctionExpression,
-    MariaDBDropProcedureExpression,
+    MariaDBCallStatement,
+    MariaDBCreateFunctionStatement,
+    MariaDBCreateProcedureStatement,
+    MariaDBDropFunctionStatement,
+    MariaDBDropProcedureStatement,
 )
 from .set_type import (
     MariaDBSetLiteralExpression,
@@ -47,17 +47,17 @@ from .set_type import (
 from .admin import (
     AccountSpec,
     GrantPrivilege,
-    MariaDBAlterUserExpression,
-    MariaDBCreateRoleExpression,
-    MariaDBCreateUserExpression,
-    MariaDBDenyExpression,
-    MariaDBDropRoleExpression,
-    MariaDBDropUserExpression,
-    MariaDBFlushExpression,
-    MariaDBGrantExpression,
-    MariaDBKillExpression,
-    MariaDBRevokeExpression,
-    MariaDBShutdownExpression,
+    MariaDBAlterUserStatement,
+    MariaDBCreateRoleStatement,
+    MariaDBCreateUserStatement,
+    MariaDBDenyStatement,
+    MariaDBDropRoleStatement,
+    MariaDBDropUserStatement,
+    MariaDBFlushStatement,
+    MariaDBGrantStatement,
+    MariaDBKillStatement,
+    MariaDBRevokeStatement,
+    MariaDBShutdownStatement,
 )
 from .table_options import MariaDBRowFormat, MariaDBCreateTableOptions
 from .dml import MariaDBInsertExpression
@@ -70,7 +70,7 @@ from .column import (
     MariaDBColumnOptions,
 )
 from .maintenance import (
-    MariaDBTableMaintenanceExpression,
+    MariaDBTableMaintenanceStatement,
     TableMaintenanceOperation,
 )
 from .partition import (
@@ -88,7 +88,7 @@ from .partition import (
     MariaDBPartitionByListColumns,
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
-    MariaDBExchangePartitionExpression,
+    MariaDBExchangePartitionStatement,
 )
 
 # DataType subclasses for DDL
@@ -123,7 +123,7 @@ from .types import (
 )
 
 __all__ = [
-    "MariaDBLoadDataExpression",
+    "MariaDBLoadDataStatement",
     "LoadDataOptions",
     "MariaDBJSONTableExpression",
     "JSONTableColumn",
@@ -138,10 +138,10 @@ __all__ = [
     "MariaDBSTContainsExpression",
     "MariaDBMatchAgainstExpression",
     "MatchAgainstMode",
-    "MariaDBRenameTableExpression",
-    "MariaDBRenameIndexExpression",
+    "MariaDBRenameTableStatement",
+    "MariaDBRenameIndexStatement",
     "MariaDBAlterTableExpression",
-    "MariaDBTableMaintenanceExpression",
+    "MariaDBTableMaintenanceStatement",
     "TableMaintenanceOperation",
     "MariaDBCreateTableOptions",
     "MariaDBRowFormat",
@@ -165,25 +165,25 @@ __all__ = [
     "MariaDBPartitionByListColumns",
     "MariaDBPartitionByHash",
     "MariaDBPartitionByKey",
-    "MariaDBExchangePartitionExpression",
-    "MariaDBCallExpression",
-    "MariaDBCreateFunctionExpression",
-    "MariaDBCreateProcedureExpression",
-    "MariaDBDropFunctionExpression",
-    "MariaDBDropProcedureExpression",
+    "MariaDBExchangePartitionStatement",
+    "MariaDBCallStatement",
+    "MariaDBCreateFunctionStatement",
+    "MariaDBCreateProcedureStatement",
+    "MariaDBDropFunctionStatement",
+    "MariaDBDropProcedureStatement",
     "AccountSpec",
     "GrantPrivilege",
-    "MariaDBAlterUserExpression",
-    "MariaDBCreateRoleExpression",
-    "MariaDBCreateUserExpression",
-    "MariaDBDenyExpression",
-    "MariaDBDropRoleExpression",
-    "MariaDBDropUserExpression",
-    "MariaDBFlushExpression",
-    "MariaDBGrantExpression",
-    "MariaDBKillExpression",
-    "MariaDBRevokeExpression",
-    "MariaDBShutdownExpression",
+    "MariaDBAlterUserStatement",
+    "MariaDBCreateRoleStatement",
+    "MariaDBCreateUserStatement",
+    "MariaDBDenyStatement",
+    "MariaDBDropRoleStatement",
+    "MariaDBDropUserStatement",
+    "MariaDBFlushStatement",
+    "MariaDBGrantStatement",
+    "MariaDBKillStatement",
+    "MariaDBRevokeStatement",
+    "MariaDBShutdownStatement",
     "MariaDBBigIntType",
     "MariaDBBinaryType",
     "MariaDBBitType",

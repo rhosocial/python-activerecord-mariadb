@@ -37,7 +37,7 @@ def match_against(
 
     Note:
         The search string is bound as a driver parameter by the dialect's
-        ``format_match_against``, never interpolated into the SQL text. Callers
+        ``format_match_against_expression``, never interpolated into the SQL text. Callers
         may therefore pass user-supplied search terms directly.
 
     Version: All MariaDB versions (with FULLTEXT index on MyISAM, Aria, or InnoDB)

@@ -1,7 +1,7 @@
 # tests/providers/fixtures/_common.py
 """Shared helpers for the MariaDB DDL expression fixtures.
 
-The MariaDB backend's :meth:`format_storage_options` quotes string option
+The MariaDB backend's :meth:`format_storage_options_expression` quotes string option
 values (``ENGINE='InnoDB'``).  The authoritative ``.sql`` schema files under
 ``tests/rhosocial/activerecord_mariadb_test/feature/<feature>/schema/``
 use the unquoted storage form.

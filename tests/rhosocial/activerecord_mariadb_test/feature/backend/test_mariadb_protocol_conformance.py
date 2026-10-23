@@ -451,17 +451,17 @@ class TestMySQLExpressionDialectSeparation:
     """
 
     EXPRESSION_DIALECT_PAIRS = [
-        ("MariaDBLoadDataExpression", "format_load_data_statement"),
+        ("MariaDBLoadDataStatement", "format_load_data_statement"),
         ("MariaDBJSONTableExpression", "format_json_table_expression"),
-        ("MariaDBJSONExtractExpression", "format_json_extract"),
-        ("MariaDBJSONObjectExpression", "format_json_object"),
-        ("MariaDBJSONArrayExpression", "format_json_array"),
-        ("MariaDBJSONContainsExpression", "format_json_contains"),
-        ("MariaDBSTGeomFromTextExpression", "format_st_geom_from_text"),
-        ("MariaDBSTDistanceExpression", "format_st_distance"),
-        ("MariaDBSTWithinExpression", "format_st_within"),
-        ("MariaDBSTContainsExpression", "format_st_contains"),
-        ("MariaDBMatchAgainstExpression", "format_match_against"),
+        ("MariaDBJSONExtractExpression", "format_json_extract_expression"),
+        ("MariaDBJSONObjectExpression", "format_json_object_expression"),
+        ("MariaDBJSONArrayExpression", "format_json_array_expression"),
+        ("MariaDBJSONContainsExpression", "format_json_contains_expression"),
+        ("MariaDBSTGeomFromTextExpression", "format_st_geom_from_text_expression"),
+        ("MariaDBSTDistanceExpression", "format_st_distance_expression"),
+        ("MariaDBSTWithinExpression", "format_st_within_expression"),
+        ("MariaDBSTContainsExpression", "format_st_contains_expression"),
+        ("MariaDBMatchAgainstExpression", "format_match_against_expression"),
     ]
 
     @pytest.mark.parametrize("expr_name,format_method", EXPRESSION_DIALECT_PAIRS)
