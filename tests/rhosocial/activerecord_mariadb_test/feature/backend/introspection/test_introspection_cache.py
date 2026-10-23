@@ -79,7 +79,7 @@ class TestInvalidateIntrospectionCache:
         # Database cache should be cleared
         db_info2 = backend_with_tables.introspector.get_database_info()
         # Check internal cache was cleared for database scope
-        db_cache_key = backend_with_tables.introspector._make_cache_key(IntrospectionScope.DATABASE)
+        db_cache_key = backend_with_tables.introspector.make_cache_key(IntrospectionScope.DATABASE)
         # The new result should be cached now
         assert db_info2 is not None
 
@@ -206,7 +206,7 @@ class TestCacheKeys:
 
     def test_cache_key_generation(self, mariadb_backend_single):
         """Test that cache keys are generated correctly."""
-        key = mariadb_backend_single.introspector._make_cache_key(
+        key = mariadb_backend_single.introspector.make_cache_key(
             IntrospectionScope.TABLE,
             "users",
             schema=mariadb_backend_single.config.database
@@ -217,7 +217,7 @@ class TestCacheKeys:
 
     def test_cache_key_with_extra(self, mariadb_backend_single):
         """Test cache key with extra component."""
-        key = mariadb_backend_single.introspector._make_cache_key(
+        key = mariadb_backend_single.introspector.make_cache_key(
             IntrospectionScope.TABLE,
             schema=mariadb_backend_single.config.database,
             extra="True"
@@ -228,15 +228,15 @@ class TestCacheKeys:
 
     def test_cache_key_uniqueness(self, mariadb_backend_single):
         """Test that different parameters produce different keys."""
-        key1 = mariadb_backend_single.introspector._make_cache_key(
+        key1 = mariadb_backend_single.introspector.make_cache_key(
             IntrospectionScope.TABLE,
             "users"
         )
-        key2 = mariadb_backend_single.introspector._make_cache_key(
+        key2 = mariadb_backend_single.introspector.make_cache_key(
             IntrospectionScope.TABLE,
             "posts"
         )
-        key3 = mariadb_backend_single.introspector._make_cache_key(
+        key3 = mariadb_backend_single.introspector.make_cache_key(
             IntrospectionScope.COLUMN,
             "users"
         )

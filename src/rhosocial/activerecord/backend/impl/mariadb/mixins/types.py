@@ -87,7 +87,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     * **Spelling.** A core concept that has several spellings declares them as
       a closed ``SPELLINGS`` list, and this mixin says which of them MariaDB
       renders. A spelling MariaDB does not write is refused by
-      ``_check_spelling`` with a message naming it; one it does write is
+      ``check_spelling`` with a message naming it; one it does write is
       normalised to MariaDB's own word. See the note above
       :meth:`_validate_fsp`.
     * **Correspondence.** Every core concept is declared — rendered here, or
@@ -286,7 +286,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         rendered — the form the server itself writes into ``COLUMN_TYPE``, which
         is what makes ``parse_type`` able to read this backend's own output back.
         """
-        self._check_spelling(data_type, MariaDBMediumIntType)
+        self.check_spelling(data_type, MariaDBMediumIntType)
         return self._format_mariadb_integer("MEDIUMINT", data_type)
 
     def format_data_type_mariadb_int(self, data_type: MariaDBIntType) -> Tuple[str, tuple]:
@@ -511,7 +511,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, IntegerType)
+        self.check_spelling(data_type, IntegerType)
         return self._format_mariadb_integer("INT", data_type)
 
     def format_data_type_bigint(self, data_type: BigIntType) -> Tuple[str, tuple]:
@@ -533,7 +533,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, BigIntType)
+        self.check_spelling(data_type, BigIntType)
         return self._format_mariadb_integer("BIGINT", data_type)
 
     def format_data_type_smallint(self, data_type: SmallIntType) -> Tuple[str, tuple]:
@@ -554,7 +554,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, SmallIntType)
+        self.check_spelling(data_type, SmallIntType)
         return self._format_mariadb_integer("SMALLINT", data_type)
 
     def format_data_type_tinyint(self, data_type: TinyIntType) -> Tuple[str, tuple]:
@@ -579,7 +579,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, TinyIntType)
+        self.check_spelling(data_type, TinyIntType)
         return self._format_mariadb_integer("TINYINT", data_type)
 
     def format_data_type_varchar(self, data_type: VarCharType) -> Tuple[str, tuple]:
@@ -593,7 +593,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         also what makes ``parse_type`` able to read its own output back as
         ``varchar``.
         """
-        self._check_spelling(data_type, VarCharType)
+        self.check_spelling(data_type, VarCharType)
         return (f"VARCHAR({data_type.length})" if data_type.length is not None else "VARCHAR"), ()
 
     def format_data_type_char(self, data_type: CharType) -> Tuple[str, tuple]:
@@ -605,7 +605,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         *set* clause (``CHARACTER SET utf8``), which is a different thing and
         not a reason to refuse the type spelling.
         """
-        self._check_spelling(data_type, CharType)
+        self.check_spelling(data_type, CharType)
         return (f"CHAR({data_type.length})" if data_type.length is not None else "CHAR"), ()
 
     def format_data_type_text(self, data_type: TextType) -> Tuple[str, tuple]:
@@ -614,7 +614,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``mariadb_tinytext``/``mariadb_mediumtext``/``mariadb_longtext`` classes
         rather than spellings of this one, because the maximum length is part of
         what the column can hold."""
-        self._check_spelling(data_type, ("text",))
+        self.check_spelling(data_type, ("text",))
         return "TEXT", ()
 
     def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
@@ -627,7 +627,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         bare ``TINYINT``, which is why :meth:`format_data_type_tinyint` renders
         the latter without one.
         """
-        self._check_spelling(data_type, BooleanType)
+        self.check_spelling(data_type, BooleanType)
         return "TINYINT(1)", ()
 
     def format_data_type_date(self, data_type: DateType) -> Tuple[str, tuple]:
@@ -740,7 +740,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         rejects ``-1`` with 1264.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/double
         """
-        self._check_spelling(data_type, DoubleType)
+        self.check_spelling(data_type, DoubleType)
         return self._format_mariadb_integer("DOUBLE", data_type)
 
     def format_data_type_decimal(self, data_type: DecimalType) -> Tuple[str, tuple]:
@@ -777,7 +777,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         whole attribute slot and explains why one method serves the integers and
         these four numerics alike.
         """
-        self._check_spelling(data_type, DecimalType)
+        self.check_spelling(data_type, DecimalType)
         if data_type.precision is not None and not 1 <= data_type.precision <= 65:
             raise ValueError(
                 f"MariaDB DECIMAL precision must be between 1 and 65, "
@@ -819,7 +819,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``VARBINARY(n)`` is not, so the substitution would be a different
         storage, not a different name for the same one.
         """
-        self._check_spelling(data_type, ("blob",))
+        self.check_spelling(data_type, ("blob",))
         return "BLOB", ()
 
     def format_data_type_custom(self, data_type: CustomType) -> Tuple[str, tuple]:

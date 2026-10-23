@@ -394,10 +394,10 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
     def get_table_info(
         self, table_name: str, schema: Optional[str] = None
     ) -> Optional[IntrospectionTableInfo]:
-        key = self._make_cache_key(
+        key = self.make_cache_key(
             IntrospectionScope.TABLE, table_name, schema=schema
         )
-        cached = self._get_cached(key)
+        cached = self.get_cached(key)
         if cached is not None:
             return cached
 
@@ -410,7 +410,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         table.columns = self.list_columns(table_name, schema)
         table.indexes = self.list_indexes(table_name, schema)
         table.foreign_keys = self.list_foreign_keys(table_name, schema)
-        self._set_cached(key, table)
+        self.set_cached(key, table)
         return table
 
 
@@ -454,10 +454,10 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
     async def get_table_info(
         self, table_name: str, schema: Optional[str] = None
     ) -> Optional[IntrospectionTableInfo]:
-        key = self._make_cache_key(
+        key = self.make_cache_key(
             IntrospectionScope.TABLE, table_name, schema=schema
         )
-        cached = self._get_cached(key)
+        cached = self.get_cached(key)
         if cached is not None:
             return cached
 
@@ -470,5 +470,5 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         table.columns = await self.list_columns(table_name, schema)
         table.indexes = await self.list_indexes(table_name, schema)
         table.foreign_keys = await self.list_foreign_keys(table_name, schema)
-        self._set_cached(key, table)
+        self.set_cached(key, table)
         return table
