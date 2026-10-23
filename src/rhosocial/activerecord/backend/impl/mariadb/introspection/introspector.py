@@ -34,6 +34,7 @@ from rhosocial.activerecord.backend.introspection.base import (
     SyncAbstractIntrospector,
     AsyncAbstractIntrospector,
 )
+from rhosocial.activerecord.backend.introspection.cache import IntrospectionCache
 from rhosocial.activerecord.backend.introspection.executor import (
     SyncIntrospectorExecutor,
     AsyncIntrospectorExecutor,
@@ -368,8 +369,13 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         variables  = backend.introspector.show.variables(like="max_%")
     """
 
-    def __init__(self, backend: Any, executor: SyncIntrospectorExecutor) -> None:
-        super().__init__(backend, executor)
+    def __init__(
+        self,
+        backend: Any,
+        executor: SyncIntrospectorExecutor,
+        cache: Optional[IntrospectionCache] = None,
+    ) -> None:
+        super().__init__(backend, executor, cache)
         self._show_instance: Optional[SyncShowIntrospector] = None
         self._status_instance: Optional[SyncMariaDBStatusIntrospector] = None
 
@@ -394,10 +400,10 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
     def get_table_info(
         self, table_name: str, schema: Optional[str] = None
     ) -> Optional[IntrospectionTableInfo]:
-        key = self.make_cache_key(
+        key = self._cache.key(
             IntrospectionScope.TABLE, table_name, schema=schema
         )
-        cached = self.get_cached(key)
+        cached = self._cache.get(key)
         if cached is not None:
             return cached
 
@@ -410,7 +416,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         table.columns = self.list_columns(table_name, schema)
         table.indexes = self.list_indexes(table_name, schema)
         table.foreign_keys = self.list_foreign_keys(table_name, schema)
-        self.set_cached(key, table)
+        self._cache.set(key, table)
         return table
 
 
@@ -428,8 +434,13 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         variables  = await backend.introspector.show.variables(like="max_%")
     """
 
-    def __init__(self, backend: Any, executor: AsyncIntrospectorExecutor) -> None:
-        super().__init__(backend, executor)
+    def __init__(
+        self,
+        backend: Any,
+        executor: AsyncIntrospectorExecutor,
+        cache: Optional[IntrospectionCache] = None,
+    ) -> None:
+        super().__init__(backend, executor, cache)
         self._show_instance: Optional[AsyncShowIntrospector] = None
         self._status_instance: Optional[AsyncMariaDBStatusIntrospector] = None
 
@@ -454,10 +465,10 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
     async def get_table_info(
         self, table_name: str, schema: Optional[str] = None
     ) -> Optional[IntrospectionTableInfo]:
-        key = self.make_cache_key(
+        key = self._cache.key(
             IntrospectionScope.TABLE, table_name, schema=schema
         )
-        cached = self.get_cached(key)
+        cached = self._cache.get(key)
         if cached is not None:
             return cached
 
@@ -470,5 +481,5 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         table.columns = await self.list_columns(table_name, schema)
         table.indexes = await self.list_indexes(table_name, schema)
         table.foreign_keys = await self.list_foreign_keys(table_name, schema)
-        self.set_cached(key, table)
+        self._cache.set(key, table)
         return table
