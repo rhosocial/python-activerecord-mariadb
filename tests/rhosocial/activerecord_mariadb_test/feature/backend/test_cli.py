@@ -716,16 +716,21 @@ class TestCLIHandleInfoVerbose:
 class TestCLIIntrospectArgParsing:
     """Tests for introspect argument parsing edge cases."""
 
-    def test_introspect_with_schema(self):
-        """Test introspect with --schema option."""
+    def test_introspect_has_no_namespace_flag(self):
+        """MariaDB has one namespace level and calls it a database.
+
+        ``--schema`` named the same level under a word MariaDB does not
+        use, so it is gone: the run connects to a database with
+        ``--database`` and asks about that database. It must not return as
+        an alias, because an alias lets a caller believe it named a level
+        that does not exist here.
+        """
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'introspect', 'tables', '--schema', 'mydb']):
-            args = parse_args()
-
-            assert args.command == 'introspect'
-            assert args.type == 'tables'
-            assert args.schema == 'mydb'
+        with patch.object(
+            sys, 'argv', ['mysql', 'introspect', 'tables', '--schema', 'mydb']
+        ), pytest.raises(SystemExit):
+            parse_args()
 
     def test_introspect_with_include_system(self):
         """Test introspect with --include-system flag."""

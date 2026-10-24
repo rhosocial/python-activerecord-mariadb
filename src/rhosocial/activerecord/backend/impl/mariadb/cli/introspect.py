@@ -1,5 +1,15 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/cli/introspect.py
-"""introspect subcommand - Database introspection."""
+"""introspect subcommand - Database introspection.
+
+There is no namespace flag here, and that is deliberate. MariaDB has
+exactly one namespace level and calls it a *database* -- ``CREATE SCHEMA``
+is a synonym for ``CREATE DATABASE`` and nothing sits inside a database
+under a further name. So ``--database``, which the connection already
+takes, is the whole answer: the run connects to a database and asks about
+that database. An earlier version accepted ``--schema`` as well, which
+named the same thing under a word MariaDB does not use; it is gone rather
+than aliased.
+"""
 
 import argparse
 import asyncio
@@ -92,11 +102,6 @@ def create_parser(subparsers):
         help="Table/view name (required for some types)",
     )
     parser.add_argument(
-        "--schema",
-        default=None,
-        help="Schema name (for databases that support schemas)",
-    )
-    parser.add_argument(
         "--include-system",
         action="store_true",
         help="Include system tables in output",
@@ -166,14 +171,14 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
 
         if args.type == "tables":
             tables = introspector.list_tables(
-                schema=args.schema,
+                schema=None,
                 include_system=args.include_system
             )
             data = _serialize_for_output(tables)
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = introspector.list_views(schema=args.schema)
+            views = introspector.list_views(schema=None)
             data = _serialize_for_output(views)
             provider.display_results(data, title="Views")
 
@@ -185,7 +190,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 sys.exit(1)
             info = introspector.get_table_info(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             if info:
                 data = _serialize_for_output(info.columns)
@@ -217,7 +222,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 sys.exit(1)
             columns = introspector.list_columns(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(columns)
             provider.display_results(
@@ -232,7 +237,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 sys.exit(1)
             indexes = introspector.list_indexes(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(indexes)
             provider.display_results(
@@ -247,7 +252,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 sys.exit(1)
             fks = introspector.list_foreign_keys(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(fks)
             provider.display_results(
@@ -257,7 +262,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
         elif args.type == "triggers":
             triggers = introspector.list_triggers(
                 table_name=args.name,
-                schema=args.schema
+                schema=None
             )
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
@@ -265,7 +270,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
         elif args.type == "sequences":
             if args.name:
                 info = introspector.get_sequence_info(
-                    args.name, schema=args.schema
+                    args.name, schema=None
                 )
                 if info is None:
                     print(
@@ -279,14 +284,14 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
             else:
                 data = _serialize_for_output(
-                    introspector.list_sequences(schema=args.schema)
+                    introspector.list_sequences(schema=None)
                 )
                 provider.display_results(data, title="Sequences")
 
         elif args.type == "table-options":
             if args.name:
                 options = introspector.get_table_options(
-                    args.name, schema=args.schema
+                    args.name, schema=None
                 )
                 if options is None:
                     print(
@@ -300,7 +305,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
             else:
                 data = _serialize_for_output(
-                    introspector.list_table_options(schema=args.schema)
+                    introspector.list_table_options(schema=None)
                 )
                 provider.display_results(data, title="Table Options")
 
@@ -332,7 +337,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
 
         if args.type == "tables":
             tables = await introspector.list_tables(
-                schema=args.schema,
+                schema=None,
                 include_system=args.include_system
             )
             data = _serialize_for_output(tables)
@@ -340,7 +345,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
 
         elif args.type == "views":
             views = await introspector.list_views(
-                schema=args.schema
+                schema=None
             )
             data = _serialize_for_output(views)
             provider.display_results(data, title="Views")
@@ -353,7 +358,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
                 sys.exit(1)
             info = await introspector.get_table_info(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             if info:
                 data = _serialize_for_output(info.columns)
@@ -385,7 +390,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
                 sys.exit(1)
             columns = await introspector.list_columns(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(columns)
             provider.display_results(
@@ -400,7 +405,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
                 sys.exit(1)
             indexes = await introspector.list_indexes(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(indexes)
             provider.display_results(
@@ -415,7 +420,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
                 sys.exit(1)
             fks = await introspector.list_foreign_keys(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(fks)
             provider.display_results(
@@ -425,7 +430,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
         elif args.type == "triggers":
             triggers = await introspector.list_triggers(
                 table_name=args.name,
-                schema=args.schema
+                schema=None
             )
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
@@ -433,7 +438,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
         elif args.type == "sequences":
             if args.name:
                 info = await introspector.get_sequence_info(
-                    args.name, schema=args.schema
+                    args.name, schema=None
                 )
                 if info is None:
                     print(
@@ -447,14 +452,14 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
             else:
                 data = _serialize_for_output(
-                    await introspector.list_sequences(schema=args.schema)
+                    await introspector.list_sequences(schema=None)
                 )
                 provider.display_results(data, title="Sequences")
 
         elif args.type == "table-options":
             if args.name:
                 options = await introspector.get_table_options(
-                    args.name, schema=args.schema
+                    args.name, schema=None
                 )
                 if options is None:
                     print(
@@ -468,7 +473,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
             else:
                 data = _serialize_for_output(
-                    await introspector.list_table_options(schema=args.schema)
+                    await introspector.list_table_options(schema=None)
                 )
                 provider.display_results(data, title="Table Options")
 

@@ -33,7 +33,7 @@ one sequence, `sequences`. The list types take no name.
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `-o, --output` | `table` | `table` (rich), `json`, `csv`, `tsv`. |
-| `--schema` | the connected database | The database to read. MariaDB's only namespace level above a table. |
+| `--database` | required (env: `MARIADB_DATABASE`) | The database to connect to **and** the database to read. MariaDB has one namespace level and calls it a database, so there is no second flag. |
 | `--include-system` | off | Include system tables. |
 | `--host`, `--port`, `--database`, `--user`, `--password` | env or defaults | Connection. `MARIADB_*` env vars are honoured, and arguments override them. |
 | `--charset` | _None_ | Connection charset. |
@@ -48,6 +48,11 @@ one sequence, `sequences`. The list types take no name.
 *   **Read-only.** `introspect` never writes. It does not create, drop, or
     alter anything, so it is safe to run against a database whose schema
     matters.
+*   **There is no namespace flag, and that is deliberate.** MariaDB has one
+    namespace level and calls it a database, so `--database` is the whole
+    answer: the run connects to a database and asks about that database. No
+    `--schema`, and no alias for it, so a caller cannot name a level that does
+    not exist here.
 *   **Sequences are version-gated.** MariaDB gained them in 10.3. The
     capability is declared per version, so a 10.2 server neither advertises
     the scope nor has the statements — asking there reports the family as
