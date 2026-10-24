@@ -20,6 +20,7 @@ from typing import Any
 
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
 
 from .connection import add_connection_args, resolve_connection_config_from_args
@@ -32,6 +33,14 @@ INTROSPECT_TYPES = [
     "indexes", "foreign-keys", "triggers", "database",
     "sequences", "table-options",
 ]
+
+#: Families that only some MariaDB versions can answer, mapped to the dialect
+#: capability that decides it. ``sequences`` arrived in 10.3; everything else
+#: in ``INTROSPECT_TYPES`` is answerable on every supported server, so a
+#: family absent from this map is never refused after connecting.
+_VERSION_GATED_FAMILIES = {
+    "sequences": "supports_sequence_introspection",
+}
 
 
 def create_parser(subparsers):
@@ -89,6 +98,12 @@ def create_parser(subparsers):
     )
 
     # introspect-specific arguments
+    # `INTROSPECT_TYPES` is the whole candidate list: it says what MariaDB can
+    # be asked about, which is a fact about the engine and not about the server
+    # this run will reach. The parser is built before the run connects, so it
+    # has no version to consult; a family the connected server is too old for
+    # is refused by `_refuse_version_gated_family` instead of being hidden
+    # here, because hiding it would also hide it from a server that has it.
     parser.add_argument(
         "type",
         choices=INTROSPECT_TYPES,
@@ -134,6 +149,34 @@ def handle(args):
         _handle_introspect_sync(args, backend, provider)
 
 
+def _refuse_version_gated_family(args, backend) -> None:
+    """Refuse a family this server is too old to answer.
+
+    The parser offers every family MariaDB has, because that is a fact about
+    the engine; which of them *this* server can answer is a fact about its
+    version, and only known after ``connect()`` has adapted the dialect. So
+    the second reading happens here, and it asks the dialect rather than
+    comparing version numbers itself: the dialect is where the release
+    boundary for a family is recorded, and a copy of it in the CLI is a
+    second place to keep in step.
+
+    Only ``sequences`` is version-gated today (MariaDB 10.3+); a family with
+    no entry here is answerable on every server this backend supports. The
+    refusal is an ``UnsupportedFeatureError`` so it names the dialect and the
+    family, which reads as "this server cannot answer that" rather than as
+    argparse's "invalid choice" -- the family *is* valid here, just not on
+    this server.
+    """
+    capability_name = _VERSION_GATED_FAMILIES.get(args.type)
+    if capability_name is None:
+        return
+    if not getattr(backend.dialect, capability_name)():
+        raise UnsupportedFeatureError(
+            backend.dialect.name,
+            f"{args.type} introspection",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Internal helper functions
 # ---------------------------------------------------------------------------
@@ -166,6 +209,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
     """Handle introspect subcommand synchronously."""
     try:
         backend.connect()
+        _refuse_version_gated_family(args, backend)
 
         introspector = backend.introspector
 
@@ -332,6 +376,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
     """Handle introspect subcommand asynchronously."""
     try:
         await backend.connect()
+        _refuse_version_gated_family(args, backend)
 
         introspector = backend.introspector
 

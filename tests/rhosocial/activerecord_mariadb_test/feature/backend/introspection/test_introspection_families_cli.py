@@ -19,6 +19,9 @@ from rhosocial.activerecord.backend.impl.mariadb.__main__ import main, parse_arg
 from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
     INTROSPECT_TYPES,
 )
+from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
+    SEQUENCES_SINCE,
+)
 
 from mariadb_live_server import mariadb_server_available
 
@@ -73,6 +76,34 @@ class TestIntrospectTypes:
             args = parse_args(["introspect", family, "--database", "db"])
             assert args.type == family
             assert args.is_async is False
+
+
+class TestVersionGate:
+    """A family this server is too old for is refused by capability.
+
+    The refusal has to come after connecting -- that is the first moment the
+    version is known -- and it has to name the capability rather than fall
+    back to argparse, which would call a valid family an invalid choice.
+    """
+
+    def test_sequences_on_a_server_without_them(self, mariadb_backend, capsys):
+        version = tuple(
+            (getattr(mariadb_backend, "_version", None) or (0, 0, 0))[:3]
+        )
+        if version >= SEQUENCES_SINCE:
+            pytest.skip(
+                "MariaDB {} has sequences; this case is the older server".format(
+                    ".".join(str(part) for part in version)
+                )
+            )
+
+        with pytest.raises(SystemExit) as excinfo:
+            main(_cli_args(mariadb_backend, "sequences"))
+
+        assert excinfo.value.code == 1
+        err = capsys.readouterr().err
+        assert "does not support sequences introspection" in err
+        assert "invalid choice" not in err
 
 
 class TestSequencesCommand:

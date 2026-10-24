@@ -21,7 +21,7 @@ python -m rhosocial.activerecord.backend.impl.mariadb introspect <TYPE> [NAME] [
 | `indexes` | `information_schema.statistics` | One table's indexes, including the primary key. |
 | `foreign-keys` | `information_schema.key_column_usage` | One table's constraints and the columns each side names. |
 | `triggers` | `information_schema.triggers` | Triggers, optionally narrowed to one table. |
-| `sequences` | `information_schema.sequences` | MariaDB's own sequences. **10.3 and later** — on an older server the question has nothing to answer and reports empty. |
+| `sequences` | `information_schema.sequences` | MariaDB's own sequences. **10.3 and later** — on an older server `sequences` is refused as an unsupported capability, not answered empty. |
 | `table-options` | `information_schema.tables` | The storage facts about a table: engine, row format, collation, auto-increment, comment, and the byte sizes `information_schema` reports. |
 | `database` | `information_schema.schemata`, `variables` | Server version, charset, and the databases visible to this role. |
 
@@ -53,10 +53,15 @@ one sequence, `sequences`. The list types take no name.
     answer: the run connects to a database and asks about that database. No
     `--schema`, and no alias for it, so a caller cannot name a level that does
     not exist here.
-*   **Sequences are version-gated.** MariaDB gained them in 10.3. The
-    capability is declared per version, so a 10.2 server neither advertises
-    the scope nor has the statements — asking there reports the family as
-    unsupported rather than failing to parse `CREATE SEQUENCE`.
+*   **Sequences are version-gated.** MariaDB gained them in 10.3, so
+    `sequences` is listed among the types on every server but only answered by
+    one that has them. On an older server the run refuses it with an
+    unsupported-capability error naming the dialect and the family, and exits
+    non-zero — the question is valid here, the server is what lacks the answer.
+    The refusal is decided after connecting, from the dialect's capability,
+    because that is the first moment the version is known: the parser cannot
+    gate it, and hiding the type from `--help` would hide it from servers that
+    do support it.
 *   **`data_length` and `index_length` are estimates.** InnoDB reports
     approximate byte sizes for the clustered index, not exact file sizes.
 *   **One question per invocation.** A CLI process is one connection that
