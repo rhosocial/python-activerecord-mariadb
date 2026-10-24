@@ -9,6 +9,10 @@ functionality with MariaDB backends.
 import pytest
 import pytest_asyncio
 
+from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
+    SEQUENCES_SINCE,
+)
+
 
 # SQL script for creating test tables
 _TABLES_SQL = """
@@ -210,6 +214,38 @@ _CLEANUP_SEQUENCE_SQL = """
     DROP SEQUENCE IF EXISTS intro_seq;
 """
 
+#: MariaDB gained sequences in 10.3. Below that the statements above are a
+#: syntax error, not an empty answer, so the fixtures skip instead of poisoning
+#: the run: ``DROP SEQUENCE``/``CREATE SEQUENCE`` do not exist to be optional.
+#: ``SEQUENCES_SINCE`` is the mixin's own constant and the one the introspector
+#: gates on, so the test and the code under test read the same line.
+MIN_MARIADB_FOR_SEQUENCES = SEQUENCES_SINCE
+
+
+def _has_sequences(backend) -> bool:
+    """Whether this server can create a sequence at all.
+
+    Read from the backend's own version tuple rather than a scenario name, so
+    the answer follows the connection the fixture actually holds.
+    """
+    version = getattr(backend, "_version", None) or (0, 0, 0)
+    return tuple(version[:3]) >= SEQUENCES_SINCE
+
+
+def _require_sequences(backend) -> None:
+    """Skip the calling test when this server predates sequences.
+
+    A skip rather than an error: the question the test asks is unanswerable on
+    this server, which is different from the code being wrong.
+    """
+    if not _has_sequences(backend):
+        pytest.skip(
+            "MariaDB {} has no sequences (they arrived in {})".format(
+                ".".join(str(p) for p in (getattr(backend, "_version", None) or (0, 0, 0))[:3]),
+                ".".join(str(p) for p in SEQUENCES_SINCE),
+            )
+        )
+
 # A sequence is a table, so it lands in information_schema.TABLES beside the
 # base tables -- the same list table options reads.
 _SEQUENCE_TABLE_SQL = _SEQUENCE_SQL + """
@@ -227,6 +263,7 @@ _CLEANUP_SEQUENCE_TABLE_SQL = """
 @pytest.fixture(scope="function")
 def backend_with_sequence(mariadb_backend):
     """Fixture providing backend with a sequence that states its own limits."""
+    _require_sequences(mariadb_backend)
     mariadb_backend.introspector.clear_cache()
     mariadb_backend.executescript(_SEQUENCE_SQL)
     yield mariadb_backend
@@ -240,6 +277,7 @@ def backend_with_sequence(mariadb_backend):
 @pytest_asyncio.fixture(scope="function")
 async def async_backend_with_sequence(async_mariadb_backend):
     """Async fixture providing backend with a sequence."""
+    _require_sequences(async_mariadb_backend)
     async_mariadb_backend.introspector.clear_cache()
     await async_mariadb_backend.executescript(_SEQUENCE_SQL)
     yield async_mariadb_backend
@@ -253,6 +291,7 @@ async def async_backend_with_sequence(async_mariadb_backend):
 @pytest.fixture(scope="function")
 def backend_with_sequence_and_table(mariadb_backend):
     """A sequence and a table in one schema, for the list families."""
+    _require_sequences(mariadb_backend)
     mariadb_backend.introspector.clear_cache()
     mariadb_backend.executescript(_SEQUENCE_TABLE_SQL)
     yield mariadb_backend
@@ -279,6 +318,7 @@ async def async_backend_with_trigger(async_mariadb_backend):
 @pytest_asyncio.fixture(scope="function")
 async def async_backend_with_sequence_and_table(async_mariadb_backend):
     """Async counterpart of :func:`backend_with_sequence_and_table`."""
+    _require_sequences(async_mariadb_backend)
     async_mariadb_backend.introspector.clear_cache()
     await async_mariadb_backend.executescript(_SEQUENCE_TABLE_SQL)
     yield async_mariadb_backend
