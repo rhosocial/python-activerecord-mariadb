@@ -87,6 +87,13 @@ class MariaDBIntrospectionMixin:
     which is fully compatible with MySQL's information_schema structure.
     """
 
+    def supports_table_options_introspection(self) -> bool:
+        """MariaDB answers for a table's storage options from
+        ``information_schema.TABLES`` -- the capability for the
+        ``introspect table-options`` family. Named the same as MySQL's
+        so the question is answerable identically in both engines."""
+        return True
+
     # ========== Capability Detection ==========
 
     def supports_introspection(self) -> bool:
