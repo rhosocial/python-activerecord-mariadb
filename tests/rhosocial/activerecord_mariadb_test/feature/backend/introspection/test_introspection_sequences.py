@@ -255,9 +255,18 @@ class TestSupportedScopes:
     """The capability declaration carries the new scope."""
 
     def test_sequence_scope_is_advertised(self, mariadb_backend_single):
-        scopes = mariadb_backend_single.dialect.get_supported_introspection_scopes()
+        """The scope follows the version, as the capability does.
 
-        assert IntrospectionScope.SEQUENCE in scopes
+        Sequences arrived in MariaDB 10.3, so a server below that must not
+        advertise the scope -- advertising a question the engine cannot answer
+        is how a caller ends up issuing `CREATE SEQUENCE` to a 10.2 server.
+        """
+        dialect = mariadb_backend_single.dialect
+        scopes = dialect.get_supported_introspection_scopes()
+
+        assert (IntrospectionScope.SEQUENCE in scopes) == (
+            dialect.version >= SEQUENCES_SINCE
+        )
 
     def test_sequence_introspection_is_supported(self, mariadb_backend_single):
         assert (
