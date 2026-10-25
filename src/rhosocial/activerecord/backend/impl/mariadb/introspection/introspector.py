@@ -12,14 +12,14 @@ Architecture:
   - SQL generation: Delegated to MariaDBIntrospectionMixin.format_*_query()
     methods in the Dialect layer via Expression.to_sql()
   - Query execution: Handled by IntrospectorExecutor
-  - Result parsing: _parse_* methods in this module (pure Python, no I/O)
+  - Result parsing: parse_* methods in this module (pure Python, no I/O)
 
 Key behaviours:
   - Queries information_schema.TABLES, COLUMNS, STATISTICS,
     KEY_COLUMN_USAGE, REFERENTIAL_CONSTRAINTS, VIEWS, TRIGGERS
   - Queries information_schema.TABLES/SEQUENCES for the two MariaDB-only
     families: sequences (10.3+; numeric details 11.7+) and table options
-  - _parse_* methods are pure Python — shared by sync and async introspectors
+  - parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
 - SyncMariaDBIntrospector: for synchronous backends
@@ -75,13 +75,14 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     from this mixin to share:
     - Default schema handling
     - MariaDB version detection
-    - _parse_* implementations
+    - parse_* implementations
 
     SQL generation is delegated to the Dialect layer via Expression.to_sql()
     which calls MariaDBIntrospectionMixin.format_*_query() methods.
     """
 
-    def _get_default_schema(self) -> str:
+    @property
+    def default_schema(self) -> str:
         """Return the MariaDB database name from the backend config."""
         if hasattr(self._backend, 'config') and hasattr(self._backend.config, 'database'):
             return self._backend.config.database or ""
@@ -95,10 +96,10 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     # Parse methods — pure Python, no I/O
     # ------------------------------------------------------------------ #
 
-    def _parse_database_info(self, rows: List[Dict[str, Any]]) -> IntrospectionDatabaseInfo:
+    def parse_database_info(self, rows: List[Dict[str, Any]]) -> IntrospectionDatabaseInfo:
         version = self._get_version()
         version_str = ".".join(str(v) for v in version)
-        db_name = self._get_default_schema()
+        db_name = self.default_schema
 
         db_row = rows[0] if rows else {}
 
@@ -111,10 +112,10 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             collation=db_row.get("DEFAULT_COLLATION_NAME"),
         )
 
-    def _parse_tables(
+    def parse_tables(
         self, rows: List[Dict[str, Any]], schema: Optional[str]
     ) -> List[IntrospectionTableInfo]:
-        target_db = schema if schema is not None else self._get_default_schema()
+        target_db = schema if schema is not None else self.default_schema
         table_type_map = {
             "BASE TABLE": TableType.BASE_TABLE,
             "VIEW": TableType.VIEW,
@@ -138,7 +139,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             )
         return tables
 
-    def _parse_data_type(self, col_type: str) -> Optional[DataType]:
+    def parse_data_type(self, col_type: str) -> Optional[DataType]:
         """Read one catalog type string into a ``DataType``, or ``None``.
 
         Populating ``IntrospectionColumnInfo.parsed_data_type`` is what makes the schema
@@ -188,7 +189,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             )
             return None
 
-    def _parse_columns(
+    def parse_columns(
         self,
         rows: List[Dict[str, Any]],
         table_name: str,
@@ -224,7 +225,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
                     ordinal_position=row["ORDINAL_POSITION"],
                     data_type=col_type.split("(")[0].lower(),
                     data_type_full=full_type,
-                    parsed_data_type=self._parse_data_type(full_type),
+                    parsed_data_type=self.parse_data_type(full_type),
                     nullable=nullable,
                     default_value=row.get("COLUMN_DEFAULT"),
                     is_primary_key=row.get("COLUMN_KEY") == "PRI",
@@ -240,7 +241,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             )
         return columns
 
-    def _parse_indexes(
+    def parse_indexes(
         self,
         rows: List[Dict[str, Any]],
         table_name: str,
@@ -276,7 +277,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             )
         return list(index_map.values())
 
-    def _parse_foreign_keys(
+    def parse_foreign_keys(
         self,
         rows: List[Dict[str, Any]],
         table_name: str,
@@ -312,7 +313,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             fk_map[fk_name].referenced_columns.append(row.get("REFERENCED_COLUMN_NAME", ""))
         return list(fk_map.values())
 
-    def _parse_views(
+    def parse_views(
         self, rows: List[Dict[str, Any]], schema: str
     ) -> List[IntrospectionViewInfo]:
         return [
@@ -326,7 +327,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             for row in rows
         ]
 
-    def _parse_view_info(
+    def parse_view_info(
         self,
         rows: List[Dict[str, Any]],
         view_name: str,
@@ -343,7 +344,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             is_updatable=row.get("IS_UPDATABLE") == "YES",
         )
 
-    def _parse_triggers(
+    def parse_triggers(
         self, rows: List[Dict[str, Any]], schema: str
     ) -> List[IntrospectionTriggerInfo]:
         return [
@@ -381,7 +382,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             return None
         return str(value).strip().lower() in ("1", "y", "yes", "true")
 
-    def _parse_sequence_row(self, row: Dict[str, Any], schema: str) -> SequenceInfo:
+    def parse_sequence_row(self, row: Dict[str, Any], schema: str) -> SequenceInfo:
         """Read one ``TABLES``/``SEQUENCES`` row into a :class:`SequenceInfo`.
 
         The detail columns are read with ``.get`` because the query only names
@@ -403,25 +404,25 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             data_type=row.get("DATA_TYPE"),
         )
 
-    def _parse_sequences(
+    def parse_sequences(
         self, rows: List[Dict[str, Any]], schema: str
     ) -> List[SequenceInfo]:
-        return [self._parse_sequence_row(row, schema) for row in rows]
+        return [self.parse_sequence_row(row, schema) for row in rows]
 
-    def _parse_sequence_info(
+    def parse_sequence_info(
         self, rows: List[Dict[str, Any]], name: str, schema: str
     ) -> Optional[SequenceInfo]:
         if not rows:
             return None
-        return self._parse_sequence_row(rows[0], schema)
+        return self.parse_sequence_row(rows[0], schema)
 
-    def _parse_table_options(
+    def parse_table_options(
         self, rows: List[Dict[str, Any]], schema: str
     ) -> List[TableOptionsInfo]:
-        return [self._parse_table_options_row(row, schema) for row in rows]
+        return [self.parse_table_options_row(row, schema) for row in rows]
 
     @staticmethod
-    def _parse_table_options_row(
+    def parse_table_options_row(
         row: Dict[str, Any], schema: str
     ) -> TableOptionsInfo:
         auto_increment = row.get("AUTO_INCREMENT")
@@ -437,19 +438,19 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             create_options=row.get("CREATE_OPTIONS"),
         )
 
-    def _parse_table_options_info(
+    def parse_table_options_info(
         self, rows: List[Dict[str, Any]], table_name: str, schema: str
     ) -> Optional[TableOptionsInfo]:
         if not rows:
             return None
-        return self._parse_table_options_row(rows[0], schema)
+        return self.parse_table_options_row(rows[0], schema)
 
     # ------------------------------------------------------------------ #
     # SQL building — one node per question, rendered by the dialect
     # ------------------------------------------------------------------ #
 
     def _sequence_target_schema(self, schema: Optional[str]) -> str:
-        return schema if schema is not None else self._get_default_schema()
+        return schema if schema is not None else self.default_schema
 
     def _build_sequence_list_sql(self, schema: Optional[str]) -> tuple:
         from ..expression.introspection import MariaDBSequenceQuery
@@ -571,7 +572,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
             result: List[SequenceInfo] = []
         else:
             sql, params = self._build_sequence_list_sql(schema)
-            result = self._parse_sequences(
+            result = self.parse_sequences(
                 self._executor.execute(sql, params),
                 self._sequence_target_schema(schema),
             )
@@ -597,7 +598,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         if self._get_version() < SEQUENCES_SINCE:
             return None
         sql, params = self._build_sequence_info_sql(name, schema)
-        result = self._parse_sequence_info(
+        result = self.parse_sequence_info(
             self._executor.execute(sql, params),
             name,
             self._sequence_target_schema(schema),
@@ -628,7 +629,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
             return cached
 
         sql, params = self._build_table_options_sql(None, schema)
-        result = self._parse_table_options(
+        result = self.parse_table_options(
             self._executor.execute(sql, params),
             self._sequence_target_schema(schema),
         )
@@ -650,7 +651,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
             return cached
 
         sql, params = self._build_table_options_sql(table_name, schema)
-        result = self._parse_table_options_info(
+        result = self.parse_table_options_info(
             self._executor.execute(sql, params),
             table_name,
             self._sequence_target_schema(schema),
@@ -751,7 +752,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
             result: List[SequenceInfo] = []
         else:
             sql, params = self._build_sequence_list_sql(schema)
-            result = self._parse_sequences(
+            result = self.parse_sequences(
                 await self._executor.execute(sql, params),
                 self._sequence_target_schema(schema),
             )
@@ -772,7 +773,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         if self._get_version() < SEQUENCES_SINCE:
             return None
         sql, params = self._build_sequence_info_sql(name, schema)
-        result = self._parse_sequence_info(
+        result = self.parse_sequence_info(
             await self._executor.execute(sql, params),
             name,
             self._sequence_target_schema(schema),
@@ -799,7 +800,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
             return cached
 
         sql, params = self._build_table_options_sql(None, schema)
-        result = self._parse_table_options(
+        result = self.parse_table_options(
             await self._executor.execute(sql, params),
             self._sequence_target_schema(schema),
         )
@@ -821,7 +822,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
             return cached
 
         sql, params = self._build_table_options_sql(table_name, schema)
-        result = self._parse_table_options_info(
+        result = self.parse_table_options_info(
             await self._executor.execute(sql, params),
             table_name,
             self._sequence_target_schema(schema),

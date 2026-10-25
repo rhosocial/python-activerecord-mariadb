@@ -63,7 +63,7 @@ class MariaDBStatusIntrospectorMixin:
     def _get_vendor_name(self) -> str:
         return "MariaDB"
 
-    def _parse_variable_value(self, value: Any) -> Any:
+    def parse_variable_value(self, value: Any) -> Any:
         if isinstance(value, str):
             if value.isdigit():
                 return int(value)
@@ -80,7 +80,7 @@ class MariaDBStatusIntrospectorMixin:
         is_readonly: bool = False, is_dynamic: bool = True,
     ) -> StatusItem:
         return StatusItem(
-            name=name, value=self._parse_variable_value(value),
+            name=name, value=self.parse_variable_value(value),
             category=category, description=description, unit=unit,
             is_readonly=is_readonly, is_dynamic=is_dynamic,
         )

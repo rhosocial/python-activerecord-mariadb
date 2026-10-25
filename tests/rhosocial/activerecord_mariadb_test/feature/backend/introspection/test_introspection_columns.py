@@ -227,7 +227,7 @@ class TestParsedDataType:
     and for ``int(10) unsigned``, ``varchar`` for ``varchar(100)`` and
     ``varchar(200)``, ``enum`` for any two sets of labels.
 
-    Every other backend populates it in ``_parse_columns`` via
+    Every other backend populates it in ``parse_columns`` via
     ``DataType.parse_data_type_str(dialect, raw)``, and so does this one now.
     """
 
@@ -338,7 +338,7 @@ class TestParsedDataType:
         try:
             DataType.parse_data_type_str = staticmethod(explode)
             with pytest.warns(RuntimeWarning, match="some type not a name"):
-                columns = introspector._parse_columns(rows, "t", "d")
+                columns = introspector.parse_columns(rows, "t", "d")
         finally:
             DataType.parse_data_type_str = original
 
