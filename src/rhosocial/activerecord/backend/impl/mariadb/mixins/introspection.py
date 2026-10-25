@@ -78,7 +78,7 @@ class MariaDBIntrospectionMixin:
     database-specific SQL using information_schema.
 
     Architecture flow:
-    Introspector._build_*_sql() [base class]
+    Introspector.<family>_statement() [manager factory]
     -> Expression(Dialect).to_sql()
     -> Dialect.format_*_query() [this mixin]
     -> Returns SQL and parameters

@@ -28,7 +28,7 @@ Design principle: Sync and Async are separate and cannot coexist.
 
 import copy
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.introspection.base import (
@@ -66,6 +66,12 @@ from .status_introspector import (
 )
 from .types import SequenceInfo, TableOptionsInfo
 from ..mixins.introspection import SEQUENCES_SINCE
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..expression.introspection import (
+        MariaDBSequenceQuery,
+        MariaDBTableOptionsQuery,
+    )
 
 
 class MariaDBIntrospectorMixin(IntrospectorMixin):
@@ -446,35 +452,40 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         return self.parse_table_options_row(rows[0], schema)
 
     # ------------------------------------------------------------------ #
-    # SQL building — one node per question, rendered by the dialect
+    # Statement factories — one node per question, rendered by the dialect
     # ------------------------------------------------------------------ #
 
-    def _sequence_target_schema(self, schema: Optional[str]) -> str:
+    def sequence_target_schema(self, schema: Optional[str]) -> str:
+        """Return the schema to read, defaulting to this backend's own."""
         return schema if schema is not None else self.default_schema
 
-    def _build_sequence_list_sql(self, schema: Optional[str]) -> tuple:
+    def sequence_list_statement(
+        self, *, schema: Optional[str]
+    ) -> "MariaDBSequenceQuery":
+        """Return the statement that lists the sequences in *schema*."""
         from ..expression.introspection import MariaDBSequenceQuery
 
-        expr = MariaDBSequenceQuery(self.dialect, self._sequence_target_schema(schema))
-        return expr.to_sql()
+        return MariaDBSequenceQuery(self.dialect, self.sequence_target_schema(schema))
 
-    def _build_sequence_info_sql(self, name: str, schema: Optional[str]) -> tuple:
+    def sequence_info_statement(
+        self, *, name: str, schema: Optional[str]
+    ) -> "MariaDBSequenceQuery":
+        """Return the statement that asks for one sequence by name."""
         from ..expression.introspection import MariaDBSequenceQuery
 
-        expr = MariaDBSequenceQuery(
-            self.dialect, self._sequence_target_schema(schema), name=name
+        return MariaDBSequenceQuery(
+            self.dialect, self.sequence_target_schema(schema), name=name
         )
-        return expr.to_sql()
 
-    def _build_table_options_sql(
-        self, table_name: Optional[str], schema: Optional[str]
-    ) -> tuple:
+    def table_options_statement(
+        self, *, table_name: Optional[str], schema: Optional[str]
+    ) -> "MariaDBTableOptionsQuery":
+        """Return the statement that reads table options, optionally one table's."""
         from ..expression.introspection import MariaDBTableOptionsQuery
 
-        expr = MariaDBTableOptionsQuery(
-            self.dialect, self._sequence_target_schema(schema), table_name=table_name
+        return MariaDBTableOptionsQuery(
+            self.dialect, self.sequence_target_schema(schema), table_name=table_name
         )
-        return expr.to_sql()
 
 
 class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector):
@@ -571,10 +582,10 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         if self._get_version() < SEQUENCES_SINCE:
             result: List[SequenceInfo] = []
         else:
-            sql, params = self._build_sequence_list_sql(schema)
+            sql, params = self.sequence_list_statement(schema=schema).to_sql()
             result = self.parse_sequences(
                 self._executor.execute(sql, params),
-                self._sequence_target_schema(schema),
+                self.sequence_target_schema(schema),
             )
         self._cache.set(key, result)
         return result
@@ -597,11 +608,11 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
 
         if self._get_version() < SEQUENCES_SINCE:
             return None
-        sql, params = self._build_sequence_info_sql(name, schema)
+        sql, params = self.sequence_info_statement(name=name, schema=schema).to_sql()
         result = self.parse_sequence_info(
             self._executor.execute(sql, params),
             name,
-            self._sequence_target_schema(schema),
+            self.sequence_target_schema(schema),
         )
         if result is not None:
             self._cache.set(key, result)
@@ -628,10 +639,12 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         if cached is not None:
             return cached
 
-        sql, params = self._build_table_options_sql(None, schema)
+        sql, params = self.table_options_statement(
+            table_name=None, schema=schema
+        ).to_sql()
         result = self.parse_table_options(
             self._executor.execute(sql, params),
-            self._sequence_target_schema(schema),
+            self.sequence_target_schema(schema),
         )
         self._cache.set(key, result)
         return result
@@ -650,11 +663,13 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         if cached is not None:
             return cached
 
-        sql, params = self._build_table_options_sql(table_name, schema)
+        sql, params = self.table_options_statement(
+            table_name=table_name, schema=schema
+        ).to_sql()
         result = self.parse_table_options_info(
             self._executor.execute(sql, params),
             table_name,
-            self._sequence_target_schema(schema),
+            self.sequence_target_schema(schema),
         )
         if result is not None:
             self._cache.set(key, result)
@@ -751,10 +766,10 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         if self._get_version() < SEQUENCES_SINCE:
             result: List[SequenceInfo] = []
         else:
-            sql, params = self._build_sequence_list_sql(schema)
+            sql, params = self.sequence_list_statement(schema=schema).to_sql()
             result = self.parse_sequences(
                 await self._executor.execute(sql, params),
-                self._sequence_target_schema(schema),
+                self.sequence_target_schema(schema),
             )
         self._cache.set(key, result)
         return result
@@ -772,11 +787,11 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
 
         if self._get_version() < SEQUENCES_SINCE:
             return None
-        sql, params = self._build_sequence_info_sql(name, schema)
+        sql, params = self.sequence_info_statement(name=name, schema=schema).to_sql()
         result = self.parse_sequence_info(
             await self._executor.execute(sql, params),
             name,
-            self._sequence_target_schema(schema),
+            self.sequence_target_schema(schema),
         )
         if result is not None:
             self._cache.set(key, result)
@@ -799,10 +814,12 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         if cached is not None:
             return cached
 
-        sql, params = self._build_table_options_sql(None, schema)
+        sql, params = self.table_options_statement(
+            table_name=None, schema=schema
+        ).to_sql()
         result = self.parse_table_options(
             await self._executor.execute(sql, params),
-            self._sequence_target_schema(schema),
+            self.sequence_target_schema(schema),
         )
         self._cache.set(key, result)
         return result
@@ -821,11 +838,13 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         if cached is not None:
             return cached
 
-        sql, params = self._build_table_options_sql(table_name, schema)
+        sql, params = self.table_options_statement(
+            table_name=table_name, schema=schema
+        ).to_sql()
         result = self.parse_table_options_info(
             await self._executor.execute(sql, params),
             table_name,
-            self._sequence_target_schema(schema),
+            self.sequence_target_schema(schema),
         )
         if result is not None:
             self._cache.set(key, result)
