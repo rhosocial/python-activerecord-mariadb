@@ -90,14 +90,14 @@ class TestCLIParseArgs:
             assert args.type == 'tables'
 
     def test_parse_args_introspect_with_name(self):
-        """Test introspect subcommand with table name."""
+        """Test introspect subcommand with an object name."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'introspect', 'table', 'users']):
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'columns', 'users']):
             args = parse_args()
 
             assert args.command == 'introspect'
-            assert args.type == 'table'
+            assert args.type == 'columns'
             assert args.name == 'users'
 
     def test_parse_args_introspect_valid_types(self):
@@ -746,11 +746,6 @@ class TestCLIIntrospectArgParsing:
         """Test introspect types that require name parameter."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        # table type with name
-        with patch.object(sys, 'argv', ['mysql', 'introspect', 'table', 'users']):
-            args = parse_args()
-            assert args.type == 'table'
-            assert args.name == 'users'
 
         # columns type with name
         with patch.object(sys, 'argv', ['mysql', 'introspect', 'columns', 'orders']):
