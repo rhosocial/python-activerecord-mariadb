@@ -137,7 +137,7 @@ class MariaDBIntrospectionMixin:
         an enrichment of the same row: the sequence itself is listable from
         10.3 on.
         """
-        return self.version >= SEQUENCES_SINCE
+        return self.version_at_least(SEQUENCES_SINCE)
 
     def get_supported_introspection_scopes(self) -> List["IntrospectionScope"]:
         """Get list of supported introspection scopes."""

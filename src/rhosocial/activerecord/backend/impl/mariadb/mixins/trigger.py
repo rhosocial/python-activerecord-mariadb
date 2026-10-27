@@ -78,7 +78,7 @@ class MariaDBTriggerMixin:
         Returns:
             True if MariaDB version >= 10.4.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER'])
 
     def supports_statement_trigger(self) -> bool:
         """Whether FOR EACH STATEMENT triggers are supported.
@@ -119,7 +119,7 @@ class MariaDBTriggerMixin:
         Returns:
             True if MariaDB version >= 10.2.3.
         """
-        return self.version >= (10, 2, 3)
+        return self.version_at_least((10, 2, 3))
 
     def supports_trigger_if_not_exists(self) -> bool:
         """Whether CREATE TRIGGER IF NOT EXISTS is supported.
@@ -150,7 +150,7 @@ class MariaDBTriggerMixin:
         Returns:
             True if MariaDB version >= 10.4.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER'])
 
     def format_create_trigger_statement(
         self,

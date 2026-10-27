@@ -63,7 +63,7 @@ class MariaDBSpatialMixin:
         Returns:
             True if MariaDB version >= 10.2.3.
         """
-        return self.version >= (10, 2, 3)
+        return self.version_at_least((10, 2, 3))
 
     def supports_geometry_type(self) -> bool:
         """Whether GEOMETRY type is supported."""

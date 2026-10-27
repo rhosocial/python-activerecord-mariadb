@@ -68,7 +68,7 @@ class MariaDBSequenceMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SEQUENCE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['SEQUENCE'])
 
     def supports_create_sequence(self) -> bool:
         """Whether CREATE SEQUENCE is supported.

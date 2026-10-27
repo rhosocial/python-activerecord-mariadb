@@ -105,14 +105,14 @@ class MariaDBRoutineMixin:
 
         MariaDB 10.1.3+ supports ``CREATE OR REPLACE`` for routines.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['ROUTINE_OR_REPLACE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['ROUTINE_OR_REPLACE'])
 
     def supports_routine_if_not_exists(self) -> bool:
         """Whether CREATE ... IF NOT EXISTS is supported.
 
         MariaDB 10.1.3+ supports ``CREATE PROCEDURE IF NOT EXISTS``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['ROUTINE_IF_NOT_EXISTS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['ROUTINE_IF_NOT_EXISTS'])
 
     def supports_aggregate_function(self) -> bool:
         """Whether CREATE AGGREGATE FUNCTION is supported (all versions)."""

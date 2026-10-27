@@ -107,7 +107,7 @@ class MariaDBPartitionMixin:
         last measured rejection and 11.4.13 the first acceptance, so the
         boundary is 11.4.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION'])
 
     def supports_exchange_partition_without_validation(self) -> bool:
         """Whether ``EXCHANGE PARTITION ... WITHOUT VALIDATION`` parses.
@@ -118,7 +118,7 @@ class MariaDBPartitionMixin:
         exchanged successfully under ``WITHOUT VALIDATION``, while the bare
         form and ``WITH VALIDATION`` fail with errno 1737.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION'])
 
     def supports_analyze_partition(self) -> bool:
         return True

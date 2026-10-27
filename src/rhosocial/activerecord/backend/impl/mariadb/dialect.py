@@ -787,7 +787,7 @@ class MariaDBDialect(
         The errno is MariaDB's own and differs from MySQL 8's ``3819``; code
         that classifies the violation has to branch on the server.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['CHECK_CONSTRAINT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['CHECK_CONSTRAINT'])
 
     def supports_exclude_constraint(self) -> bool:
         """Whether EXCLUDE table constraints are supported.
@@ -1249,13 +1249,13 @@ class MariaDBDialect(
     # region TransactionControlSupport protocol implementation (MariaDB)
 
     def supports_transaction_mode(self) -> bool:
-        return self.version >= (10, 2, 0)
+        return self.version_at_least((10, 2, 0))
 
     def supports_isolation_level_in_begin(self) -> bool:
         return False
 
     def supports_read_only_transaction(self) -> bool:
-        return self.version >= (10, 2, 0)
+        return self.version_at_least((10, 2, 0))
 
     def supports_deferrable_transaction(self) -> bool:
         return False

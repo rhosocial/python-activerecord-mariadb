@@ -46,7 +46,7 @@ class MariaDBRenameTableMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_IF_EXISTS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_IF_EXISTS'])
 
     def supports_rename_table_wait(self) -> bool:
         """Whether WAIT n | NOWAIT lock wait option is supported.
@@ -56,7 +56,7 @@ class MariaDBRenameTableMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_WAIT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_WAIT'])
 
     def format_rename_table_statement(
         self,

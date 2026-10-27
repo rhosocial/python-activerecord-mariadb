@@ -37,7 +37,7 @@ class MariaDBSetOperationMixin:
         13.0.2 and 13.1.1 all accept it and return ``[]`` -- 1 and 2 share
         no row, which is exactly an empty intersection.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['INTERSECT_EXCEPT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['INTERSECT_EXCEPT'])
 
     def supports_except(self) -> bool:
         """EXCEPT is supported since MariaDB 10.3.
@@ -48,7 +48,7 @@ class MariaDBSetOperationMixin:
         13.0.2 and 13.1.1 all accept it and return ``[(1,)]`` -- the row the
         first side alone owns, which is what EXCEPT keeps.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['INTERSECT_EXCEPT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['INTERSECT_EXCEPT'])
 
     def supports_set_operation_order_by(self) -> bool:
         """Set operations support ORDER BY."""

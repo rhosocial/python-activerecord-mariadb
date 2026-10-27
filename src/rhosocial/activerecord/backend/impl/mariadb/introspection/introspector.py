@@ -80,7 +80,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     Both SyncMariaDBIntrospector and AsyncMariaDBIntrospector inherit
     from this mixin to share:
     - Default schema handling
-    - MariaDB version detection
+    - The version a database record reports (``server_version``)
     - parse_* implementations
 
     SQL generation is delegated to the Dialect layer via Expression.to_sql()
@@ -94,26 +94,34 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             return self._backend.config.database or ""
         return ""
 
-    def _get_version(self) -> tuple:
-        """Return the MariaDB server version tuple from the backend."""
-        return getattr(self._backend, '_version', (10, 11, 0))
-
     # ------------------------------------------------------------------ #
     # Parse methods — pure Python, no I/O
     # ------------------------------------------------------------------ #
 
     def parse_database_info(self, rows: List[Dict[str, Any]]) -> IntrospectionDatabaseInfo:
-        version = self._get_version()
-        version_str = ".".join(str(v) for v in version)
-        db_name = self.default_schema
+        """Turn the schema row into a database record.
 
+        The version comes from :attr:`server_version`, not from the strict
+        ``dialect.version`` or a backend private: a parser has no connection
+        to ask, and refusing to describe a database until
+        ``introspect_and_adapt()`` has run would make the answer depend on a
+        step the caller did not need. An unresolved version is reported as
+        the literal ``"unknown"`` with ``(0, 0, 0)`` -- distinguishable from
+        a server that really is 0.0.0 -- rather than a fabricated default.
+
+        ``encoding`` and ``collation`` are the two columns the statement
+        selects. ``table_count`` and ``size_bytes`` are not among them: they
+        live in ``information_schema.TABLES``, so they stay ``None`` rather
+        than being guessed here.
+        """
+        version = self.server_version
         db_row = rows[0] if rows else {}
 
         return IntrospectionDatabaseInfo(
-            name=db_name,
-            version=version_str,
-            version_tuple=version,
-            vendor="MariaDB",  # 与 MySQL 的主要差异
+            name=self.default_schema,
+            version=".".join(str(part) for part in version) if version else "unknown",
+            version_tuple=tuple(version) if version else (0, 0, 0),
+            vendor="MariaDB",
             encoding=db_row.get("DEFAULT_CHARACTER_SET_NAME"),
             collation=db_row.get("DEFAULT_COLLATION_NAME"),
         )
@@ -579,7 +587,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         if cached is not None:
             return cached
 
-        if self._get_version() < SEQUENCES_SINCE:
+        if not self.dialect.version_at_least(SEQUENCES_SINCE):
             result: List[SequenceInfo] = []
         else:
             sql, params = self.sequence_list_statement(schema=schema).to_sql()
@@ -606,7 +614,7 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
         if cached is not None:
             return cached
 
-        if self._get_version() < SEQUENCES_SINCE:
+        if not self.dialect.version_at_least(SEQUENCES_SINCE):
             return None
         sql, params = self.sequence_info_statement(name=name, schema=schema).to_sql()
         result = self.parse_sequence_info(
@@ -763,7 +771,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         if cached is not None:
             return cached
 
-        if self._get_version() < SEQUENCES_SINCE:
+        if not self.dialect.version_at_least(SEQUENCES_SINCE):
             result: List[SequenceInfo] = []
         else:
             sql, params = self.sequence_list_statement(schema=schema).to_sql()
@@ -785,7 +793,7 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         if cached is not None:
             return cached
 
-        if self._get_version() < SEQUENCES_SINCE:
+        if not self.dialect.version_at_least(SEQUENCES_SINCE):
             return None
         sql, params = self.sequence_info_statement(name=name, schema=schema).to_sql()
         result = self.parse_sequence_info(

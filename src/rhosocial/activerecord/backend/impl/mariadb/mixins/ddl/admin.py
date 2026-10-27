@@ -200,18 +200,18 @@ class MariaDBAdminMixin:
 
         MariaDB 10.1.4+ supports ``GRANT OR REPLACE``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['GRANT_OR_REPLACE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['GRANT_OR_REPLACE'])
 
     def supports_grant_if_exists(self) -> bool:
         """Whether ``GRANT IF EXISTS`` / ``REVOKE IF EXISTS`` is supported.
 
         MariaDB 10.1.4+ supports ``GRANT IF EXISTS`` and ``REVOKE IF EXISTS``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['GRANT_IF_EXISTS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['GRANT_IF_EXISTS'])
 
     def supports_deny(self) -> bool:
         """Whether ``DENY`` is supported (MariaDB 13.1+)."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['DENY']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['DENY'])
 
     def format_grant_statement(
         self,

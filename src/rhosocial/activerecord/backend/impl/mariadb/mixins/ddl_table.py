@@ -93,7 +93,7 @@ class MariaDBTableMixin:
         Returns:
             True if MariaDB version >= 10.1.0.
         """
-        return self.version >= (10, 1, 0)
+        return self.version_at_least((10, 1, 0))
 
     def format_create_table_statement(self, expr) -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for MariaDB.

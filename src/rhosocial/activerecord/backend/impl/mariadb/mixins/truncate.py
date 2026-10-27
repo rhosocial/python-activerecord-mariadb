@@ -75,7 +75,7 @@ class MariaDBTruncateMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['TRUNCATE_WAIT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['TRUNCATE_WAIT'])
 
     def format_truncate_statement(self, expr: "TruncateStatement") -> Tuple[str, tuple]:
         """Format MariaDB ``TRUNCATE [TABLE] tbl_name [WAIT n | NOWAIT]``.

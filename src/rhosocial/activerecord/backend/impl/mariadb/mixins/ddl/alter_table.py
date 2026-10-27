@@ -42,7 +42,7 @@ class MariaDBAlterTableMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_IF_EXISTS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_IF_EXISTS'])
 
     def supports_alter_table_wait(self) -> bool:
         """Whether ALTER TABLE WAIT n | NOWAIT is supported.
@@ -52,7 +52,7 @@ class MariaDBAlterTableMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_WAIT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RENAME_TABLE_WAIT'])
 
     def supports_rename_index(self) -> bool:
         """Whether ALTER TABLE ... RENAME INDEX is supported.
@@ -62,7 +62,7 @@ class MariaDBAlterTableMixin:
         Returns:
             True if MariaDB version >= 10.5.3.
         """
-        return self.version >= (10, 5, 3)
+        return self.version_at_least((10, 5, 3))
 
     def format_alter_table_statement(
         self, expr: "AlterTableStatement"

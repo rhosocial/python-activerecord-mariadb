@@ -897,7 +897,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         that is not what they asked for — see
         :meth:`format_data_type_mariadb_uuid`.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES["UUID"]
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["UUID"])
 
     def supports_data_type_uuid(self) -> bool:
         """Same gate, reached through the core type's name.
@@ -909,7 +909,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         UUID columns, and the error tells the reader nothing about which class
         to reach for instead.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES["UUID"]
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["UUID"])
 
     def format_data_type_uuid(self, data_type: UUIDType) -> Tuple[str, tuple]:
         """``UUID`` — see :meth:`format_data_type_mariadb_uuid` for the gate and
@@ -926,7 +926,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         would get the caller a DDL the server rejects; answering yes and emitting
         ``TEXT`` would get them a different column than they asked for.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES["XMLTYPE"]
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["XMLTYPE"])
 
     def supports_data_type_mariadb_varbinary(self) -> bool:
         return True

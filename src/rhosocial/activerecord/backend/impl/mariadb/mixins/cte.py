@@ -11,11 +11,11 @@ class MariaDBCTEMixin:
 
     def supports_basic_cte(self) -> bool:
         """Basic CTEs are supported since MariaDB 10.2."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['CTE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['CTE'])
 
     def supports_recursive_cte(self) -> bool:
         """Recursive CTEs are supported since MariaDB 10.2."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['CTE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['CTE'])
 
     def supports_materialized_cte(self) -> bool:
         """Whether the ``MATERIALIZED`` / ``NOT MATERIALIZED`` CTE hint exists.

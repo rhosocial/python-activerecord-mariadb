@@ -50,7 +50,7 @@ class MariaDBReturningMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_expression(self) -> bool:
         """Whether expressions are supported in RETURNING.
@@ -60,7 +60,7 @@ class MariaDBReturningMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_for_insert(self) -> bool:
         """Whether RETURNING is supported for INSERT.
@@ -68,7 +68,7 @@ class MariaDBReturningMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_for_delete(self) -> bool:
         """Whether RETURNING is supported for DELETE.
@@ -76,7 +76,7 @@ class MariaDBReturningMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_for_replace(self) -> bool:
         """Whether RETURNING is supported for REPLACE.
@@ -87,7 +87,7 @@ class MariaDBReturningMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_for_update(self) -> bool:
         """Whether RETURNING is supported for UPDATE.
@@ -102,16 +102,16 @@ class MariaDBReturningMixin:
         Returns:
             True if MariaDB version >= 13.0.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE'])
 
     # Protocol aliases (without _for_) expected by ReturningSupport
     def supports_returning_insert(self) -> bool:
         """Whether RETURNING clause is supported for INSERT."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_delete(self) -> bool:
         """Whether RETURNING clause is supported for DELETE."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_update(self) -> bool:
         """Whether RETURNING clause is supported for UPDATE.
@@ -120,7 +120,7 @@ class MariaDBReturningMixin:
         ``_for_`` variant), so both must agree or the clause is rejected
         regardless of what ``supports_returning_for_update`` reports.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE'])
 
     def format_returning_clause(
         self,

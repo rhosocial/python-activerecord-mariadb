@@ -72,7 +72,7 @@ class MariaDBJSONMixin:
         Returns:
             True if MariaDB version >= 10.2.3.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS'])
 
 
     def supports_json_path(self) -> bool:
@@ -82,7 +82,7 @@ class MariaDBJSONMixin:
         both, but they are separate questions and the type is the one a later
         version could drop.
         """
-        return self.version >= (10, 2, 3)
+        return self.version_at_least((10, 2, 3))
 
     def supports_json_function(self, function_name: str) -> bool:
         """Check if specific JSON function is supported.
@@ -93,7 +93,7 @@ class MariaDBJSONMixin:
         Returns:
             True if function is supported in current MariaDB version.
         """
-        if self.version < MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']:
+        if not self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']):
             return False
 
         json_functions = {
@@ -129,7 +129,7 @@ class MariaDBJSONMixin:
         Only valid for a real JSON column operand, not for an arbitrary
         expression such as ``CAST(... AS JSON)``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_ARROW_NATIVE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_ARROW_NATIVE'])
 
     def supports_json_arrows(self) -> bool:
         """Alias for :meth:`supports_json_arrow_operators`."""
@@ -182,7 +182,7 @@ class MariaDBJSONMixin:
         Returns:
             True if MariaDB version >= 10.6.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_TABLE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_TABLE'])
 
     def format_mariadb_json_table_column(
         self, column: "MariaDBJSONTableColumn"
@@ -689,7 +689,7 @@ class MariaDBJSONMixin:
         Returns:
             True if MariaDB version supports JSON_MERGE_PATCH.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS'])
 
 
 __all__ = ['MariaDBJSONMixin']

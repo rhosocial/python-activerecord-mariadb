@@ -8,7 +8,7 @@ class MariaDBTemporalMixin:
 
     def supports_temporal_tables(self) -> bool:
         """MariaDB supports system-versioned tables since 10.3."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SYSTEM_VERSIONING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['SYSTEM_VERSIONING'])
 
 
 __all__ = ['MariaDBTemporalMixin']

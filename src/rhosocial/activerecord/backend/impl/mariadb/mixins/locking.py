@@ -97,7 +97,7 @@ class MariaDBLockingMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['FOR_UPDATE_NOWAIT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['FOR_UPDATE_NOWAIT'])
 
     def supports_for_update_skip_locked(self) -> bool:
         """Whether FOR UPDATE SKIP LOCKED is supported.
@@ -110,7 +110,7 @@ class MariaDBLockingMixin:
         Returns:
             True if MariaDB version >= 10.6.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SKIP_LOCKED']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['SKIP_LOCKED'])
 
     def supports_lock_in_share_mode(self) -> bool:
         """Whether the legacy LOCK IN SHARE MODE syntax is supported."""
