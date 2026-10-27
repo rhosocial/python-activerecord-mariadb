@@ -249,6 +249,17 @@ class MariaDBIntrospectionMixin:
 
         Query information_schema.TABLES for table metadata.
 
+        A sequence is a table on MariaDB 10.3+, so it appears in
+        ``information_schema.TABLES`` with ``TABLE_TYPE='SEQUENCE'`` beside the
+        base tables and views. It is not an entry in this listing: it has no
+        columns and no rows, and this backend reports the family from
+        ``list_sequences``. The exclusion is therefore part of what the
+        statement means and travels inline, like the system-schema list, rather
+        than as a bind parameter -- so the parameter tuple stays ``(schema,)``
+        (plus an explicitly requested ``table_type``). The condition is written
+        on every version: a server older than 10.3 cannot hold the spelling, so
+        it is a no-op there rather than a second statement shape.
+
         Args:
             expr: Table list expression with parameters.
 
@@ -271,7 +282,15 @@ class MariaDBIntrospectionMixin:
         table_type = params.get("table_type")
 
         conditions = [
-            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema))
+            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema)),
+            # ``ne`` writes ``<>``: MariaDB's spelling of "not equal", and the
+            # one that reads as the set difference this listing means.
+            ComparisonPredicate(
+                self,
+                "ne",
+                Column(self, "TABLE_TYPE"),
+                Literal(self, "SEQUENCE", inline=True),
+            ),
         ]
 
         if not include_system:

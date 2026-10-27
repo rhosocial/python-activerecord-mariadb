@@ -62,6 +62,41 @@ class TestListTables:
         assert isinstance(tables, list)
 
 
+class TestListTablesExcludesSequences:
+    """A sequence is a table in ``TABLES``, but not an entry in this listing.
+
+    MariaDB 10.3+ reports ``TABLE_TYPE='SEQUENCE'`` in the same view as base
+    tables and views. Handing those rows back as tables with no columns and no
+    rows is the defect these cases pin; the sequence family reports them.
+    """
+
+    def test_sequence_is_not_listed_as_a_table(self, backend_with_sequence_and_table):
+        names = {
+            table.name
+            for table in backend_with_sequence_and_table.introspector.list_tables()
+        }
+
+        assert "intro_options" in names
+        assert "intro_seq" not in names
+
+    def test_sequence_is_not_reachable_by_table_lookup(self, backend_with_sequence_and_table):
+        """``table_exists`` / ``get_table_info`` read the same listing."""
+        introspector = backend_with_sequence_and_table.introspector
+
+        assert introspector.table_exists("intro_options") is True
+        assert introspector.get_table_info("intro_seq") is None
+        assert introspector.table_exists("intro_seq") is False
+
+    def test_the_sequence_family_still_reports_it(self, backend_with_sequence_and_table):
+        names = {
+            sequence.name
+            for sequence in backend_with_sequence_and_table.introspector.list_sequences()
+        }
+
+        assert "intro_seq" in names
+        assert "intro_options" not in names
+
+
 class TestGetTableInfo:
     """Tests for get_table_info method."""
 
@@ -222,3 +257,23 @@ class TestAsyncTableIntrospection:
 
         # Should return the same cached list
         assert tables1 is tables2
+
+    @pytest.mark.asyncio
+    async def test_async_sequence_is_not_listed_as_a_table(
+        self, async_backend_with_sequence_and_table
+    ):
+        """The async path renders the same statement, so it excludes the same row."""
+        introspector = async_backend_with_sequence_and_table.introspector
+        names = {table.name for table in await introspector.list_tables()}
+
+        assert "intro_options" in names
+        assert "intro_seq" not in names
+
+    @pytest.mark.asyncio
+    async def test_async_the_sequence_family_still_reports_it(
+        self, async_backend_with_sequence_and_table
+    ):
+        introspector = async_backend_with_sequence_and_table.introspector
+        names = {sequence.name for sequence in await introspector.list_sequences()}
+
+        assert "intro_seq" in names

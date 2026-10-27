@@ -52,11 +52,24 @@ class TestIntrospectionQueries:
             "SELECT `TABLE_NAME`, `TABLE_TYPE`, `TABLE_COMMENT`, `TABLE_ROWS`, "
             "`DATA_LENGTH`, `AUTO_INCREMENT`, `CREATE_TIME`, `UPDATE_TIME` "
             "FROM `information_schema`.`TABLES` "
-            "WHERE `TABLE_SCHEMA` = %s AND NOT (`TABLE_SCHEMA` IN "
+            "WHERE `TABLE_SCHEMA` = %s AND `TABLE_TYPE` <> 'SEQUENCE' "
+            "AND NOT (`TABLE_SCHEMA` IN "
             "('information_schema', 'performance_schema', 'mysql', 'sys'))"
         )
-        # Only the caller's schema is bound; the system-schema list is a
-        # statement about this backend's catalogue and stays inline.
+        # Only the caller's schema is bound; the system-schema list and the
+        # sequence exclusion are statements about this backend's catalogue and
+        # stay inline.
+        assert params == ("app",)
+
+    def test_table_list_excludes_sequences_inline(self, dialect):
+        """A sequence is a table in TABLES, but not a row of this listing.
+
+        MariaDB 10.3+ reports ``TABLE_TYPE='SEQUENCE'`` beside the base tables.
+        The exclusion belongs to the statement, so it is rendered as a literal
+        and does not appear in the parameter tuple.
+        """
+        sql, params = TableListQueryStatement(dialect, schema="app").to_sql()
+        assert "`TABLE_TYPE` <> 'SEQUENCE'" in sql
         assert params == ("app",)
 
     def test_table_list_include_system_drops_the_exclusion(self, dialect):
@@ -64,12 +77,15 @@ class TestIntrospectionQueries:
             dialect, schema="app", include_system=True
         ).to_sql()
         assert "NOT (" not in sql
+        # The sequence exclusion is not the system-schema exclusion: it stays.
+        assert "`TABLE_TYPE` <> 'SEQUENCE'" in sql
         assert params == ("app",)
 
     def test_table_list_without_views_pins_the_type_inline(self, dialect):
         sql, params = TableListQueryStatement(
             dialect, schema="app", include_views=False
         ).to_sql()
+        assert "`TABLE_TYPE` <> 'SEQUENCE'" in sql
         assert sql.endswith("AND `TABLE_TYPE` = 'BASE TABLE'")
         assert params == ("app",)
 
@@ -77,7 +93,21 @@ class TestIntrospectionQueries:
         sql, params = TableListQueryStatement(
             dialect, schema="app", table_type="BASE TABLE"
         ).to_sql()
+        assert "`TABLE_TYPE` <> 'SEQUENCE'" in sql
         assert sql.endswith("AND `TABLE_TYPE` = %s")
+        assert params == ("app", "BASE TABLE")
+
+    def test_table_list_base_table_filter_still_means_base_tables_only(self, dialect):
+        """The bound filter and the inline exclusion compose by conjunction.
+
+        ``table_type='BASE TABLE'`` must not turn the listing back into "every
+        name in TABLES": the two ``TABLE_TYPE`` conditions are ANDed, so a
+        ``SEQUENCE`` row matches neither reading.
+        """
+        sql, params = TableListQueryStatement(
+            dialect, schema="app", table_type="BASE TABLE"
+        ).to_sql()
+        assert sql.index("`TABLE_TYPE` <> 'SEQUENCE'") < sql.index("`TABLE_TYPE` = %s")
         assert params == ("app", "BASE TABLE")
 
     def test_column_info_keeps_the_srid_join_and_its_alias(self, dialect):

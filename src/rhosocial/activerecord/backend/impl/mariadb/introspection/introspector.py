@@ -129,6 +129,18 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     def parse_tables(
         self, rows: List[Dict[str, Any]], schema: Optional[str]
     ) -> List[IntrospectionTableInfo]:
+        """Read ``information_schema.TABLES`` rows into table records.
+
+        ``SEQUENCE`` is deliberately absent from the type map below: a
+        sequence row never reaches this parser, because the table-list
+        statement excludes the spelling (pin: the ``<> 'SEQUENCE'`` condition
+        in ``format_table_list_query_statement``), and the family is reported
+        by ``list_sequences`` instead. ``TableType`` has no member
+        for it either, so a row that somehow arrived would fall through to the
+        ``BASE_TABLE`` default rather than be invented as a kind of its own.
+        Keeping the fallback is what lets a spelling a later MariaDB release
+        adds still appear in the listing instead of failing it.
+        """
         target_db = schema if schema is not None else self.default_schema
         table_type_map = {
             "BASE TABLE": TableType.BASE_TABLE,
