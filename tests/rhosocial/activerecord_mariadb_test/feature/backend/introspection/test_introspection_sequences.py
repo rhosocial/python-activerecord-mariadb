@@ -82,7 +82,10 @@ class TestListSequences:
         introspector = backend.introspector
         executor = CountingExecutor(backend)
         introspector._executor = executor
-        monkeypatch.setattr(backend, "_version", (10, 2, 44))
+        # The gate reads the dialect, which is where the version lives. Setting
+        # the backend's ``_version`` alone would leave the dialect on the real
+        # server's version and send the query anyway.
+        monkeypatch.setattr(backend.dialect, "version", (10, 2, 44))
 
         sequences = introspector.list_sequences()
 

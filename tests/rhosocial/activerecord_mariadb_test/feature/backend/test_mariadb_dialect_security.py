@@ -35,9 +35,9 @@ def dialect():
 def json_table_dialect():
     """An adapted dialect on a version that supports JSON_TABLE (10.6+).
 
-    The plain ``dialect`` fixture is unadapted, so any version gate raises
-    DialectNotAdaptedException before it can return. The JSON_TABLE tests
-    need a concrete version.
+    The plain ``dialect`` fixture is unadapted: a version-gated capability
+    probe answers False rather than raising, and a renderer that needs a
+    concrete version still refuses. The JSON_TABLE tests need a version.
     """
     return MariaDBDialect(version=(10, 6, 0))
 
