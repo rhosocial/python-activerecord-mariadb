@@ -27,19 +27,29 @@ from .output import create_provider
 
 OUTPUT_CHOICES = ['table', 'json', 'csv', 'tsv']
 
-INTROSPECT_TYPES = [
-    "tables", "views", "columns",
-    "indexes", "foreign-keys", "triggers", "database",
-    "sequences", "table-options",
-]
-
-#: Families that only some MariaDB versions can answer, mapped to the dialect
-#: capability that decides it. ``sequences`` arrived in 10.3; everything else
-#: in ``INTROSPECT_TYPES`` is answerable on every supported server, so a
-#: family absent from this map is never refused after connecting.
-_VERSION_GATED_FAMILIES = {
-    "sequences": "supports_sequence_introspection",
+#: Every family the CLI asks about, mapped to the dialect capability that
+#: decides whether *this* server can answer it.
+#:
+#: One table, not a list of names beside a map of gates: a family added to one
+#: and not the other would either be offered and answered without a check, or
+#: checked while the parser rejects it. `INTROSPECT_TYPES` is derived from this
+#: mapping so the two cannot disagree about which families exist.
+#:
+#: ``sequences`` arrived in 10.3; every other family here is declared
+#: unconditionally by this backend and answered on every server it supports.
+_TYPE_CAPABILITIES = {
+    "tables": "supports_table_introspection",
+    "views": "supports_view_introspection",
+    "columns": "supports_column_introspection",
+    "indexes": "supports_index_introspection",
+    "foreign-keys": "supports_foreign_key_introspection",
+    "triggers": "supports_trigger_introspection",
+    "database": "supports_database_info",
+    "sequences": "supports_sequence_introspection",  # MariaDB 10.3+
+    "table-options": "supports_table_options_introspection",
 }
+
+INTROSPECT_TYPES = list(_TYPE_CAPABILITIES)
 
 
 def create_parser(subparsers):
@@ -100,14 +110,13 @@ def create_parser(subparsers):
     # `INTROSPECT_TYPES` is the whole candidate list: it says what MariaDB can
     # be asked about, which is a fact about the engine and not about the server
     # this run will reach. The parser is built before the run connects, so it
-    # has no version to consult; a family the connected server is too old for
-    # is refused by `_refuse_version_gated_family` instead of being hidden
-    # here, because hiding it would also hide it from a server that has it.
+    # has no version to consult; a family the connected server cannot answer is
+    # refused by `_refuse_unsupported_family` instead of being hidden here,
+    # because hiding it would also hide it from a server that has it.
     parser.add_argument(
         "type",
         choices=INTROSPECT_TYPES,
-        help="Introspection type: tables, views, columns, indexes, foreign-keys, triggers, database, "
-             "sequences, table-options",
+        help="Introspection type: " + ", ".join(INTROSPECT_TYPES),
     )
     parser.add_argument(
         "name",
@@ -160,19 +169,21 @@ def handle(args):
         _handle_introspect_sync(args, backend, provider)
 
 
-def _refuse_version_gated_family(args, backend) -> None:
-    """Refuse a family this server is too old to answer.
+def _refuse_unsupported_family(args, backend) -> None:
+    """Refuse a family this server cannot answer.
 
     The parser offers every family MariaDB has, because that is a fact about
     the engine; which of them *this* server can answer is a fact about its
-    version, and only known after ``connect()`` has adapted the dialect. So
-    the second reading happens here, and it asks the dialect rather than
-    comparing version numbers itself: the dialect is where the release
-    boundary for a family is recorded, and a copy of it in the CLI is a
-    second place to keep in step.
+    version and its build, and only known after ``connect()`` has adapted the
+    dialect. So the second reading happens here, and it asks the dialect rather
+    than comparing version numbers itself: the dialect is where the boundary
+    for a family is recorded, and a copy of it in the CLI is a second place to
+    keep in step.
 
-    Only ``sequences`` is version-gated today (MariaDB 10.3+); a family with
-    no entry here is answerable on every server this backend supports.
+    The table is read, not a list of gated families: every declared type is
+    checked, and today only ``sequences`` can answer False (MariaDB 10.3+).
+    A family declared unconditionally is answered on every server this backend
+    supports, so the check costs a call and never refuses.
 
     The refusal exits **2**, not 1. Exit 1 means the run failed -- a
     connection that did not open, a query that errored, an exception nobody
@@ -181,10 +192,7 @@ def _refuse_version_gated_family(args, backend) -> None:
     choice", which also exits 2, and it reads that way: the family is valid
     on this engine, the server is what lacks it.
     """
-    capability_name = _VERSION_GATED_FAMILIES.get(args.type)
-    if capability_name is None:
-        return
-    if not getattr(backend.dialect, capability_name)():
+    if not getattr(backend.dialect, _TYPE_CAPABILITIES[args.type])():
         print(
             f"Error: {args.type} introspection is not supported by this server",
             file=sys.stderr,
@@ -224,7 +232,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
     """Handle introspect subcommand synchronously."""
     try:
         backend.connect()
-        _refuse_version_gated_family(args, backend)
+        _refuse_unsupported_family(args, backend)
 
         introspector = backend.introspector
 
@@ -372,7 +380,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
     """Handle introspect subcommand asynchronously."""
     try:
         await backend.connect()
-        _refuse_version_gated_family(args, backend)
+        _refuse_unsupported_family(args, backend)
 
         introspector = backend.introspector
 
