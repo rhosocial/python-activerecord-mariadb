@@ -20,7 +20,6 @@ from typing import Any
 
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
 
 from .connection import add_connection_args, resolve_connection_config_from_args
@@ -161,20 +160,24 @@ def _refuse_version_gated_family(args, backend) -> None:
     second place to keep in step.
 
     Only ``sequences`` is version-gated today (MariaDB 10.3+); a family with
-    no entry here is answerable on every server this backend supports. The
-    refusal is an ``UnsupportedFeatureError`` so it names the dialect and the
-    family, which reads as "this server cannot answer that" rather than as
-    argparse's "invalid choice" -- the family *is* valid here, just not on
-    this server.
+    no entry here is answerable on every server this backend supports.
+
+    The refusal exits **2**, not 1. Exit 1 means the run failed -- a
+    connection that did not open, a query that errored, an exception nobody
+    expected. Here the run succeeded and the answer is that this server
+    cannot be asked; that is the same kind of answer as argparse's "invalid
+    choice", which also exits 2, and it reads that way: the family is valid
+    on this engine, the server is what lacks it.
     """
     capability_name = _VERSION_GATED_FAMILIES.get(args.type)
     if capability_name is None:
         return
     if not getattr(backend.dialect, capability_name)():
-        raise UnsupportedFeatureError(
-            backend.dialect.name,
-            f"{args.type} introspection",
+        print(
+            f"Error: {args.type} introspection is not supported by this server",
+            file=sys.stderr,
         )
+        sys.exit(2)
 
 
 # ---------------------------------------------------------------------------

@@ -100,9 +100,11 @@ class TestVersionGate:
         with pytest.raises(SystemExit) as excinfo:
             main(_cli_args(mariadb_backend, "sequences"))
 
-        assert excinfo.value.code == 1
+        # 2, not 1: the request cannot be served here, which is a different
+        # answer from a run that failed.
+        assert excinfo.value.code == 2
         err = capsys.readouterr().err
-        assert "does not support sequences introspection" in err
+        assert "sequences introspection is not supported by this server" in err
         assert "invalid choice" not in err
 
 
