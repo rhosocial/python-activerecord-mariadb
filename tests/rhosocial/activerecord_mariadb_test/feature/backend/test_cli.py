@@ -975,3 +975,274 @@ class TestCLINamedProcedureArgs:
 
             assert args.command == 'named-procedure'
             assert args.is_async is True
+
+
+# ---------------------------------------------------------------------------
+# Offline doubles for the introspect handler
+#
+# The dispatch has two mirrored halves (sync and async) over one introspector
+# interface, and which half a type lands in is worth testing without a server.
+# These doubles answer the same names the real introspector does and record
+# which one was asked, so a family that reaches no branch is visible as an
+# empty call list rather than as silent nothing.
+# ---------------------------------------------------------------------------
+
+class _FakeDialect:
+    """Capability probes that answer True unless named *unsupported*."""
+
+    name = "mariadb"
+
+    def __init__(self, unsupported=()):
+        self.unsupported = set(unsupported)
+
+    def __getattr__(self, name):
+        if name.startswith("supports_"):
+            return lambda: name not in self.unsupported
+        raise AttributeError(name)
+
+
+class _FakeIntrospector:
+    """One representative answer per family, plus a log of what was asked."""
+
+    def __init__(self):
+        self.calls = []
+        self.view = {
+            "name": "user_summary",
+            "schema": "app",
+            "definition": "SELECT id, name FROM users",
+            "check_option": "NONE",
+            "is_updatable": True,
+        }
+
+    def list_tables(self, schema=None, include_system=False):
+        self.calls.append("list_tables")
+        return [{"name": "users"}]
+
+    def list_views(self, schema=None):
+        self.calls.append("list_views")
+        return [self.view]
+
+    def get_view_info(self, view_name, schema=None):
+        self.calls.append("get_view_info")
+        return self.view if view_name == self.view["name"] else None
+
+    def list_columns(self, table_name, schema=None):
+        self.calls.append("list_columns")
+        return [{"name": "id"}]
+
+    def list_indexes(self, table_name, schema=None):
+        self.calls.append("list_indexes")
+        return [{"name": "PRIMARY"}]
+
+    def list_foreign_keys(self, table_name, schema=None):
+        self.calls.append("list_foreign_keys")
+        return []
+
+    def list_triggers(self, table_name=None, schema=None):
+        self.calls.append("list_triggers")
+        return []
+
+    def list_sequences(self, schema=None):
+        self.calls.append("list_sequences")
+        return [{"name": "intro_seq"}]
+
+    def get_sequence_info(self, sequence_name, schema=None):
+        self.calls.append("get_sequence_info")
+        return {"name": sequence_name}
+
+    def list_table_options(self, schema=None):
+        self.calls.append("list_table_options")
+        return [{"name": "users"}]
+
+    def get_table_options(self, table_name, schema=None):
+        self.calls.append("get_table_options")
+        return {"name": table_name}
+
+    def get_database_info(self):
+        self.calls.append("get_database_info")
+        return {"name": "app"}
+
+
+class _FakeAsyncIntrospector(_FakeIntrospector):
+    """The same answers, awaited: the async half calls the same names."""
+
+    _FAMILIES = (
+        "list_tables",
+        "list_views",
+        "get_view_info",
+        "list_columns",
+        "list_indexes",
+        "list_foreign_keys",
+        "list_triggers",
+        "list_sequences",
+        "get_sequence_info",
+        "list_table_options",
+        "get_table_options",
+        "get_database_info",
+    )
+
+    def __init__(self):
+        super().__init__()
+        # Bound per instance: `__getattr__` would not see the inherited
+        # synchronous methods, and shadowing them is what makes each call
+        # awaitable without a second copy of every answer.
+        for name in self._FAMILIES:
+            setattr(self, name, self._awaited(name))
+
+    def _awaited(self, name):
+        sync_method = getattr(_FakeIntrospector, name)
+
+        async def answer(*args, **kwargs):
+            return sync_method(self, *args, **kwargs)
+
+        return answer
+
+
+class _FakeBackend:
+    """Just enough backend for the handler: connect, a dialect, an introspector."""
+
+    def __init__(self, unsupported=()):
+        self.dialect = _FakeDialect(unsupported)
+        self.introspector = _FakeIntrospector()
+        self._connection = object()
+        self.connected = False
+
+    def connect(self):
+        self.connected = True
+
+    def disconnect(self):
+        self.connected = False
+
+
+class _FakeAsyncBackend(_FakeBackend):
+    def __init__(self, unsupported=()):
+        super().__init__(unsupported)
+        self.introspector = _FakeAsyncIntrospector()
+
+    async def connect(self):
+        self.connected = True
+
+    async def disconnect(self):
+        self.connected = False
+
+
+def _introspect_args(**overrides):
+    """An argparse namespace shaped like the parser's, point by point."""
+    from argparse import Namespace
+
+    values = dict(
+        type="tables",
+        name=None,
+        include_system=False,
+        database="app",
+        named_connection=None,
+        is_async=False,
+        output="json",
+        rich_ascii=False,
+    )
+    values.update(overrides)
+    return Namespace(**values)
+
+
+class TestCLIIntrospectViews:
+    """`views NAME` answers one view, and a family that takes no name says so."""
+
+    def test_views_name_answers_one_view(self, capsys):
+        """One view, with the definition the library parses for it."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="views", name="user_summary"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert payload[0]["definition"]
+        assert backend.introspector.calls == ["get_view_info"]
+        assert backend.connected is False  # the run closed its own connection
+
+    def test_views_without_a_name_lists_them(self, capsys):
+        """A bare `views` still lists every view."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="views"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert backend.introspector.calls == ["list_views"]
+
+    def test_unknown_view_exits_one(self, capsys):
+        """The view is valid here; it is absent from this server -- exit 1."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_introspect_sync(
+                _introspect_args(type="views", name="no_such_view"),
+                _FakeBackend(),
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 1
+        assert "not found" in capsys.readouterr().err
+
+    async def test_async_views_name_answers_one_view(self, capsys):
+        """The async half asks the same question the same way."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend()
+        await _handle_introspect_async(
+            _introspect_args(type="views", name="user_summary"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert payload[0]["definition"]
+        assert backend.introspector.calls == ["get_view_info"]
+
+    @pytest.mark.parametrize("introspect_type", ["tables", "database"])
+    def test_a_whole_database_family_refuses_a_name(self, introspect_type, capsys):
+        """`tables NAME` / `database NAME` cannot narrow the answer.
+
+        `tables` would become the aggregate of several families that `table`
+        used to be, and `database` has no sub-objects to name at all, so the
+        name is refused with exit 2 rather than silently ignored: a caller who
+        wrote it believes it selected something.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import handle
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle(_introspect_args(type=introspect_type, name="users"))
+
+        assert excinfo.value.code == 2
+        err = capsys.readouterr().err
+        assert introspect_type in err
+        assert "takes no name" in err
+

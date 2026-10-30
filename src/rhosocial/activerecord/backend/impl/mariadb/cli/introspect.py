@@ -54,8 +54,8 @@ def create_parser(subparsers):
   # List all views
   %(prog)s views --database mydb
 
-  # Get detailed table info (columns, indexes, foreign keys)
-  %(prog)s table users --database mydb
+  # One view, with its definition
+  %(prog)s views user_summary --database mydb
 
   # Get column details for a table
   %(prog)s columns users --database mydb
@@ -113,7 +113,7 @@ def create_parser(subparsers):
         "name",
         nargs="?",
         default=None,
-        help="Table/view name (required for some types)",
+        help="Table, view or sequence name (required for some types)",
     )
     parser.add_argument(
         "--include-system",
@@ -126,6 +126,18 @@ def create_parser(subparsers):
 
 def handle(args):
     """Handle the introspect subcommand."""
+    # `tables` and `database` answer for the whole database. A name after them
+    # cannot narrow that answer without turning the command into the aggregate
+    # of several families that `table` used to be, so it is refused -- exit 2,
+    # "this request cannot be served here" -- rather than silently ignored,
+    # because a caller who wrote a name believes it selected something.
+    if args.name and args.type in ("tables", "database"):
+        print(
+            f"Error: {args.type} introspection takes no name",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     provider = create_provider(args.output, ascii_borders=args.rich_ascii)
 
     named_conn = getattr(args, "named_connection", None)
@@ -225,9 +237,22 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = introspector.list_views(schema=None)
-            data = _serialize_for_output(views)
-            provider.display_results(data, title="Views")
+            if args.name:
+                info = introspector.get_view_info(args.name, schema=None)
+                if info is None:
+                    print(
+                        f"Error: View '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"View {args.name}"
+                )
+            else:
+                views = introspector.list_views(schema=None)
+                data = _serialize_for_output(views)
+                provider.display_results(data, title="Views")
 
         elif args.type == "columns":
             if not args.name:
@@ -360,11 +385,24 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = await introspector.list_views(
-                schema=None
-            )
-            data = _serialize_for_output(views)
-            provider.display_results(data, title="Views")
+            if args.name:
+                info = await introspector.get_view_info(args.name, schema=None)
+                if info is None:
+                    print(
+                        f"Error: View '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"View {args.name}"
+                )
+            else:
+                views = await introspector.list_views(
+                    schema=None
+                )
+                data = _serialize_for_output(views)
+                provider.display_results(data, title="Views")
 
         elif args.type == "columns":
             if not args.name:
