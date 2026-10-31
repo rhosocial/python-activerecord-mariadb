@@ -49,7 +49,7 @@ class MariaDBSystemVersioningMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SYSTEM_VERSIONING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['SYSTEM_VERSIONING'])
 
     def supports_temporal_tables(self) -> bool:
         """Whether temporal tables are supported.

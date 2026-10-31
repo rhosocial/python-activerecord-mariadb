@@ -8,8 +8,8 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_schema import (
-        CreateSchemaExpression,
-        DropSchemaExpression,
+        CreateSchemaStatement,
+        DropSchemaStatement,
     )
 
 
@@ -48,7 +48,7 @@ class MariaDBSchemaMixin:
         """MariaDB does not support AUTHORIZATION clause."""
         return False
 
-    def format_create_schema_statement(self, expr: CreateSchemaExpression) -> Tuple[str, tuple]:
+    def format_create_schema_statement(self, expr: CreateSchemaStatement) -> Tuple[str, tuple]:
         if expr.if_not_exists and not self.supports_schema_if_not_exists():
             raise UnsupportedFeatureError(
                 self.name, "CREATE SCHEMA IF NOT EXISTS",
@@ -65,7 +65,7 @@ class MariaDBSchemaMixin:
         parts.append(expr.schema.to_sql()[0])
         return " ".join(parts), ()
 
-    def format_drop_schema_statement(self, expr: DropSchemaExpression) -> Tuple[str, tuple]:
+    def format_drop_schema_statement(self, expr: DropSchemaStatement) -> Tuple[str, tuple]:
         if expr.if_exists and not self.supports_schema_if_exists():
             raise UnsupportedFeatureError(
                 self.name, "DROP SCHEMA IF EXISTS",

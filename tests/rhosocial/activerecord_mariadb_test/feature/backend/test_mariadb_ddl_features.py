@@ -12,15 +12,18 @@ This module tests MariaDB-specific DDL features including:
 """
 import pytest
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
+    CreateTableStatement,
+    DropTableStatement,
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
     IndexDefinition,
     TableConstraint,
-    TableConstraintType,
     ForeignKeyConstraint,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
+    TablePrimaryKeyConstraint,
+    TableUniqueConstraint,
+    TableCheckConstraint,
 )
 from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.statements import ReferentialAction
@@ -45,10 +48,10 @@ class TestMySQLStorageOptions:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test_table'),
             columns=columns,
@@ -62,10 +65,10 @@ class TestMySQLStorageOptions:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test_table'),
             columns=columns,
@@ -79,10 +82,10 @@ class TestMySQLStorageOptions:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test_table'),
             columns=columns,
@@ -96,10 +99,10 @@ class TestMySQLStorageOptions:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test_table'),
             columns=columns,
@@ -119,10 +122,10 @@ class TestMySQLStorageOptions:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test_table'),
             columns=columns,
@@ -142,14 +145,14 @@ class TestMySQLTableComment:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
         from rhosocial.activerecord.backend.expression.statements.ddl_table import (
             CreateTableOptions,
         )
 
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -167,10 +170,10 @@ class TestMySQLTableComment:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -190,14 +193,14 @@ class TestMySQLTableComment:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ])
         ]
         from rhosocial.activerecord.backend.expression.statements.ddl_table import (
             CreateTableOptions,
         )
 
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test'),
             columns=columns,
@@ -215,11 +218,11 @@ class TestMySQLColumnComment:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ], comment=ColumnCommentClause(dialect, '主键ID')),
             ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), comment=ColumnCommentClause(dialect, '用户名'))
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns
@@ -233,7 +236,7 @@ class TestMySQLColumnComment:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ], comment=ColumnCommentClause(dialect, '主键')),
             ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), comment=ColumnCommentClause(dialect, '名称'))
         ]
@@ -241,7 +244,7 @@ class TestMySQLColumnComment:
             CreateTableOptions,
         )
 
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -261,11 +264,11 @@ class TestMySQLAutoIncrement:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', BigIntType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns
@@ -279,11 +282,11 @@ class TestMySQLAutoIncrement:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', BigIntType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
             ], comment=ColumnCommentClause(dialect, '自增主键'))
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns
@@ -297,11 +300,11 @@ class TestMySQLAutoIncrement:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', BigIntType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test'),
             columns=columns
@@ -319,14 +322,14 @@ class TestMySQLInlineIndex:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'name', VarCharType(dialect, 100))
         ]
         indexes = [
             IndexDefinition(dialect, 'idx_name', ['name'])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -341,14 +344,14 @@ class TestMySQLInlineIndex:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'email', VarCharType(dialect, 100))
         ]
         indexes = [
             IndexDefinition(dialect, 'idx_email', ['email'], unique=True)
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -363,7 +366,7 @@ class TestMySQLInlineIndex:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'user_id', IntegerType(dialect)),
             ColumnDefinition(dialect, 'created_at', DateTimeType(dialect))
@@ -371,7 +374,7 @@ class TestMySQLInlineIndex:
         indexes = [
             IndexDefinition(dialect, 'idx_user_created', ['user_id', 'created_at'])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'orders'),
             columns=columns,
@@ -385,14 +388,14 @@ class TestMySQLInlineIndex:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'name', VarCharType(dialect, 100))
         ]
         indexes = [
             IndexDefinition(dialect, 'idx_name', ['name'], type='BTREE')
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -406,14 +409,14 @@ class TestMySQLInlineIndex:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'key', VarCharType(dialect, 100))
         ]
         indexes = [
             IndexDefinition(dialect, 'idx_key', ['key'], type='HASH')
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'cache'),
             columns=columns,
@@ -427,7 +430,7 @@ class TestMySQLInlineIndex:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'email', VarCharType(dialect, 100)),
             ColumnDefinition(dialect, 'username', VarCharType(dialect, 50))
@@ -436,7 +439,7 @@ class TestMySQLInlineIndex:
             IndexDefinition(dialect, 'idx_email', ['email'], unique=True),
             IndexDefinition(dialect, 'idx_username', ['username'])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -511,13 +514,13 @@ class TestMySQLEnumType:
         status_enum = MariaDBEnumType(dialect, ['draft', 'published', 'archived'])
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'status', status_enum, constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))
             ])
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'articles'),
             columns=columns
@@ -582,9 +585,9 @@ class TestMySQLTableConstraints:
             ColumnDefinition(dialect, 'name', VarCharType(dialect, 100))
         ]
         table_constraints = [
-            TableConstraint(dialect, TableConstraintType.PRIMARY_KEY, columns=['id'])
+            TableConstraint(dialect, branch=TablePrimaryKeyConstraint(dialect, ['id']))
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -598,14 +601,14 @@ class TestMySQLTableConstraints:
         dialect = MariaDBDialect()
         columns = [
             ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
             ]),
             ColumnDefinition(dialect, 'email', VarCharType(dialect, 100))
         ]
         table_constraints = [
-            TableConstraint(dialect, TableConstraintType.UNIQUE, columns=['email'])
+            TableConstraint(dialect, branch=TableUniqueConstraint(dialect, ['email']))
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,
@@ -622,9 +625,9 @@ class TestMySQLTableConstraints:
             ColumnDefinition(dialect, 'role_id', IntegerType(dialect))
         ]
         table_constraints = [
-            TableConstraint(dialect, TableConstraintType.PRIMARY_KEY, columns=['user_id', 'role_id'])
+            TableConstraint(dialect, branch=TablePrimaryKeyConstraint(dialect, ['user_id', 'role_id']))
         ]
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'user_roles'),
             columns=columns,
@@ -646,7 +649,7 @@ class TestMySQLTableConstraints:
             dialect, columns=["user_id"], foreign_key_table=Table(dialect, "users"),
             foreign_key_columns=["id"], on_delete=ReferentialAction.CASCADE,
         )
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect, table=Table(dialect, "orders"), columns=columns, table_constraints=[fk],
         )
         sql, params = expr.to_sql()
@@ -662,7 +665,7 @@ class TestMySQLTableConstraints:
             foreign_key_columns=["id"], on_delete=ReferentialAction.NO_ACTION,
             on_update=ReferentialAction.SET_NULL,
         )
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect, table=Table(dialect, "orders"), columns=columns, table_constraints=[fk],
         )
         sql, params = expr.to_sql()
@@ -673,18 +676,17 @@ class TestMySQLTableConstraints:
         """Test CHECK table constraint."""
         from rhosocial.activerecord.backend.expression import Column, Literal
         from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
-        dialect = MariaDBDialect()
+        # Versioned, because the CHECK probe is version-gated at 10.2.1 and a
+        # dialect with no version cannot answer it.
+        dialect = MariaDBDialect((13, 1, 1))
         columns = [
             ColumnDefinition(dialect, "id", IntegerType(dialect)),
             ColumnDefinition(dialect, "age", IntegerType(dialect)),
         ]
-        check = TableConstraint(
-            dialect, TableConstraintType.CHECK,
-            check_condition=ComparisonPredicate(
-                dialect, ">=", Column(dialect, "age"), Literal(dialect, 0)
-            ),
-        )
-        expr = CreateTableExpression(
+        check = TableConstraint(dialect, branch=TableCheckConstraint(dialect, ComparisonPredicate(
+                dialect, ">=", Column(dialect, "age"), Literal(dialect, 0, inline=True)
+            )))
+        expr = CreateTableStatement(
             dialect=dialect, table=Table(dialect, "users"), columns=columns, table_constraints=[check],
         )
         sql, params = expr.to_sql()
@@ -697,7 +699,7 @@ class TestMySQLDropTable:
     def test_drop_table_if_exists(self):
         """Test DROP TABLE IF EXISTS."""
         dialect = MariaDBDialect()
-        expr = DropTableExpression(
+        expr = DropTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test_table'),
             if_exists=True
@@ -709,7 +711,7 @@ class TestMySQLDropTable:
     def test_drop_table_without_if_exists(self):
         """Test DROP TABLE without IF EXISTS."""
         dialect = MariaDBDialect()
-        expr = DropTableExpression(
+        expr = DropTableStatement(
             dialect=dialect,
             table=Table(dialect, 'test_table'),
             if_exists=False
@@ -736,27 +738,27 @@ class TestMySQLCompleteTableCreation:
                 'id',
                 BigIntType(dialect),
                 constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
                 ],
                 comment=ColumnCommentClause(dialect, 'Primary key')
             ),
             ColumnDefinition(dialect, 
                 'name',
                 VarCharType(dialect, 100),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
                 comment=ColumnCommentClause(dialect, 'User name')
             ),
             ColumnDefinition(dialect, 
                 'email',
                 VarCharType(dialect, 255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
                 comment=ColumnCommentClause(dialect, 'Email address')
             ),
             ColumnDefinition(dialect, 
                 'status',
                 status_enum,
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
                 comment=ColumnCommentClause(dialect, 'User status')
             ),
             ColumnDefinition(dialect, 'created_at', DateTimeType(dialect), comment=ColumnCommentClause(dialect, 'Creation timestamp'))
@@ -767,7 +769,7 @@ class TestMySQLCompleteTableCreation:
             IndexDefinition(dialect, 'idx_status', ['status'])
         ]
         
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, 'users'),
             columns=columns,

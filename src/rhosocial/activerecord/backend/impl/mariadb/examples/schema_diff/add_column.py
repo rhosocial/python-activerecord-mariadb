@@ -34,24 +34,28 @@ dialect = backend.dialect
 
 # Clean up any leftover tables
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableExpression, CreateTableExpression, ColumnDefinition,
-    ColumnConstraint, ColumnConstraintType,
+    DropTableStatement,
+    CreateTableStatement,
+    ColumnDefinition,
+    ColumnConstraint,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
 
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 # Baseline table: id, name, email
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
             ]),
         ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
         ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
@@ -70,14 +74,14 @@ from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa:
     MariaDBSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
-    AlterTableExpression, AddColumn,
+    AlterTableStatement, AddColumnAction,
 )
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column — appended after the existing columns
-add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
-alter_expr = AlterTableExpression(dialect, Table(dialect, "users"), [add_col])
+add_col = AddColumnAction(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
+alter_expr = AlterTableStatement(dialect, Table(dialect, "users"), [add_col])
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)
 
@@ -102,7 +106,7 @@ if "users" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

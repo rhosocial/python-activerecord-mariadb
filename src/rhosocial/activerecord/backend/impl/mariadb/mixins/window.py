@@ -11,11 +11,11 @@ class MariaDBWindowMixin:
 
     def supports_window_functions(self) -> bool:
         """Window functions are supported since MariaDB 10.2."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['WINDOW_FUNCTIONS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['WINDOW_FUNCTIONS'])
 
     def supports_window_frame_clause(self) -> bool:
         """Window frame clauses are supported since MariaDB 10.2."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['WINDOW_FUNCTIONS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['WINDOW_FUNCTIONS'])
 
 
 __all__ = ['MariaDBWindowMixin']

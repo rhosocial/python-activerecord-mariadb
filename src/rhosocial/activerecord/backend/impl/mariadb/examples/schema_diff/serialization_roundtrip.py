@@ -37,23 +37,27 @@ dialect = backend.dialect
 
 # Clean up any leftover tables
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableExpression, CreateTableExpression, ColumnDefinition,
-    ColumnConstraint, ColumnConstraintType,
+    DropTableStatement,
+    CreateTableStatement,
+    ColumnDefinition,
+    ColumnConstraint,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
     IntegerType, VarCharType,
 )
 
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, 'users'), columns=[
         ColumnDefinition(dialect, "id", IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(dialect, constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
             ]),
         ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
     ]
@@ -94,7 +98,7 @@ print(f"Round-trip diff empty: {diff.is_empty}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, Table(dialect, "users"), if_exists=True)
+expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

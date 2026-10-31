@@ -12,7 +12,7 @@ Architecture:
   - SQL generation: Delegated to MariaDBIntrospectionMixin.format_*_query()
     methods in the Dialect layer via Expression.to_sql()
   - Query execution: Handled by IntrospectorExecutor
-  - Result parsing: _parse_* methods in introspector.py (pure Python, no I/O)
+  - Result parsing: parse_* methods in introspector.py (pure Python, no I/O)
 
 Design principle: Sync and Async are separate and cannot coexist.
 - SyncMariaDBIntrospector: for synchronous backends
@@ -25,6 +25,7 @@ from .status_introspector import (
     SyncMariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
 )
+from .types import SequenceInfo, TableOptionsInfo
 
 __all__ = [
     "SyncMariaDBIntrospector",
@@ -33,4 +34,6 @@ __all__ = [
     "AsyncShowIntrospector",
     "SyncMariaDBStatusIntrospector",
     "AsyncMariaDBStatusIntrospector",
+    "SequenceInfo",
+    "TableOptionsInfo",
 ]

@@ -6,14 +6,14 @@ Why this file exists
 --------------------
 ``functions.match_against()`` used to build the ``MATCH ... AGAINST`` clause by
 interpolating ``search_string`` into an f-string and returning the result as a
-``RawSQLExpression`` with no bound parameters::
+``RawSQL`` with no bound parameters::
 
     against_arg = f"'{search_string}'"
     sql = f"MATCH ({match_args}) AGAINST({against_arg})"
 
 A quote in the input therefore escaped the literal and reached the driver verbatim.
 The correct implementation was not missing: ``MariaDBMatchAgainstExpression`` and
-the dialect's ``format_match_against`` already existed, already bound the search
+the dialect's ``format_match_against_expression`` already existed, already bound the search
 string through the dialect placeholder, and were already covered by
 ``test_fulltext_index.py`` and the protocol-conformance assertion. Only this entry
 point bypassed them, and because **no test called the factory**, the divergence
@@ -106,15 +106,15 @@ class TestMatchAgainstRouting:
         """The raw-SQL escape hatch must not reappear on this path.
 
         Guarding the concrete type is deliberate: a regression to
-        ``RawSQLExpression`` would render valid SQL and pass a naive
+        ``RawSQL`` would render valid SQL and pass a naive
         "does it look right" test, so this asserts the routing itself.
         """
         from rhosocial.activerecord.backend.expression.operators import (
-            RawSQLExpression,
+            RawSQL,
         )
 
         assert not isinstance(
-            match_against(_dialect(), "content", "x"), RawSQLExpression
+            match_against(_dialect(), "content", "x"), RawSQL
         )
 
     def test_factory_output_matches_direct_construction(self):

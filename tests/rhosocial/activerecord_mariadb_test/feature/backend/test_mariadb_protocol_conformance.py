@@ -313,6 +313,14 @@ class TestProtocolNonOverlap:
             assert len(members) > 0, f"Protocol {name} has no members defined"
 
         excluded_overlaps = {
+
+            # The CTAS bind-parameter probe: the backend's table protocol
+
+            # derives from the generic CTAS protocol, so both declare it.
+
+            ('CreateTableAsSupport', 'MariaDBTableSupport'),
+
+            ('MariaDBTableSupport', 'CreateTableAsSupport'),
             # MariaDB-specific protocols extend generic protocols, so they
             # inherit the base's methods as well as declaring their own.
             ('JSONSupport', 'MariaDBJSONFunctionSupport'),
@@ -443,17 +451,17 @@ class TestMySQLExpressionDialectSeparation:
     """
 
     EXPRESSION_DIALECT_PAIRS = [
-        ("MariaDBLoadDataExpression", "format_load_data_statement"),
+        ("MariaDBLoadDataStatement", "format_load_data_statement"),
         ("MariaDBJSONTableExpression", "format_json_table_expression"),
-        ("MariaDBJSONExtractExpression", "format_json_extract"),
-        ("MariaDBJSONObjectExpression", "format_json_object"),
-        ("MariaDBJSONArrayExpression", "format_json_array"),
-        ("MariaDBJSONContainsExpression", "format_json_contains"),
-        ("MariaDBSTGeomFromTextExpression", "format_st_geom_from_text"),
-        ("MariaDBSTDistanceExpression", "format_st_distance"),
-        ("MariaDBSTWithinExpression", "format_st_within"),
-        ("MariaDBSTContainsExpression", "format_st_contains"),
-        ("MariaDBMatchAgainstExpression", "format_match_against"),
+        ("MariaDBJSONExtractExpression", "format_json_extract_expression"),
+        ("MariaDBJSONObjectExpression", "format_json_object_expression"),
+        ("MariaDBJSONArrayExpression", "format_json_array_expression"),
+        ("MariaDBJSONContainsExpression", "format_json_contains_expression"),
+        ("MariaDBSTGeomFromTextExpression", "format_st_geom_from_text_expression"),
+        ("MariaDBSTDistanceExpression", "format_st_distance_expression"),
+        ("MariaDBSTWithinExpression", "format_st_within_expression"),
+        ("MariaDBSTContainsExpression", "format_st_contains_expression"),
+        ("MariaDBMatchAgainstExpression", "format_match_against_expression"),
     ]
 
     @pytest.mark.parametrize("expr_name,format_method", EXPRESSION_DIALECT_PAIRS)
@@ -918,3 +926,43 @@ class TestMariaDBTypeProtocolIsComposed:
         # above is measuring the member set and not something incidental.
         complete = type("CompleteMixin", (), dict(implementations))()
         assert isinstance(complete, protocol)
+
+
+class TestTheBackendOwnAnswersAreTheEffectiveOnes:
+    """A backend mixin's method must resolve to a backend class.
+
+    The other checks in this file are about the *declaration*: the mixin
+    declares the method, and the protocol declares it too. This one is
+    about the *resolution*. A core class that wins the MRO makes the
+    backend's implementation dead code, and the answer a caller gets is
+    core's rather than the backend's -- so the backend never says what it
+    means about itself, and nothing else in the suite notices: the
+    declaration is there either way.
+
+    A protocol class is a declaration rather than an implementation (its
+    body is ``...``), so a core class may legitimately precede it; only
+    the mixins are held to this.
+    """
+
+    def test_no_backend_method_is_shadowed_by_a_core_class(self):
+        mro = type(mariadb_dialect.MariaDBDialect()).__mro__
+        own = "rhosocial.activerecord.backend.impl.mariadb"
+        shadowed = []
+        for klass in mro:
+            if not klass.__module__.startswith(own):
+                continue
+            if not klass.__name__.endswith("Mixin"):
+                continue
+            for name in vars(klass):
+                if not name.startswith(("format_", "supports_", "get_")):
+                    continue
+                if not callable(vars(klass)[name]):
+                    continue
+                winner = next((k for k in mro if name in k.__dict__), None)
+                if winner is None or winner.__module__.startswith(own):
+                    continue
+                shadowed.append(f"{klass.__name__}.{name} -> {winner.__name__}")
+        assert not shadowed, (
+            "a core class wins these backend methods, so the backend's "
+            f"implementation is dead code: {shadowed}"
+        )

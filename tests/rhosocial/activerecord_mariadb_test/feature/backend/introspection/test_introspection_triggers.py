@@ -9,7 +9,7 @@ for retrieving trigger metadata.
 import pytest
 
 from rhosocial.activerecord.backend.introspection.types import (
-    TriggerInfo,
+    IntrospectionTriggerInfo,
 )
 
 
@@ -31,11 +31,11 @@ class TestListTriggers:
         assert "update_user_timestamp" in trigger_names
 
     def test_list_triggers_returns_trigger_info(self, backend_with_trigger):
-        """Test that list_triggers returns TriggerInfo objects."""
+        """Test that list_triggers returns IntrospectionTriggerInfo objects."""
         triggers = backend_with_trigger.introspector.list_triggers()
 
         for trigger in triggers:
-            assert isinstance(trigger, TriggerInfo)
+            assert isinstance(trigger, IntrospectionTriggerInfo)
 
     def test_list_triggers_caching(self, backend_with_trigger):
         """Test that trigger list is cached."""
@@ -61,7 +61,7 @@ class TestGetTriggerInfo:
         trigger = backend_with_trigger.introspector.get_trigger_info("update_user_timestamp")
 
         assert trigger is not None
-        assert isinstance(trigger, TriggerInfo)
+        assert isinstance(trigger, IntrospectionTriggerInfo)
         assert trigger.name == "update_user_timestamp"
 
     def test_get_trigger_info_nonexistent(self, backend_with_trigger):
@@ -189,7 +189,7 @@ class TestAsyncTriggerIntrospection:
 
     @pytest.mark.asyncio
     async def test_async_list_triggers(self, async_backend_with_trigger):
-        """Test async list_triggers returns TriggerInfo objects."""
+        """Test async list_triggers returns IntrospectionTriggerInfo objects."""
         triggers = await async_backend_with_trigger.introspector.list_triggers()
 
         trigger_names = [t.name for t in triggers]
@@ -201,7 +201,7 @@ class TestAsyncTriggerIntrospection:
         trigger = await async_backend_with_trigger.introspector.get_trigger_info("update_user_timestamp")
 
         assert trigger is not None
-        assert isinstance(trigger, TriggerInfo)
+        assert isinstance(trigger, IntrospectionTriggerInfo)
         assert trigger.name == "update_user_timestamp"
 
     @pytest.mark.asyncio

@@ -3,20 +3,32 @@
 
 This mixin implements the IntrospectionSupport protocol for MariaDB,
 providing database metadata introspection via information_schema.
+
+Every query here is a tree of expression nodes: the formatter supplies the
+projection, the conditions and the ordering, and :class:`QueryStatement`
+renders them. Nothing in this module assembles SQL text clause by clause --
+what a query *asks* stays a structure the rest of the framework can inspect,
+and the spelling belongs to the formatters it delegates to.
 """
 from typing import List, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
     from rhosocial.activerecord.backend.expression.introspection import (
-        DatabaseInfoExpression,
-        TableListExpression,
-        ColumnInfoExpression,
-        IndexInfoExpression,
-        ForeignKeyExpression,
-        ViewListExpression,
-        ViewInfoExpression,
-        TriggerListExpression,
+        DatabaseInfoQueryStatement,
+        TableListQueryStatement,
+        ColumnInfoQueryStatement,
+        IndexInfoQueryStatement,
+        ForeignKeyQueryStatement,
+        ViewListQueryStatement,
+        ViewInfoQueryStatement,
+        TriggerListQueryStatement,
+    )
+    from rhosocial.activerecord.backend.expression.sources.relation import NamedRelationRef
+    from rhosocial.activerecord.backend.expression.objects import Table
+    from rhosocial.activerecord.backend.impl.mariadb.expression.introspection import (
+        MariaDBSequenceQuery,
+        MariaDBTableOptionsQuery,
     )
 
 #: Schemas owned by the server rather than the user. Excluded from user-facing
@@ -30,15 +42,22 @@ if TYPE_CHECKING:
 #: release that adds a system schema needs a change here and nowhere else.
 SYSTEM_SCHEMAS = ("information_schema", "performance_schema", "mysql", "sys")
 
-#: SQL fragment excluding :data:`SYSTEM_SCHEMAS` from a ``table_schema`` filter.
-SYSTEM_SCHEMAS_SQL_PREDICATE = (
-    "TABLE_SCHEMA NOT IN ('" + "', '".join(SYSTEM_SCHEMAS) + "')"
-)
-
 #: The catalogue these queries read. `information_schema` is a *database*
 #: on MariaDB like any other, so it belongs in the catalog slot of a schema
 #: object rather than being spelled into each query as a literal prefix.
 INFORMATION_SCHEMA_DATABASE = "information_schema"
+
+#: MariaDB 10.3 added sequences, and a sequence is a table: it appears in
+#: `information_schema.TABLES` with `TABLE_TYPE='SEQUENCE'` from that release on.
+SEQUENCES_SINCE = (10, 3)
+
+#: The `information_schema.SEQUENCES` view -- a sequence's start, bounds,
+#: increment and cycle -- only exists from 11.7. Measured across the wired
+#: servers: 10.2 through 11.4 report `Unknown table 'SEQUENCES' in
+#: information_schema`; 11.7 and later answer it. Below 11.7 a sequence is
+#: still listable from `TABLES`, and these facts are unknown rather than
+#: absent from the server.
+SEQUENCE_DETAILS_SINCE = (11, 7)
 
 
 class MariaDBIntrospectionMixin:
@@ -59,7 +78,7 @@ class MariaDBIntrospectionMixin:
     database-specific SQL using information_schema.
 
     Architecture flow:
-    Introspector._build_*_sql() [base class]
+    Introspector.<family>_statement() [manager factory]
     -> Expression(Dialect).to_sql()
     -> Dialect.format_*_query() [this mixin]
     -> Returns SQL and parameters
@@ -67,6 +86,13 @@ class MariaDBIntrospectionMixin:
     MariaDB supports all introspection features via information_schema,
     which is fully compatible with MySQL's information_schema structure.
     """
+
+    def supports_table_options_introspection(self) -> bool:
+        """MariaDB answers for a table's storage options from
+        ``information_schema.TABLES`` -- the capability for the
+        ``introspect table-options`` family. Named the same as MySQL's
+        so the question is answerable identically in both engines."""
+        return True
 
     # ========== Capability Detection ==========
 
@@ -102,10 +128,21 @@ class MariaDBIntrospectionMixin:
         """MariaDB supports trigger introspection via information_schema.TRIGGERS."""
         return True
 
+    def supports_sequence_introspection(self) -> bool:
+        """Sequences, read from information_schema.TABLES (MariaDB 10.3+).
+
+        A sequence is a table on MariaDB, so listing one needs nothing newer
+        than the release that introduced ``CREATE SEQUENCE``. The numeric
+        details in ``information_schema.SEQUENCES`` do need 11.7, but they are
+        an enrichment of the same row: the sequence itself is listable from
+        10.3 on.
+        """
+        return self.version_at_least(SEQUENCES_SINCE)
+
     def get_supported_introspection_scopes(self) -> List["IntrospectionScope"]:
         """Get list of supported introspection scopes."""
         from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
-        return [
+        scopes = [
             IntrospectionScope.DATABASE,
             IntrospectionScope.TABLE,
             IntrospectionScope.COLUMN,
@@ -114,22 +151,59 @@ class MariaDBIntrospectionMixin:
             IntrospectionScope.VIEW,
             IntrospectionScope.TRIGGER,
         ]
+        if self.supports_sequence_introspection():
+            scopes.append(IntrospectionScope.SEQUENCE)
+        return scopes
 
     # ========== Query Formatting ==========
 
-    def _information_schema(self, name: str) -> str:
-        """Render ``information_schema`.`name``` as a qualified relation.
+    def _information_schema(self, name: str) -> "Table":
+        """Return ``information_schema``.``name`` as a relation object.
 
         The catalogue is a catalog slot on a schema object rather than a
         literal prefix in a string, so the qualified name renders through
-        exactly one place.
+        exactly one place -- the same ``format_table_object`` every other
+        relation in this backend goes through.
         """
         from rhosocial.activerecord.backend.expression.objects import Table
 
-        return Table(self, name, catalog_name=INFORMATION_SCHEMA_DATABASE).to_sql()[0]
+        return Table(self, name, catalog_name=INFORMATION_SCHEMA_DATABASE)
 
-    def format_database_info_query(
-        self, expr: "DatabaseInfoExpression"
+    def _relation_ref(self, table: "Table", alias: str) -> "NamedRelationRef":
+        """Name *table* inside a FROM/JOIN list under *alias*."""
+        from rhosocial.activerecord.backend.expression.sources.relation import (
+            NamedRelationRef,
+        )
+
+        return NamedRelationRef(self, table, alias=alias)
+
+    def system_schemas_predicate(self):
+        """Exclude :data:`SYSTEM_SCHEMAS` from a ``TABLE_SCHEMA`` filter.
+
+        The list travels inline -- it is a statement about this backend's
+        catalogue, not caller data, and inlining keeps the parameter tuple
+        of every query that uses it exactly as it was.
+
+        Returns:
+            A predicate node rendering ``NOT (`TABLE_SCHEMA` IN (...))``.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            InPredicate,
+            Literal,
+            LogicalPredicate,
+        )
+
+        return LogicalPredicate(
+            self,
+            "NOT",
+            InPredicate(
+                self, Column(self, "TABLE_SCHEMA"), Literal(self, SYSTEM_SCHEMAS, inline=True)
+            ),
+        )
+
+    def format_database_info_query_statement(
+        self, expr: "DatabaseInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format database information query.
 
@@ -141,22 +215,50 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         schema = params.get("schema", "")
 
-        sql = (
-            "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME "
-            f"FROM {self._information_schema('SCHEMATA')} "
-            f"WHERE SCHEMA_NAME = {self.p()}"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "DEFAULT_CHARACTER_SET_NAME"),
+                Column(self, "DEFAULT_COLLATION_NAME"),
+            ],
+            from_=self._information_schema("SCHEMATA"),
+            where=WhereClause(
+                self,
+                ComparisonPredicate(
+                    self, "eq", Column(self, "SCHEMA_NAME"), Literal(self, schema)
+                ),
+            ),
         )
-        return (sql, (schema,))
+        return query.to_sql()
 
-    def format_table_list_query(
-        self, expr: "TableListExpression"
+    def format_table_list_query_statement(
+        self, expr: "TableListQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format table list query.
 
         Query information_schema.TABLES for table metadata.
+
+        A sequence is a table on MariaDB 10.3+, so it appears in
+        ``information_schema.TABLES`` with ``TABLE_TYPE='SEQUENCE'`` beside the
+        base tables and views. It is not an entry in this listing: it has no
+        columns and no rows, and this backend reports the family from
+        ``list_sequences``. The exclusion is therefore part of what the
+        statement means and travels inline, like the system-schema list, rather
+        than as a bind parameter -- so the parameter tuple stays ``(schema,)``
+        (plus an explicitly requested ``table_type``). The condition is written
+        on every version: a server older than 10.3 cannot hold the spelling, so
+        it is a no-op there rather than a second statement shape.
 
         Args:
             expr: Table list expression with parameters.
@@ -164,33 +266,70 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         schema = params.get("schema", "")
         include_views = params.get("include_views", True)
         include_system = params.get("include_system", False)
         table_type = params.get("table_type")
 
-        conditions = [f"TABLE_SCHEMA = {self.p()}"]
-        sql_params: list = [schema]
+        conditions = [
+            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema)),
+            # ``ne`` writes ``<>``: MariaDB's spelling of "not equal", and the
+            # one that reads as the set difference this listing means.
+            ComparisonPredicate(
+                self,
+                "ne",
+                Column(self, "TABLE_TYPE"),
+                Literal(self, "SEQUENCE", inline=True),
+            ),
+        ]
 
         if not include_system:
-            conditions.append(SYSTEM_SCHEMAS_SQL_PREDICATE)
+            conditions.append(self.system_schemas_predicate())
         if not include_views:
-            conditions.append("TABLE_TYPE = 'BASE TABLE'")
+            conditions.append(
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "TABLE_TYPE"),
+                    Literal(self, "BASE TABLE", inline=True),
+                )
+            )
         if table_type:
-            conditions.append(f"TABLE_TYPE = {self.p()}")
-            sql_params.append(table_type)
+            conditions.append(
+                ComparisonPredicate(
+                    self, "eq", Column(self, "TABLE_TYPE"), Literal(self, table_type)
+                )
+            )
 
-        where = " AND ".join(conditions)
-        sql = (
-            "SELECT TABLE_NAME, TABLE_TYPE, TABLE_COMMENT, TABLE_ROWS, "
-            "DATA_LENGTH, AUTO_INCREMENT, CREATE_TIME, UPDATE_TIME "
-            f"FROM {self._information_schema('TABLES')} WHERE {where}"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "TABLE_NAME"),
+                Column(self, "TABLE_TYPE"),
+                Column(self, "TABLE_COMMENT"),
+                Column(self, "TABLE_ROWS"),
+                Column(self, "DATA_LENGTH"),
+                Column(self, "AUTO_INCREMENT"),
+                Column(self, "CREATE_TIME"),
+                Column(self, "UPDATE_TIME"),
+            ],
+            from_=self._information_schema("TABLES"),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
         )
-        return (sql, tuple(sql_params))
+        return query.to_sql()
 
-    def format_column_info_query(
-        self, expr: "ColumnInfoExpression"
+    def format_column_info_query_statement(
+        self, expr: "ColumnInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format column information query.
 
@@ -213,30 +352,95 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            JoinClause,
+            JoinType,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         table_name = params.get("table_name", "")
         schema = params.get("schema", "")
 
-        columns = self._information_schema('COLUMNS')
-        geometry_columns = self._information_schema('GEOMETRY_COLUMNS')
-        sql = (
-            "SELECT c.COLUMN_NAME, c.ORDINAL_POSITION, c.COLUMN_DEFAULT, "
-            "c.IS_NULLABLE, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
-            "c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.COLUMN_TYPE, "
-            "c.COLUMN_KEY, c.EXTRA, c.COLUMN_COMMENT, "
-            "c.CHARACTER_SET_NAME, c.COLLATION_NAME, g.SRID AS SRID "
-            f"FROM {columns} AS c "
-            f"LEFT JOIN {geometry_columns} AS g "
-            "ON g.G_TABLE_SCHEMA = c.TABLE_SCHEMA "
-            "AND g.G_TABLE_NAME = c.TABLE_NAME "
-            "AND g.G_GEOMETRY_COLUMN = c.COLUMN_NAME "
-            f"WHERE c.TABLE_SCHEMA = {self.p()} AND c.TABLE_NAME = {self.p()} "
-            "ORDER BY c.ORDINAL_POSITION"
+        join = JoinClause(
+            self,
+            left_table=self._relation_ref(self._information_schema("COLUMNS"), "c"),
+            right_table=self._relation_ref(
+                self._information_schema("GEOMETRY_COLUMNS"), "g"
+            ),
+            join_type=JoinType.LEFT,
+            condition=LogicalPredicate(
+                self,
+                "AND",
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "G_TABLE_SCHEMA", table="g"),
+                    Column(self, "TABLE_SCHEMA", table="c"),
+                ),
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "G_TABLE_NAME", table="g"),
+                    Column(self, "TABLE_NAME", table="c"),
+                ),
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "G_GEOMETRY_COLUMN", table="g"),
+                    Column(self, "COLUMN_NAME", table="c"),
+                ),
+            ),
         )
-        return (sql, (schema, table_name))
 
-    def format_index_info_query(
-        self, expr: "IndexInfoExpression"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "COLUMN_NAME", table="c"),
+                Column(self, "ORDINAL_POSITION", table="c"),
+                Column(self, "COLUMN_DEFAULT", table="c"),
+                Column(self, "IS_NULLABLE", table="c"),
+                Column(self, "DATA_TYPE", table="c"),
+                Column(self, "CHARACTER_MAXIMUM_LENGTH", table="c"),
+                Column(self, "NUMERIC_PRECISION", table="c"),
+                Column(self, "NUMERIC_SCALE", table="c"),
+                Column(self, "COLUMN_TYPE", table="c"),
+                Column(self, "COLUMN_KEY", table="c"),
+                Column(self, "EXTRA", table="c"),
+                Column(self, "COLUMN_COMMENT", table="c"),
+                Column(self, "CHARACTER_SET_NAME", table="c"),
+                Column(self, "COLLATION_NAME", table="c"),
+                Column(self, "SRID", table="g", alias="SRID"),
+            ],
+            from_=join,
+            where=WhereClause(
+                self,
+                LogicalPredicate(
+                    self,
+                    "AND",
+                    ComparisonPredicate(
+                        self, "eq", Column(self, "TABLE_SCHEMA", table="c"), Literal(self, schema)
+                    ),
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Column(self, "TABLE_NAME", table="c"),
+                        Literal(self, table_name),
+                    ),
+                ),
+            ),
+            order_by=OrderByClause(self, [Column(self, "ORDINAL_POSITION", table="c")]),
+        )
+        return query.to_sql()
+
+    def format_index_info_query_statement(
+        self, expr: "IndexInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format index information query.
 
@@ -248,21 +452,53 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         table_name = params.get("table_name", "")
         schema = params.get("schema", "")
 
-        sql = (
-            "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, "
-            "INDEX_TYPE, SUB_PART, NULLABLE "
-            f"FROM {self._information_schema('STATISTICS')} "
-            f"WHERE TABLE_SCHEMA = {self.p()} AND TABLE_NAME = {self.p()} "
-            "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "INDEX_NAME"),
+                Column(self, "NON_UNIQUE"),
+                Column(self, "SEQ_IN_INDEX"),
+                Column(self, "COLUMN_NAME"),
+                Column(self, "INDEX_TYPE"),
+                Column(self, "SUB_PART"),
+                Column(self, "NULLABLE"),
+            ],
+            from_=self._information_schema("STATISTICS"),
+            where=WhereClause(
+                self,
+                LogicalPredicate(
+                    self,
+                    "AND",
+                    ComparisonPredicate(
+                        self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema)
+                    ),
+                    ComparisonPredicate(
+                        self, "eq", Column(self, "TABLE_NAME"), Literal(self, table_name)
+                    ),
+                ),
+            ),
+            order_by=OrderByClause(
+                self, [Column(self, "INDEX_NAME"), Column(self, "SEQ_IN_INDEX")]
+            ),
         )
-        return (sql, (schema, table_name))
+        return query.to_sql()
 
-    def format_foreign_key_query(
-        self, expr: "ForeignKeyExpression"
+    def format_foreign_key_query_statement(
+        self, expr: "ForeignKeyQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format foreign key information query.
 
@@ -275,28 +511,92 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            JoinClause,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         table_name = params.get("table_name", "")
         schema = params.get("schema", "")
 
-        key_column_usage = self._information_schema("KEY_COLUMN_USAGE")
-        referential_constraints = self._information_schema("REFERENTIAL_CONSTRAINTS")
-        sql = (
-            "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu.ORDINAL_POSITION, "
-            "kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME, "
-            "rc.UPDATE_RULE, rc.DELETE_RULE "
-            f"FROM {key_column_usage} kcu "
-            f"JOIN {referential_constraints} rc "
-            " ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME "
-            " AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA "
-            f"WHERE kcu.TABLE_SCHEMA = {self.p()} AND kcu.TABLE_NAME = {self.p()} "
-            " AND kcu.REFERENCED_TABLE_NAME IS NOT NULL "
-            "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
+        join = JoinClause(
+            self,
+            left_table=self._relation_ref(
+                self._information_schema("KEY_COLUMN_USAGE"), "kcu"
+            ),
+            right_table=self._relation_ref(
+                self._information_schema("REFERENTIAL_CONSTRAINTS"), "rc"
+            ),
+            join_type="JOIN",
+            condition=LogicalPredicate(
+                self,
+                "AND",
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "CONSTRAINT_NAME", table="kcu"),
+                    Column(self, "CONSTRAINT_NAME", table="rc"),
+                ),
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "CONSTRAINT_SCHEMA", table="kcu"),
+                    Column(self, "CONSTRAINT_SCHEMA", table="rc"),
+                ),
+            ),
         )
-        return (sql, (schema, table_name))
 
-    def format_view_list_query(
-        self, expr: "ViewListExpression"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "CONSTRAINT_NAME", table="kcu"),
+                Column(self, "COLUMN_NAME", table="kcu"),
+                Column(self, "ORDINAL_POSITION", table="kcu"),
+                Column(self, "REFERENCED_TABLE_NAME", table="kcu"),
+                Column(self, "REFERENCED_COLUMN_NAME", table="kcu"),
+                Column(self, "UPDATE_RULE", table="rc"),
+                Column(self, "DELETE_RULE", table="rc"),
+            ],
+            from_=join,
+            where=WhereClause(
+                self,
+                LogicalPredicate(
+                    self,
+                    "AND",
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Column(self, "TABLE_SCHEMA", table="kcu"),
+                        Literal(self, schema),
+                    ),
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Column(self, "TABLE_NAME", table="kcu"),
+                        Literal(self, table_name),
+                    ),
+                    Column(self, "REFERENCED_TABLE_NAME", table="kcu").is_not_null(),
+                ),
+            ),
+            order_by=OrderByClause(
+                self,
+                [
+                    Column(self, "CONSTRAINT_NAME", table="kcu"),
+                    Column(self, "ORDINAL_POSITION", table="kcu"),
+                ],
+            ),
+        )
+        return query.to_sql()
+
+    def format_view_list_query_statement(
+        self, expr: "ViewListQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format view list query.
 
@@ -308,26 +608,43 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         schema = params.get("schema", "")
         include_system = params.get("include_system", False)
 
-        conditions = [f"TABLE_SCHEMA = {self.p()}"]
-        sql_params: list = [schema]
+        conditions = [
+            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema))
+        ]
 
         if not include_system:
-            conditions.append(SYSTEM_SCHEMAS_SQL_PREDICATE)
+            conditions.append(self.system_schemas_predicate())
 
-        where = " AND ".join(conditions)
-        sql = (
-            "SELECT TABLE_NAME, VIEW_DEFINITION, CHECK_OPTION, IS_UPDATABLE "
-            f"FROM {self._information_schema('VIEWS')} WHERE {where} "
-            "ORDER BY TABLE_NAME"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "TABLE_NAME"),
+                Column(self, "VIEW_DEFINITION"),
+                Column(self, "CHECK_OPTION"),
+                Column(self, "IS_UPDATABLE"),
+            ],
+            from_=self._information_schema("VIEWS"),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "TABLE_NAME")]),
         )
-        return (sql, tuple(sql_params))
+        return query.to_sql()
 
-    def format_view_info_query(
-        self, expr: "ViewInfoExpression"
+    def format_view_info_query_statement(
+        self, expr: "ViewInfoQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format single view information query.
 
@@ -339,19 +656,46 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         view_name = params.get("view_name", "")
         schema = params.get("schema", "")
 
-        sql = (
-            "SELECT TABLE_NAME, VIEW_DEFINITION, CHECK_OPTION, IS_UPDATABLE "
-            f"FROM {self._information_schema('VIEWS')} "
-            f"WHERE TABLE_SCHEMA = {self.p()} AND TABLE_NAME = {self.p()}"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "TABLE_NAME"),
+                Column(self, "VIEW_DEFINITION"),
+                Column(self, "CHECK_OPTION"),
+                Column(self, "IS_UPDATABLE"),
+            ],
+            from_=self._information_schema("VIEWS"),
+            where=WhereClause(
+                self,
+                LogicalPredicate(
+                    self,
+                    "AND",
+                    ComparisonPredicate(
+                        self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema)
+                    ),
+                    ComparisonPredicate(
+                        self, "eq", Column(self, "TABLE_NAME"), Literal(self, view_name)
+                    ),
+                ),
+            ),
         )
-        return (sql, (schema, view_name))
+        return query.to_sql()
 
-    def format_trigger_list_query(
-        self, expr: "TriggerListExpression"
+    def format_trigger_list_query_statement(
+        self, expr: "TriggerListQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format trigger list query.
 
@@ -363,25 +707,210 @@ class MariaDBIntrospectionMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
         params = expr.get_params()
         schema = params.get("schema", "")
         table_name = params.get("table_name")
 
-        conditions = [f"TRIGGER_SCHEMA = {self.p()}"]
-        sql_params: list = [schema]
+        conditions = [
+            ComparisonPredicate(self, "eq", Column(self, "TRIGGER_SCHEMA"), Literal(self, schema))
+        ]
 
         if table_name:
-            conditions.append(f"EVENT_OBJECT_TABLE = {self.p()}")
-            sql_params.append(table_name)
+            conditions.append(
+                ComparisonPredicate(
+                    self, "eq", Column(self, "EVENT_OBJECT_TABLE"), Literal(self, table_name)
+                )
+            )
 
-        where = " AND ".join(conditions)
-        sql = (
-            "SELECT TRIGGER_NAME, EVENT_MANIPULATION, EVENT_OBJECT_TABLE, "
-            "ACTION_TIMING, ACTION_STATEMENT, CREATED "
-            f"FROM {self._information_schema('TRIGGERS')} WHERE {where} "
-            "ORDER BY TRIGGER_NAME"
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "TRIGGER_NAME"),
+                Column(self, "EVENT_MANIPULATION"),
+                Column(self, "EVENT_OBJECT_TABLE"),
+                Column(self, "ACTION_TIMING"),
+                Column(self, "ACTION_STATEMENT"),
+                Column(self, "CREATED"),
+            ],
+            from_=self._information_schema("TRIGGERS"),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "TRIGGER_NAME")]),
         )
-        return (sql, tuple(sql_params))
+        return query.to_sql()
+
+    def format_mariadb_sequence_query(
+        self, expr: "MariaDBSequenceQuery"
+    ) -> Tuple[str, tuple]:
+        """Format the sequence read.
+
+        The list is ``information_schema.TABLES`` filtered to
+        ``TABLE_TYPE='SEQUENCE'``: a sequence is a table, and that row is the
+        only thing every sequence-bearing server reports. The numeric facts
+        live in ``information_schema.SEQUENCES``, which MariaDB added in 11.7,
+        so the join is written only when the server has the view. Below it the
+        detail columns are left out of the projection entirely rather than
+        projected as NULL: the rows would carry the same ``None`` either way,
+        and not naming a relation that does not exist keeps the query runnable.
+
+        Args:
+            expr: Sequence expression with the schema and an optional name.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            JoinClause,
+            JoinType,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
+        tables = self._relation_ref(self._information_schema("TABLES"), "t")
+
+        conditions = [
+            ComparisonPredicate(
+                self, "eq", Column(self, "TABLE_SCHEMA", table="t"), Literal(self, expr.schema)
+            ),
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "TABLE_TYPE", table="t"),
+                Literal(self, "SEQUENCE", inline=True),
+            ),
+        ]
+        if expr.name is not None:
+            conditions.append(
+                ComparisonPredicate(
+                    self, "eq", Column(self, "TABLE_NAME", table="t"), Literal(self, expr.name)
+                )
+            )
+
+        select = [Column(self, "TABLE_NAME", table="t")]
+        from_: object = tables
+
+        if self.version >= SEQUENCE_DETAILS_SINCE:
+            select.extend(
+                [
+                    Column(self, "DATA_TYPE", table="s"),
+                    Column(self, "START_VALUE", table="s"),
+                    Column(self, "MINIMUM_VALUE", table="s"),
+                    Column(self, "MAXIMUM_VALUE", table="s"),
+                    Column(self, "INCREMENT", table="s"),
+                    Column(self, "CYCLE_OPTION", table="s"),
+                ]
+            )
+            from_ = JoinClause(
+                self,
+                left_table=tables,
+                right_table=self._relation_ref(self._information_schema("SEQUENCES"), "s"),
+                join_type=JoinType.LEFT,
+                condition=LogicalPredicate(
+                    self,
+                    "AND",
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Column(self, "SEQUENCE_SCHEMA", table="s"),
+                        Column(self, "TABLE_SCHEMA", table="t"),
+                    ),
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Column(self, "SEQUENCE_NAME", table="s"),
+                        Column(self, "TABLE_NAME", table="t"),
+                    ),
+                ),
+            )
+
+        query = QueryStatement(
+            self,
+            select=select,
+            from_=from_,
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "TABLE_NAME", table="t")]),
+        )
+        return query.to_sql()
+
+    def format_mariadb_table_options_query(
+        self, expr: "MariaDBTableOptionsQuery"
+    ) -> Tuple[str, tuple]:
+        """Format the table-options read.
+
+        One row per relation in ``information_schema.TABLES``. ``TABLES``
+        carries base tables, views and sequences in one list, and the row's
+        ``TABLE_TYPE`` says which it is; the caller decides whether that
+        matters. Selecting the type as well as the options is what makes the
+        answer self-describing rather than requiring the caller to know it.
+
+        Args:
+            expr: Table options expression with the schema and an optional name.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
+        conditions = [
+            ComparisonPredicate(
+                self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, expr.schema)
+            )
+        ]
+        if expr.table_name is not None:
+            conditions.append(
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "TABLE_NAME"),
+                    Literal(self, expr.table_name),
+                )
+            )
+
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "TABLE_NAME"),
+                Column(self, "TABLE_TYPE"),
+                Column(self, "ENGINE"),
+                Column(self, "ROW_FORMAT"),
+                Column(self, "TABLE_COLLATION"),
+                Column(self, "AUTO_INCREMENT"),
+                Column(self, "TABLE_COMMENT"),
+                Column(self, "CREATE_OPTIONS"),
+            ],
+            from_=self._information_schema("TABLES"),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "TABLE_NAME")]),
+        )
+        return query.to_sql()
 
 
-__all__ = ['MariaDBIntrospectionMixin']
+__all__ = [
+    'MariaDBIntrospectionMixin',
+    'SYSTEM_SCHEMAS',
+    'INFORMATION_SCHEMA_DATABASE',
+    'SEQUENCES_SINCE',
+    'SEQUENCE_DETAILS_SINCE',
+]

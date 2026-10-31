@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class MariaDBRenameIndexExpression(BaseExpression):
+class MariaDBRenameIndexStatement(BaseExpression):
     """Represent a MariaDB ``ALTER TABLE ... RENAME INDEX`` statement.
 
     Attributes:

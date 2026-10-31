@@ -81,7 +81,7 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_st_geom_from_text(
+    def format_st_geom_from_text_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -133,7 +133,7 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_st_distance(
+    def format_st_distance_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -147,7 +147,7 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_st_within(
+    def format_st_within_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -161,7 +161,7 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_st_contains(
+    def format_st_contains_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:

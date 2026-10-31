@@ -14,17 +14,18 @@ import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    DropTableStatement,
+    InsertStatement,
     ValuesSource,
-    QueryExpression,
+    QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column, FunctionCall
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -47,20 +48,19 @@ dialect = backend.dialect
 
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'email', VarCharType(dialect, 200)),
     ],
@@ -74,7 +74,7 @@ backend.execute(sql, params)
 # ============================================================
 
 # 1. Insert a row
-insert_expr = InsertExpression(
+insert_expr = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['name', 'email'],
@@ -94,7 +94,7 @@ print(f"Affected rows: {result.affected_rows}")
 # 2. Retrieve auto-generated ID using LAST_INSERT_ID()
 # MariaDB does NOT support RETURNING clause (unlike PostgreSQL/SQLite 3.35+)
 # Use SELECT LAST_INSERT_ID() instead
-query_id = QueryExpression(
+query_id = QueryStatement(
     dialect=dialect,
     select=[FunctionCall(dialect, 'LAST_INSERT_ID').as_('generated_id')],
 )
@@ -104,7 +104,7 @@ result = backend.execute(sql, params, options=dql_options)
 print(f"Generated ID: {result.data}")
 
 # 3. Verify by querying the inserted row
-verify_query = QueryExpression(
+verify_query = QueryStatement(
     dialect=dialect,
     select=[Column(dialect, 'id'), Column(dialect, 'name'), Column(dialect, 'email')],
     from_=Table(dialect, 'users'),
@@ -116,7 +116,7 @@ print(f"Users: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

@@ -18,11 +18,11 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
-        MariaDBCallExpression,
-        MariaDBCreateFunctionExpression,
-        MariaDBCreateProcedureExpression,
-        MariaDBDropFunctionExpression,
-        MariaDBDropProcedureExpression,
+        MariaDBCallStatement,
+        MariaDBCreateFunctionStatement,
+        MariaDBCreateProcedureStatement,
+        MariaDBDropFunctionStatement,
+        MariaDBDropProcedureStatement,
     )
 
 
@@ -50,11 +50,11 @@ class MariaDBRoutineMixin:
         """Refuse a routine object of the wrong kind before it renders.
 
         The two FUNCTION formatters accept either a MariaDB or a core routine
-        expression and read the slot by attribute presence (``routine`` versus
-        ``function``), so the expected kind is a property of the expression
-        rather than of the formatter. The kind is therefore named at the call
-        site and passed in, which keeps the message true of the slot the caller
-        actually read.
+        expression and tell them apart by their declared class, so the
+        expected kind is a property of the expression rather than of the
+        formatter. The kind is therefore named at the call site and passed
+        in, which keeps the message true of the slot the caller actually
+        read.
 
         Args:
             label: The ``<Class>.<slot>`` the message should point at.
@@ -105,14 +105,14 @@ class MariaDBRoutineMixin:
 
         MariaDB 10.1.3+ supports ``CREATE OR REPLACE`` for routines.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['ROUTINE_OR_REPLACE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['ROUTINE_OR_REPLACE'])
 
     def supports_routine_if_not_exists(self) -> bool:
         """Whether CREATE ... IF NOT EXISTS is supported.
 
         MariaDB 10.1.3+ supports ``CREATE PROCEDURE IF NOT EXISTS``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['ROUTINE_IF_NOT_EXISTS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['ROUTINE_IF_NOT_EXISTS'])
 
     def supports_aggregate_function(self) -> bool:
         """Whether CREATE AGGREGATE FUNCTION is supported (all versions)."""
@@ -120,7 +120,7 @@ class MariaDBRoutineMixin:
 
     def format_create_procedure_statement(
         self,
-        expr: "MariaDBCreateProcedureExpression",
+        expr: "MariaDBCreateProcedureStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CREATE [OR REPLACE] [IF NOT EXISTS] PROCEDURE name(params) body``.
 
@@ -170,7 +170,7 @@ class MariaDBRoutineMixin:
 
     def format_drop_procedure_statement(
         self,
-        expr: "MariaDBDropProcedureExpression",
+        expr: "MariaDBDropProcedureStatement",
     ) -> Tuple[str, tuple]:
         """Format ``DROP PROCEDURE [IF EXISTS] name``.
 
@@ -194,12 +194,12 @@ class MariaDBRoutineMixin:
 
     def format_create_function_statement(
         self,
-        expr: "MariaDBCreateFunctionExpression",
+        expr: "MariaDBCreateFunctionStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CREATE [OR REPLACE] [IF NOT EXISTS] [AGGREGATE] FUNCTION ...``.
 
         Supports both the MariaDB stored-function expression and the core
-        SQL/PSM ``CreateFunctionExpression``; the two differ only in how they
+        SQL/PSM ``CreateFunctionStatement``; the two differ only in how they
         spell their parameter list and in whether they can be aggregate or
         deterministic.
 
@@ -209,14 +209,20 @@ class MariaDBRoutineMixin:
                 CREATE FUNCTION over the procedure's name.
         """
         from rhosocial.activerecord.backend.expression.objects import Function
+        from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+            MariaDBRoutineExpression,
+        )
 
-        if hasattr(expr, "validate"):
-            expr.validate(strict=self.strict_validation)
+        # Every node reaching this formatter derives from ``BaseExpression``,
+        # which declares ``validate``, so the call is unconditional.
+        expr.validate(strict=self.strict_validation)
 
-        # Both expressions name the function through a Function object, so a
-        # database can be asked for on either path. What differs is the
-        # parameter spelling and the two MariaDB-only modifiers.
-        if hasattr(expr, "routine"):
+        # Two declared contracts reach this formatter: the MariaDB routine
+        # expression (``routine`` / ``params`` / MariaDB-only modifiers) and
+        # the core SQL/PSM statement (``function`` / ``parameters``). Which
+        # slots exist is a property of the node's class, so the dispatch is
+        # isinstance rather than a probe.
+        if isinstance(expr, MariaDBRoutineExpression):
             self._require_routine_kind(
                 "CreateFunctionStatement.routine",
                 expr.routine,
@@ -230,6 +236,7 @@ class MariaDBRoutineMixin:
             or_replace = expr.or_replace
             if_not_exists = expr.if_not_exists
             body = expr.body
+            param_strs = [self._format_routine_param(p) for p in params]
         else:
             self._require_routine_kind(
                 "CreateFunctionStatement.function",
@@ -244,6 +251,16 @@ class MariaDBRoutineMixin:
             or_replace = expr.or_replace
             if_not_exists = False
             body = expr.body
+            param_strs = []
+            for p in params:
+                name = p.get("name", "")
+                param_type = p.get("type", "")
+                if name and param_type:
+                    param_strs.append(
+                        f"{self.format_identifier(name)} {param_type}"
+                    )
+                elif param_type:
+                    param_strs.append(param_type)
 
         parts = ["CREATE"]
         if or_replace:
@@ -267,19 +284,9 @@ class MariaDBRoutineMixin:
         parts.append("FUNCTION")
         parts.append(function_sql)
 
-        if hasattr(expr, "routine"):
-            param_strs = [self._format_routine_param(p) for p in params]
-        else:
-            param_strs = []
-            for p in params:
-                name = p.get("name", "")
-                param_type = p.get("type", "")
-                if name and param_type:
-                    param_strs.append(
-                        f"{self.format_identifier(name)} {param_type}"
-                    )
-                elif param_type:
-                    param_strs.append(param_type)
+        # ``param_strs`` was spelled out per contract in the dispatch above:
+        # the MariaDB node's params are strings / tuples, the core node's are
+        # ``{"name": ..., "type": ...}`` dicts.
         parts.append(f"({', '.join(param_strs)})")
 
         if returns:
@@ -292,30 +299,40 @@ class MariaDBRoutineMixin:
 
     def format_drop_function_statement(
         self,
-        expr: "MariaDBDropFunctionExpression",
+        expr: "MariaDBDropFunctionStatement",
     ) -> Tuple[str, tuple]:
         """Format ``DROP FUNCTION [IF EXISTS] name`` (stored / aggregate function).
 
         Supports both the MariaDB stored-function expression and the core
-        SQL/PSM ``DropFunctionExpression``.
+        SQL/PSM ``DropFunctionStatement``.
 
         Raises:
             TypeError: The named routine is not a Function.
         """
         from rhosocial.activerecord.backend.expression.objects import Function
+        from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+            MariaDBRoutineExpression,
+        )
 
-        if hasattr(expr, "validate"):
-            expr.validate(strict=self.strict_validation)
+        # Every node reaching this formatter derives from ``BaseExpression``,
+        # which declares ``validate``, so the call is unconditional.
+        expr.validate(strict=self.strict_validation)
         parts = ["DROP FUNCTION"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        if hasattr(expr, "routine"):
+        # The same two declared contracts as CREATE FUNCTION, told apart by
+        # class: the MariaDB node names the routine through ``routine`` and
+        # carries no dependent-object flags, while the core node names it
+        # through ``function`` and declares ``cascade`` / ``restrict``.
+        if isinstance(expr, MariaDBRoutineExpression):
             self._require_routine_kind(
                 "DropFunctionStatement.routine",
                 expr.routine,
                 Function,
             )
             function_sql, _ = expr.routine.to_sql()
+            cascade = False
+            restrict = False
         else:
             self._require_routine_kind(
                 "DropFunctionStatement.function",
@@ -323,13 +340,15 @@ class MariaDBRoutineMixin:
                 Function,
             )
             function_sql, _ = expr.function.to_sql()
+            cascade = expr.cascade
+            restrict = expr.restrict
         parts.append(function_sql)
         # The DROP FUNCTION form has no dependent-object behavior on MariaDB:
         # both spellings of the cascade pair are measured rejected (errno 1064
         # on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, sentinel rejected), so each is
         # refused by name through its own probe rather than dropped.
-        if getattr(expr, "cascade", False) or getattr(expr, "restrict", False):
-            if getattr(expr, "cascade", False):
+        if cascade or restrict:
+            if cascade:
                 if not self.supports_drop_function_cascade():
                     raise UnsupportedFeatureError(
                         self.name,
@@ -349,7 +368,7 @@ class MariaDBRoutineMixin:
 
     def format_call_statement(
         self,
-        expr: "MariaDBCallExpression",
+        expr: "MariaDBCallStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CALL name([args])``.
 
@@ -360,14 +379,20 @@ class MariaDBRoutineMixin:
 
         if not isinstance(expr.procedure, Procedure):
             raise TypeError(
-                f"MariaDBCallExpression.procedure must be a Procedure, "
+                f"MariaDBCallStatement.procedure must be a Procedure, "
                 f"got {type(expr.procedure).__name__}"
             )
         expr.validate(strict=self.strict_validation)
+        # ``args`` takes expressions and host values alike: an expression is
+        # asserted by its declared base (``BaseExpression``) rather than
+        # sniffed for a method, ``None`` is the NULL keyword, and any other
+        # host value is bound behind a placeholder.
+        from rhosocial.activerecord.backend.expression.bases import BaseExpression
+
         params = []
         arg_parts = []
         for arg in expr.args:
-            if hasattr(arg, "to_sql"):
+            if isinstance(arg, BaseExpression):
                 sql, p = arg.to_sql()
                 arg_parts.append(sql)
                 params.extend(p)

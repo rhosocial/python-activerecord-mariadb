@@ -23,17 +23,17 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.admin import (
-        MariaDBAlterUserExpression,
-        MariaDBCreateRoleExpression,
-        MariaDBCreateUserExpression,
-        MariaDBDenyExpression,
-        MariaDBDropRoleExpression,
-        MariaDBDropUserExpression,
-        MariaDBFlushExpression,
-        MariaDBGrantExpression,
-        MariaDBKillExpression,
-        MariaDBRevokeExpression,
-        MariaDBShutdownExpression,
+        MariaDBAlterUserStatement,
+        MariaDBCreateRoleStatement,
+        MariaDBCreateUserStatement,
+        MariaDBDenyStatement,
+        MariaDBDropRoleStatement,
+        MariaDBDropUserStatement,
+        MariaDBFlushStatement,
+        MariaDBGrantStatement,
+        MariaDBKillStatement,
+        MariaDBRevokeStatement,
+        MariaDBShutdownStatement,
     )
 
 
@@ -74,7 +74,7 @@ class MariaDBAdminMixin:
 
     def format_flush_statement(
         self,
-        expr: "MariaDBFlushExpression",
+        expr: "MariaDBFlushStatement",
     ) -> Tuple[str, tuple]:
         """Format ``FLUSH [NO_WRITE_TO_BINLOG|LOCAL] option [, option ...]``."""
         expr.validate(strict=self.strict_validation)
@@ -91,7 +91,7 @@ class MariaDBAdminMixin:
 
     def format_kill_statement(
         self,
-        expr: "MariaDBKillExpression",
+        expr: "MariaDBKillStatement",
     ) -> Tuple[str, tuple]:
         """Format ``KILL [CONNECTION | QUERY] processlist_id``."""
         parts = ["KILL"]
@@ -107,7 +107,7 @@ class MariaDBAdminMixin:
 
     def format_shutdown_statement(
         self,
-        expr: "MariaDBShutdownExpression",
+        expr: "MariaDBShutdownStatement",
     ) -> Tuple[str, tuple]:
         """Format the ``SHUTDOWN`` statement."""
         return "SHUTDOWN", ()
@@ -119,7 +119,7 @@ class MariaDBAdminMixin:
 
     def format_create_user_statement(
         self,
-        expr: "MariaDBCreateUserExpression",
+        expr: "MariaDBCreateUserStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CREATE USER [IF NOT EXISTS] acct [IDENTIFIED BY 'pwd']``."""
         parts = ["CREATE USER"]
@@ -135,7 +135,7 @@ class MariaDBAdminMixin:
 
     def format_alter_user_statement(
         self,
-        expr: "MariaDBAlterUserExpression",
+        expr: "MariaDBAlterUserStatement",
     ) -> Tuple[str, tuple]:
         """Format ``ALTER USER [IF EXISTS] acct [IDENTIFIED BY 'pwd']``."""
         parts = ["ALTER USER"]
@@ -151,7 +151,7 @@ class MariaDBAdminMixin:
 
     def format_drop_user_statement(
         self,
-        expr: "MariaDBDropUserExpression",
+        expr: "MariaDBDropUserStatement",
     ) -> Tuple[str, tuple]:
         """Format ``DROP USER [IF EXISTS] acct [, acct ...]``."""
         parts = ["DROP USER"]
@@ -165,7 +165,7 @@ class MariaDBAdminMixin:
 
     def format_create_role_statement(
         self,
-        expr: "MariaDBCreateRoleExpression",
+        expr: "MariaDBCreateRoleStatement",
     ) -> Tuple[str, tuple]:
         """Format ``CREATE ROLE [IF NOT EXISTS] role [, role ...]``."""
         parts = ["CREATE ROLE"]
@@ -180,7 +180,7 @@ class MariaDBAdminMixin:
 
     def format_drop_role_statement(
         self,
-        expr: "MariaDBDropRoleExpression",
+        expr: "MariaDBDropRoleStatement",
     ) -> Tuple[str, tuple]:
         """Format ``DROP ROLE [IF EXISTS] role [, role ...]``."""
         parts = ["DROP ROLE"]
@@ -200,22 +200,22 @@ class MariaDBAdminMixin:
 
         MariaDB 10.1.4+ supports ``GRANT OR REPLACE``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['GRANT_OR_REPLACE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['GRANT_OR_REPLACE'])
 
     def supports_grant_if_exists(self) -> bool:
         """Whether ``GRANT IF EXISTS`` / ``REVOKE IF EXISTS`` is supported.
 
         MariaDB 10.1.4+ supports ``GRANT IF EXISTS`` and ``REVOKE IF EXISTS``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['GRANT_IF_EXISTS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['GRANT_IF_EXISTS'])
 
     def supports_deny(self) -> bool:
         """Whether ``DENY`` is supported (MariaDB 13.1+)."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['DENY']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['DENY'])
 
     def format_grant_statement(
         self,
-        expr: "MariaDBGrantExpression",
+        expr: "MariaDBGrantStatement",
     ) -> Tuple[str, tuple]:
         """Format ``GRANT [OR REPLACE] [IF EXISTS] priv ON obj TO acct``."""
         parts = ["GRANT"]
@@ -249,7 +249,7 @@ class MariaDBAdminMixin:
 
     def format_revoke_statement(
         self,
-        expr: "MariaDBRevokeExpression",
+        expr: "MariaDBRevokeStatement",
     ) -> Tuple[str, tuple]:
         """Format ``REVOKE [IF EXISTS] priv ON obj FROM acct``."""
         parts = ["REVOKE"]
@@ -270,7 +270,7 @@ class MariaDBAdminMixin:
 
     def format_deny_statement(
         self,
-        expr: "MariaDBDenyExpression",
+        expr: "MariaDBDenyStatement",
     ) -> Tuple[str, tuple]:
         """Format ``DENY priv ON obj TO acct`` (MariaDB 13.1+)."""
         if not self.supports_deny():

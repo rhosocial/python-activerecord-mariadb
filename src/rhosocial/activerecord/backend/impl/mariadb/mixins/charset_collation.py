@@ -14,7 +14,7 @@ from enum import Enum
 from typing import FrozenSet, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.collation import CollateExpression
+    from rhosocial.activerecord.backend.expression.collation import CollateFunction
 
 __all__ = [
     "MariaDBCharset",
@@ -24,8 +24,15 @@ __all__ = [
 ]
 
 
-class MariaDBCharset(Enum):
-    """MariaDB character sets for table/column ``CHARACTER SET``."""
+class MariaDBCharset(str, Enum):
+    """MariaDB character sets for table/column ``CHARACTER SET``.
+
+    A closed set, so it takes an enum with a ``str`` base and ``__str__``
+    pinned to ``str.__str__``: the member is the word it carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     ARMSCII8 = "armscii8"
     ASCII = "ascii"
@@ -80,8 +87,14 @@ class MariaDBCharset(Enum):
     UTF32 = "utf32"
 
 
-class MariaDBStorageEngine(Enum):
-    """Built-in MariaDB storage engines for ``ENGINE=<name>``."""
+class MariaDBStorageEngine(str, Enum):
+    """Built-in MariaDB storage engines for ``ENGINE=<name>``.
+
+    The same closed-set spelling as :class:`MariaDBCharset`.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     INNODB = "InnoDB"
     MYISAM = "MyISAM"
@@ -97,8 +110,14 @@ class MariaDBStorageEngine(Enum):
     PERFORMANCE_SCHEMA = "PERFORMANCE_SCHEMA"
 
 
-class MariaDBCollation(Enum):
-    """Common MariaDB collations for expression-level COLLATE."""
+class MariaDBCollation(str, Enum):
+    """Common MariaDB collations for expression-level COLLATE.
+
+    The same closed-set spelling as :class:`MariaDBCharset`.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     BINARY = "binary"
     LATIN1_SWEDISH_CI = "latin1_swedish_ci"
@@ -184,13 +203,23 @@ class MariaDBCharsetCollationMixin:
         """MariaDB supports expression-level COLLATE."""
         return True
 
-    def validate_collation_name(self, expr: "CollateExpression") -> str:
-        """Validate a ``CollateExpression`` and return its collation SQL."""
+    def validate_collation_name(self, expr: "CollateFunction") -> str:
+        """Validate a ``CollateFunction`` and return its collation SQL.
+
+        MariaDB has no schema-qualified spelling for COLLATE -- a collation
+        names a charset's rule set and lives in no namespace -- so a schema
+        qualifier is refused by name rather than dropped. The open options
+        bag this used to read is gone from the node's contract; a qualifier
+        that reaches it now arrives through the ``schema`` parameter.
+        """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        if expr.collation_options:
-            unsupported = ", ".join(sorted(expr.collation_options))
-            raise UnsupportedFeatureError(self.name, f"COLLATE options: {unsupported}")
+        if expr.schema:
+            raise UnsupportedFeatureError(
+                self.name,
+                f"COLLATE schema qualifier: {expr.schema}",
+                "MariaDB collations are not schema-qualified; pass the bare collation name.",
+            )
         return self.validate_collation_by_name(expr.collation_name)
 
     # --- charset ---------------------------------------------------------

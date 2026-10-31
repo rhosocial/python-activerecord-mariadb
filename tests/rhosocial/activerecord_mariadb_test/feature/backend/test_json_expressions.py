@@ -67,15 +67,25 @@ class TestMySQLJSONObjectExpression:
         assert 'name' in params
         assert 'age' in params
     
-    def test_json_object_with_kwargs(self):
-        """Test JSON object creation with keyword arguments."""
+    def test_json_object_with_named_entries(self):
+        """Test JSON object creation from named entries.
+
+        The pairs ride the one declared parameter, ``data``, which takes a
+        mapping. The ``**kwargs`` channel this case used to write was removed
+        with the named-parameter contract: an artifact names its parameters,
+        so a catch-all accepted names no artifact could carry and let a
+        mistyped one through silently (wire §4.11.4).
+        """
         dialect = MariaDBDialect(version=(8, 0, 0))
-        
-        expr = MariaDBJSONObjectExpression(dialect, name='John', age=30).as_('obj')
+
+        expr = MariaDBJSONObjectExpression(
+            dialect, data={'name': 'John', 'age': 30}
+        ).as_('obj')
         sql, params = expr.to_sql()
-        
+
         assert 'JSON_OBJECT' in sql
         assert 'AS `obj`' in sql
+        assert params == ('name', 'John', 'age', 30)
 
 
 class TestMySQLJSONArrayExpression:

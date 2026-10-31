@@ -26,16 +26,16 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -43,11 +43,11 @@ from rhosocial.activerecord.backend.expression.types import (
     DecimalType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'sales_data'),
     columns=[
@@ -56,8 +56,7 @@ create_table = CreateTableExpression(
             'id',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(dialect, 'salesperson', VarCharType(dialect, 100)),
@@ -69,7 +68,7 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'sales_data'),
     columns=['salesperson', 'region', 'amount'],
@@ -91,14 +90,14 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
-    QueryExpression,
+    QueryStatement,
     Column,
     WindowSpecification,
     OrderByClause,
 )
 from rhosocial.activerecord.backend.expression.core import FunctionCall
 
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, 'salesperson'),

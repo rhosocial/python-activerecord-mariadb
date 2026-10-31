@@ -110,7 +110,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """Alias for :meth:`supports_json_arrow_operators`."""
         ...
 
-    def format_json_extract(
+    def format_json_extract_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -135,7 +135,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_object(
+    def format_json_object_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -149,7 +149,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_array(self, expr: Any) -> Tuple[str, tuple]:
+    def format_json_array_expression(self, expr: Any) -> Tuple[str, tuple]:
         """Format JSON_ARRAY function call.
 
         Args:
@@ -160,7 +160,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_contains(
+    def format_json_contains_expression(
         self,
         expr: Any,
     ) -> Tuple[str, tuple]:
@@ -342,6 +342,23 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
 
         Args:
             expr: JsonTableExpression instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_mariadb_json_table_column(
+        self, column: Any
+    ) -> Tuple[str, tuple]:
+        """Render one entry of a MariaDB ``JSON_TABLE`` column list.
+
+        MariaDB's column carries ``FOR ORDINALITY``, ``EXISTS`` and the error
+        handling, none of which the core column has, so the two shapes render
+        through separate paths rather than one branching on the instance.
+
+        Args:
+            column: MariaDBJSONTableColumn instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

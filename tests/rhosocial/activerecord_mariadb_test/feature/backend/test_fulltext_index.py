@@ -10,11 +10,11 @@ This module tests MariaDB-specific FULLTEXT index functionality including:
 import pytest
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateFulltextIndexExpression,
-    DropFulltextIndexExpression
+    CreateFulltextIndexStatement,
+    DropFulltextIndexStatement
 )
 from rhosocial.activerecord.backend.expression.statements.fulltext_match import (
-    FulltextMatchExpression,
+    FulltextMatch,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBMatchAgainstExpression
 from rhosocial.activerecord.backend.expression.objects import (
@@ -35,7 +35,7 @@ class TestFullTextProtocol:
         assert dialect_100.supports_fulltext_index()
 
     def test_format_match_against(self):
-        """Test format_match_against method via expression."""
+        """Test format_match_against_expression method via expression."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
         expr = MariaDBMatchAgainstExpression(
@@ -103,7 +103,7 @@ class TestFullTextProtocol:
         """Test MATCH ... AGAINST with natural language mode."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        expr = FulltextMatchExpression(dialect, ['title', 'content'], 'database system')
+        expr = FulltextMatch(dialect, ['title', 'content'], 'database system')
         sql, params = dialect.format_fulltext_match(expr)
 
         assert 'MATCH(`title`, `content`)' in sql
@@ -115,7 +115,7 @@ class TestFullTextProtocol:
         """Test MATCH ... AGAINST with boolean mode."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        expr = FulltextMatchExpression(
+        expr = FulltextMatch(
             dialect, ['title', 'content'], '+database +system', mode='BOOLEAN'
         )
         sql, params = dialect.format_fulltext_match(expr)
@@ -129,7 +129,7 @@ class TestFullTextProtocol:
         """Test MATCH ... AGAINST with query expansion."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        expr = FulltextMatchExpression(
+        expr = FulltextMatch(
             dialect, ['content'], 'database', mode='WITH QUERY EXPANSION'
         )
         sql, params = dialect.format_fulltext_match(expr)
@@ -143,7 +143,7 @@ class TestFullTextProtocol:
         """Test CREATE FULLTEXT INDEX statement formatting."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        expr = CreateFulltextIndexExpression(
+        expr = CreateFulltextIndexStatement(
             dialect=dialect,
             index=Index(dialect, 'idx_content'),
             table=Table(dialect, 'articles'),
@@ -161,7 +161,7 @@ class TestFullTextProtocol:
         """Test CREATE FULLTEXT INDEX with parser plugin."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        expr = CreateFulltextIndexExpression(
+        expr = CreateFulltextIndexStatement(
             dialect=dialect,
             index=Index(dialect, 'idx_content'),
             table=Table(dialect, 'articles'),
@@ -189,7 +189,7 @@ class TestAsyncFullTextProtocol:
         """Test async version of MATCH formatting."""
         dialect = MariaDBDialect(version=(10, 6, 0))
 
-        expr = FulltextMatchExpression(dialect, ['title'], 'test', mode='BOOLEAN')
+        expr = FulltextMatch(dialect, ['title'], 'test', mode='BOOLEAN')
         sql, params = dialect.format_fulltext_match(expr)
 
         assert 'MATCH(`title`)' in sql

@@ -36,11 +36,11 @@ from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     AutoIncrementClause,
     ColumnConstraint,
-    ColumnConstraintType,
     ColumnDefinition,
-    CreateTableExpression,
-    DropTableExpression,
+    CreateTableStatement,
+    DropTableStatement,
     IdentityClause,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
@@ -130,15 +130,13 @@ def _create_table(dialect, name, *, auto_increment=False, identity=None):
     ``identity`` selects an AR-layer :class:`IdentityAttribute` (the standard
     clause path). The two never combine: they are different mechanisms.
     """
-    constraints = [ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]
+    constraints = [ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]
     if auto_increment:
         constraints = [
-            ColumnConstraint(
-                dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True
-            )
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
         ]
     attributes = [IdentityAttribute(**identity)] if identity is not None else []
-    return CreateTableExpression(
+    return CreateTableStatement(
         dialect,
         Table(dialect, name),
         [
@@ -247,7 +245,7 @@ class TestExecutionConfirmation:
             sentinel_backend,
             expression,
             prepare=[("DROP TABLE IF EXISTS `ident_round_ok`", ())],
-            teardown=[DropTableExpression(dialect, table)],
+            teardown=[DropTableStatement(dialect, table)],
         )
 
         assert outcome is ExecutionOutcome.ACCEPTED
@@ -286,7 +284,7 @@ class TestExecutionConfirmation:
             sentinel_backend,
             expression,
             prepare=[("DROP TABLE IF EXISTS `ident_round_frame`", ())],
-            teardown=[DropTableExpression(dialect, table)],
+            teardown=[DropTableStatement(dialect, table)],
         )
         assert outcome is ExecutionOutcome.ACCEPTED
 

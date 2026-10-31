@@ -5,9 +5,10 @@ MariaDB-specific MATCH...AGAINST expression.
 This module provides MariaDBMatchAgainstExpression for MariaDB's full-text search functionality.
 """
 
+from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -17,8 +18,17 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class MatchAgainstMode:
-    """Full-text search mode constants."""
+class MatchAgainstMode(str, Enum):
+    """Full-text search modes, as the wire word form.
+
+    A closed set, so it takes an enum rather than string constants on a class:
+    the constant-class form accepted any string at the call site, which left
+    the set closed in the documentation only. The ``str`` base with ``__str__``
+    pinned to ``str.__str__`` makes the member the word it carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     NATURAL_LANGUAGE = "NATURAL LANGUAGE"
     BOOLEAN = "BOOLEAN"
@@ -28,7 +38,7 @@ class MatchAgainstMode:
 class MariaDBMatchAgainstExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """MariaDB MATCH...AGAINST expression.
 
@@ -75,7 +85,7 @@ class MariaDBMatchAgainstExpression(
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_match_against"
+        return "format_match_against_expression"
 
 
 __all__ = [

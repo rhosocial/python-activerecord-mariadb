@@ -26,16 +26,16 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -43,11 +43,11 @@ from rhosocial.activerecord.backend.expression.types import (
     DecimalType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'sales'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'sales'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'sales'),
     columns=[
@@ -56,8 +56,7 @@ create_table = CreateTableExpression(
             'id',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(dialect, 'product', VarCharType(dialect, 100)),
@@ -70,7 +69,7 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'sales'),
     columns=['product', 'quantity', 'price', 'region'],
@@ -92,18 +91,18 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
-    QueryExpression,
+    QueryStatement,
     Column,
     GroupByHavingClause,
 )
-from rhosocial.activerecord.backend.expression.core import FunctionCall
+from rhosocial.activerecord.backend.expression import functions as F  # noqa: E402
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, 'product'),
-        FunctionCall(dialect, 'SUM', Column(dialect, 'quantity')).as_('total_qty'),
-        FunctionCall(dialect, 'AVG', Column(dialect, 'price')).as_('avg_price'),
+        F.sum_(dialect, Column(dialect, 'quantity'), alias='total_qty'),
+        F.avg(dialect, Column(dialect, 'price'), alias='avg_price'),
     ],
     from_=Table(dialect, 'sales'),
     group_by_having=GroupByHavingClause(
@@ -112,7 +111,7 @@ query = QueryExpression(
         having=ComparisonPredicate(
             dialect,
             '>',
-            FunctionCall(dialect, 'SUM', Column(dialect, 'quantity')),
+            F.sum_(dialect, Column(dialect, 'quantity')),
             Literal(dialect, 10),
         ),
     ),

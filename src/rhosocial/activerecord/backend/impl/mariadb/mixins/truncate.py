@@ -7,7 +7,7 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
-        TruncateExpression,
+        TruncateStatement,
     )
 
 
@@ -75,9 +75,9 @@ class MariaDBTruncateMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['TRUNCATE_WAIT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['TRUNCATE_WAIT'])
 
-    def format_truncate_statement(self, expr: "TruncateExpression") -> Tuple[str, tuple]:
+    def format_truncate_statement(self, expr: "TruncateStatement") -> Tuple[str, tuple]:
         """Format MariaDB ``TRUNCATE [TABLE] tbl_name [WAIT n | NOWAIT]``.
 
         Each two-spelling modifier carries one parameter per spelling --
@@ -98,7 +98,7 @@ class MariaDBTruncateMixin:
 
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"TruncateExpression.table must be a Table, "
+                f"TruncateStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if not self.supports_truncate():
@@ -142,11 +142,20 @@ class MariaDBTruncateMixin:
         table_sql, _ = expr.table.to_sql()
         sql = f"TRUNCATE TABLE {table_sql}{identity}{behavior}"
 
+        # The WAIT/NOWAIT modifiers belong to the MariaDB node's contract:
+        # the core ``TruncateStatement`` declares neither, so which fields
+        # exist is a question about the class and is answered with isinstance
+        # rather than probed off the instance.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.truncate import (
+            MariaDBTruncateExpression,
+        )
+
         wait = None
-        if getattr(expr, "nowait", False):
-            wait = "NOWAIT"
-        elif getattr(expr, "wait", None) is not None:
-            wait = f"WAIT {int(expr.wait)}"
+        if isinstance(expr, MariaDBTruncateExpression):
+            if expr.nowait:
+                wait = "NOWAIT"
+            elif expr.wait is not None:
+                wait = f"WAIT {int(expr.wait)}"
         if wait is not None:
             if not self.supports_truncate_wait():
                 raise UnsupportedFeatureError(

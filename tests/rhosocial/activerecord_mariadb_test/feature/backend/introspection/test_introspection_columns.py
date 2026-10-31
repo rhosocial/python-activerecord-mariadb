@@ -9,7 +9,7 @@ for retrieving column metadata.
 import pytest
 
 from rhosocial.activerecord.backend.introspection.types import (
-    ColumnInfo,
+    IntrospectionColumnInfo,
     ColumnNullable,
 )
 
@@ -18,14 +18,14 @@ class TestListColumns:
     """Tests for list_columns method."""
 
     def test_list_columns_returns_column_info(self, backend_with_tables):
-        """Test that list_columns returns ColumnInfo objects."""
+        """Test that list_columns returns IntrospectionColumnInfo objects."""
         columns = backend_with_tables.introspector.list_columns("users")
 
         assert isinstance(columns, list)
         assert len(columns) > 0
 
         for col in columns:
-            assert isinstance(col, ColumnInfo)
+            assert isinstance(col, IntrospectionColumnInfo)
 
     def test_list_columns_users_table(self, backend_with_tables):
         """Test columns for users table."""
@@ -63,7 +63,7 @@ class TestGetColumnInfo:
         col = backend_with_tables.introspector.get_column_info("users", "email")
 
         assert col is not None
-        assert isinstance(col, ColumnInfo)
+        assert isinstance(col, IntrospectionColumnInfo)
         assert col.name == "email"
 
     def test_get_column_info_nonexistent_column(self, backend_with_tables):
@@ -216,7 +216,7 @@ class TestColumnInfoDetails:
 
 
 class TestParsedDataType:
-    """``ColumnInfo.parsed_data_type`` is populated for every column.
+    """``IntrospectionColumnInfo.parsed_data_type`` is populated for every column.
 
     The field is what makes the schema differ compare *type objects* instead of
     the ``data_type`` string. Core's ``SchemaDiffer._columns_equivalent`` reads
@@ -227,7 +227,7 @@ class TestParsedDataType:
     and for ``int(10) unsigned``, ``varchar`` for ``varchar(100)`` and
     ``varchar(200)``, ``enum`` for any two sets of labels.
 
-    Every other backend populates it in ``_parse_columns`` via
+    Every other backend populates it in ``parse_columns`` via
     ``DataType.parse_data_type_str(dialect, raw)``, and so does this one now.
     """
 
@@ -278,7 +278,7 @@ class TestParsedDataType:
 
         def column(width):
             text = f"varchar({width})"
-            return ColumnInfo(
+            return IntrospectionColumnInfo(
                 name="c", table_name="t", ordinal_position=1,
                 data_type="varchar", data_type_full=text,
                 parsed_data_type=backend_with_tables.dialect.parse_type(text),
@@ -338,7 +338,7 @@ class TestParsedDataType:
         try:
             DataType.parse_data_type_str = staticmethod(explode)
             with pytest.warns(RuntimeWarning, match="some type not a name"):
-                columns = introspector._parse_columns(rows, "t", "d")
+                columns = introspector.parse_columns(rows, "t", "d")
         finally:
             DataType.parse_data_type_str = original
 
@@ -442,14 +442,14 @@ class TestAsyncColumnIntrospection:
 
     @pytest.mark.asyncio
     async def test_async_list_columns(self, async_backend_with_tables):
-        """Test async list_columns returns ColumnInfo objects."""
+        """Test async list_columns returns IntrospectionColumnInfo objects."""
         columns = await async_backend_with_tables.introspector.list_columns("users")
 
         assert isinstance(columns, list)
         assert len(columns) > 0
 
         for col in columns:
-            assert isinstance(col, ColumnInfo)
+            assert isinstance(col, IntrospectionColumnInfo)
 
     @pytest.mark.asyncio
     async def test_async_get_column_info(self, async_backend_with_tables):
@@ -457,7 +457,7 @@ class TestAsyncColumnIntrospection:
         col = await async_backend_with_tables.introspector.get_column_info("users", "email")
 
         assert col is not None
-        assert isinstance(col, ColumnInfo)
+        assert isinstance(col, IntrospectionColumnInfo)
         assert col.name == "email"
 
     @pytest.mark.asyncio

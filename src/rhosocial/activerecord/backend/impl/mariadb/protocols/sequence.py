@@ -13,17 +13,17 @@ declared in one place:
   clause, so those probes answer ``False``.
 
 The three statement formatters take the expression core dispatches with, so a
-core ``CreateSequenceExpression`` / ``DropSequenceExpression`` /
-``AlterSequenceExpression`` renders through this backend.
+core ``CreateSequenceStatement`` / ``DropSequenceStatement`` /
+``AlterSequenceStatement`` renders through this backend.
 """
 
 from typing import Protocol, Tuple, runtime_checkable, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements import (
-        AlterSequenceExpression,
-        CreateSequenceExpression,
-        DropSequenceExpression,
+        AlterSequenceStatement,
+        CreateSequenceStatement,
+        DropSequenceStatement,
     )
 
 
@@ -125,19 +125,19 @@ class MariaDBSequenceSupport(Protocol):
         ...
 
     def format_create_sequence_statement(
-        self, expr: "CreateSequenceExpression"
+        self, expr: "CreateSequenceStatement"
     ) -> Tuple[str, tuple]:
         """Format CREATE SEQUENCE statement (MariaDB syntax)."""
         ...
 
     def format_drop_sequence_statement(
-        self, expr: "DropSequenceExpression"
+        self, expr: "DropSequenceStatement"
     ) -> Tuple[str, tuple]:
         """Format DROP SEQUENCE statement (MariaDB syntax)."""
         ...
 
     def format_alter_sequence_statement(
-        self, expr: "AlterSequenceExpression"
+        self, expr: "AlterSequenceStatement"
     ) -> Tuple[str, tuple]:
         """Format ALTER SEQUENCE statement (MariaDB syntax)."""
         ...

@@ -3,7 +3,6 @@
 
 import io
 import json
-import uuid
 from contextlib import redirect_stderr, redirect_stdout
 
 import pytest
@@ -107,17 +106,7 @@ class TestInfo:
         assert "MariaDB" in out or "mariadb" in out
 
 
-INTROSPECT_TABLE = "cli_introspect_types"
 INTROSPECT_MISSING_TABLE = "cli_introspect_does_not_exist"
-
-
-@pytest.fixture(scope="module")
-def introspect_table(conn_args):
-    table_name = f"{INTROSPECT_TABLE}_{uuid.uuid4().hex[:8]}"
-    run_cli(["query"] + conn_args + [f"DROP TABLE IF EXISTS {table_name}"])
-    run_cli(["query"] + conn_args + [f"CREATE TABLE {table_name} (id INT, name VARCHAR(50))"])
-    yield table_name
-    run_cli(["query"] + conn_args + [f"DROP TABLE IF EXISTS {table_name}"])
 
 
 class TestIntrospectTypes:
@@ -128,20 +117,6 @@ class TestIntrospectTypes:
 
     def test_views_async(self, conn_args):
         out, err, exc = run_cli(["introspect", "views"] + conn_args + ["-o", "json", "--async"])
-        assert exc is None, f"stderr: {err}\nstdout: {out}"
-        assert isinstance(json.loads(out), list)
-
-    def test_table(self, conn_args, introspect_table):
-        out, err, exc = run_cli(
-            ["introspect", "table", introspect_table] + conn_args + ["-o", "json"]
-        )
-        assert exc is None, f"stderr: {err}\nstdout: {out}"
-        assert isinstance(json.loads(out), list)
-
-    def test_table_async(self, conn_args, introspect_table):
-        out, err, exc = run_cli(
-            ["introspect", "table", introspect_table] + conn_args + ["-o", "json", "--async"]
-        )
         assert exc is None, f"stderr: {err}\nstdout: {out}"
         assert isinstance(json.loads(out), list)
 

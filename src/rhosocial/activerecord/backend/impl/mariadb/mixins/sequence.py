@@ -10,9 +10,9 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_sequence import (
-        CreateSequenceExpression,
-        DropSequenceExpression,
-        AlterSequenceExpression,
+        CreateSequenceStatement,
+        DropSequenceStatement,
+        AlterSequenceStatement,
     )
 
 
@@ -21,7 +21,7 @@ class MariaDBSequenceMixin:
 
     The three statement formatters below take the expression core dispatches
     with, exactly like ``format_create_table_statement`` does. Core's
-    ``CreateSequenceExpression.to_sql()`` and its two siblings pass *themselves*
+    ``CreateSequenceStatement.to_sql()`` and its two siblings pass *themselves*
     to ``format_create_sequence_statement`` / ``_drop_`` / ``_alter_``, because
     the sequence they name is a :class:`~...expression.objects.Sequence` whose
     own ``format_method`` applies the namespace. MariaDB keeps its own
@@ -68,7 +68,7 @@ class MariaDBSequenceMixin:
         Returns:
             True if MariaDB version >= 10.3.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['SEQUENCE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['SEQUENCE'])
 
     def supports_create_sequence(self) -> bool:
         """Whether CREATE SEQUENCE is supported.
@@ -246,7 +246,7 @@ class MariaDBSequenceMixin:
 
     def format_create_sequence_statement(
         self,
-        expr: "CreateSequenceExpression",
+        expr: "CreateSequenceStatement",
     ) -> Tuple[str, tuple]:
         """Format CREATE SEQUENCE statement.
 
@@ -268,7 +268,7 @@ class MariaDBSequenceMixin:
         negative forms ``NOCYCLE`` and ``NOCACHE``.
 
         Args:
-            expr: CreateSequenceExpression carrying the sequence name and the
+            expr: CreateSequenceStatement carrying the sequence name and the
                 optional start, increment, min/max value, cache, cycle,
                 if-not-exists, order and owned-by options.
 
@@ -287,7 +287,7 @@ class MariaDBSequenceMixin:
 
         if not isinstance(expr.sequence, Sequence):
             raise TypeError(
-                f"CreateSequenceExpression.sequence must be a Sequence, "
+                f"CreateSequenceStatement.sequence must be a Sequence, "
                 f"got {type(expr.sequence).__name__}"
             )
         if not self.supports_sequence():
@@ -395,12 +395,12 @@ class MariaDBSequenceMixin:
 
     def format_drop_sequence_statement(
         self,
-        expr: "DropSequenceExpression",
+        expr: "DropSequenceStatement",
     ) -> Tuple[str, tuple]:
         """Format DROP SEQUENCE statement.
 
         Args:
-            expr: DropSequenceExpression carrying the sequence name and the
+            expr: DropSequenceStatement carrying the sequence name and the
                 optional if-exists flag.
 
         Returns:
@@ -416,7 +416,7 @@ class MariaDBSequenceMixin:
 
         if not isinstance(expr.sequence, Sequence):
             raise TypeError(
-                f"DropSequenceExpression.sequence must be a Sequence, "
+                f"DropSequenceStatement.sequence must be a Sequence, "
                 f"got {type(expr.sequence).__name__}"
             )
         if not self.supports_sequence():
@@ -447,7 +447,7 @@ class MariaDBSequenceMixin:
 
     def format_alter_sequence_statement(
         self,
-        expr: "AlterSequenceExpression",
+        expr: "AlterSequenceStatement",
     ) -> Tuple[str, tuple]:
         """Format ALTER SEQUENCE statement.
 
@@ -460,7 +460,7 @@ class MariaDBSequenceMixin:
         negative forms ``NOCYCLE`` and ``NOCACHE``.
 
         Args:
-            expr: AlterSequenceExpression carrying the sequence name and the
+            expr: AlterSequenceStatement carrying the sequence name and the
                 options to change (restart, start, increment, min/max value,
                 cycle, cache, order and owned-by).
 
@@ -479,7 +479,7 @@ class MariaDBSequenceMixin:
 
         if not isinstance(expr.sequence, Sequence):
             raise TypeError(
-                f"AlterSequenceExpression.sequence must be a Sequence, "
+                f"AlterSequenceStatement.sequence must be a Sequence, "
                 f"got {type(expr.sequence).__name__}"
             )
         if not self.supports_sequence():

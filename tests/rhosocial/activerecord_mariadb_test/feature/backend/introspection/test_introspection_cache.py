@@ -26,8 +26,8 @@ class TestCacheManagement:
         # Clear cache
         backend_with_tables.introspector.clear_cache()
 
-        # Verify cache is empty by checking internal cache dict
-        assert len(backend_with_tables.introspector._cache) == 0
+        # Verify the cache component is empty by checking the cache component
+        assert len(backend_with_tables.introspector.cache) == 0
 
     def test_cache_hit(self, backend_with_tables):
         """Test that cached results are returned."""
@@ -63,7 +63,7 @@ class TestInvalidateIntrospectionCache:
         # Invalidate all
         backend_with_tables.introspector.invalidate_cache()
 
-        assert len(backend_with_tables.introspector._cache) == 0
+        assert len(backend_with_tables.introspector.cache) == 0
 
     def test_invalidate_specific_scope(self, backend_with_tables):
         """Test invalidating specific scope."""
@@ -76,12 +76,10 @@ class TestInvalidateIntrospectionCache:
             scope=IntrospectionScope.DATABASE
         )
 
-        # Database cache should be cleared
+        # Database cache should be cleared; the new result is a new object
         db_info2 = backend_with_tables.introspector.get_database_info()
-        # Check internal cache was cleared for database scope
-        db_cache_key = backend_with_tables.introspector._make_cache_key(IntrospectionScope.DATABASE)
-        # The new result should be cached now
         assert db_info2 is not None
+        assert db_info2 is not db_info
 
         # Table cache should still be cached
         tables2 = backend_with_tables.introspector.list_tables()
@@ -131,15 +129,13 @@ class TestCacheExpiration:
     """Tests for cache expiration behavior."""
 
     def test_cache_ttl(self, backend_with_tables):
-        """Test that cache has TTL configured."""
-        # Check that TTL is set
-        assert hasattr(backend_with_tables.introspector, "_cache_ttl")
-        assert backend_with_tables.introspector._cache_ttl > 0
+        """Test that the cache component has a TTL configured."""
+        assert backend_with_tables.introspector.cache.ttl > 0
 
     def test_expired_cache_not_returned(self, mariadb_backend_single):
         """Test that expired cache entries are not returned."""
-        # Set very short TTL
-        mariadb_backend_single.introspector._cache_ttl = 0.01  # 10ms
+        # Set very short TTL on the cache component
+        mariadb_backend_single.introspector.cache.ttl = 0.01  # 10ms
 
         # Get database info
         db_info1 = mariadb_backend_single.introspector.get_database_info()
@@ -158,8 +154,8 @@ class TestCacheThreadSafety:
     """Tests for cache thread safety."""
 
     def test_cache_lock_exists(self, backend_with_tables):
-        """Test that cache lock exists."""
-        assert hasattr(backend_with_tables.introspector, "_cache_lock")
+        """Test that the cache component carries its own lock."""
+        assert backend_with_tables.introspector.cache._lock is not None
 
     @pytest.mark.skip(reason="MariaDB connections are not thread-safe; concurrent DB access on a single connection is expected to fail")
     def test_concurrent_cache_access(self, backend_with_tables):
@@ -206,7 +202,7 @@ class TestCacheKeys:
 
     def test_cache_key_generation(self, mariadb_backend_single):
         """Test that cache keys are generated correctly."""
-        key = mariadb_backend_single.introspector._make_cache_key(
+        key = mariadb_backend_single.introspector.cache.key(
             IntrospectionScope.TABLE,
             "users",
             schema=mariadb_backend_single.config.database
@@ -217,7 +213,7 @@ class TestCacheKeys:
 
     def test_cache_key_with_extra(self, mariadb_backend_single):
         """Test cache key with extra component."""
-        key = mariadb_backend_single.introspector._make_cache_key(
+        key = mariadb_backend_single.introspector.cache.key(
             IntrospectionScope.TABLE,
             schema=mariadb_backend_single.config.database,
             extra="True"
@@ -228,15 +224,15 @@ class TestCacheKeys:
 
     def test_cache_key_uniqueness(self, mariadb_backend_single):
         """Test that different parameters produce different keys."""
-        key1 = mariadb_backend_single.introspector._make_cache_key(
+        key1 = mariadb_backend_single.introspector.cache.key(
             IntrospectionScope.TABLE,
             "users"
         )
-        key2 = mariadb_backend_single.introspector._make_cache_key(
+        key2 = mariadb_backend_single.introspector.cache.key(
             IntrospectionScope.TABLE,
             "posts"
         )
-        key3 = mariadb_backend_single.introspector._make_cache_key(
+        key3 = mariadb_backend_single.introspector.cache.key(
             IntrospectionScope.COLUMN,
             "users"
         )
@@ -260,8 +256,8 @@ class TestAsyncCacheManagement:
         # Clear cache
         async_backend_with_tables.introspector.clear_cache()
 
-        # Verify cache is empty
-        assert len(async_backend_with_tables.introspector._cache) == 0
+        # Verify the cache component is empty
+        assert len(async_backend_with_tables.introspector.cache) == 0
 
     @pytest.mark.asyncio
     async def test_async_cache_hit(self, async_backend_with_tables):
@@ -293,7 +289,7 @@ class TestAsyncCacheManagement:
         # Invalidate all
         async_backend_with_tables.introspector.invalidate_cache()
 
-        assert len(async_backend_with_tables.introspector._cache) == 0
+        assert len(async_backend_with_tables.introspector.cache) == 0
 
     @pytest.mark.asyncio
     async def test_async_invalidate_specific_scope(self, async_backend_with_tables):
@@ -307,9 +303,10 @@ class TestAsyncCacheManagement:
             scope=IntrospectionScope.DATABASE
         )
 
-        # Database cache should be cleared
+        # Database cache should be cleared; the new result is a new object
         db_info2 = await async_backend_with_tables.introspector.get_database_info()
         assert db_info2 is not None
+        assert db_info2 is not db_info
 
         # Table cache should still be cached
         tables2 = await async_backend_with_tables.introspector.list_tables()

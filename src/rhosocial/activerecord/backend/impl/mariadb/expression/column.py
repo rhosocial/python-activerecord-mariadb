@@ -37,16 +37,29 @@ __all__ = [
 ]
 
 
-class MariaDBColumnFormat(Enum):
-    """MariaDB ``COLUMN_FORMAT`` values."""
+class MariaDBColumnFormat(str, Enum):
+    """MariaDB ``COLUMN_FORMAT`` values.
+
+    A closed set, so it takes an enum with a ``str`` base and ``__str__``
+    pinned to ``str.__str__``: the member is the word it carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     FIXED = "FIXED"
     DYNAMIC = "DYNAMIC"
     DEFAULT = "DEFAULT"
 
 
-class MariaDBColumnStorage(Enum):
-    """MariaDB ``STORAGE`` values."""
+class MariaDBColumnStorage(str, Enum):
+    """MariaDB ``STORAGE`` values.
+
+    The same closed-set spelling as :class:`MariaDBColumnFormat`.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     DISK = "DISK"
     MEMORY = "MEMORY"

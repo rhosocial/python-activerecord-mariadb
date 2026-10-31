@@ -9,7 +9,7 @@ This module provides expression classes for MariaDB SET type operations:
 
 from typing import TYPE_CHECKING, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class MariaDBSetLiteralExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """MariaDB SET literal value expression.
 
@@ -55,13 +55,13 @@ class MariaDBSetLiteralExpression(
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_set_literal"
+        return "format_set_literal_expression"
 
 
 class MariaDBFindInSetExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """MariaDB FIND_IN_SET function expression.
 
@@ -94,13 +94,13 @@ class MariaDBFindInSetExpression(
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_find_in_set"
+        return "format_find_in_set_expression"
 
 
 class MariaDBSetContainsExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """MariaDB SET contains check expression.
 
@@ -133,7 +133,7 @@ class MariaDBSetContainsExpression(
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_set_contains"
+        return "format_set_contains_expression"
 
 
 __all__ = [

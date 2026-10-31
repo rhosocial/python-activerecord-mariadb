@@ -9,14 +9,15 @@ import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
+    CreateTableStatement,
+    DropTableStatement,
 )
-from rhosocial.activerecord.backend.expression.functions.datetime import current_timestamp
+from rhosocial.activerecord.backend.expression import functions as F
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -42,11 +43,11 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'logs'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'logs'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'logs'),
     columns=[
@@ -55,8 +56,7 @@ create_table = CreateTableExpression(
             'id',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(dialect, 'level', VarCharType(dialect, 20)),
@@ -66,11 +66,7 @@ create_table = CreateTableExpression(
             'created_at',
             TimestampType(dialect),
             constraints=[
-                ColumnConstraint(
-                    dialect,
-                    ColumnConstraintType.DEFAULT,
-                    default_value=current_timestamp(dialect),
-                ),
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
             ],
         ),
     ],
@@ -83,13 +79,13 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
-    InsertExpression,
+    InsertStatement,
     ValuesSource,
-    QueryExpression,
+    QueryStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, WildcardExpression, Column
+from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column
 from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
-insert_expr = InsertExpression(
+insert_expr = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'logs'),
     source=ValuesSource(
@@ -114,9 +110,9 @@ print(f"Params: {params}")
 result = backend.execute(sql, params)
 print(f"Affected rows: {result.affected_rows}")
 
-verify_query = QueryExpression(
+verify_query = QueryStatement(
     dialect=dialect,
-    select=[WildcardExpression(dialect)],
+    select=[AllColumnsWildcard(dialect)],
     from_=Table(dialect, 'logs'),
     order_by=OrderByClause(dialect, [Column(dialect, 'id')]),
 )

@@ -43,7 +43,19 @@ MARIADB_VERSION_BOUNDARIES = {
     'RETURNING': (10, 5, 0),
     'EXPLAIN_FORMAT': (10, 6, 0),
     'INSTEAD_OF_TRIGGER': (10, 4, 0),
-    'SKIP_LOCKED': (10, 3, 0),
+    # The two FOR UPDATE wait modifiers do not travel together on MariaDB,
+    # so they get separate keys -- core's own ``supports_for_update_nowait``
+    # docstring spells out why a shared probe would have to be answered
+    # True for a dialect that rejects half the requests it admits.
+    # Measured live on the 15-server grid (each statement is a
+    # parse-or-reject probe):
+    #   FOR UPDATE NOWAIT     errno 1064 on 10.2.44, accepted from 10.3.39.
+    #   FOR UPDATE SKIP LOCKED errno 1064 on 10.3.39, 10.4.34, 10.5.29,
+    #                       accepted from 10.6.28.
+    # The pair previously shared one 10.3.0 key, which answered NOWAIT for
+    # the whole 10.3-10.5 range the server rejects SKIP LOCKED on.
+    'FOR_UPDATE_NOWAIT': (10, 3, 0),
+    'SKIP_LOCKED': (10, 6, 0),
     'RENAME_TABLE_IF_EXISTS': (10, 5, 0),
     'RENAME_TABLE_WAIT': (10, 3, 0),
     'TRUNCATE_WAIT': (10, 3, 0),
@@ -191,6 +203,27 @@ class MariaDBBackendMixin:
             self._logger.log(level, message)
         else:
             print(f"[{logging.getLevelName(level)}] {message}")
+
+    def _liveness_probe(self) -> Tuple[str, tuple]:
+        """The statement that answers "is this connection still usable?".
+
+        Rendered once per backend and kept, because this runs before *every*
+        query and a probe is the one statement whose text never varies. It is a
+        node like any other: the engine is asked for a constant, no relation is
+        read.
+        """
+        cached = getattr(self, "_liveness_probe_sql", None)
+        if cached is None:
+            from rhosocial.activerecord.backend.expression import (
+                Literal,
+                QueryStatement,
+            )
+
+            cached = QueryStatement(
+                self.dialect, select=[Literal(self.dialect, 1, inline=True)]
+            ).to_sql()
+            self._liveness_probe_sql = cached
+        return cached
 
     def _apply_result_mapping(
         self,

@@ -9,7 +9,7 @@ from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.maintenance import (
-        MariaDBTableMaintenanceExpression,
+        MariaDBTableMaintenanceStatement,
     )
 
 
@@ -51,11 +51,11 @@ class MariaDBMaintenanceMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= (10, 5, 0)
+        return self.version_at_least((10, 5, 0))
 
     def format_table_maintenance_statement(
         self,
-        expr: "MariaDBTableMaintenanceExpression",
+        expr: "MariaDBTableMaintenanceStatement",
     ) -> Tuple[str, tuple]:
         """Format a MariaDB table maintenance statement."""
         expr.validate(strict=self.strict_validation)

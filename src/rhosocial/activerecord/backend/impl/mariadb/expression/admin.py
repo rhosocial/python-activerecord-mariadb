@@ -22,8 +22,17 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class FlushOption(Enum):
-    """FLUSH statement options."""
+class FlushOption(str, Enum):
+    """FLUSH statement options.
+
+    A ``str`` base with ``__str__`` pinned to ``str.__str__`` so the member
+    spells itself as its own word: an enum whose ``str()`` is the repr-shaped
+    spelling writes ``FlushOption.TABLES`` into anything that stringifies it,
+    and only the ``str`` base makes the member the scalar an artifact carries.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     TABLES = "TABLES"
     TABLES_WITH_READ_LOCK = "TABLES WITH READ LOCK"
@@ -46,14 +55,22 @@ class FlushOption(Enum):
     SLAVE = "SLAVE"
 
 
-class KillTarget(Enum):
-    """KILL target selector."""
+class KillTarget(str, Enum):
+    """KILL target selector.
+
+    The closed set takes an enum with a ``str`` base and ``__str__`` pinned to
+    ``str.__str__``, so the member is the word an artifact carries and no
+    formatting site has to unwrap it.
+    """
+
+    #: A member *is* the word it carries (org rules §11.3).
+    __str__ = str.__str__
 
     CONNECTION = "CONNECTION"
     QUERY = "QUERY"
 
 
-class MariaDBFlushExpression(BaseExpression):
+class MariaDBFlushStatement(BaseExpression):
     """Represent ``FLUSH`` with one or more options."""
 
     def __init__(
@@ -77,7 +94,7 @@ class MariaDBFlushExpression(BaseExpression):
         return self.dialect.format_flush_statement(self)
 
 
-class MariaDBKillExpression(BaseExpression):
+class MariaDBKillStatement(BaseExpression):
     """Represent ``KILL [CONNECTION | QUERY] processlist_id``."""
 
     def __init__(
@@ -94,7 +111,7 @@ class MariaDBKillExpression(BaseExpression):
         return self.dialect.format_kill_statement(self)
 
 
-class MariaDBShutdownExpression(BaseExpression):
+class MariaDBShutdownStatement(BaseExpression):
     """Represent the ``SHUTDOWN`` statement."""
 
     def __init__(
@@ -118,7 +135,7 @@ class AccountSpec:
         return f"AccountSpec(user={self.user!r}, host={self.host!r})"
 
 
-class MariaDBCreateUserExpression(BaseExpression):
+class MariaDBCreateUserStatement(BaseExpression):
     """Represent ``CREATE USER [IF NOT EXISTS] 'user'@'host' [IDENTIFIED BY ...]``."""
 
     def __init__(
@@ -138,7 +155,7 @@ class MariaDBCreateUserExpression(BaseExpression):
         return self.dialect.format_create_user_statement(self)
 
 
-class MariaDBAlterUserExpression(BaseExpression):
+class MariaDBAlterUserStatement(BaseExpression):
     """Represent ``ALTER USER [IF EXISTS] 'user'@'host' [IDENTIFIED BY ...]``."""
 
     def __init__(
@@ -158,7 +175,7 @@ class MariaDBAlterUserExpression(BaseExpression):
         return self.dialect.format_alter_user_statement(self)
 
 
-class MariaDBDropUserExpression(BaseExpression):
+class MariaDBDropUserStatement(BaseExpression):
     """Represent ``DROP USER [IF EXISTS] 'user'@'host' [, ...]``."""
 
     def __init__(
@@ -176,7 +193,7 @@ class MariaDBDropUserExpression(BaseExpression):
         return self.dialect.format_drop_user_statement(self)
 
 
-class MariaDBCreateRoleExpression(BaseExpression):
+class MariaDBCreateRoleStatement(BaseExpression):
     """Represent ``CREATE ROLE [IF NOT EXISTS] role [, role ...]``."""
 
     def __init__(
@@ -194,7 +211,7 @@ class MariaDBCreateRoleExpression(BaseExpression):
         return self.dialect.format_create_role_statement(self)
 
 
-class MariaDBDropRoleExpression(BaseExpression):
+class MariaDBDropRoleStatement(BaseExpression):
     """Represent ``DROP ROLE [IF EXISTS] role [, role ...]``."""
 
     def __init__(
@@ -231,7 +248,7 @@ class GrantPrivilege:
         )
 
 
-class MariaDBGrantExpression(BaseExpression):
+class MariaDBGrantStatement(BaseExpression):
     """Represent ``GRANT [OR REPLACE] [IF EXISTS] priv_list ON object TO accounts``."""
 
     def __init__(
@@ -257,7 +274,7 @@ class MariaDBGrantExpression(BaseExpression):
         return self.dialect.format_grant_statement(self)
 
 
-class MariaDBRevokeExpression(BaseExpression):
+class MariaDBRevokeStatement(BaseExpression):
     """Represent ``REVOKE [IF EXISTS] priv_list ON object FROM accounts``."""
 
     def __init__(
@@ -279,7 +296,7 @@ class MariaDBRevokeExpression(BaseExpression):
         return self.dialect.format_revoke_statement(self)
 
 
-class MariaDBDenyExpression(BaseExpression):
+class MariaDBDenyStatement(BaseExpression):
     """Represent ``DENY priv_list ON object TO accounts`` (MariaDB 13.1+)."""
 
     def __init__(

@@ -25,7 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class MariaDBRenameTableExpression(BaseExpression):
+class MariaDBRenameTableStatement(BaseExpression):
     """Represent a MariaDB ``RENAME TABLE ...`` statement.
 
     Attributes:

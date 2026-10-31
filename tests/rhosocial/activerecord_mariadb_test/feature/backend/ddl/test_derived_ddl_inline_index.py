@@ -1,7 +1,7 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/ddl/test_derived_ddl_inline_index.py
 """MariaDB inline-index support for direct DDL expressions.
 
-The DDLSource index declaration is passed directly to CreateTableExpression
+The DDLSource index declaration is passed directly to CreateTableStatement
 on a dialect that advertises ``supports_inline_index()``.
 """
 
@@ -13,7 +13,7 @@ except ImportError:  # Python 3.8
 from rhosocial.activerecord.base import UseIndex
 from rhosocial.activerecord.backend.expression import (
     ColumnDefinition,
-    CreateTableExpression,
+    CreateTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
@@ -34,7 +34,7 @@ def mariadb_dialect():
 
 def _create_indexed_table():
     dialect = mariadb_dialect()
-    return CreateTableExpression(
+    return CreateTableStatement(
         dialect,
         Table(dialect, Indexed.__table_name__),
         columns=[

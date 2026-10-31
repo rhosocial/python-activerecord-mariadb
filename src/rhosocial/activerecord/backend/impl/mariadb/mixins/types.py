@@ -87,7 +87,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     * **Spelling.** A core concept that has several spellings declares them as
       a closed ``SPELLINGS`` list, and this mixin says which of them MariaDB
       renders. A spelling MariaDB does not write is refused by
-      ``_check_spelling`` with a message naming it; one it does write is
+      ``check_spelling`` with a message naming it; one it does write is
       normalised to MariaDB's own word. See the note above
       :meth:`_validate_fsp`.
     * **Correspondence.** Every core concept is declared — rendered here, or
@@ -184,6 +184,16 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         asks to be zero-padded, and it is ``True`` because that is the column
         MariaDB is about to build.
 
+        **The shape is judged before the value is read.** The expressions
+        collect ``unsigned`` without judging it — a value is not a wrong value
+        until a backend has to honour it, and this is the backend that has to,
+        so the non-bool arrives here rather than being refused at construction.
+        But ``UNSIGNED`` here is a *modifier* in the rendered DDL, and a truthy
+        string would render as one silently: ``unsigned="yes"`` would write
+        ``INT UNSIGNED`` and report success for a column nobody asked for, the
+        same silent loss the three-row table above is written to prevent. So the
+        shape is named, not guessed at.
+
         **``ZEROFILL`` reaches only the integer widths.** It is a MariaDB display
         attribute with no field on the exact/approximate concepts — core's
         ``FloatType`` carries ``precision`` and ``unsigned`` and nothing else,
@@ -219,10 +229,26 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             ``(sql, ())`` — the type word plus whatever attributes apply. Both
             attributes are column modifiers, never bound parameters.
 
+        Raises:
+            TypeError: if ``unsigned`` is not a ``bool`` — it becomes a type
+                modifier in the rendered DDL, so a truthy non-bool would render
+                ``UNSIGNED`` and report success.
+
         Official Documentation:
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        if data_type.unsigned:
+        # Direct read, not ``getattr(..., False)``: the field is on every concept
+        # routed through here, and probing for it would turn a caller passing the
+        # wrong class into the same silent render this guard exists to prevent.
+        # What arrives is what ``__init__`` normalised to, so a ``zerofill``
+        # declaration shows up as the ``True`` that column actually is.
+        unsigned = data_type.unsigned
+        if not isinstance(unsigned, bool):
+            raise TypeError(
+                f"unsigned must be a bool, got {type(unsigned).__name__}; it "
+                f"becomes a type modifier in the rendered DDL."
+            )
+        if unsigned:
             sql = f"{sql} UNSIGNED"
         # ``getattr`` rather than a direct read: this helper serves both
         # MariaDB's own width classes, which carry ``zerofill``, and the core
@@ -260,7 +286,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         rendered — the form the server itself writes into ``COLUMN_TYPE``, which
         is what makes ``parse_type`` able to read this backend's own output back.
         """
-        self._check_spelling(data_type, MariaDBMediumIntType)
+        self.check_spelling(data_type, MariaDBMediumIntType)
         return self._format_mariadb_integer("MEDIUMINT", data_type)
 
     def format_data_type_mariadb_int(self, data_type: MariaDBIntType) -> Tuple[str, tuple]:
@@ -485,7 +511,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, IntegerType)
+        self.check_spelling(data_type, IntegerType)
         return self._format_mariadb_integer("INT", data_type)
 
     def format_data_type_bigint(self, data_type: BigIntType) -> Tuple[str, tuple]:
@@ -507,7 +533,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, BigIntType)
+        self.check_spelling(data_type, BigIntType)
         return self._format_mariadb_integer("BIGINT", data_type)
 
     def format_data_type_smallint(self, data_type: SmallIntType) -> Tuple[str, tuple]:
@@ -528,7 +554,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, SmallIntType)
+        self.check_spelling(data_type, SmallIntType)
         return self._format_mariadb_integer("SMALLINT", data_type)
 
     def format_data_type_tinyint(self, data_type: TinyIntType) -> Tuple[str, tuple]:
@@ -553,7 +579,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self._check_spelling(data_type, TinyIntType)
+        self.check_spelling(data_type, TinyIntType)
         return self._format_mariadb_integer("TINYINT", data_type)
 
     def format_data_type_varchar(self, data_type: VarCharType) -> Tuple[str, tuple]:
@@ -567,7 +593,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         also what makes ``parse_type`` able to read its own output back as
         ``varchar``.
         """
-        self._check_spelling(data_type, VarCharType)
+        self.check_spelling(data_type, VarCharType)
         return (f"VARCHAR({data_type.length})" if data_type.length is not None else "VARCHAR"), ()
 
     def format_data_type_char(self, data_type: CharType) -> Tuple[str, tuple]:
@@ -579,7 +605,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         *set* clause (``CHARACTER SET utf8``), which is a different thing and
         not a reason to refuse the type spelling.
         """
-        self._check_spelling(data_type, CharType)
+        self.check_spelling(data_type, CharType)
         return (f"CHAR({data_type.length})" if data_type.length is not None else "CHAR"), ()
 
     def format_data_type_text(self, data_type: TextType) -> Tuple[str, tuple]:
@@ -588,7 +614,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``mariadb_tinytext``/``mariadb_mediumtext``/``mariadb_longtext`` classes
         rather than spellings of this one, because the maximum length is part of
         what the column can hold."""
-        self._check_spelling(data_type, ("text",))
+        self.check_spelling(data_type, ("text",))
         return "TEXT", ()
 
     def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
@@ -601,7 +627,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         bare ``TINYINT``, which is why :meth:`format_data_type_tinyint` renders
         the latter without one.
         """
-        self._check_spelling(data_type, BooleanType)
+        self.check_spelling(data_type, BooleanType)
         return "TINYINT(1)", ()
 
     def format_data_type_date(self, data_type: DateType) -> Tuple[str, tuple]:
@@ -714,7 +740,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         rejects ``-1`` with 1264.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/double
         """
-        self._check_spelling(data_type, DoubleType)
+        self.check_spelling(data_type, DoubleType)
         return self._format_mariadb_integer("DOUBLE", data_type)
 
     def format_data_type_decimal(self, data_type: DecimalType) -> Tuple[str, tuple]:
@@ -751,7 +777,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         whole attribute slot and explains why one method serves the integers and
         these four numerics alike.
         """
-        self._check_spelling(data_type, DecimalType)
+        self.check_spelling(data_type, DecimalType)
         if data_type.precision is not None and not 1 <= data_type.precision <= 65:
             raise ValueError(
                 f"MariaDB DECIMAL precision must be between 1 and 65, "
@@ -793,7 +819,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``VARBINARY(n)`` is not, so the substitution would be a different
         storage, not a different name for the same one.
         """
-        self._check_spelling(data_type, ("blob",))
+        self.check_spelling(data_type, ("blob",))
         return "BLOB", ()
 
     def format_data_type_custom(self, data_type: CustomType) -> Tuple[str, tuple]:
@@ -871,7 +897,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         that is not what they asked for — see
         :meth:`format_data_type_mariadb_uuid`.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES["UUID"]
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["UUID"])
 
     def supports_data_type_uuid(self) -> bool:
         """Same gate, reached through the core type's name.
@@ -883,7 +909,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         UUID columns, and the error tells the reader nothing about which class
         to reach for instead.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES["UUID"]
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["UUID"])
 
     def format_data_type_uuid(self, data_type: UUIDType) -> Tuple[str, tuple]:
         """``UUID`` — see :meth:`format_data_type_mariadb_uuid` for the gate and
@@ -900,7 +926,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         would get the caller a DDL the server rejects; answering yes and emitting
         ``TEXT`` would get them a different column than they asked for.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES["XMLTYPE"]
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["XMLTYPE"])
 
     def supports_data_type_mariadb_varbinary(self) -> bool:
         return True
@@ -1658,7 +1684,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             # it. Gated for the same reason ``supports_data_type_mariadb_xml``
             # is: parse_type must never yield a type this dialect cannot render.
             if not self.supports_data_type_mariadb_xml():
-                return CustomType(self, stripped)
+                return CustomType(dialect=self, raw=stripped)
             return MariaDBXmlType(self)
 
         if self._MARIA_UUID_TYPES.match(upper):
@@ -1680,7 +1706,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             #
             # https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type
             if not self.supports_data_type_uuid():
-                return CustomType(self, stripped)
+                return CustomType(dialect=self, raw=stripped)
             from ..expression.types import MariaDBUUIDType
             return MariaDBUUIDType(self)
 
@@ -1738,5 +1764,6 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         # that used to sit here made ``CustomType`` a function-local name for the
         # whole of ``parse_type``, so any *earlier* branch returning
         # ``CustomType`` hit an ``UnboundLocalError`` on a path that had never
-        # executed it.
-        return CustomType(self, stripped)
+        # executed it. ``raw`` is keyword-only since the core made the fallback's
+        # single payload a named parameter, so it is passed as one.
+        return CustomType(dialect=self, raw=stripped)

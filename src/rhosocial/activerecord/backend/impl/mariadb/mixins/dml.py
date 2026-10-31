@@ -10,9 +10,9 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        InsertExpression,
+        InsertStatement,
     )
-    from ..expression.load_data import MariaDBLoadDataExpression
+    from ..expression.load_data import MariaDBLoadDataStatement
 
 
 class MariaDBDMLOperationMixin:
@@ -69,7 +69,7 @@ class MariaDBDMLOperationMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_for_delete(self) -> bool:
         """Whether RETURNING is supported for DELETE.
@@ -79,7 +79,7 @@ class MariaDBDMLOperationMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_for_replace(self) -> bool:
         """Whether RETURNING is supported for REPLACE.
@@ -89,7 +89,7 @@ class MariaDBDMLOperationMixin:
         Returns:
             True if MariaDB version >= 10.5.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING'])
 
     def supports_returning_for_update(self) -> bool:
         """Whether RETURNING is supported for UPDATE.
@@ -99,11 +99,11 @@ class MariaDBDMLOperationMixin:
         Returns:
             True if MariaDB version >= 13.0.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE'])
 
     def format_insert_statement(
         self,
-        expr: "InsertExpression"
+        expr: "InsertStatement"
     ) -> Tuple[str, tuple]:
         """Format INSERT statement with MariaDB-specific options.
 
@@ -113,7 +113,7 @@ class MariaDBDMLOperationMixin:
         - RETURNING clause (10.5+)
 
         Args:
-            expr: InsertExpression instance.
+            expr: InsertStatement instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -129,14 +129,26 @@ class MariaDBDMLOperationMixin:
 
         if not isinstance(expr.into, Table):
             raise TypeError(
-                f"InsertExpression.into must be a Table, "
+                f"InsertStatement.into must be a Table, "
                 f"got {type(expr.into).__name__}"
             )
         if self.strict_validation:
             expr.validate(strict=True)
 
-        is_replace = getattr(expr, 'replace', False)
-        is_ignore = getattr(expr, 'ignore', False)
+        # ``replace`` / ``ignore`` are MariaDB node fields: the core
+        # ``InsertStatement`` declares neither, so which modifiers exist is a
+        # question about the class and is answered with isinstance rather
+        # than probed off the instance.
+        from rhosocial.activerecord.backend.impl.mariadb.expression.dml import (
+            MariaDBInsertExpression,
+        )
+
+        if isinstance(expr, MariaDBInsertExpression):
+            is_replace = expr.replace
+            is_ignore = expr.ignore
+        else:
+            is_replace = False
+            is_ignore = False
 
         if is_replace and is_ignore:
             raise ValueError("Cannot use both 'replace' and 'ignore' options together")
@@ -169,16 +181,14 @@ class MariaDBDMLOperationMixin:
         if isinstance(expr.source, DefaultValuesSource):
             parts.append("DEFAULT VALUES")
         elif isinstance(expr.source, ValuesSource):
-            all_rows_sql = []
-            for row in expr.source.values_list:
-                row_sql, row_params = [], []
-                for val in row:
-                    s, p = val.to_sql()
-                    row_sql.append(s)
-                    row_params.extend(p)
-                all_rows_sql.append(f"({', '.join(row_sql)})")
-                all_params.extend(row_params)
-            parts.append("VALUES " + ", ".join(all_rows_sql))
+            # The VALUES branch is the base's, delegated rather than
+            # re-implemented: core has collected the "expression versus bare
+            # host value" judgement in format_insert_values_source, so a bare
+            # scalar cell binds behind a placeholder here too instead of
+            # crashing on a missing to_sql.
+            values_sql, values_params = self.format_insert_values_source(expr.source)
+            parts.append(values_sql)
+            all_params.extend(values_params)
         elif isinstance(expr.source, SelectSource):
             s_sql, s_params = expr.source.select_query.to_sql()
             parts.append(s_sql)
@@ -214,6 +224,8 @@ class MariaDBDMLOperationMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
+        from rhosocial.activerecord.backend.expression.bases import BaseExpression
+
         all_params = []
         parts = ["ON DUPLICATE KEY UPDATE"]
 
@@ -221,11 +233,18 @@ class MariaDBDMLOperationMixin:
         if expr.update_assignments:
             for col_name, value_expr in expr.update_assignments.items():
                 col_sql = self.format_identifier(col_name)
-                if hasattr(value_expr, "to_sql"):
-                    val_sql, val_params = value_expr.to_sql()
-                    all_params.extend(val_params)
-                else:
-                    val_sql = str(value_expr)
+                # The clause's contract declares ``BaseExpression`` values, so
+                # the kind is asserted rather than sniffed: a host value that
+                # used to be silently ``str()``-ed into the SQL text now
+                # fails here instead of rendering as SQL it was never
+                # checked against.
+                if not isinstance(value_expr, BaseExpression):
+                    raise TypeError(
+                        f"update_assignments[{col_name!r}] must be a "
+                        f"BaseExpression, got {type(value_expr).__name__}"
+                    )
+                val_sql, val_params = value_expr.to_sql()
+                all_params.extend(val_params)
                 update_parts.append(f"{col_sql} = {val_sql}")
 
         if update_parts:
@@ -235,7 +254,7 @@ class MariaDBDMLOperationMixin:
 
         return " ".join(parts), tuple(all_params)
 
-    def format_load_data_statement(self, expr: "MariaDBLoadDataExpression") -> Tuple[str, tuple]:
+    def format_load_data_statement(self, expr: "MariaDBLoadDataStatement") -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
 
         Args:
@@ -253,7 +272,7 @@ class MariaDBDMLOperationMixin:
 
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"MariaDBLoadDataExpression.table must be a Table, "
+                f"MariaDBLoadDataStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         expr.validate(strict=self.strict_validation)
@@ -317,7 +336,7 @@ class MariaDBDMLOperationMixin:
 
         return ' '.join(parts), tuple(all_params)
 
-    def format_replace_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
+    def format_replace_statement(self, expr: "InsertStatement") -> Tuple[str, tuple]:
         """Format REPLACE INTO statement.
 
         REPLACE INTO is a MariaDB/MySQL extension that either:
@@ -327,7 +346,7 @@ class MariaDBDMLOperationMixin:
         Note: AUTO_INCREMENT value changes on replacement.
 
         Args:
-            expr: ReplaceExpression instance (similar to InsertExpression).
+            expr: ReplaceExpression instance (similar to InsertStatement).
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -339,7 +358,7 @@ class MariaDBDMLOperationMixin:
 
         if not isinstance(expr.into, Table):
             raise TypeError(
-                f"InsertExpression.into must be a Table, "
+                f"InsertStatement.into must be a Table, "
                 f"got {type(expr.into).__name__}"
             )
         all_params: List[Any] = []
@@ -360,16 +379,14 @@ class MariaDBDMLOperationMixin:
         if isinstance(expr.source, DefaultValuesSource):
             parts.append("DEFAULT VALUES")
         elif isinstance(expr.source, ValuesSource):
-            all_rows_sql = []
-            for row in expr.source.values_list:
-                row_sql, row_params = [], []
-                for val in row:
-                    s, p = val.to_sql()
-                    row_sql.append(s)
-                    row_params.extend(p)
-                all_rows_sql.append(f"({', '.join(row_sql)})")
-                all_params.extend(row_params)
-            parts.append("VALUES " + ", ".join(all_rows_sql))
+            # The VALUES branch is the base's, delegated rather than
+            # re-implemented: core has collected the "expression versus bare
+            # host value" judgement in format_insert_values_source, so a bare
+            # scalar cell binds behind a placeholder here too instead of
+            # crashing on a missing to_sql.
+            values_sql, values_params = self.format_insert_values_source(expr.source)
+            parts.append(values_sql)
+            all_params.extend(values_params)
         elif isinstance(expr.source, SelectSource):
             s_sql, s_params = expr.source.select_query.to_sql()
             parts.append(s_sql)

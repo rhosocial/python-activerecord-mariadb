@@ -121,7 +121,7 @@ class TestMariaDBJSONFunctionBackend:
         mariadb_backend.execute("DROP TEMPORARY TABLE IF EXISTS test_json_contains")
 
     def test_format_json_extract_integration(self, mariadb_backend):
-        """Test format_json_extract with database execution."""
+        """Test format_json_extract_expression with database execution."""
         if mariadb_backend.dialect.version < (10, 2, 3):
             pytest.skip("JSON functions require MariaDB 10.2.3+")
 
@@ -266,7 +266,7 @@ class TestAsyncMariaDBJSONFunctionBackend:
 
     @pytest.mark.asyncio
     async def test_async_format_json_extract_integration(self, async_mariadb_backend):
-        """Test format_json_extract with database execution (async)."""
+        """Test format_json_extract_expression with database execution (async)."""
         if async_mariadb_backend.dialect.version < (10, 2, 3):
             pytest.skip("JSON functions require MariaDB 10.2.3+")
 

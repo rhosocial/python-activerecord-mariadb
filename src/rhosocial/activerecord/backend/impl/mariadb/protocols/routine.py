@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
-        MariaDBCallExpression,
-        MariaDBCreateFunctionExpression,
-        MariaDBCreateProcedureExpression,
-        MariaDBDropFunctionExpression,
-        MariaDBDropProcedureExpression,
+        MariaDBCallStatement,
+        MariaDBCreateFunctionStatement,
+        MariaDBCreateProcedureStatement,
+        MariaDBDropFunctionStatement,
+        MariaDBDropProcedureStatement,
     )
 
 
@@ -58,32 +58,32 @@ class MariaDBRoutineSupport(Protocol):
 
     def format_create_procedure_statement(
         self,
-        expr: "MariaDBCreateProcedureExpression",
+        expr: "MariaDBCreateProcedureStatement",
     ) -> Tuple[str, tuple]:
         """Format CREATE PROCEDURE."""
         ...
 
     def format_drop_procedure_statement(
         self,
-        expr: "MariaDBDropProcedureExpression",
+        expr: "MariaDBDropProcedureStatement",
     ) -> Tuple[str, tuple]:
         """Format DROP PROCEDURE."""
         ...
 
     def format_create_function_statement(
         self,
-        expr: "MariaDBCreateFunctionExpression",
+        expr: "MariaDBCreateFunctionStatement",
     ) -> Tuple[str, tuple]:
         """Format CREATE FUNCTION (stored / aggregate function)."""
         ...
 
     def format_drop_function_statement(
         self,
-        expr: "MariaDBDropFunctionExpression",
+        expr: "MariaDBDropFunctionStatement",
     ) -> Tuple[str, tuple]:
         """Format DROP FUNCTION."""
         ...
 
-    def format_call_statement(self, expr: "MariaDBCallExpression") -> Tuple[str, tuple]:
+    def format_call_statement(self, expr: "MariaDBCallStatement") -> Tuple[str, tuple]:
         """Format CALL."""
         ...

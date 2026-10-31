@@ -8,9 +8,9 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_database import (
-        AlterDatabaseExpression,
-        CreateDatabaseExpression,
-        DropDatabaseExpression,
+        AlterDatabaseStatement,
+        CreateDatabaseStatement,
+        DropDatabaseStatement,
     )
 
 
@@ -52,13 +52,13 @@ class MariaDBDatabaseMixin:
         return True
 
     def format_create_database_statement(
-        self, expr: CreateDatabaseExpression
+        self, expr: CreateDatabaseStatement
     ) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.expression.objects import Database
 
         if not isinstance(expr.database, Database):
             raise TypeError(
-                f"CreateDatabaseExpression.database must be a Database, "
+                f"CreateDatabaseStatement.database must be a Database, "
                 f"got {type(expr.database).__name__}"
             )
         parts = ["CREATE"]
@@ -75,13 +75,13 @@ class MariaDBDatabaseMixin:
         return " ".join(parts), ()
 
     def format_drop_database_statement(
-        self, expr: DropDatabaseExpression
+        self, expr: DropDatabaseStatement
     ) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.expression.objects import Database
 
         if not isinstance(expr.database, Database):
             raise TypeError(
-                f"DropDatabaseExpression.database must be a Database, "
+                f"DropDatabaseStatement.database must be a Database, "
                 f"got {type(expr.database).__name__}"
             )
         parts = ["DROP DATABASE"]
@@ -91,14 +91,14 @@ class MariaDBDatabaseMixin:
         return " ".join(parts), ()
 
     def format_alter_database_statement(
-        self, expr: AlterDatabaseExpression
+        self, expr: AlterDatabaseStatement
     ) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.expression.objects import Database
         from rhosocial.activerecord.backend.expression.statements.ddl_database import AlterDatabaseAction
 
         if not isinstance(expr.database, Database):
             raise TypeError(
-                f"AlterDatabaseExpression.database must be a Database, "
+                f"AlterDatabaseStatement.database must be a Database, "
                 f"got {type(expr.database).__name__}"
             )
         parts = ["ALTER DATABASE"]

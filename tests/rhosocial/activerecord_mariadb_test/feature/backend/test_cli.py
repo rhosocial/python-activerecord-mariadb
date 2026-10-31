@@ -9,6 +9,11 @@ import pytest
 import sys
 from unittest.mock import patch
 
+from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+    INTROSPECT_TYPES,
+    _TYPE_CAPABILITIES,
+)
+
 
 class TestCLIParseArgs:
     """Tests for CLI argument parsing."""
@@ -90,14 +95,14 @@ class TestCLIParseArgs:
             assert args.type == 'tables'
 
     def test_parse_args_introspect_with_name(self):
-        """Test introspect subcommand with table name."""
+        """Test introspect subcommand with an object name."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'introspect', 'table', 'users']):
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'columns', 'users']):
             args = parse_args()
 
             assert args.command == 'introspect'
-            assert args.type == 'table'
+            assert args.type == 'columns'
             assert args.name == 'users'
 
     def test_parse_args_introspect_valid_types(self):
@@ -716,16 +721,21 @@ class TestCLIHandleInfoVerbose:
 class TestCLIIntrospectArgParsing:
     """Tests for introspect argument parsing edge cases."""
 
-    def test_introspect_with_schema(self):
-        """Test introspect with --schema option."""
+    def test_introspect_has_no_namespace_flag(self):
+        """MariaDB has one namespace level and calls it a database.
+
+        ``--schema`` named the same level under a word MariaDB does not
+        use, so it is gone: the run connects to a database with
+        ``--database`` and asks about that database. It must not return as
+        an alias, because an alias lets a caller believe it named a level
+        that does not exist here.
+        """
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        with patch.object(sys, 'argv', ['mysql', 'introspect', 'tables', '--schema', 'mydb']):
-            args = parse_args()
-
-            assert args.command == 'introspect'
-            assert args.type == 'tables'
-            assert args.schema == 'mydb'
+        with patch.object(
+            sys, 'argv', ['mysql', 'introspect', 'tables', '--schema', 'mydb']
+        ), pytest.raises(SystemExit):
+            parse_args()
 
     def test_introspect_with_include_system(self):
         """Test introspect with --include-system flag."""
@@ -741,11 +751,6 @@ class TestCLIIntrospectArgParsing:
         """Test introspect types that require name parameter."""
         from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
 
-        # table type with name
-        with patch.object(sys, 'argv', ['mysql', 'introspect', 'table', 'users']):
-            args = parse_args()
-            assert args.type == 'table'
-            assert args.name == 'users'
 
         # columns type with name
         with patch.object(sys, 'argv', ['mysql', 'introspect', 'columns', 'orders']):
@@ -975,3 +980,427 @@ class TestCLINamedProcedureArgs:
 
             assert args.command == 'named-procedure'
             assert args.is_async is True
+
+
+# ---------------------------------------------------------------------------
+# Offline doubles for the introspect handler
+#
+# The dispatch has two mirrored halves (sync and async) over one introspector
+# interface, and which half a type lands in is worth testing without a server.
+# These doubles answer the same names the real introspector does and record
+# which one was asked, so a family that reaches no branch is visible as an
+# empty call list rather than as silent nothing.
+# ---------------------------------------------------------------------------
+
+class _FakeDialect:
+    """Capability probes that answer True unless named *unsupported*."""
+
+    name = "mariadb"
+
+    def __init__(self, unsupported=()):
+        self.unsupported = set(unsupported)
+
+    def __getattr__(self, name):
+        if name.startswith("supports_"):
+            return lambda: name not in self.unsupported
+        raise AttributeError(name)
+
+
+class _FakeIntrospector:
+    """One representative answer per family, plus a log of what was asked."""
+
+    def __init__(self):
+        self.calls = []
+        self.view = {
+            "name": "user_summary",
+            "schema": "app",
+            "definition": "SELECT id, name FROM users",
+            "check_option": "NONE",
+            "is_updatable": True,
+        }
+
+    def list_tables(self, schema=None, include_system=False):
+        self.calls.append("list_tables")
+        return [{"name": "users"}]
+
+    def list_views(self, schema=None):
+        self.calls.append("list_views")
+        return [self.view]
+
+    def get_view_info(self, view_name, schema=None):
+        self.calls.append("get_view_info")
+        return self.view if view_name == self.view["name"] else None
+
+    def list_columns(self, table_name, schema=None):
+        self.calls.append("list_columns")
+        return [{"name": "id"}]
+
+    def list_indexes(self, table_name, schema=None):
+        self.calls.append("list_indexes")
+        return [{"name": "PRIMARY"}]
+
+    def list_foreign_keys(self, table_name, schema=None):
+        self.calls.append("list_foreign_keys")
+        return []
+
+    def list_triggers(self, table_name=None, schema=None):
+        self.calls.append("list_triggers")
+        return []
+
+    def list_sequences(self, schema=None):
+        self.calls.append("list_sequences")
+        return [{"name": "intro_seq"}]
+
+    def get_sequence_info(self, sequence_name, schema=None):
+        self.calls.append("get_sequence_info")
+        return {"name": sequence_name}
+
+    def list_table_options(self, schema=None):
+        self.calls.append("list_table_options")
+        return [{"name": "users"}]
+
+    def get_table_options(self, table_name, schema=None):
+        self.calls.append("get_table_options")
+        return {"name": table_name}
+
+    def get_database_info(self):
+        self.calls.append("get_database_info")
+        return {"name": "app"}
+
+
+class _FakeAsyncIntrospector(_FakeIntrospector):
+    """The same answers, awaited: the async half calls the same names."""
+
+    _FAMILIES = (
+        "list_tables",
+        "list_views",
+        "get_view_info",
+        "list_columns",
+        "list_indexes",
+        "list_foreign_keys",
+        "list_triggers",
+        "list_sequences",
+        "get_sequence_info",
+        "list_table_options",
+        "get_table_options",
+        "get_database_info",
+    )
+
+    def __init__(self):
+        super().__init__()
+        # Bound per instance: `__getattr__` would not see the inherited
+        # synchronous methods, and shadowing them is what makes each call
+        # awaitable without a second copy of every answer.
+        for name in self._FAMILIES:
+            setattr(self, name, self._awaited(name))
+
+    def _awaited(self, name):
+        sync_method = getattr(_FakeIntrospector, name)
+
+        async def answer(*args, **kwargs):
+            return sync_method(self, *args, **kwargs)
+
+        return answer
+
+
+class _FakeBackend:
+    """Just enough backend for the handler: connect, a dialect, an introspector."""
+
+    def __init__(self, unsupported=()):
+        self.dialect = _FakeDialect(unsupported)
+        self.introspector = _FakeIntrospector()
+        self._connection = object()
+        self.connected = False
+
+    def connect(self):
+        self.connected = True
+
+    def disconnect(self):
+        self.connected = False
+
+
+class _FakeAsyncBackend(_FakeBackend):
+    def __init__(self, unsupported=()):
+        super().__init__(unsupported)
+        self.introspector = _FakeAsyncIntrospector()
+
+    async def connect(self):
+        self.connected = True
+
+    async def disconnect(self):
+        self.connected = False
+
+
+def _introspect_args(**overrides):
+    """An argparse namespace shaped like the parser's, point by point."""
+    from argparse import Namespace
+
+    values = dict(
+        type="tables",
+        name=None,
+        include_system=False,
+        database="app",
+        named_connection=None,
+        is_async=False,
+        output="json",
+        rich_ascii=False,
+    )
+    values.update(overrides)
+    return Namespace(**values)
+
+
+#: The name each family needs, if any: the three table-scoped list types are
+#: the only ones where a name is required.
+_INTROSPECT_NAMES = {"columns": "users", "indexes": "users", "foreign-keys": "users"}
+
+#: What each family asks the introspector for, so a family that reaches the
+#: handler but no branch is visible as an empty call list.
+_INTROSPECT_CALLS = {
+    "tables": "list_tables",
+    "views": "list_views",
+    "columns": "list_columns",
+    "indexes": "list_indexes",
+    "foreign-keys": "list_foreign_keys",
+    "triggers": "list_triggers",
+    "database": "get_database_info",
+    "sequences": "list_sequences",
+    "table-options": "list_table_options",
+}
+
+
+class TestCLIIntrospectViews:
+    """`views NAME` answers one view, and a family that takes no name says so."""
+
+    def test_views_name_answers_one_view(self, capsys):
+        """One view, with the definition the library parses for it."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="views", name="user_summary"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert payload[0]["definition"]
+        assert backend.introspector.calls == ["get_view_info"]
+        assert backend.connected is False  # the run closed its own connection
+
+    def test_views_without_a_name_lists_them(self, capsys):
+        """A bare `views` still lists every view."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="views"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert backend.introspector.calls == ["list_views"]
+
+    def test_unknown_view_exits_one(self, capsys):
+        """The view is valid here; it is absent from this server -- exit 1."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_introspect_sync(
+                _introspect_args(type="views", name="no_such_view"),
+                _FakeBackend(),
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 1
+        assert "not found" in capsys.readouterr().err
+
+    async def test_async_views_name_answers_one_view(self, capsys):
+        """The async half asks the same question the same way."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend()
+        await _handle_introspect_async(
+            _introspect_args(type="views", name="user_summary"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert payload[0]["definition"]
+        assert backend.introspector.calls == ["get_view_info"]
+
+    @pytest.mark.parametrize("introspect_type", ["tables", "database"])
+    def test_a_whole_database_family_refuses_a_name(self, introspect_type, capsys):
+        """`tables NAME` / `database NAME` cannot narrow the answer.
+
+        `tables` would become the aggregate of several families that `table`
+        used to be, and `database` has no sub-objects to name at all, so the
+        name is refused with exit 2 rather than silently ignored: a caller who
+        wrote it believes it selected something.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import handle
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle(_introspect_args(type=introspect_type, name="users"))
+
+        assert excinfo.value.code == 2
+        err = capsys.readouterr().err
+        assert introspect_type in err
+        assert "takes no name" in err
+
+
+class TestCLIIntrospectTypeList:
+    """The parser, the handler and the capability table declare one type list."""
+
+    def test_the_capability_table_and_the_type_list_agree(self):
+        """One table is the source: the list is derived from it, in order."""
+        assert list(_TYPE_CAPABILITIES) == INTROSPECT_TYPES
+
+    def test_the_removed_table_aggregate_is_not_a_type(self):
+        """`table` was deleted; it must not come back as a type."""
+        assert "table" not in INTROSPECT_TYPES
+
+    def test_every_declared_type_is_in_the_help(self, capsys):
+        """`--help` names every family the handler can answer."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with pytest.raises(SystemExit):
+            parse_args(["introspect", "--help"])
+
+        out = capsys.readouterr().out
+        for family in INTROSPECT_TYPES:
+            assert family in out
+
+    def test_every_capability_named_in_the_table_exists_on_the_dialect(self):
+        """The table names real probes, callable and answering a bool."""
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+
+        dialect = MariaDBDialect(version=(10, 11, 0))
+        for family, capability in _TYPE_CAPABILITIES.items():
+            probe = getattr(dialect, capability)
+            assert callable(probe), family
+            assert isinstance(probe(), bool), family
+
+
+class TestCLIIntrospectDispatch:
+    """Every declared family reaches a branch, in both halves of the handler."""
+
+    @pytest.mark.parametrize("family", INTROSPECT_TYPES)
+    def test_every_declared_type_reaches_a_branch(self, family, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type=family, name=_INTROSPECT_NAMES.get(family)),
+            backend,
+            create_provider("json"),
+        )
+
+        assert backend.introspector.calls == [_INTROSPECT_CALLS[family]]
+        assert backend.connected is False
+
+    @pytest.mark.parametrize("family", INTROSPECT_TYPES)
+    async def test_every_declared_type_reaches_a_branch_async(self, family, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend()
+        await _handle_introspect_async(
+            _introspect_args(type=family, name=_INTROSPECT_NAMES.get(family)),
+            backend,
+            create_provider("json"),
+        )
+
+        assert backend.introspector.calls == [_INTROSPECT_CALLS[family]]
+        assert backend.connected is False
+
+
+class TestCLIIntrospectCapabilityGate:
+    """A family this server cannot answer is refused with exit 2, and named."""
+
+    UNSUPPORTED = "supports_sequence_introspection"
+
+    def test_a_family_the_server_cannot_answer_exits_two(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend(unsupported={self.UNSUPPORTED})
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_introspect_sync(
+                _introspect_args(type="sequences"),
+                backend,
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 2
+        assert capsys.readouterr().err.strip() == (
+            "Error: sequences introspection is not supported by this server"
+        )
+        assert backend.introspector.calls == []
+        assert backend.connected is False
+
+    async def test_async_a_family_the_server_cannot_answer_exits_two(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend(unsupported={self.UNSUPPORTED})
+        with pytest.raises(SystemExit) as excinfo:
+            await _handle_introspect_async(
+                _introspect_args(type="sequences"),
+                backend,
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 2
+        assert capsys.readouterr().err.strip() == (
+            "Error: sequences introspection is not supported by this server"
+        )
+        assert backend.introspector.calls == []
+
+    def test_a_capability_that_answers_true_is_not_refused(self, capsys):
+        """The gate asks per family; a supported one is answered, not refused."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend(unsupported={"supports_table_introspection"})
+        _handle_introspect_sync(
+            _introspect_args(type="sequences"),
+            backend,
+            create_provider("json"),
+        )
+
+        assert backend.introspector.calls == ["list_sequences"]
+

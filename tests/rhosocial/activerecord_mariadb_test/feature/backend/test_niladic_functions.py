@@ -16,9 +16,10 @@ import pytest
 import pytest_asyncio
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
-    QueryExpression,
+    CreateTableStatement,
+    DropTableStatement,
+    Literal,
+    QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.core import FunctionCall
 from rhosocial.activerecord.backend.expression.functions.datetime import (
@@ -30,7 +31,8 @@ from rhosocial.activerecord.backend.expression.functions.datetime import (
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType, TimestampType
 from rhosocial.activerecord.backend.options import ExecutionOptions
@@ -48,7 +50,7 @@ class TestMySQLNiladicSelectContext:
 
     def test_select_current_timestamp_niladic(self, mariadb_backend):
         """SELECT CURRENT_TIMESTAMP (niladic, no parentheses) works in MySQL."""
-        query = QueryExpression(
+        query = QueryStatement(
             dialect=mariadb_backend.dialect,
             select=[current_timestamp(mariadb_backend.dialect)],
         )
@@ -61,7 +63,7 @@ class TestMySQLNiladicSelectContext:
 
     def test_select_current_timestamp_with_parens(self, mariadb_backend):
         """SELECT CURRENT_TIMESTAMP() (with parentheses) also works in MySQL."""
-        query = QueryExpression(
+        query = QueryStatement(
             dialect=mariadb_backend.dialect,
             select=[FunctionCall(mariadb_backend.dialect, 'CURRENT_TIMESTAMP')],
         )
@@ -73,7 +75,7 @@ class TestMySQLNiladicSelectContext:
 
     def test_select_current_date_niladic(self, mariadb_backend):
         """SELECT CURRENT_DATE (niladic) works in MySQL."""
-        query = QueryExpression(
+        query = QueryStatement(
             dialect=mariadb_backend.dialect,
             select=[current_date(mariadb_backend.dialect)],
         )
@@ -85,7 +87,7 @@ class TestMySQLNiladicSelectContext:
 
     def test_select_current_time_niladic(self, mariadb_backend):
         """SELECT CURRENT_TIME (niladic) works in MySQL."""
-        query = QueryExpression(
+        query = QueryStatement(
             dialect=mariadb_backend.dialect,
             select=[current_time(mariadb_backend.dialect)],
         )
@@ -97,7 +99,7 @@ class TestMySQLNiladicSelectContext:
 
     def test_select_now(self, mariadb_backend):
         """SELECT NOW() (regular function, always with parentheses) works in MySQL."""
-        query = QueryExpression(
+        query = QueryStatement(
             dialect=mariadb_backend.dialect,
             select=[now(mariadb_backend.dialect)],
         )
@@ -117,21 +119,19 @@ class TestMySQLNiladicDDLContext:
         table_name = 'test_niladic_ddl_1'
 
         # Clean up
-        mariadb_backend.execute(*DropTableExpression(
+        mariadb_backend.execute(*DropTableStatement(
             dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
-        create = CreateTableExpression(
+        create = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=current_timestamp(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
                 ]),
             ],
             if_not_exists=True,
@@ -147,7 +147,7 @@ class TestMySQLNiladicDDLContext:
             col_names = [c.name for c in cols]
             assert 'ts' in col_names
         finally:
-            mariadb_backend.execute(*DropTableExpression(
+            mariadb_backend.execute(*DropTableStatement(
                 dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())
 
@@ -157,21 +157,20 @@ class TestMySQLNiladicDDLContext:
         table_name = 'test_niladic_ddl_2'
 
         # Clean up
-        mariadb_backend.execute(*DropTableExpression(
+        mariadb_backend.execute(*DropTableStatement(
             dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
-        create = CreateTableExpression(
+        create = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=FunctionCall(dialect, 'CURRENT_TIMESTAMP')),
+                    ColumnConstraint(
+                        dialect, branch=ColumnDefaultConstraint(dialect, FunctionCall(dialect, 'CURRENT_TIMESTAMP'))),
                 ]),
             ],
             if_not_exists=True,
@@ -186,7 +185,7 @@ class TestMySQLNiladicDDLContext:
             col_names = [c.name for c in cols]
             assert 'ts' in col_names
         finally:
-            mariadb_backend.execute(*DropTableExpression(
+            mariadb_backend.execute(*DropTableStatement(
                 dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())
 
@@ -196,27 +195,40 @@ class TestMySQLNiladicDDLContext:
         table_name = 'test_niladic_ddl_3'
 
         # Clean up
-        mariadb_backend.execute(*DropTableExpression(
+        mariadb_backend.execute(*DropTableStatement(
             dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
-        create = CreateTableExpression(
+        create = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect, 6), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=current_timestamp(dialect, 6)),
+                    ColumnConstraint(
+                        dialect,
+                        branch=ColumnDefaultConstraint(
+                            dialect,
+                            current_timestamp(dialect, Literal(dialect, 6, inline=True)),
+                        ),
+                    ),
                 ]),
             ],
             if_not_exists=True,
         )
         sql, params = create.to_sql()
-        assert "CURRENT_TIMESTAMP(%s)" in sql or "CURRENT_TIMESTAMP(?)" in sql
+        # A DEFAULT position carries no bind parameters, so the precision
+        # argument renders as an inline literal rather than a placeholder --
+        # ``TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6)`` is what the server
+        # accepts, and a bind placeholder in DDL was never valid at all. The
+        # DEFAULT clause marks the value it is handed, not the literals inside
+        # it, so the precision literal is written ``inline=True`` here: the
+        # factory normalises a bare int into a binding literal, and a value
+        # that still binds in a position that cannot is refused by name.
+        assert "CURRENT_TIMESTAMP(6)" in sql
+        assert params == ()
 
         try:
             mariadb_backend.execute(sql, params)
@@ -225,7 +237,7 @@ class TestMySQLNiladicDDLContext:
             col_names = [c.name for c in cols]
             assert 'ts' in col_names
         finally:
-            mariadb_backend.execute(*DropTableExpression(
+            mariadb_backend.execute(*DropTableStatement(
                 dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())
 
@@ -236,7 +248,7 @@ class TestAsyncMySQLNiladicSelectContext:
     @pytest.mark.asyncio
     async def test_async_select_current_timestamp_niladic(self, async_mariadb_backend):
         """SELECT CURRENT_TIMESTAMP (niladic) works in MySQL (async)."""
-        query = QueryExpression(
+        query = QueryStatement(
             dialect=async_mariadb_backend.dialect,
             select=[current_timestamp(async_mariadb_backend.dialect)],
         )
@@ -257,21 +269,19 @@ class TestAsyncMySQLNiladicDDLContext:
         table_name = 'test_async_niladic_ddl_1'
 
         # Clean up
-        await async_mariadb_backend.execute(*DropTableExpression(
+        await async_mariadb_backend.execute(*DropTableStatement(
             dialect=dialect, table=Table(dialect, table_name), if_exists=True
         ).to_sql())
 
-        create = CreateTableExpression(
+        create = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, table_name),
             columns=[
                 ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ]),
                 ColumnDefinition(dialect, 'ts', TimestampType(dialect), constraints=[
-                    ColumnConstraint(dialect, ColumnConstraintType.DEFAULT,
-                                     default_value=current_timestamp(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
                 ]),
             ],
             if_not_exists=True,
@@ -284,6 +294,6 @@ class TestAsyncMySQLNiladicDDLContext:
             col_names = [c.name for c in cols]
             assert 'ts' in col_names
         finally:
-            await async_mariadb_backend.execute(*DropTableExpression(
+            await async_mariadb_backend.execute(*DropTableStatement(
                 dialect=dialect, table=Table(dialect, table_name), if_exists=True
             ).to_sql())

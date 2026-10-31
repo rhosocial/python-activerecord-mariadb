@@ -8,19 +8,22 @@ from typing import Union, Any, List, Optional, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.expression import bases
+from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+    JSONTableColumn as MariaDBJSONTableColumn,
+)
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.advanced_functions import (
-        JSONDocumentExpression,
-        JSONTextExpression,
+        JSONDocumentValue,
+        JSONTextValue,
     )
 
     #: Core has one class per JSON operator, and this dialect renders either
     #: from the same code path -- so the parameter is a union, not one of the
-    #: two. ``JSONTextExpression`` subclasses ``JSONDocumentExpression`` so a
+    #: two. ``JSONTextValue`` subclasses ``JSONDocumentValue`` so a
     #: path chain can keep going after ``->>``; that inheritance is about
     #: accessors, not about ``->>`` yielding a document.
-    JSONPathNode = Union[JSONDocumentExpression, JSONTextExpression]
+    JSONPathNode = Union[JSONDocumentValue, JSONTextValue]
 
 
 class MariaDBJSONMixin:
@@ -69,7 +72,7 @@ class MariaDBJSONMixin:
         Returns:
             True if MariaDB version >= 10.2.3.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS'])
 
 
     def supports_json_path(self) -> bool:
@@ -79,7 +82,7 @@ class MariaDBJSONMixin:
         both, but they are separate questions and the type is the one a later
         version could drop.
         """
-        return self.version >= (10, 2, 3)
+        return self.version_at_least((10, 2, 3))
 
     def supports_json_function(self, function_name: str) -> bool:
         """Check if specific JSON function is supported.
@@ -90,7 +93,7 @@ class MariaDBJSONMixin:
         Returns:
             True if function is supported in current MariaDB version.
         """
-        if self.version < MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']:
+        if not self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']):
             return False
 
         json_functions = {
@@ -126,7 +129,7 @@ class MariaDBJSONMixin:
         Only valid for a real JSON column operand, not for an arbitrary
         expression such as ``CAST(... AS JSON)``.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_ARROW_NATIVE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_ARROW_NATIVE'])
 
     def supports_json_arrows(self) -> bool:
         """Alias for :meth:`supports_json_arrow_operators`."""
@@ -152,7 +155,7 @@ class MariaDBJSONMixin:
         else:
             col_sql, col_params = self.format_identifier(str(expr.column)), ()
 
-        escaped_path = self._escape_sql_string(expr.path)
+        escaped_path = self.escape_sql_string(expr.path)
 
         if expr.operation == "->":
             sql = f"JSON_EXTRACT({col_sql}, '{escaped_path}')"
@@ -179,7 +182,69 @@ class MariaDBJSONMixin:
         Returns:
             True if MariaDB version >= 10.6.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_TABLE']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_TABLE'])
+
+    def format_mariadb_json_table_column(
+        self, column: "MariaDBJSONTableColumn"
+    ) -> Tuple[str, tuple]:
+        """Render one entry of a MariaDB ``JSON_TABLE`` column list.
+
+        The MariaDB column carries the clauses the core column does not:
+        ``FOR ORDINALITY``, ``EXISTS``, and the error handling.  Its type is
+        read directly -- the expression settled the column's shape -- and
+        rendered through the dialect's own type model, a name becoming the
+        framework's name node whose name the grammar validates.
+
+        Returns:
+            A ``(sql, params)`` tuple for the entry.
+        """
+        from rhosocial.activerecord.backend.expression.types import DataType
+
+        name_sql = self.format_identifier(column.name)
+        if column.ordinality:
+            # FOR ORDINALITY takes no type and no path.
+            return f"{name_sql} FOR ORDINALITY", ()
+
+        if column.type is None:
+            # No type was declared; MariaDB's default.
+            type_sql = "VARCHAR(255)"
+            params: tuple = ()
+        else:
+            type_sql, params = DataType.as_type(self, column.type).to_sql()
+        path_sql = self.escape_sql_string(column.path) if column.path else None
+
+        if column.exists and path_sql is not None:
+            # EXISTS is spelled between the type and PATH.
+            head = f"{name_sql} {type_sql} EXISTS PATH '{path_sql}'"
+        elif path_sql is not None:
+            head = f"{name_sql} {type_sql} PATH '{path_sql}'"
+        else:
+            head = f"{name_sql} {type_sql}"
+
+        if column.error_handling:
+            token = str(column.error_handling).strip().upper()
+            if token == "DEFAULT":
+                default = column.default_value
+                literal = (
+                    f"'{self.escape_sql_string(str(default))}'"
+                    if default is not None else "NULL"
+                )
+                head += f" DEFAULT {literal} ON EMPTY"
+                head += f" DEFAULT {literal} ON ERROR"
+            elif token in ("NULL", "TRUE", "FALSE"):
+                head += f" {token} ON EMPTY"
+                head += f" {token} ON ERROR"
+            else:
+                from rhosocial.activerecord.backend.dialect.exceptions import (
+                    UnsupportedFeatureError,
+                )
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "JSON_TABLE error handling",
+                    f"Unsupported JSON_TABLE error handling {column.error_handling!r}; "
+                    "expected NULL, TRUE, FALSE or DEFAULT.",
+                )
+        return head, params
 
     def format_json_table_expression(
         self, expr
@@ -218,36 +283,49 @@ class MariaDBJSONMixin:
                 f"JSON_TABLE requires MariaDB {required} or later.",
             )
 
-        columns = list(getattr(expr, "columns", None) or [])
-        if not self._validate_data_type_name(columns):
-            raise UnsupportedFeatureError(
-                self.name,
-                "JSON_TABLE column type",
-                "JSON_TABLE column type must be a plain SQL type name.",
-            )
+        # Two declared contracts reach this formatter, told apart by their
+        # class rather than by probing: the MariaDB node carries ``json_doc``
+        # and ``nested_paths``, the core node ``json_column``. What a plain
+        # string means differs with the class (document literal versus
+        # column name) and is part of the same per-class contract.
+        from rhosocial.activerecord.backend.expression.query_sources import (
+            JSONTableExpression,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+            MariaDBJSONTableExpression,
+        )
 
-        # The two nodes mean different things by a plain string:
-        #   MariaDB ``json_doc``  -> a JSON document literal
-        #   core    ``json_column`` -> the name of a column holding one
-        # An expression is used as-is in both cases.
-        if hasattr(expr, "json_doc"):
+        if isinstance(expr, MariaDBJSONTableExpression):
+            columns = list(expr.columns)
             doc_sql, params = self._json_document_sql(expr.json_doc)
+            nested_paths = expr.nested_paths
+            # The expression settles the column's shape, and the two shapes
+            # differ: the MariaDB column carries the optional clauses, the
+            # core column does not.
+            render_column = self.format_mariadb_json_table_column
         else:
-            doc_sql, params = self._json_column_sql(
-                getattr(expr, "json_column", None)
-            )
-        path_sql = self._escape_sql_string(expr.path)
+            if not isinstance(expr, JSONTableExpression):
+                raise TypeError(
+                    "format_json_table_expression takes a "
+                    "MariaDBJSONTableExpression or a JSONTableExpression, "
+                    f"got {type(expr).__name__}"
+                )
+            columns = list(expr.columns)
+            doc_sql, params = self._json_column_sql(expr.json_column)
+            nested_paths = []
+            render_column = self.format_json_table_column
+        path_sql = self.escape_sql_string(expr.path)
 
-        column_defs = [self._format_json_table_column(col) for col in columns]
-        for nested in (getattr(expr, "nested_paths", None) or []):
+        column_defs = [render_column(col)[0] for col in columns]
+        for nested in nested_paths:
             nested_cols = ", ".join(
-                self._format_json_table_column(col) for col in nested.columns
+                self.format_mariadb_json_table_column(col)[0] for col in nested.columns
             )
             # MariaDB's grammar is `NESTED PATH 'p' COLUMNS (...)` with no
             # alias; verified against 12.2 / 12.3 / 13.0 / 13.1, where adding
             # one is a syntax error.
             column_defs.append(
-                f"NESTED PATH '{self._escape_sql_string(nested.path)}' "
+                f"NESTED PATH '{self.escape_sql_string(nested.path)}' "
                 f"COLUMNS({nested_cols})"
             )
 
@@ -257,21 +335,19 @@ class MariaDBJSONMixin:
             sql += f" AS {self.format_identifier(expr.alias)}"
         return sql, params
 
-    @staticmethod
-    def _json_document_sql(json_doc) -> Tuple[str, tuple]:
+    def _json_document_sql(self, json_doc) -> Tuple[str, tuple]:
         """Render a JSON document argument.
 
         A :class:`~...expression.bases.BaseExpression` is rendered as SQL; a
         plain string is a JSON document and is emitted as a quoted literal, so
         a caller cannot smuggle SQL in through it.
         """
-        from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
         from rhosocial.activerecord.backend.expression import bases
 
         if isinstance(json_doc, bases.BaseExpression):
             return json_doc.to_sql()
         if isinstance(json_doc, str):
-            return f"'{SQLDialectBase._escape_sql_string(json_doc)}'", ()
+            return f"'{self.escape_sql_string(json_doc)}'", ()
         raise TypeError(
             f"json_doc must be a str or expression, got {type(json_doc).__name__}"
         )
@@ -291,94 +367,7 @@ class MariaDBJSONMixin:
             f"json_column must be a str or expression, got {type(json_column).__name__}"
         )
 
-    def _format_json_table_column(self, col) -> str:
-        """Render one entry of the ``COLUMNS(...)`` list.
-
-        Handles both column shapes: the MariaDB column's ``type`` is a plain
-        SQL type string, while the core column's ``data_type`` is a DataType
-        expression that renders itself.
-        """
-        name_sql = self.format_identifier(col.name)
-        if getattr(col, "ordinality", False):
-            # FOR ORDINALITY takes no type and no path.
-            return f"{name_sql} FOR ORDINALITY"
-
-        type_sql = self._json_table_column_type(col)
-        path = getattr(col, "path", None)
-        path_sql = self._escape_sql_string(path) if path is not None else None
-
-        if getattr(col, "exists", False) and path_sql is not None:
-            # EXISTS is spelled between the type and PATH.
-            head = f"{name_sql} {type_sql} EXISTS PATH '{path_sql}'"
-        elif path_sql is not None:
-            head = f"{name_sql} {type_sql} PATH '{path_sql}'"
-        else:
-            head = f"{name_sql} {type_sql}"
-
-        handling = getattr(col, "error_handling", None)
-        if handling:
-            token = str(handling).strip().upper()
-            if token == "DEFAULT":
-                default = getattr(col, "default_value", None)
-                literal = (
-                    f"'{self._escape_sql_string(str(default))}'"
-                    if default is not None else "NULL"
-                )
-                head += f" DEFAULT {literal} ON EMPTY"
-                head += f" DEFAULT {literal} ON ERROR"
-            elif token in ("NULL", "TRUE", "FALSE"):
-                head += f" {token} ON EMPTY"
-                head += f" {token} ON ERROR"
-            else:
-                from rhosocial.activerecord.backend.dialect.exceptions import (
-                    UnsupportedFeatureError,
-                )
-                raise UnsupportedFeatureError(
-                    self.name,
-                    "JSON_TABLE error handling",
-                    f"Unsupported JSON_TABLE error handling {handling!r}; "
-                    "expected NULL, TRUE, FALSE or DEFAULT.",
-                )
-        return head
-
-    def _json_table_column_type(self, col) -> str:
-        """The rendered SQL type for one JSON_TABLE column."""
-        from rhosocial.activerecord.backend.expression import bases
-
-        declared = getattr(col, "type", None)
-        if declared is not None:
-            return str(declared)
-        data_type = getattr(col, "data_type", None)
-        if data_type is None:
-            return "VARCHAR(255)"
-        if isinstance(data_type, bases.BaseExpression):
-            rendered, _ = data_type.to_sql()
-            return rendered
-        return str(data_type)
-
-    @staticmethod
-    def _validate_data_type_name(columns) -> bool:
-        """Every column type must be a plain SQL type name.
-
-        Types are interpolated into DDL, so they are validated rather than
-        escaped: an allow-list of characters cannot be subverted by quoting.
-        A ``data_type`` expression renders itself from a vetted DataType node
-        and is exempt.
-        """
-        import re
-
-        pattern = re.compile(r"^[A-Za-z][A-Za-z0-9_ ]*(\(\s*[0-9,\s]*\s*\))?(\s*\[\])?$")
-        for col in columns or ():
-            declared = getattr(col, "type", None)
-            if declared is None:
-                # Either a core DataType expression (self-rendering) or
-                # unspecified, which defaults at format time.
-                continue
-            if not pattern.match(str(declared).strip()):
-                return False
-        return True
-
-    def format_json_extract(self, expr) -> Tuple[str, tuple]:
+    def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONExtractExpression` node."""
         sql, params = self._format_json_extract_parts(expr.json_column, expr.path)
         if expr.alias:
@@ -406,7 +395,7 @@ class MariaDBJSONMixin:
         """
         return f"JSON_UNQUOTE({json_val})", ()
 
-    def format_json_object(self, expr) -> Tuple[str, tuple]:
+    def format_json_object_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONObjectExpression` node."""
         sql, params = self._format_json_object_parts(expr.pairs)
         if expr.alias:
@@ -431,7 +420,7 @@ class MariaDBJSONMixin:
 
         return f"JSON_OBJECT({', '.join(parts)})", tuple(params)
 
-    def format_json_array(self, expr) -> Tuple[str, tuple]:
+    def format_json_array_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONArrayExpression` node."""
         sql, params = self._format_json_array_parts(expr.values)
         if expr.alias:
@@ -445,7 +434,7 @@ class MariaDBJSONMixin:
         placeholders = ', '.join([self.p() for _ in values])
         return f"JSON_ARRAY({placeholders})", tuple(values)
 
-    def format_json_contains(self, expr) -> Tuple[str, tuple]:
+    def format_json_contains_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONContainsExpression` node."""
         sql, params = self._format_json_contains_parts(
             expr.json_column, expr.value, expr.path
@@ -600,7 +589,7 @@ class MariaDBJSONMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        escaped_path = self._escape_sql_string(path)
+        escaped_path = self.escape_sql_string(path)
         if unquote:
             return f"JSON_UNQUOTE(JSON_EXTRACT({json_doc}, '{escaped_path}'))", ()
         return f"JSON_EXTRACT({json_doc}, '{escaped_path}')", ()
@@ -670,7 +659,10 @@ class MariaDBJSONMixin:
             Tuple of (SQL string, parameters tuple).
         """
         if returning_type:
-            return f"JSON_VALUE({json_doc}, '{path}' RETURNING {returning_type})", ()
+            from rhosocial.activerecord.backend.expression.types import DataType
+
+            returning_sql, _ = DataType.as_type(self, returning_type).to_sql()
+            return f"JSON_VALUE({json_doc}, '{path}' RETURNING {returning_sql})", ()
         return f"JSON_VALUE({json_doc}, '{path}')", ()
 
     def format_json_exists(
@@ -697,7 +689,7 @@ class MariaDBJSONMixin:
         Returns:
             True if MariaDB version supports JSON_MERGE_PATCH.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS'])
 
 
 __all__ = ['MariaDBJSONMixin']

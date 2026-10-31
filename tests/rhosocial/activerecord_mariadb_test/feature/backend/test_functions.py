@@ -180,8 +180,16 @@ class TestFunctionFactories:
         assert result is not None
 
     def test_round_(self, dialect):
-        """Test round_ factory."""
-        result = functions.round_(dialect, "value")
+        """Test round_ factory: a classed node for a declared operand.
+
+        The classed RoundFunction normalises its operands: a bare number
+        becomes a value node, and a column has to be a Column, because a
+        bare string was never a readable way to name one (the parse that
+        used to guess was removed from this module long before).
+        """
+        from rhosocial.activerecord.backend.expression import Column
+
+        result = functions.round_(dialect, Column(dialect, "value"))
         assert result is not None
 
     def test_pow(self, dialect):
@@ -219,3 +227,42 @@ class TestFunctionFactories:
         result = functions.match_against(dialect, "content", "search")
         assert result is not None
         assert hasattr(result, '__class__')
+
+
+class TestCharLengthSpelling:
+    """The character-length entry point spells CHAR_LENGTH here.
+
+    The base's LENGTH answers a different question on MariaDB: measured on
+    13.1.1 (192.168.1.3:15694), ``LENGTH('héllo')`` is 6 (bytes, é being
+    two of them) while ``CHAR_LENGTH('héllo')`` is 5 (characters), so the
+    override is what keeps the node's character-unit semantic honest.
+    """
+
+    def test_char_length_spells_char_length(self, mariadb_dialect):
+        from rhosocial.activerecord.backend.expression import Column
+        from rhosocial.activerecord.backend.expression.functions.string import (
+            CharLengthFunction,
+        )
+
+        sql, params = CharLengthFunction(
+            mariadb_dialect, Column(mariadb_dialect, "name")
+        ).to_sql()
+        assert sql == "CHAR_LENGTH(`name`)"
+        assert params == ()
+
+    def test_char_length_unit_stays_out_of_the_sql(self, mariadb_dialect):
+        from rhosocial.activerecord.backend.expression import Column
+        from rhosocial.activerecord.backend.expression.functions.string import (
+            CharLengthFunction,
+        )
+
+        # The unit records the semantics the caller asked for and neither
+        # the base nor this override renders it: the kind's one spelling
+        # here is the character-length one. A caller who wants octets or
+        # bits is served by the dedicated OctetLengthFunction /
+        # BitLengthFunction nodes, which carry their own spellings.
+        for unit in ("char", "octet", "bit"):
+            sql, _ = CharLengthFunction(
+                mariadb_dialect, Column(mariadb_dialect, "name"), unit
+            ).to_sql()
+            assert sql == "CHAR_LENGTH(`name`)"

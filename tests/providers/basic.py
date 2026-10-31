@@ -379,7 +379,7 @@ class BasicSyncProvider(BasicProviderBase, IBasicSyncProvider, WorkerTestProtoco
     def _reset_table_sync(self, model_class: Type[ActiveRecord], table_name: str) -> None:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from rhosocial.activerecord.backend.expression.objects import Table
         from providers.fixtures.basic import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_mariadb_ddl_sql
@@ -389,7 +389,7 @@ class BasicSyncProvider(BasicProviderBase, IBasicSyncProvider, WorkerTestProtoco
         try:
             backend.execute("SET FOREIGN_KEY_CHECKS = 0")
             try:
-                drop_expr = DropTableExpression(
+                drop_expr = DropTableStatement(
                     dialect=backend.dialect,
                     table=Table(backend.dialect, table_name),
                     if_exists=True,
@@ -591,7 +591,7 @@ class BasicAsyncProvider(BasicProviderBase, IBasicAsyncProvider):
     async def _reset_table_async(self, model_class: Type[ActiveRecord], table_name: str) -> None:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from rhosocial.activerecord.backend.expression.objects import Table
         from providers.fixtures.basic import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_mariadb_ddl_sql
@@ -601,7 +601,7 @@ class BasicAsyncProvider(BasicProviderBase, IBasicAsyncProvider):
         try:
             await backend.execute("SET FOREIGN_KEY_CHECKS = 0")
             try:
-                drop_expr = DropTableExpression(
+                drop_expr = DropTableStatement(
                     dialect=backend.dialect,
                     table=Table(backend.dialect, table_name),
                     if_exists=True,

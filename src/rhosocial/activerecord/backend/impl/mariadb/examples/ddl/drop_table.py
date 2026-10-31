@@ -1,5 +1,5 @@
 """
-DROP TABLE using DropTableExpression - MariaDB.
+DROP TABLE using DropTableStatement - MariaDB.
 
 This example demonstrates:
 1. DROP TABLE
@@ -25,13 +25,13 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
+    CreateTableStatement,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -40,20 +40,20 @@ from rhosocial.activerecord.backend.expression.objects import (
     Table,
 )
 
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
         ]),
     ],
     if_not_exists=True,
@@ -65,7 +65,7 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: DROP TABLE
 # ============================================================
-drop_expr = DropTableExpression(
+drop_expr = DropTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
 )
@@ -77,7 +77,7 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: DROP TABLE IF EXISTS
 # ============================================================
-drop_expr_if_exists = DropTableExpression(
+drop_expr_if_exists = DropTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     if_exists=True,
@@ -95,6 +95,6 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use DropTableExpression to drop tables
+# 1. Use DropTableStatement to drop tables
 # 2. if_exists=True prevents error if table doesn't exist
 # 3. CASCADE and RESTRICT options available

@@ -11,7 +11,7 @@ class MariaDBFilterClauseMixin:
 
     def supports_filter_clause(self) -> bool:
         """FILTER clause is supported since MariaDB 10.2."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['WINDOW_FUNCTIONS']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['WINDOW_FUNCTIONS'])
 
 
 __all__ = ['MariaDBFilterClauseMixin']

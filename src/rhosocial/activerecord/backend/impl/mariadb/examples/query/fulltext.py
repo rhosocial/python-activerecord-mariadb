@@ -26,16 +26,16 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -43,11 +43,11 @@ from rhosocial.activerecord.backend.expression.types import (
     TextType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'articles'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'articles'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'articles'),
     columns=[
@@ -56,8 +56,7 @@ create_table = CreateTableExpression(
             'id',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(dialect, 'title', VarCharType(dialect, 200)),
@@ -68,7 +67,7 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'articles'),
     columns=['title', 'content'],
@@ -96,7 +95,7 @@ backend.execute(sql)
 # ============================================================
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
-from rhosocial.activerecord.backend.expression import QueryExpression, Column
+from rhosocial.activerecord.backend.expression import QueryStatement, Column
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBMatchAgainstExpression, MatchAgainstMode
 # Use MariaDBMatchAgainstExpression for full-text search
 match_expr = MariaDBMatchAgainstExpression(
@@ -123,7 +122,7 @@ match_for_where = MariaDBMatchAgainstExpression(
 )
 
 # Build query using expression (supports alias via as_)
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, 'id'),

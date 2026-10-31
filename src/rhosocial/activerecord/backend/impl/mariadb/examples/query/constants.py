@@ -35,22 +35,17 @@ dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 # SECTION: SELECT CURRENT_TIMESTAMP
 # ============================================================
 # Use factory functions for SQL statement-level constants.
-# current_timestamp(dialect) generates CURRENT_TIMESTAMP (no parentheses)
+# F.current_timestamp(dialect) generates CURRENT_TIMESTAMP (no parentheses)
 # which is the SQL:2003 standard niladic form, valid in both DDL DEFAULT
 # and SELECT contexts. MariaDB also accepts CURRENT_TIMESTAMP() with parentheses.
 
-from rhosocial.activerecord.backend.expression import QueryExpression
+from rhosocial.activerecord.backend.expression import QueryStatement
 from rhosocial.activerecord.backend.expression.core import FunctionCall
-from rhosocial.activerecord.backend.expression.functions.datetime import (
-    current_timestamp,
-    now,
-    current_date,
-    current_time,
-)
+from rhosocial.activerecord.backend.expression import functions as F  # noqa: E402
 
-query_ts = QueryExpression(
+query_ts = QueryStatement(
     dialect=dialect,
-    select=[current_timestamp(dialect)],
+    select=[F.current_timestamp(dialect)],
 )
 sql, params = query_ts.to_sql()
 print(f"CURRENT_TIMESTAMP SQL: {sql}")
@@ -60,9 +55,9 @@ print(f"Result: {result.data}")
 # ============================================================
 # SECTION: SELECT NOW()
 # ============================================================
-query_now = QueryExpression(
+query_now = QueryStatement(
     dialect=dialect,
-    select=[now(dialect)],
+    select=[F.now(dialect)],
 )
 sql, params = query_now.to_sql()
 print(f"NOW() SQL: {sql}")
@@ -72,11 +67,11 @@ print(f"Result: {result.data}")
 # ============================================================
 # SECTION: SELECT CURRENT_DATE, CURRENT_TIME
 # ============================================================
-query_date = QueryExpression(
+query_date = QueryStatement(
     dialect=dialect,
     select=[
-        current_date(dialect),
-        current_time(dialect),
+        F.current_date(dialect),
+        F.current_time(dialect),
     ],
 )
 sql, params = query_date.to_sql()
@@ -89,11 +84,11 @@ print(f"Result: {result.data}")
 # ============================================================
 from rhosocial.activerecord.backend.expression.core import Literal
 
-query_multi = QueryExpression(
+query_multi = QueryStatement(
     dialect=dialect,
     select=[
-        now(dialect).as_('current_time'),
-        current_date(dialect).as_('current_date'),
+        F.now(dialect).as_('current_time'),
+        F.current_date(dialect).as_('current_date'),
         FunctionCall(dialect, 'DATABASE').as_('db_name'),
         FunctionCall(dialect, 'VERSION').as_('db_version'),
     ],
@@ -108,10 +103,10 @@ print(f"Result: {result.data}")
 # ============================================================
 # FunctionCall supports arguments, e.g., DATE_FORMAT, ROUND
 
-query_format = QueryExpression(
+query_format = QueryStatement(
     dialect=dialect,
     select=[
-        FunctionCall(dialect, 'DATE_FORMAT', now(dialect), Literal(dialect, '%Y-%m-%d')).as_('formatted_date'),
+        FunctionCall(dialect, 'DATE_FORMAT', F.now(dialect), Literal(dialect, '%Y-%m-%d')).as_('formatted_date'),
     ],
 )
 sql, params = query_format.to_sql()
@@ -122,7 +117,7 @@ print(f"Result: {result.data}")
 # ============================================================
 # SECTION: SELECT with UUID() (MariaDB 8.0+)
 # ============================================================
-query_uuid = QueryExpression(
+query_uuid = QueryStatement(
     dialect=dialect,
     select=[FunctionCall(dialect, 'UUID').as_('uuid_value')],
 )
@@ -141,7 +136,7 @@ backend.disconnect()
 # ============================================================
 # Key points:
 # 1. Use factory functions (current_timestamp, now, current_date, etc.) for SQL niladic functions
-# 2. QueryExpression without from_ clause generates "SELECT ..." without FROM
+# 2. QueryStatement without from_ clause generates "SELECT ..." without FROM
 # 3. Use FunctionCall(dialect, 'FUNC', arg1, arg2) for regular functions with arguments
 # 4. Use .as_('alias') for column aliases in SELECT
 # 5. SQL:2003 niladic functions (CURRENT_TIMESTAMP, CURRENT_DATE, etc.) omit parentheses

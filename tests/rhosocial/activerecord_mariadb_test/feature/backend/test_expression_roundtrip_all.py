@@ -75,9 +75,25 @@ And what happens when a class cannot be constructed
 :data:`UNCONSTRUCTIBLE`, and :func:`TestMatrixIntegrity.test_unconstructible_list_is_exact`
 pins that tuple in both directions. A class that starts needing an exemption
 fails CI instead of turning into a skip, and a stale entry fails too.
+
+And what happens when an artifact cannot travel
+===============================================
+
+Every class is also written and read back through the dict / JSON / XML
+channels. A channel that fails for a class named in
+:data:`SERIALIZATION_GAP` fails there -- the row says which channels and what
+they raise or degrade -- and a class that starts failing *without* a row fails
+its own assertion. The rows all record defects in core's serialization layer
+(a parameter its vocabulary or its constructors cannot carry); none can be
+fixed from this repository, and each is pinned so the run goes red the day
+core fixes it and the row becomes stale.
 """
 
+import datetime
+import decimal
 import inspect
+import json
+import uuid
 from typing import Dict
 
 import pytest
@@ -93,6 +109,14 @@ from rhosocial.activerecord.backend.expression.advanced_functions import (
 from rhosocial.activerecord.backend.expression.core import Column, Literal
 from rhosocial.activerecord.backend.expression.datetime import (
     TemporalOptionsExpression,
+    _ExtractBase,
+    ExtractFieldExpression,
+)
+from rhosocial.activerecord.backend.expression import declared as declared_mod
+from rhosocial.activerecord.backend.expression.functions.string import (
+    LeftFunction,
+    RightFunction,
+    SubstringExpression,
 )
 from rhosocial.activerecord.backend.expression.objects import (
     Database,
@@ -111,10 +135,18 @@ from rhosocial.activerecord.backend.expression.objects import (
     Type,
     View,
 )
-from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
+from rhosocial.activerecord.backend.expression.operators import (
+    ArithmeticOperation,
+)
+from rhosocial.activerecord.backend.expression.predicates import (
+    LikeOperator,
+    ComparisonPredicate,
+    ILikePredicate,
+    LikePredicate,
+)
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
+from rhosocial.activerecord.backend.expression.query_sources import SetOperation
 from rhosocial.activerecord.backend.expression.serialization import (
-    ExpressionRegistry,
     deserialize,
     deserialize_json,
     deserialize_xml,
@@ -147,18 +179,18 @@ from rhosocial.activerecord.backend.expression.statements.ddl_domain import (
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ColumnConstraint,
-    ColumnConstraintType,
     ForeignKeyConstraint,
     IndexDefinition,
     ReferencesClause,
     TableConstraint,
-    TableConstraintType,
+    ColumnNotNullConstraint,
+    TablePrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     TriggerEvent,
     TriggerTiming,
 )
-from rhosocial.activerecord.backend.expression.statements.dql import QueryExpression
+from rhosocial.activerecord.backend.expression.statements.dql import QueryStatement
 from rhosocial.activerecord.backend.expression.statements.dml import (
     MergeAction,
     MergeActionType,
@@ -166,7 +198,6 @@ from rhosocial.activerecord.backend.expression.statements.dml import (
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
-    VarCharType,
 )
 from rhosocial.activerecord.backend.expression.xml import (
     XMLAttribute,
@@ -180,6 +211,7 @@ from rhosocial.activerecord.backend.impl.dummy.expression import (
     _DummyTypeDefinition,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression import routine as maria_routine
+from rhosocial.activerecord.backend.impl.mariadb.expression import show as maria_show
 from rhosocial.activerecord.backend.impl.mariadb.expression.dml import (
     MariaDBInsertExpression,
 )
@@ -193,15 +225,16 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.match_against import
     MariaDBMatchAgainstExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-    MariaDBExchangePartitionExpression,
+    MariaDBExchangePartitionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
     MariaDBSTDistanceExpression,
 )
-from rhosocial.activerecord.testsuite.utils.expression import (
+from expression_roundtrip_harness import (
     assert_params_equal,
     collect_expression_classes,
     make_instance,
+    register_all,
     register_special_constructor,
 )
 
@@ -212,18 +245,19 @@ CORE_EXPR_PKG = "rhosocial.activerecord.backend.expression"
 def _collect(package: str) -> Dict[str, type]:
     """Every concrete expression class *package* defines, by fully qualified name.
 
-    Collected by walking the package, not by reading ``ExpressionRegistry``:
-    the registry is process-global and *grows* as other test modules import
-    their own backends, so reading it would make this matrix's contents depend
-    on which files pytest happened to import first. Sibling backends' classes
-    would then be rendered with the MariaDB dialect, which is not a meaningful
-    thing to assert.
+    Collected by walking the package, not by reading the deserialization
+    registry: that registry is process-global and *grows* as other test
+    modules import their own backends, so reading it would make this matrix's
+    contents depend on which files pytest happened to import first. Sibling
+    backends' classes would then be rendered with the MariaDB dialect, which
+    is not a meaningful thing to assert.
 
-    ``ddl_alter`` exports four aliases of two classes (``AlterConstraint`` and
-    ``ValidateConstraint`` each have two spellings). They are the same objects,
-    so the first name wins and the matrix does not test a class four times.
+    ``ddl_alter`` once exported four aliases of two classes (``AlterConstraint``
+    and ``ValidateConstraint`` each had two spellings); core settled on the
+    ``*Action`` names and dropped the short ones, so each action is collected
+    once now. The by-identity pass below stays: a class exported under two
+    names must still not be tested twice.
     """
-    ExpressionRegistry._auto_register_builtins()
     collected = collect_expression_classes(package)
     by_identity: Dict[int, str] = {}
     for fqn, cls in sorted(collected.items()):
@@ -239,19 +273,27 @@ def _collect(package: str) -> Dict[str, type]:
 def _matrix_classes() -> Dict[str, type]:
     """Both packages merged, and registered so deserialization can resolve them.
 
-    Deserialization looks a class up by name in ``ExpressionRegistry``, so a
-    class the matrix renders must be findable there or the round-trip resolves
-    to the wrong thing.
+    Deserialization resolves a kind to its class through the framework's
+    default registry -- which is *not* the ``(dialect, kind)`` render
+    registry: the registry names classes for the artifact reader, the render
+    registry names formatters. Core populates the framework's own packages
+    on the registry's first use and re-registering one of those classes is a
+    no-op, so the MariaDB classes collected here are what the call adds.
     """
     merged: Dict[str, type] = {}
     for package in (MARIADB_EXPR_PKG, CORE_EXPR_PKG):
-        for fqn, cls in _collect(package).items():
-            ExpressionRegistry.register(cls)
-            merged[fqn] = cls
+        merged.update(_collect(package))
+    register_all(merged)
     return merged
 
 
 REGISTERED = _matrix_classes()
+# Enums need no registration of their own: a member travels as its scalar
+# value (a str enum is a str) and the constructor normalises on read, which
+# is the conversion §4.11.2 puts in the constructor rather than the reader.
+# A dataclass parameter cannot travel at all -- it is neither a language-
+# neutral scalar nor an expression instance, so serialization refuses it by
+# name and the classes that carry one are registered below with that reason.
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +326,7 @@ def _column_predicate(dialect):
 
 def _one_column_query(dialect):
     """A single-column ``SELECT`` over a table."""
-    return QueryExpression(
+    return QueryStatement(
         dialect, select=[Column(dialect, "id")], from_=_table_obj(dialect)
     )
 
@@ -301,6 +343,16 @@ def _integer_column(dialect, name="col"):
 
 def register_specials():
     """Replace every introspective guess that would cost a real assertion."""
+    # -- the predicate the whole file is built on ----------------------------
+    # ``op`` normalises through the operator enum at construction, so the
+    # guess's bare ``"x"`` is refused there and the class reported as
+    # unbuildable. Two columns over a table is the shape every DDL position
+    # wants as well: it renders with no bind parameters at all.
+    register_special_constructor(
+        "predicates.ComparisonPredicate",
+        lambda d: _column_predicate(d),
+    )
+
     # -- the FROM side ------------------------------------------------------
     register_special_constructor(
         "sources.relation.NamedRelationRef",
@@ -318,38 +370,38 @@ def register_specials():
 
     # -- tables -------------------------------------------------------------
     register_special_constructor(
-        "statements.ddl_table.CreateTableExpression",
-        lambda d: ddl_table.CreateTableExpression(d, _table_obj(d), [_integer_column(d)]),
+        "statements.ddl_table.CreateTableStatement",
+        lambda d: ddl_table.CreateTableStatement(d, _table_obj(d), [_integer_column(d)]),
     )
     register_special_constructor(
-        "statements.ddl_table.DropTableExpression",
-        lambda d: ddl_table.DropTableExpression(d, _table_obj(d)),
+        "statements.ddl_table.DropTableStatement",
+        lambda d: ddl_table.DropTableStatement(d, _table_obj(d)),
     )
     register_special_constructor(
-        "statements.ddl_table.CreateTableLikeExpression",
-        lambda d: ddl_table.CreateTableLikeExpression(
+        "statements.ddl_table.CreateTableLikeStatement",
+        lambda d: ddl_table.CreateTableLikeStatement(
             d, _table_obj(d), Table(d, "other")
         ),
     )
     register_special_constructor(
-        "statements.ddl_table.CreateTableCloneExpression",
-        lambda d: ddl_table.CreateTableCloneExpression(
+        "statements.ddl_table.CreateTableCloneStatement",
+        lambda d: ddl_table.CreateTableCloneStatement(
             d, _table_obj(d), Table(d, "other")
         ),
     )
     register_special_constructor(
-        "statements.ddl_table.CreateTableAsExpression",
-        lambda d: ddl_table.CreateTableAsExpression(d, _table_obj(d), _one_column_query(d)),
+        "statements.ddl_table.CreateTableAsStatement",
+        lambda d: ddl_table.CreateTableAsStatement(d, _table_obj(d), _one_column_query(d)),
     )
     register_special_constructor(
-        "statements.ddl_table.CreateTableFromTemplateExpression",
-        lambda d: ddl_table.CreateTableFromTemplateExpression(
+        "statements.ddl_table.CreateTableFromTemplateStatement",
+        lambda d: ddl_table.CreateTableFromTemplateStatement(
             d, _table_obj(d), _one_column_query(d)
         ),
     )
     register_special_constructor(
-        "statements.ddl_truncate.TruncateExpression",
-        lambda d: ddl_truncate.TruncateExpression(d, _table_obj(d)),
+        "statements.ddl_truncate.TruncateStatement",
+        lambda d: ddl_truncate.TruncateStatement(d, _table_obj(d)),
     )
     # Overrides the shared testsuite factory, which binds no dialect to its type.
     register_special_constructor(
@@ -358,70 +410,68 @@ def register_specials():
 
     # -- indexes ------------------------------------------------------------
     register_special_constructor(
-        "statements.ddl_index.CreateIndexExpression",
-        lambda d: ddl_index.CreateIndexExpression(
+        "statements.ddl_index.CreateIndexStatement",
+        lambda d: ddl_index.CreateIndexStatement(
             d, index=Index(d, "i"), table=_table_obj(d), columns=["a"]
         ),
     )
     register_special_constructor(
-        "statements.ddl_index.DropIndexExpression",
-        lambda d: ddl_index.DropIndexExpression(d, index=Index(d, "i")),
+        "statements.ddl_index.DropIndexStatement",
+        lambda d: ddl_index.DropIndexStatement(d, index=Index(d, "i")),
     )
     register_special_constructor(
-        "statements.ddl_index.CreateFulltextIndexExpression",
-        lambda d: ddl_index.CreateFulltextIndexExpression(
+        "statements.ddl_index.CreateFulltextIndexStatement",
+        lambda d: ddl_index.CreateFulltextIndexStatement(
             d, index=Index(d, "i"), table=_table_obj(d), columns=["a"]
         ),
     )
     register_special_constructor(
-        "statements.ddl_index.DropFulltextIndexExpression",
-        lambda d: ddl_index.DropFulltextIndexExpression(
+        "statements.ddl_index.DropFulltextIndexStatement",
+        lambda d: ddl_index.DropFulltextIndexStatement(
             d, index=Index(d, "i"), table=_table_obj(d)
         ),
     )
     register_special_constructor(
-        "statements.ddl_alter.DropIndex",
-        lambda d: ddl_alter.DropIndex(d, Index(d, "i")),
+        "statements.ddl_alter.DropIndexAction",
+        lambda d: ddl_alter.DropIndexAction(d, Index(d, "i")),
     )
     register_special_constructor(
-        "statements.ddl_alter.AddColumn",
-        lambda d: ddl_alter.AddColumn(d, _integer_column(d)),
+        "statements.ddl_alter.AddColumnAction",
+        lambda d: ddl_alter.AddColumnAction(d, _integer_column(d)),
     )
     register_special_constructor(
-        "statements.ddl_alter.ModifyColumn",
-        lambda d: ddl_alter.ModifyColumn(d, _integer_column(d)),
+        "statements.ddl_alter.ModifyColumnAction",
+        lambda d: ddl_alter.ModifyColumnAction(d, _integer_column(d)),
     )
     # CHANGE needs both the old name and the new definition.
     register_special_constructor(
-        "statements.ddl_alter.ChangeColumn",
-        lambda d: ddl_alter.ChangeColumn(d, "old_col", _integer_column(d)),
+        "statements.ddl_alter.ChangeColumnAction",
+        lambda d: ddl_alter.ChangeColumnAction(d, "old_col", _integer_column(d)),
     )
     register_special_constructor(
-        "statements.ddl_alter.AddIndex",
-        lambda d: ddl_alter.AddIndex(d, IndexDefinition(d, "i", ["a"])),
+        "statements.ddl_alter.AddIndexAction",
+        lambda d: ddl_alter.AddIndexAction(d, IndexDefinition(d, "i", ["a"])),
     )
     register_special_constructor(
-        "statements.ddl_alter.AddTableConstraint",
-        lambda d: ddl_alter.AddTableConstraint(
+        "statements.ddl_alter.AddTableConstraintAction",
+        lambda d: ddl_alter.AddTableConstraintAction(
             d,
-            TableConstraint(
-                d, TableConstraintType.PRIMARY_KEY, name="c", columns=["a"]
-            ),
+            TableConstraint(d, branch=TablePrimaryKeyConstraint(d, ["a"]), name="c"),
         ),
     )
 
     # -- databases, schemas, domains, types --------------------------------
     register_special_constructor(
-        "statements.ddl_database.CreateDatabaseExpression",
-        lambda d: ddl_database.CreateDatabaseExpression(d, Database(d, "db")),
+        "statements.ddl_database.CreateDatabaseStatement",
+        lambda d: ddl_database.CreateDatabaseStatement(d, Database(d, "db")),
     )
     register_special_constructor(
-        "statements.ddl_database.DropDatabaseExpression",
-        lambda d: ddl_database.DropDatabaseExpression(d, Database(d, "db")),
+        "statements.ddl_database.DropDatabaseStatement",
+        lambda d: ddl_database.DropDatabaseStatement(d, Database(d, "db")),
     )
     register_special_constructor(
-        "statements.ddl_database.AlterDatabaseExpression",
-        lambda d: ddl_database.AlterDatabaseExpression(
+        "statements.ddl_database.AlterDatabaseStatement",
+        lambda d: ddl_database.AlterDatabaseStatement(
             d,
             Database(d, "db"),
             action=AlterDatabaseAction.RENAME_TO,
@@ -429,24 +479,24 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "statements.ddl_schema.CreateSchemaExpression",
-        lambda d: ddl_schema.CreateSchemaExpression(d, Schema(d, "s")),
+        "statements.ddl_schema.CreateSchemaStatement",
+        lambda d: ddl_schema.CreateSchemaStatement(d, Schema(d, "s")),
     )
     register_special_constructor(
-        "statements.ddl_schema.DropSchemaExpression",
-        lambda d: ddl_schema.DropSchemaExpression(d, Schema(d, "s")),
+        "statements.ddl_schema.DropSchemaStatement",
+        lambda d: ddl_schema.DropSchemaStatement(d, Schema(d, "s")),
     )
     register_special_constructor(
-        "statements.ddl_domain.CreateDomainExpression",
-        lambda d: ddl_domain.CreateDomainExpression(d, Domain(d, "dom"), IntegerType(d)),
+        "statements.ddl_domain.CreateDomainStatement",
+        lambda d: ddl_domain.CreateDomainStatement(d, Domain(d, "dom"), IntegerType(d)),
     )
     register_special_constructor(
-        "statements.ddl_domain.DropDomainExpression",
-        lambda d: ddl_domain.DropDomainExpression(d, Domain(d, "dom")),
+        "statements.ddl_domain.DropDomainStatement",
+        lambda d: ddl_domain.DropDomainStatement(d, Domain(d, "dom")),
     )
     register_special_constructor(
-        "statements.ddl_domain.AlterDomainExpression",
-        lambda d: ddl_domain.AlterDomainExpression(
+        "statements.ddl_domain.AlterDomainStatement",
+        lambda d: ddl_domain.AlterDomainStatement(
             d, Domain(d, "dom"), [RenameDomainAction(d, "other")]
         ),
     )
@@ -463,36 +513,36 @@ def register_specials():
         lambda d: _DummyTypeDefinition(d, IntegerType(d)),
     )
     register_special_constructor(
-        "statements.ddl_type.CreateTypeExpression",
-        lambda d: ddl_type.CreateTypeExpression(
+        "statements.ddl_type.CreateTypeStatement",
+        lambda d: ddl_type.CreateTypeStatement(
             d, type=Type(d, "t"), definition=_DummyTypeDefinition(d, IntegerType(d))
         ),
     )
     register_special_constructor(
-        "statements.ddl_type.AlterTypeExpression",
-        lambda d: ddl_type.AlterTypeExpression(
+        "statements.ddl_type.AlterTypeStatement",
+        lambda d: ddl_type.AlterTypeStatement(
             d, type=Type(d, "t"), actions=[_DummyTypeAlterAction(d, new_name="u")]
         ),
     )
     register_special_constructor(
-        "statements.ddl_type.DropTypeExpression",
-        lambda d: ddl_type.DropTypeExpression(d, type=Type(d, "t")),
+        "statements.ddl_type.DropTypeStatement",
+        lambda d: ddl_type.DropTypeStatement(d, type=Type(d, "t")),
     )
 
     # -- routines, triggers, comments --------------------------------------
     register_special_constructor(
-        "statements.ddl_function.CreateFunctionExpression",
-        lambda d: ddl_function.CreateFunctionExpression(
+        "statements.ddl_function.CreateFunctionStatement",
+        lambda d: ddl_function.CreateFunctionStatement(
             d, Function(d, "fn"), returns="integer", body="SELECT 1"
         ),
     )
     register_special_constructor(
-        "statements.ddl_function.DropFunctionExpression",
-        lambda d: ddl_function.DropFunctionExpression(d, Function(d, "fn")),
+        "statements.ddl_function.DropFunctionStatement",
+        lambda d: ddl_function.DropFunctionStatement(d, Function(d, "fn")),
     )
     register_special_constructor(
-        "statements.ddl_trigger.CreateTriggerExpression",
-        lambda d: ddl_trigger.CreateTriggerExpression(
+        "statements.ddl_trigger.CreateTriggerStatement",
+        lambda d: ddl_trigger.CreateTriggerStatement(
             d,
             trigger=Trigger(d, "trg"),
             table=_table_obj(d),
@@ -502,50 +552,50 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "statements.ddl_trigger.DropTriggerExpression",
-        lambda d: ddl_trigger.DropTriggerExpression(d, trigger=Trigger(d, "trg")),
+        "statements.ddl_trigger.DropTriggerStatement",
+        lambda d: ddl_trigger.DropTriggerStatement(d, trigger=Trigger(d, "trg")),
     )
     register_special_constructor(
-        "statements.ddl_comment.CommentOnExpression",
-        lambda d: ddl_comment.CommentOnExpression(d, "table", _table_obj(d), comment="c"),
+        "statements.ddl_comment.CommentOnStatement",
+        lambda d: ddl_comment.CommentOnStatement(d, "table", _table_obj(d), comment="c"),
     )
 
     # -- views --------------------------------------------------------------
     register_special_constructor(
-        "statements.ddl_view.DropViewExpression",
-        lambda d: ddl_view.DropViewExpression(d, View(d, "v")),
+        "statements.ddl_view.DropViewStatement",
+        lambda d: ddl_view.DropViewStatement(d, View(d, "v")),
     )
     register_special_constructor(
-        "statements.ddl_view.CreateMaterializedViewExpression",
-        lambda d: ddl_view.CreateMaterializedViewExpression(
+        "statements.ddl_view.CreateMaterializedViewStatement",
+        lambda d: ddl_view.CreateMaterializedViewStatement(
             d, MaterializedView(d, "mv"), _one_column_query(d)
         ),
     )
     register_special_constructor(
-        "statements.ddl_view.DropMaterializedViewExpression",
-        lambda d: ddl_view.DropMaterializedViewExpression(d, MaterializedView(d, "mv")),
+        "statements.ddl_view.DropMaterializedViewStatement",
+        lambda d: ddl_view.DropMaterializedViewStatement(d, MaterializedView(d, "mv")),
     )
     register_special_constructor(
-        "statements.ddl_view.RefreshMaterializedViewExpression",
-        lambda d: ddl_view.RefreshMaterializedViewExpression(
+        "statements.ddl_view.RefreshMaterializedViewStatement",
+        lambda d: ddl_view.RefreshMaterializedViewStatement(
             d, MaterializedView(d, "mv")
         ),
     )
 
     # -- DML ----------------------------------------------------------------
     register_special_constructor(
-        "statements.dml.InsertExpression",
-        lambda d: dml.InsertExpression(
+        "statements.dml.InsertStatement",
+        lambda d: dml.InsertStatement(
             d, into=_table_obj(d), source=ValuesSource(d, [[Literal(d, 1)]])
         ),
     )
     register_special_constructor(
-        "statements.dml.DeleteExpression",
-        lambda d: dml.DeleteExpression(d, _table_obj(d)),
+        "statements.dml.DeleteStatement",
+        lambda d: dml.DeleteStatement(d, _table_obj(d)),
     )
     register_special_constructor(
-        "statements.dml.MergeExpression",
-        lambda d: dml.MergeExpression(
+        "statements.dml.MergeStatement",
+        lambda d: dml.MergeStatement(
             d,
             target_table=_table_obj(d),
             source=NamedRelationRef(d, Table(d, "src")),
@@ -575,13 +625,11 @@ def register_specials():
     # -- constraints and column pieces --------------------------------------
     register_special_constructor(
         "statements.ddl_table.ColumnConstraint",
-        lambda d: ColumnConstraint(d, ColumnConstraintType.NOT_NULL, name="c"),
+        lambda d: ColumnConstraint(d, branch=ColumnNotNullConstraint(d), name="c"),
     )
     register_special_constructor(
         "statements.ddl_table.TableConstraint",
-        lambda d: TableConstraint(
-            d, TableConstraintType.PRIMARY_KEY, name="c", columns=["a"]
-        ),
+        lambda d: TableConstraint(d, branch=TablePrimaryKeyConstraint(d, ["a"]), name="c"),
     )
     register_special_constructor(
         "statements.ddl_table.ForeignKeyConstraint",
@@ -651,8 +699,8 @@ def register_specials():
         lambda d: graph_mod.VertexTable(d, node_table(d), key_columns=["id"]),
     )
     register_special_constructor(
-        "graph.EdgeTable",
-        lambda d: graph_mod.EdgeTable(d, edge_table(d), ["src"], ["dst"]),
+        "graph.edge_table_definition",
+        lambda d: graph_mod.EdgeTableDefinition(d, edge_table(d), ["src"], ["dst"]),
     )
     register_special_constructor(
         "graph.QuantifiedPath",
@@ -678,8 +726,8 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "graph.CreatePropertyGraphExpression",
-        lambda d: graph_mod.CreatePropertyGraphExpression(
+        "graph.CreatePropertyGraphStatement",
+        lambda d: graph_mod.CreatePropertyGraphStatement(
             d, graph=PropertyGraph(d, "g"),
             vertex_tables=[graph_mod.VertexTable(d, node_table(d))],
         ),
@@ -687,8 +735,8 @@ def register_specials():
     # The formatter accepts "add"/"drop" against "vertex tables"/"edge tables"/
     # "tables"; anything else is refused.
     register_special_constructor(
-        "graph.AlterPropertyGraphExpression",
-        lambda d: graph_mod.AlterPropertyGraphExpression(
+        "graph.AlterPropertyGraphStatement",
+        lambda d: graph_mod.AlterPropertyGraphStatement(
             d,
             graph=PropertyGraph(d, "g"),
             action="add",
@@ -697,8 +745,8 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "graph.DropPropertyGraphExpression",
-        lambda d: graph_mod.DropPropertyGraphExpression(d, graph=PropertyGraph(d, "g")),
+        "graph.DropPropertyGraphStatement",
+        lambda d: graph_mod.DropPropertyGraphStatement(d, graph=PropertyGraph(d, "g")),
     )
 
     # -- SQL/XML ------------------------------------------------------------
@@ -715,31 +763,102 @@ def register_specials():
         lambda d: XMLConcatExpression(d, [Literal(d, "a"), Literal(d, "b")]),
     )
 
+    # -- predicates whose operand slots are expressions ---------------------
+    # ``LikePredicate`` carries the operator as a parameter and takes its two
+    # operands as value nodes, so the generic guess puts plain strings in both
+    # positions and the instance cannot render (``'str' object has no attribute
+    # 'to_sql'``). ``ILikePredicate`` takes its column as ``Any`` for the same
+    # reason. Core's own dummy2 matrix registers these two shapes; this is the
+    # same registration, so the contract the core states is the one measured
+    # here. MariaDB spells LIKE with core's own formatter and refuses ILIKE
+    # through its ``supports_ilike`` probe, so neither needs a matrix row.
+    register_special_constructor(
+        "predicates.LikePredicate",
+        lambda d: LikePredicate(d, LikeOperator.LIKE, Column(d, "a"), Literal(d, "%x%")),
+    )
+    register_special_constructor(
+        "predicates.ILikePredicate",
+        lambda d: ILikePredicate(d, Column(d, "a"), "%x%"),
+    )
+
+    # -- nodes whose operation is a closed set of *words* ---------------------
+    # ``ArithmeticOperation`` and ``SetOperation`` both carry their operation as
+    # a word (``add``/``sub``/``mul``/``div``/``mod`` and
+    # ``union``/``union_all``/``intersect``/``except``) and refuse anything else
+    # at construction. The introspective guess reads ``op: str`` and supplies
+    # ``"x"``, which is not one of them, so both need a real word handed in.
+    register_special_constructor(
+        "operators.ArithmeticOperation",
+        lambda d: ArithmeticOperation(d, "add", Column(d, "a"), Column(d, "b")),
+    )
+    register_special_constructor(
+        "query_sources.SetOperation",
+        lambda d: SetOperation(
+            d,
+            op="union",
+            left=QueryStatement(d, select=[Column(d, "id")], from_=_table_obj(d)),
+            right=QueryStatement(
+                d, select=[Column(d, "id")], from_=_table_obj(d, "other")
+            ),
+        ),
+    )
+
     # -- MariaDB's own expressions ------------------------------------------
     # Each of these guesses a bare string where the formatter wants an object.
-    # `MariaDBFlushExpression` and friends are absent from this list on purpose:
+    # `MariaDBFlushStatement` and friends are absent from this list on purpose:
     # their one-line constructors are guessed correctly, and the three that
     # refuse an empty collection are pinned in LEGITIMATE_NON_RENDERS with the
     # reason, because an instance with no options is not a statement.
+    #
+    # SHOW. `relation` is annotated `Union[RelationObject, str]`, and the
+    # heuristic reads a union's members when it asks what a parameter is, so it
+    # finds the `RelationObject` arm and supplies a Literal -- which the
+    # constructor refuses, because a SHOW target is a relation or a name, never
+    # an expression. Each statement gets the relation object it names, so the
+    # rendered SQL is one this backend actually accepts.
     register_special_constructor(
-        "routine.MariaDBCreateProcedureExpression",
-        lambda d: maria_routine.MariaDBCreateProcedureExpression(
+        "show.ShowRelationExpression",
+        lambda d: maria_show.ShowRelationExpression(d, _table_obj(d, "probe_rel")),
+    )
+    register_special_constructor(
+        "show.ShowColumnsStatement",
+        lambda d: maria_show.ShowColumnsStatement(d, _table_obj(d, "probe_cols")),
+    )
+    register_special_constructor(
+        "show.ShowCreateTableStatement",
+        lambda d: maria_show.ShowCreateTableStatement(d, _table_obj(d, "probe_ct")),
+    )
+    register_special_constructor(
+        "show.ShowCreateViewStatement",
+        lambda d: maria_show.ShowCreateViewStatement(d, View(d, "probe_cv")),
+    )
+    register_special_constructor(
+        "show.ShowCreateTriggerStatement",
+        lambda d: maria_show.ShowCreateTriggerStatement(d, Trigger(d, "probe_trg")),
+    )
+    register_special_constructor(
+        "show.ShowIndexStatement",
+        lambda d: maria_show.ShowIndexStatement(d, _table_obj(d, "probe_idx")),
+    )
+    register_special_constructor(
+        "routine.MariaDBCreateProcedureStatement",
+        lambda d: maria_routine.MariaDBCreateProcedureStatement(
             d, Procedure(d, "pr"), params=["IN a INT"], body="BEGIN END"
         ),
     )
     register_special_constructor(
-        "routine.MariaDBDropProcedureExpression",
-        lambda d: maria_routine.MariaDBDropProcedureExpression(d, Procedure(d, "pr")),
+        "routine.MariaDBDropProcedureStatement",
+        lambda d: maria_routine.MariaDBDropProcedureStatement(d, Procedure(d, "pr")),
     )
     register_special_constructor(
-        "routine.MariaDBCallExpression",
-        lambda d: maria_routine.MariaDBCallExpression(
+        "routine.MariaDBCallStatement",
+        lambda d: maria_routine.MariaDBCallStatement(
             d, Procedure(d, "pr"), args=[Literal(d, 1)]
         ),
     )
     # Suffixed without a `statements.` prefix on purpose: `make_instance` matches
     # with `str.endswith`, and this class lives in `mariadb.expression.dml`, so
-    # the core `statements.dml.InsertExpression` spelling would not reach it.
+    # the core `statements.dml.InsertStatement` spelling would not reach it.
     register_special_constructor(
         "dml.MariaDBInsertExpression",
         lambda d: MariaDBInsertExpression(
@@ -776,10 +895,78 @@ def register_specials():
         lambda d: MariaDBSTDistanceExpression(d, "g1", "g2"),
     )
     register_special_constructor(
-        "partition.MariaDBExchangePartitionExpression",
-        lambda d: MariaDBExchangePartitionExpression(
+        "partition.MariaDBExchangePartitionStatement",
+        lambda d: MariaDBExchangePartitionStatement(
             d, _table_obj(d, "probe_part"), "p0", _table_obj(d, "probe_exch")
         ),
+    )
+
+    # -- declared-result annotations -----------------------------------------
+    # An annotation renders what it annotates, and ``format_declared_result``
+    # reads an alias off both the source and the annotation itself. The ten
+    # surface classes each gain one through their value-type base, so they
+    # render; the shared base ``_Annotation`` declares no alias and the
+    # formatter reads one anyway, which is pinned in
+    # LEGITIMATE_NON_RENDERS rather than papered over here. One aliasable
+    # source serves the base and every surface class.
+    from rhosocial.activerecord.backend.expression.core import FunctionCall
+
+    def _aliasable_source(d):
+        return FunctionCall(d, "FUNC", niladic=True)
+
+    register_special_constructor(
+        "declared._Annotation",
+        lambda d: declared_mod._Annotation(d, _aliasable_source(d)),
+    )
+    for _name in (
+        "ArrayAnnotation",
+        "BinaryAnnotation",
+        "BooleanAnnotation",
+        "IntegerAnnotation",
+        "JSONAnnotation",
+        "NumberAnnotation",
+        "TemporalAnnotation",
+        "TextAnnotation",
+        "UUIDAnnotation",
+        "XMLAnnotation",
+    ):
+        register_special_constructor(
+            f"declared.{_name}",
+            lambda d, _n=_name: getattr(declared_mod, _n)(d, _aliasable_source(d)),
+        )
+
+    # -- string functions with declared operands ------------------------------
+    # ``LEFT`` / ``RIGHT`` count their characters, so the count has to be a
+    # whole number: the guess hands the string-annotated slot the bare string
+    # ``"x"``, which serializes into a Literal the reconstruction then
+    # compares with 0 -- a TypeError that is the guess's, not MariaDB's.
+    # ``SUBSTRING`` bounds its positions at construction and the guess cannot
+    # satisfy them either. Real operands, and each renders.
+    register_special_constructor(
+        "functions.string.LeftFunction",
+        lambda d: LeftFunction(d, Column(d, "t"), Literal(d, 3)),
+    )
+    register_special_constructor(
+        "functions.string.RightFunction",
+        lambda d: RightFunction(d, Column(d, "t"), Literal(d, 3)),
+    )
+    register_special_constructor(
+        "functions.string.SubstringExpression",
+        lambda d: SubstringExpression(d, Column(d, "t"), Literal(d, 1), Literal(d, 2)),
+    )
+
+    # -- the extract spellings -------------------------------------------------
+    # Both extract nodes normalize their ``field`` through the datetime-field
+    # enum and the guess's bare string is refused there. The field-named class
+    # is asked for the ``YEAR`` spelling it exists to carry; the shared base
+    # keeps the standard ``EXTRACT`` default.
+    register_special_constructor(
+        "datetime._ExtractBase",
+        lambda d: _ExtractBase(d, "year", Column(d, "ts")),
+    )
+    register_special_constructor(
+        "datetime.ExtractFieldExpression",
+        lambda d: ExtractFieldExpression(d, "year", Column(d, "ts"), spelling="YEAR"),
     )
 
 
@@ -834,9 +1021,6 @@ UNCONSTRUCTIBLE = (
     "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBEnumType",
     "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBSetType",
     # ---- core expressions, arrived with the typed-column work ----------------
-    # CUSTOM type. `raw` names the SQL type string and defaults to the empty
-    # string, so the filler skips it and builds a type with no spelling.
-    "rhosocial.activerecord.backend.expression.types.custom.CustomType",
     # UUID constant. `which` must name 'nil' or 'max' and __init__ rejects
     # anything else, so the filler's guess is refused at construction.
     "rhosocial.activerecord.backend.expression.uuid.UUIDConstantExpression",
@@ -845,23 +1029,16 @@ UNCONSTRUCTIBLE = (
     "rhosocial.activerecord.backend.expression.uuid.UUIDGenerationExpression",
     # UUID cast. `expression` is annotated Any, so the filler hands it a string
     # where the node needs an expression to cast.
-    "rhosocial.activerecord.backend.expression.uuid.UUIDCastExpression",
+    "rhosocial.activerecord.backend.expression.uuid.UUIDCastFunction",
     # ---- core expressions --------------------------------------------------
     # ALTER CONSTRAINT. `name` and `constraint_type` sit behind defaulted
     # positionals and are keyword-only, so the introspective constructor skips
     # them and the class refuses an incomplete action.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraint",
-    # VALIDATE CONSTRAINT. Same shape as AlterConstraint: the required `name` is
-    # keyword-only behind a defaulted positional.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.ValidateConstraint",
+    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraintAction",
     # ADD DOMAIN CHECK. Widens a SQLPredicate into a DomainCheckConstraint and
     # needs one; the guess supplies a bare comparison whose literal would have to
     # render as a bind parameter, which DDL cannot carry.
     "rhosocial.activerecord.backend.expression.statements.ddl_domain.AddDomainCheckAction",
-    # Core ENUM type. Its `values` list is keyword-only behind a defaulted
-    # positional, so the introspective constructor skips it and the type declares
-    # no members.
-    "rhosocial.activerecord.backend.expression.types.enum_.EnumType",
 )
 
 #: Classes that construct but cannot render, for a reason belonging to their own
@@ -897,7 +1074,7 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.bases.SQLPredicate": (
         NotImplementedError, _NO_FORMATTER
     ),
-    "rhosocial.activerecord.backend.expression.bases.SQLValueExpression": (
+    "rhosocial.activerecord.backend.expression.bases.SQLValue": (
         NotImplementedError, _NO_FORMATTER
     ),
     # The roots of the object tree. Each concrete object overrides `format_method`
@@ -924,10 +1101,28 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.statements.dml.InsertDataSource": (
         NotImplementedError, _NO_FORMATTER
     ),
-    "rhosocial.activerecord.backend.expression.transaction.TransactionExpression": (
+    "rhosocial.activerecord.backend.expression.transaction.TransactionStatement": (
         NotImplementedError, _NO_FORMATTER
     ),
-    "rhosocial.activerecord.backend.expression.datetime._TemporalValueExpression": (
+    "rhosocial.activerecord.backend.expression.datetime._TemporalValue": (
+        NotImplementedError, _NO_FORMATTER
+    ),
+    # The DDL column-clause base and the two constraint-branch bases. Each names
+    # the *category* rather than a renderable node and deliberately overrides no
+    # ``format_method``: a column clause is one of collation / charset / identity
+    # / auto-increment / comment / generated, and a constraint branch is one of
+    # primary key / unique / not null / nullable / check / default / foreign key
+    # / generated. The concrete members each name their own formatter and are in
+    # the matrix; the bases have nothing to dispatch, so this is the same
+    # no-formatter outcome as the bases above. S3 introduced the two branch
+    # bases, and the wildcard split did not touch these.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnClause": (
+        NotImplementedError, _NO_FORMATTER
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnConstraintBranch": (
+        NotImplementedError, _NO_FORMATTER
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.TableConstraintBranch": (
         NotImplementedError, _NO_FORMATTER
     ),
     "rhosocial.activerecord.backend.expression.introspection.IntrospectionExpression": (
@@ -947,11 +1142,22 @@ LEGITIMATE_NON_RENDERS = {
     ),
     # Two introspection roots that ask a subclass to name its own query, rather
     # than dispatching on a `format_method` property the way the other bases do.
-    "rhosocial.activerecord.backend.expression.introspection.TableInfoExpression": (
-        NotImplementedError, "Subclass must implement format_table_info_query"
+    "rhosocial.activerecord.backend.expression.introspection.TableInfoQueryStatement": (
+        NotImplementedError, "Subclass must implement format_table_info_query_statement"
     ),
-    "rhosocial.activerecord.backend.expression.introspection.TriggerInfoExpression": (
-        NotImplementedError, "Subclass must implement format_trigger_info_query"
+    "rhosocial.activerecord.backend.expression.introspection.TriggerInfoQueryStatement": (
+        NotImplementedError, "Subclass must implement format_trigger_info_query_statement"
+    ),
+    # The declared-result base. ``format_declared_result`` reads ``expr.alias``
+    # on the node it renders, and this base declares none: ``alias`` belongs to
+    # ``AliasableMixin``, which the ten surface classes each gain through their
+    # value-type base and this shared root does not. So the base cannot render
+    # in *any* dialect, while every surface class beside it renders here. A
+    # formatter reading a field its own node does not declare is the defect
+    # (the reflection ban says which side has to move), and it is core's to
+    # fix; pinned so the row goes away the day it is.
+    "rhosocial.activerecord.backend.expression.declared._Annotation": (
+        AttributeError, "has no attribute 'alias'"
     ),
 
     # ---- instances the generic constructor builds that are not statements ---
@@ -960,20 +1166,20 @@ LEGITIMATE_NON_RENDERS = {
     # statement needs. The refusal is the point: an ANALYZE with no operation or
     # a RENAME with no pairs is not a statement, and rendering one would emit
     # SQL the server would reject with a far worse message.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBFlushExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBFlushStatement": (
         ValueError, "FLUSH requires at least one option"
     ),
-    "rhosocial.activerecord.backend.impl.mariadb.expression.rename_table.MariaDBRenameTableExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.rename_table.MariaDBRenameTableStatement": (
         ValueError, "RENAME TABLE requires at least one <table> TO <table> pair"
     ),
     # The guess supplies the operation as its bare string; the enum member is
     # what the formatter dispatches on, so it refuses the string by name.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.maintenance.MariaDBTableMaintenanceExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.maintenance.MariaDBTableMaintenanceStatement": (
         TypeError, "operation must be a TableMaintenanceOperation"
     ),
     # COLLATE validates its collation against MariaDB's own list; the guess's
     # placeholder collation is not one of them, which is the check working.
-    "rhosocial.activerecord.backend.expression.collation.CollateExpression": (
+    "rhosocial.activerecord.backend.expression.collation.CollateFunction": (
         ValueError, "Unsupported MariaDB collation"
     ),
 
@@ -990,57 +1196,57 @@ LEGITIMATE_NON_RENDERS = {
     # SQL/XML. Thirteen separate statements, no MariaDB implementation of any
     # of them. Grouped because they share one cause.
     "rhosocial.activerecord.backend.expression.xml.XMLAggExpression": (
-        UnsupportedFeatureError, "format_xmlagg_expression"
+        UnsupportedFeatureError, "format_xml_agg_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLAttributesExpression": (
-        UnsupportedFeatureError, "format_xmlattributes_expression"
+        UnsupportedFeatureError, "format_xml_attributes_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLCommentExpression": (
-        UnsupportedFeatureError, "format_xmlcomment_expression"
+        UnsupportedFeatureError, "format_xml_comment_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLConcatExpression": (
-        UnsupportedFeatureError, "format_xmlconcat_expression"
+        UnsupportedFeatureError, "format_xml_concat_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLElementExpression": (
-        UnsupportedFeatureError, "format_xmlelement_expression"
+        UnsupportedFeatureError, "format_xml_element_expression"
     ),
-    "rhosocial.activerecord.backend.expression.xml.XMLExistsExpression": (
-        UnsupportedFeatureError, "format_xmlexists_expression"
+    "rhosocial.activerecord.backend.expression.xml.XMLExistsPredicate": (
+        UnsupportedFeatureError, "format_xmlexists_predicate"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLForestExpression": (
-        UnsupportedFeatureError, "format_xmlforest_expression"
+        UnsupportedFeatureError, "format_xml_forest_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLPIExpression": (
         UnsupportedFeatureError, "format_xmlpi_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": (
-        UnsupportedFeatureError, "format_xmlparse_expression"
+        UnsupportedFeatureError, "format_xml_parse_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLQueryExpression": (
-        UnsupportedFeatureError, "format_xmlquery_expression"
+        UnsupportedFeatureError, "format_xml_query_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLRootExpression": (
-        UnsupportedFeatureError, "format_xmlroot_expression"
+        UnsupportedFeatureError, "format_xml_root_expression"
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": (
-        UnsupportedFeatureError, "format_xmlserialize_expression"
+        UnsupportedFeatureError, "format_xml_serialize_expression"
     ),
     # XMLTABLE. Pinned in UNCONSTRUCTIBLE until the harness stopped reading
     # `Sequence[XMLTableColumn]` as a request for a catalogue Sequence; the
     # class itself never had a construction gap, so it belongs here with the
     # other twelve SQL/XML statements rather than back in the tuple.
     "rhosocial.activerecord.backend.expression.xml.XMLTableExpression": (
-        UnsupportedFeatureError, "format_xmltable_expression"
+        UnsupportedFeatureError, "format_xml_table_expression"
     ),
     # Property graphs. MariaDB has a MATCH *predicate* but no property-graph DDL
     # and no GRAPH_TABLE row source; these are the eight pieces of that feature.
-    "rhosocial.activerecord.backend.expression.graph.AlterPropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.AlterPropertyGraphStatement": (
         UnsupportedFeatureError, "format_alter_property_graph_statement"
     ),
-    "rhosocial.activerecord.backend.expression.graph.CreatePropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.CreatePropertyGraphStatement": (
         UnsupportedFeatureError, "format_create_property_graph_statement"
     ),
-    "rhosocial.activerecord.backend.expression.graph.DropPropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.DropPropertyGraphStatement": (
         UnsupportedFeatureError, "format_drop_property_graph_statement"
     ),
     "rhosocial.activerecord.backend.expression.graph.GraphTableExpression": (
@@ -1055,22 +1261,24 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.graph.VertexTable": (
         UnsupportedFeatureError, "format_vertex_table"
     ),
-    "rhosocial.activerecord.backend.expression.graph.EdgeTable": (
-        UnsupportedFeatureError, "format_edge_table"
-    ),
+    # EdgeTable used to be pinned here as ``graph.EdgeTable``. Core moved the
+    # relation object to ``objects.relation``, where it is an ordinary
+    # ``Table`` subclass and renders through the table formatter; what is left
+    # in ``graph`` is the DDL piece, ``EdgeTableDefinition``, pinned above
+    # against the formatter MariaDB declares no name for.
     # PIVOT / UNPIVOT. Not MariaDB syntax, and no formatter.
-    "rhosocial.activerecord.backend.expression.pivot.PivotExpression": (
-        UnsupportedFeatureError, "format_pivot_expression"
+    "rhosocial.activerecord.backend.expression.pivot.Pivot": (
+        UnsupportedFeatureError, "format_pivot"
     ),
-    "rhosocial.activerecord.backend.expression.pivot.UnpivotExpression": (
-        UnsupportedFeatureError, "format_unpivot_expression"
+    "rhosocial.activerecord.backend.expression.pivot.Unpivot": (
+        UnsupportedFeatureError, "format_unpivot"
     ),
     # COMMENT ON. MariaDB's COMMENT is a table option and a column attribute,
     # both of which this dialect renders; the standalone statement is not
     # implemented. Worth pinning by name because it is a real gap rather than a
     # MariaDB refusal, and the table-option path renders today.
-    "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnExpression": (
-        UnsupportedFeatureError, "format_comment_statement"
+    "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnStatement": (
+        UnsupportedFeatureError, "format_comment_on_statement"
     ),
     # The root of the row-source tree. No concrete source renders through
     # `format_table_source`; each overrides `format_method`. This is a base that
@@ -1126,15 +1334,19 @@ LEGITIMATE_NON_RENDERS = {
         TypeError, "does not support the generic type 'xml'"
     ),
     # The root of the type tree. Every concrete type declares its own generic
-    # name, which is what dispatch reads; the root declares none, so there is
-    # nothing to dispatch on. TypeError, not UnsupportedFeatureError, because the
-    # class is incomplete rather than the dialect being unable.
+    # name, which is what dispatch reads; the root declares none, so the
+    # dialect is asked for ``format_data_type_None`` and answers by naming the
+    # generic name it was given -- ``None``. TypeError, not
+    # UnsupportedFeatureError, because the class is incomplete rather than the
+    # dialect being unable. The message moved from "does not declare a valid
+    # generic type name" to naming the absent generic name when core started
+    # reporting the dispatch's own lookup instead.
     "rhosocial.activerecord.backend.expression.types._base.DataType": (
-        TypeError, "does not declare a valid generic type name"
+        TypeError, "does not support the generic type None"
     ),
 
     # MariaDB's trigger formatter reads ``or_replace``, ``ordering`` and
-    # ``body``, none of which core's ``CreateTriggerExpression`` carries -- it
+    # ``body``, none of which core's ``CreateTriggerStatement`` carries -- it
     # has ``if_not_exists`` and ``update_columns`` instead. So the MariaDB
     # formatter and the core expression disagree about the same hook, and the
     # expression reaches the formatter and then fails on a missing attribute.
@@ -1144,10 +1356,267 @@ LEGITIMATE_NON_RENDERS = {
     # form), but only for an expression shaped the way it expects, and this
     # repository has no such expression class. Named here so the gap is
     # recorded rather than swallowed.
-    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerStatement": (
         AttributeError, "has no attribute 'or_replace'"
     ),
 }
+
+
+# ---------------------------------------------------------------------------
+# The round-trip gap: an artifact core cannot carry is not a pass
+# ---------------------------------------------------------------------------
+#
+# ``to_sql()`` above classifies what happens when a class is *rendered*. This
+# table classifies the other half: what happens when its artifact is written
+# and read back. Both halves are per-class assertions here, and both refuse to
+# swallow a failure.
+#
+# Every row is a defect in **core's serialization layer**, not in this backend
+# and not in the harness: the classes below construct, render, and pin their
+# parameters like any other, and the artifact writer or the reader cannot
+# carry one of those parameters anyway. Three shapes appear, and the shape is
+# the reason the row exists:
+#
+# * **the writer refuses the parameter** -- ``encode_artifact`` asks
+#   ``LiteralKind.of`` what kind a value belongs to, and that vocabulary is
+#   the closed set of *value* types. A plain (non-``str``) enum member is not
+#   in it and is refused by name, and neither is a host object that is
+#   neither an expression nor a scalar (``XMLAttribute``, ``GraphColumn``).
+#   Every channel fails, including the dict one, because the failure is on
+#   the write.
+# * **the constructor refuses its own wire form** -- the JSON and XML
+#   channels write the member's *value*, a plain ``str``, and the
+#   constructor answers "must be a <Enum>". The artifact is unreadable by
+#   the node that produced it.
+# * **the constructor does not normalise on read** -- same write, same read,
+#   and the value survives while the host type does not: the parameter comes
+#   back as a ``str`` where an enum member went in. ``assert_params_equal``
+#   reports it as a type mismatch naming the member type, which is the
+#   witness these rows pin.
+#
+# A fourth, narrower shape used to exist: the XML channel spelled a
+# ``str``-enum member as ``str(member)`` -- ``"DateTimeField.YEAR"`` rather
+# than ``"year"`` -- so the reader handed the constructor a word that is
+# neither a member's value nor a member's name and the normaliser refused it.
+# Core fixed the nine enum families that lacked ``__str__ = str.__str__``, so
+# the shape is gone and with it every row it had here.
+#
+# The writer and the reader are core's, so a row in the first block cannot be
+# fixed from a backend repository. The normalisation rows name whichever
+# constructor declines to convert the word back -- core's for the classes above,
+# and this backend's own for the one MariaDB row, which is pinned here rather
+# than changed there because its node's read contract is a decision of its own.
+# Each row is pinned exactly -- the channel(s) that fail and the exception or
+# mismatch they fail with -- so that the day the owning side fixes one,
+# ``test_pinned_serialization_\
+# gap_really_fails`` reports the row as stale and the row is deleted. A class
+# that starts failing *without* a row fails its per-class assertion instead.
+#
+# Shape: ``fqn -> (channels, witness)``. ``channels`` is the tuple, in
+# ``("dict", "json", "xml")`` order, of the channels that cannot round-trip;
+# every channel not named must round-trip. ``witness`` is either a
+# ``(exception type, message fragment)`` pair -- the channel raises it -- or a
+# string, which is the fragment of the parameter comparison the channel fails
+# instead.
+SERIALIZATION_GAP = {
+    # ---- the writer refuses the parameter (all three channels) -------------
+    # A plain enum or a host object is not in the value vocabulary, so
+    # ``encode_artifact`` refuses it by name. The members of each pair are
+    # pinned by the offending type's own name, which is what disappears when
+    # the writer learns to carry one.
+    #
+    # The three enum-carrying constraints that used to sit here are in the
+    # normalisation block below now: core made ``ReferentialAction``,
+    # ``GeneratedColumnType`` and ``TriggerEvent`` str enums, so the writer
+    # carries them and only the read back is still lossy.
+    "rhosocial.activerecord.backend.expression.graph.ColumnsClause": (
+        ("dict", "json", "xml"),
+        (TypeError, "GraphColumn is not one of the value kinds"),
+    ),
+    "rhosocial.activerecord.backend.expression.graph.GraphTableExpression": (
+        ("dict", "json", "xml"),
+        (TypeError, "GraphColumn is not one of the value kinds"),
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_view.CreateViewStatement": (
+        ("dict", "json", "xml"),
+        (TypeError, "ViewOptions is not one of the value kinds"),
+    ),
+    "rhosocial.activerecord.backend.expression.xml.XMLAttributesExpression": (
+        ("dict", "json", "xml"),
+        (TypeError, "XMLAttribute is not one of the value kinds"),
+    ),
+    "rhosocial.activerecord.backend.expression.xml.XMLForestExpression": (
+        ("dict", "json", "xml"),
+        (TypeError, "XMLForestItem is not one of the value kinds"),
+    ),
+    "rhosocial.activerecord.backend.impl.mariadb.expression.load_data.MariaDBLoadDataStatement": (
+        ("dict", "json", "xml"),
+        (TypeError, "LoadDataOptions is not one of the value kinds"),
+    ),
+    # ---- the constructor refuses its own wire form (json and xml) ----------
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.CreateTableCloneStatement": (
+        ("json", "xml"),
+        (TypeError, "mode must be a CreateTableCloneMode"),
+    ),
+    # ---- the constructor does not normalise on read (json and xml) ---------
+    # The value survives and the host type does not, so the witness is the
+    # comparison the harness reports rather than an exception.
+    "rhosocial.activerecord.backend.expression.graph.GraphEdge": (
+        ("json", "xml"),
+        "type mismatch str vs GraphEdgeDirection",
+    ),
+    "rhosocial.activerecord.backend.expression.graph.QuantifiedPath": (
+        ("json", "xml"),
+        "type mismatch str vs GraphEdgeDirection",
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_database.AlterDatabaseStatement": (
+        ("json", "xml"),
+        "type mismatch str vs AlterDatabaseAction",
+    ),
+    "rhosocial.activerecord.backend.expression.statements.dml.MergeAction": (
+        ("json", "xml"),
+        "type mismatch str vs MergeActionType",
+    ),
+    "rhosocial.activerecord.backend.expression.statements.dml.MergeStatement": (
+        ("json", "xml"),
+        "type mismatch str vs MergeActionType",
+    ),
+    "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": (
+        ("json", "xml"),
+        "type mismatch str vs XMLParseDocumentType",
+    ),
+    "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": (
+        ("json", "xml"),
+        "type mismatch str vs XMLSerializeDocumentType",
+    ),
+    # Core made these three enums str subclasses, so the writer stopped
+    # refusing them and the dict channel carries the member untouched. What
+    # is left is the read: these constructors store the parameter the
+    # artifact hands back, so the word arrives where the member went in.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnGeneratedConstraint": (
+        ("json", "xml"),
+        "type mismatch str vs GeneratedColumnType",
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ForeignKeyConstraint": (
+        ("json", "xml"),
+        "type mismatch str vs ReferentialAction",
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerStatement": (
+        ("json", "xml"),
+        "type mismatch str vs TriggerTiming",
+    ),
+    # This backend's own ``KillTarget`` takes the org's enum spelling -- a
+    # ``str`` base with ``__str__`` pinned -- so the member *is* a string and
+    # the writer carries it as ``string_value`` instead of refusing it by name.
+    # The word survives the JSON and XML payloads and the node's constructor
+    # does not normalise it back into a member, so the parameter comes back
+    # as the ``str`` the wire carried. The dict channel hands the member
+    # through untouched and still round-trips.
+    "rhosocial.activerecord.backend.impl.mariadb.expression.admin.MariaDBKillStatement": (
+        ("json", "xml"),
+        "type mismatch str vs KillTarget",
+    ),
+    # ---- the XML channel spells a str-enum member as str(member) -----------
+    # Empty now: core gave ``DateTimeField`` / ``IntervalUnit`` the
+    # ``__str__ = str.__str__`` they were missing, so the XML writer spells the
+    # word and the normaliser accepts it. Keeping a row here would be pinning a
+    # defect that no longer exists -- ``test_pinned_serialization_\
+    # gap_really_fails`` reports it as stale and the row is deleted.
+}
+
+_CHANNELS = ("dict", "json", "xml")
+
+
+def _serialization_gap(fqn):
+    """The pinned round-trip gap for *fqn*, or ``None`` when it has none."""
+    return SERIALIZATION_GAP.get(fqn)
+
+
+def _restore_channel(channel, instance, dialect):
+    """Serialize *instance* and read it back through one channel."""
+    if channel == "dict":
+        return deserialize(serialize(instance), dialect)
+    if channel == "json":
+        return deserialize_json(serialize_json(instance), dialect)
+    return deserialize_xml(serialize_xml(instance), dialect)
+
+
+def _run_channel(fqn, channel, instance, dialect):
+    """One channel's round-trip, as an outcome a caller can classify.
+
+    Returns ``("ok", restored)``, ``("raises", exception)`` or
+    ``("degrades", message)``. A channel that is not named in a class's
+    :data:`SERIALIZATION_GAP` row must return the first; a channel that is
+    named must return one of the other two, and the row's witness says which
+    and what it must look like.
+    """
+    try:
+        restored = _restore_channel(channel, instance, dialect)
+    except Exception as exc:  # noqa: BLE001 -- classified by the caller
+        return "raises", exc
+    try:
+        assert_params_equal(restored.get_params(), instance.get_params(), fqn)
+    except AssertionError as exc:
+        return "degrades", str(exc)
+    return "ok", restored
+
+
+def _assert_roundtrip_or_gap(fqn, instance, dialect):
+    """Assert all three channels, against the pinned gap table.
+
+    Returns ``{channel: restored}`` for the channels that round-tripped. A
+    channel whose class has no pinned gap must round-trip, and a pinned
+    channel must fail exactly the way its witness says -- so neither a new
+    failure nor a stale row can pass quietly.
+    """
+    gap = _serialization_gap(fqn)
+    restored_ok = {}
+    failing = []
+    for channel in _CHANNELS:
+        outcome, detail = _run_channel(fqn, channel, instance, dialect)
+        if outcome == "ok":
+            restored_ok[channel] = detail
+            continue
+        failing.append(channel)
+        if outcome == "raises":
+            what = f"raised {type(detail).__name__}: {detail}"
+        else:
+            what = f"lost a parameter type: {detail}"
+        assert gap is not None, (
+            f"{fqn}: the {channel} channel {what}, and the class is not in "
+            f"SERIALIZATION_GAP. If core's writer or reader learned to carry "
+            f"the parameter, the row is no longer needed; if it has not, the "
+            f"class needs a row naming the channel and the witness."
+        )
+        channels, witness = gap
+        assert channel in channels, (
+            f"{fqn}: the {channel} channel failed but the pinned gap names "
+            f"{channels}. Either the pin is wrong about which channels fail, or "
+            f"core's behaviour changed and the row must be re-measured."
+        )
+        if isinstance(witness, tuple):
+            expected_type, fragment = witness
+            assert outcome == "raises", (
+                f"{fqn}: the pinned gap says the {channel} channel raises "
+                f"{expected_type.__name__} saying {fragment!r}, but it {what}."
+            )
+            assert type(detail) is expected_type and fragment in str(detail), (
+                f"{fqn}: the {channel} channel was pinned to raise "
+                f"{expected_type.__name__} saying {fragment!r}, but it {what}."
+            )
+        else:
+            assert outcome == "degrades" and witness in str(detail), (
+                f"{fqn}: the pinned gap says the {channel} channel loses the "
+                f"parameter type reported as {witness!r}, but it {what}."
+            )
+    if gap is not None:
+        channels, _witness = gap
+        assert set(failing) == set(channels), (
+            f"{fqn}: the pinned gap names {channels} as the channels that fail, "
+            f"but {failing} failed. A row that names a channel which now works "
+            f"is stale and must go."
+        )
+    return restored_ok
 
 
 # ---------------------------------------------------------------------------
@@ -1207,19 +1676,24 @@ def _dispatched_formatter(exc):
 #: property graphs, no COMMENT ON, no PIVOT" says what the dialect is.
 UNMODELLED_FORMATTERS = {
     "SQL/XML (MariaDB implements no part of SQL/XML)": (
-        "format_xmlagg_expression",
-        "format_xmlattributes_expression",
-        "format_xmlcomment_expression",
-        "format_xmlconcat_expression",
-        "format_xmlelement_expression",
-        "format_xmlexists_expression",
-        "format_xmlforest_expression",
+        "format_xml_agg_expression",
+        "format_xml_attributes_expression",
+        "format_xml_comment_expression",
+        "format_xml_concat_expression",
+        "format_xml_element_expression",
+        "format_xmlexists_predicate",
+        "format_xml_forest_expression",
         "format_xmlpi_expression",
-        "format_xmlparse_expression",
-        "format_xmlquery_expression",
-        "format_xmlroot_expression",
-        "format_xmlserialize_expression",
-        "format_xmltable_expression",
+        "format_xml_parse_expression",
+        "format_xml_query_expression",
+        "format_xml_root_expression",
+        "format_xml_serialize_expression",
+        "format_xml_table_expression",
+        # S1-c's PASSING clause belongs to the same absent family: it carries the
+        # BY VALUE / BY REF argument list the XML querying expressions pass with,
+        # and MariaDB has none of them, so the dialect declares no
+        # ``format_passing_clause`` either.
+        "format_passing_clause",
     ),
     "SQL/PGQ property graphs (MariaDB has a MATCH predicate but no "
     "property-graph DDL and no GRAPH_TABLE)": (
@@ -1230,14 +1704,14 @@ UNMODELLED_FORMATTERS = {
         "format_graph_columns_clause",
         "format_table_properties_clause",
         "format_vertex_table",
-        "format_edge_table",
+        "format_edge_table_definition",
     ),
     "COMMENT ON (MariaDB's COMMENT is a table option and a column attribute, "
     "both rendered by this dialect; the standalone statement is not "
-    "implemented)": ("format_comment_statement",),
+    "implemented)": ("format_comment_on_statement",),
     "PIVOT / UNPIVOT (not MariaDB syntax, and no formatter for either)": (
-        "format_pivot_expression",
-        "format_unpivot_expression",
+        "format_pivot",
+        "format_unpivot",
     ),
     "the TableSource root (every concrete row source overrides its formatter; "
     "the root carries nothing but an alias and is never rendered)": ("format_table_source",),
@@ -1259,8 +1733,9 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
 
     Four outcomes, each asserted:
 
-    * **renders** -- all three encodings must restore byte-identical SQL *and*
-      byte-identical bind parameters.
+    * **renders** -- every encoding whose parameters round-trip (see
+      :func:`_assert_roundtrip_or_gap` for the other two) must restore
+      byte-identical SQL *and* byte-identical bind parameters.
     * a member of :data:`LEGITIMATE_NON_RENDERS` -- unrenderable by design,
       asserted as its exact type *and* message fragment.
     * ``UnsupportedFeatureError`` from a class *not* named in the dict -- MariaDB
@@ -1286,6 +1761,13 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
         AssertionError: On a round-trip mismatch, on an unexpected exception
             type, or when a class's rendering outcome changed.
     """
+    # The artifact half first, and it decides which channels the SQL half may
+    # compare: a channel whose parameters cannot round-trip cannot be asked
+    # whether the *SQL* survived, and pretending otherwise would fail the
+    # render assertion for a defect the gap table already names. Both halves
+    # classify rather than swallow -- see :data:`SERIALIZATION_GAP`.
+    restored_ok = _assert_roundtrip_or_gap(fqn, instance, dialect)
+
     try:
         expected_sql, expected_params = instance.to_sql()
     except Exception as exc:
@@ -1324,11 +1806,10 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
             f"  Exception: {exc}"
         ) from exc
 
-    for channel, decoded in (
-        ("dict", deserialize(serialize(instance), dialect)),
-        ("json", deserialize_json(serialize_json(instance), dialect)),
-        ("xml", deserialize_xml(serialize_xml(instance), dialect)),
-    ):
+    for channel in _CHANNELS:
+        if channel not in restored_ok:
+            continue
+        decoded = _restore_channel(channel, instance, dialect)
         decoded_sql, decoded_params = decoded.to_sql()
         assert decoded_sql == expected_sql, (
             f"{fqn}: {channel} round-trip changed the SQL.\n"
@@ -1363,25 +1844,121 @@ class TestExpressionRoundtripAll:
     """All constructible expression classes round-trip through all encodings."""
 
     def test_get_params_roundtrip_across_encodings(self, expr_case, mariadb_dialect):
+        """Every parameter survives all three channels -- or its gap is pinned.
+
+        A channel that fails for a class with no row in
+        :data:`SERIALIZATION_GAP` fails here, and so does a row that names a
+        channel which now round-trips. See the table's comment for what the
+        rows are and whose defect they record.
+        """
         fqn, instance = expr_case
-        original = instance.get_params()
-
-        spec_dict = serialize(instance)
-        restored_d = deserialize(spec_dict, mariadb_dialect)
-        assert_params_equal(restored_d.get_params(), original, fqn)
-
-        json_str = serialize_json(instance)
-        restored_j = deserialize_json(json_str, mariadb_dialect)
-        assert_params_equal(restored_j.get_params(), original, fqn)
-
-        xml_bytes = serialize_xml(instance)
-        restored_x = deserialize_xml(xml_bytes, mariadb_dialect)
-        assert_params_equal(restored_x.get_params(), original, fqn)
+        _assert_roundtrip_or_gap(fqn, instance, mariadb_dialect)
 
     def test_to_sql_roundtrip_classified(self, expr_case, mariadb_dialect):
         """A render must survive the round-trip; a non-render must be classified."""
         fqn, instance = expr_case
         assert_sql_roundtrip_classified(fqn, instance, mariadb_dialect)
+
+
+class TestLiteralValueKinds:
+    """One node carries every value, and the value names the kind.
+
+    The twelve ``*Value`` classes are gone from core; what replaced them is a
+    single :class:`Literal` whose *kind* is derived from the value it carries,
+    so the artifact says ``{"kind": "integer_value", ...}`` rather than naming
+    a class. That makes the value vocabulary the artifact's contract, and this
+    is where it is pinned: every kind travels as a plain JSON scalar with the
+    spelling its own kind declares -- ``bytes`` as base64 text, ``timedelta``
+    as ISO 8601 duration text, ``Decimal`` as exact text -- and a kind that
+    has no scalar spelling is refused rather than guessed at.
+    """
+
+    #: (member value, wire spelling of its payload) for each of the fourteen
+    #: value kinds, plus the two non-finite kinds that split off ``float``.
+    CASES = [
+        (None, None, "null_value"),
+        (True, True, "boolean_value"),
+        (42, 42, "integer_value"),
+        (1.5, 1.5, "float_value"),
+        (float("nan"), "nan", "nan_value"),
+        (float("inf"), "+inf", "infinity_value"),
+        (float("-inf"), "-inf", "infinity_value"),
+        (decimal.Decimal("1.25"), "1.25", "decimal_value"),
+        ("x'y", "x'y", "string_value"),
+        (b"\x01\x02\xff", "AQL/", "binary_value"),
+        (datetime.datetime(2026, 10, 17, 10, 0, 0),
+         "2026-10-17 10:00:00", "timestamp_value"),
+        (datetime.date(2026, 10, 17), "2026-10-17", "date_value"),
+        (datetime.time(10, 30), "10:30:00", "time_value"),
+        (datetime.timedelta(days=1, seconds=2, microseconds=3),
+         "P1DT2.000003S", "interval_value"),
+        ([1, 2], [1, 2], "list_value"),
+        ((1, 2), [1, 2], "tuple_value"),
+        (uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+         "550e8400-e29b-41d4-a716-446655440000", "uuid_value"),
+    ]
+
+    @pytest.mark.parametrize(
+        "value, wire, kind",
+        CASES,
+        ids=[case[2] for case in CASES],
+    )
+    def test_each_kind_travels_as_its_own_scalar(
+        self, mariadb_dialect, value, wire, kind
+    ):
+        expr = Literal(mariadb_dialect, value)
+        artifact = serialize(expr)
+        assert set(artifact) == {"kind", "params"}, (
+            f"{kind}: a bare node carries exactly 'kind' and 'params', got "
+            f"{sorted(artifact)}"
+        )
+        assert artifact["kind"] == kind
+        # ``inline`` rides as a plain parameter, like every other one: the
+        # bind-or-inline decision belongs to the node, not to the artifact.
+        assert artifact["params"] == {"value": wire, "inline": False}
+        json.loads(serialize_json(expr))  # the scalar is JSON-native, so this holds
+
+    def test_the_vocabulary_is_closed(self, mariadb_dialect):
+        """A host type no kind names is refused, not guessed at."""
+        from rhosocial.activerecord.backend.expression.values import LiteralKind
+
+        declared = {member.wire for member in LiteralKind}
+        pinned = {case[2] for case in self.CASES}
+        assert declared == pinned, (
+            "the value vocabulary moved: the pinned kinds are "
+            f"{sorted(pinned)}, the enum declares {sorted(declared)}. Add or "
+            f"remove a case here rather than letting the two drift."
+        )
+
+    def test_a_value_without_a_kind_is_refused_by_name(self, mariadb_dialect):
+        """A host type no kind names builds and binds, but writes no artifact.
+
+        Construction asks which kind the value *could* be and is refused only
+        when that is answerable and wrong; serialization is the layer that
+        actually cannot proceed, and it says so by naming the type. A value
+        the artifact cannot carry must not reach the wire under a guessed
+        spelling.
+        """
+
+        class _Unmodelled:
+            pass
+
+        from rhosocial.activerecord.backend.expression.serialization import (
+            ArtifactError,
+        )
+
+        expr = Literal(mariadb_dialect, _Unmodelled())
+        assert expr.to_sql() == ("%s", (expr.value,))
+        with pytest.raises(ArtifactError, match="has no value kind"):
+            serialize(expr)
+
+    def test_non_finite_floats_bind_and_never_inline(self, mariadb_dialect):
+        """NaN and +/-Inf carry, and no spelling of them reaches SQL text."""
+        for value in (float("nan"), float("inf"), float("-inf")):
+            bound = Literal(mariadb_dialect, value)
+            assert bound.to_sql() == ("%s", (value,))
+            with pytest.raises(ValueError):
+                Literal(mariadb_dialect, value, inline=True).to_sql()
 
 
 class TestMariaDBNamespaceShape:
@@ -1508,7 +2085,6 @@ class TestMatrixIntegrity:
         a constructor and the entry is stale; a class that fails to build without
         being named would become a silent skip. Both fail here.
         """
-        ExpressionRegistry._auto_register_builtins()
         actual = tuple(
             sorted(
                 fqn
@@ -1586,6 +2162,69 @@ class TestMatrixIntegrity:
             + "\n  ".join(wrong_message)
         )
 
+    def test_serialization_gap_entries_are_real_classes(self):
+        """Every pinned round-trip gap names a class that was collected."""
+        unknown = set(SERIALIZATION_GAP) - set(REGISTERED)
+        assert not unknown, (
+            f"SERIALIZATION_GAP names classes that were not registered: "
+            f"{sorted(unknown)}"
+        )
+
+    def test_pinned_serialization_gap_really_fails(self, mariadb_dialect):
+        """Each pinned row still fails the way it claims, on the channels it names.
+
+        The mirror of :meth:`test_pinned_non_render_really_does_not_render`,
+        for the artifact half. A row whose class now round-trips -- because
+        core's writer, reader or constructor was fixed -- is stale, and this
+        is where that is said. Every entry is checked before asserting, so a
+        run reports all of the rows that have drifted.
+        """
+        stale = []
+        for fqn, (channels, witness) in SERIALIZATION_GAP.items():
+            instance, source = make_instance(REGISTERED[fqn], mariadb_dialect)
+            if instance is None:
+                stale.append(f"{fqn} ({source})")
+                continue
+            observed = {
+                channel: _run_channel(fqn, channel, instance, mariadb_dialect)
+                for channel in _CHANNELS
+            }
+            failing = tuple(
+                channel
+                for channel in _CHANNELS
+                if observed[channel][0] != "ok"
+            )
+            if set(failing) != set(channels):
+                stale.append(
+                    f"{fqn}: pinned as failing on {channels}, but {failing} fail"
+                )
+                continue
+            for channel in channels:
+                outcome, detail = observed[channel]
+                if isinstance(witness, tuple):
+                    expected_type, fragment = witness
+                    if outcome != "raises" or type(detail) is not expected_type:
+                        stale.append(
+                            f"{fqn}: {channel} pinned to raise "
+                            f"{expected_type.__name__}, gave {outcome}"
+                        )
+                    elif fragment not in str(detail):
+                        stale.append(
+                            f"{fqn}: {channel} pinned to say {fragment!r}, "
+                            f"said: {detail}"
+                        )
+                elif outcome != "degrades" or witness not in str(detail):
+                    stale.append(
+                        f"{fqn}: {channel} pinned to lose the type reported as "
+                        f"{witness!r}, gave {outcome}: {detail}"
+                    )
+        assert not stale, (
+            "SERIALIZATION_GAP rows that no longer describe reality:\n  "
+            + "\n  ".join(stale)
+            + "\n  Delete the rows that now round-trip -- core was fixed -- and "
+            "re-measure the ones whose channels changed."
+        )
+
     def test_unmodelled_formatter_list_is_exact(self, mariadb_dialect):
         """Pin the unmodelled-formatter table against what the dialect lacks.
 
@@ -1650,7 +2289,6 @@ class TestMatrixIntegrity:
         rather than the registry because the registry also holds whatever
         backends other test modules happened to import.
         """
-        ExpressionRegistry._auto_register_builtins()
         expected = _matrix_classes()
         stray = [
             fqn
@@ -1674,14 +2312,27 @@ class TestMatrixIntegrity:
     def test_every_covered_class_is_registered_for_deserialization(self):
         """A class in the matrix can be found again when deserializing.
 
-        Deserialization looks the class up by name, so a class the matrix
-        renders but the registry cannot resolve would round-trip into the wrong
-        thing or nothing at all.
+        Deserialization resolves a kind to its class through the framework's
+        default registry, so a class the matrix covers but the registry
+        cannot resolve would round-trip into nothing.
         """
-        ExpressionRegistry._auto_register_builtins()
-        unresolved = sorted(set(REGISTERED) - set(ExpressionRegistry._registry))
+        from rhosocial.activerecord.backend.expression.registry import (
+            RegistryError,
+        )
+        from rhosocial.activerecord.backend.expression.serialization import (
+            default_registry,
+        )
+
+        registry = default_registry()
+        unresolved = []
+        for fqn, cls in REGISTERED.items():
+            try:
+                registry.resolve_node(cls.kind())
+            except RegistryError:
+                unresolved.append(fqn)
         assert not unresolved, (
-            f"the matrix covers classes the registry cannot resolve: {unresolved}"
+            f"the matrix covers classes the registry cannot resolve: "
+            f"{sorted(unresolved)}"
         )
 
     def test_coverage_report(self, mariadb_dialect):
@@ -1692,13 +2343,13 @@ class TestMatrixIntegrity:
         remove -- so the direction of the check here is a floor in
         ``test_matrix_covers_both_packages_completely`` and nothing else.
         """
-        ExpressionRegistry._auto_register_builtins()
         buckets = {
             "rendered": 0,
             "unsupported": 0,
             "unmodelled": 0,
             "non-render": 0,
             "unconstructible": 0,
+            "serialization-gap": 0,
         }
         for fqn in sorted(REGISTERED):
             instance, _ = make_instance(REGISTERED[fqn], mariadb_dialect)
@@ -1706,6 +2357,11 @@ class TestMatrixIntegrity:
                 buckets["unconstructible"] += 1
                 continue
             buckets[assert_sql_roundtrip_classified(fqn, instance, mariadb_dialect)] += 1
+            if _serialization_gap(fqn) is not None:
+                # Counted beside the render verdict rather than instead of it:
+                # these classes do render, and what they cannot do is carry
+                # their own artifact on the channels the gap names.
+                buckets["serialization-gap"] += 1
         print(
             f"\nexpression matrix: {len(REGISTERED)} registered, "
             f"{buckets['rendered']} render and round-trip, "
@@ -1713,6 +2369,8 @@ class TestMatrixIntegrity:
             f"{buckets['unmodelled']} from the dispatch (pinned in "
             f"UNMODELLED_FORMATTERS), "
             f"{buckets['non-render']} pinned non-render, "
+            f"{buckets['serialization-gap']} with a pinned round-trip gap "
+            f"(SERIALIZATION_GAP), "
             f"{buckets['unconstructible']} pinned unconstructible"
         )
         for feature, methods in sorted(UNMODELLED_FORMATTERS.items()):

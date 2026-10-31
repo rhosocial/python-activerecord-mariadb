@@ -4,7 +4,7 @@
 from typing import Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
-    TruncateExpression,
+    TruncateStatement,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.objects import Table
 
 
-class MariaDBTruncateExpression(TruncateExpression):
+class MariaDBTruncateExpression(TruncateStatement):
     """A MariaDB TRUNCATE statement extending the generic one.
 
     MariaDB adds the ``WAIT n`` / ``NOWAIT`` metadata lock wait options

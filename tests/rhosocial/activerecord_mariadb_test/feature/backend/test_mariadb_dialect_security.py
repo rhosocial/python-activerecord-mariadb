@@ -9,12 +9,11 @@ Tests are run against the actual MySQL dialect.
 import pytest
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.expression import Column
 from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import VarCharType
 from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
@@ -36,20 +35,16 @@ def dialect():
 def json_table_dialect():
     """An adapted dialect on a version that supports JSON_TABLE (10.6+).
 
-    The plain ``dialect`` fixture is unadapted, so any version gate raises
-    DialectNotAdaptedException before it can return. The JSON_TABLE tests
-    need a concrete version.
+    The plain ``dialect`` fixture is unadapted: a version-gated capability
+    probe answers False rather than raising, and a renderer that needs a
+    concrete version still refuses. The JSON_TABLE tests need a version.
     """
     return MariaDBDialect(version=(10, 6, 0))
 
 
 def test_mysql_format_column_definition_default_string_escaping(dialect):
     """Test DEFAULT constraint string is escaped in MySQL."""
-    constraint = ColumnConstraint(
-        dialect,
-        constraint_type=ColumnConstraintType.DEFAULT,
-        default_value="test's value",
-    )
+    constraint = ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, "test's value"))
 
     col_def = ColumnDefinition(
         dialect,
@@ -75,18 +70,67 @@ def test_mysql_format_column_definition_comment_string_escaping(dialect):
     assert "Comment with ''single quote''" in sql
 
 
-def test_mysql_escape_sql_string(dialect):
-    """Test MySQL inherits _escape_sql_string."""
-    result = dialect._escape_sql_string("Table's comment")
+def test_mysqlescape_sql_string(dialect):
+    """Test MySQL inherits escape_sql_string."""
+    result = dialect.escape_sql_string("Table's comment")
     assert result == "Table''s comment"
 
 
-def test_mysql_validate_data_type(dialect):
-    """Test MySQL inherits _validate_data_type."""
-    assert dialect._validate_data_type("VARCHAR(255)")
-    assert dialect._validate_data_type("INT")
-    assert dialect._validate_data_type("BIGINT")
-    assert not dialect._validate_data_type("INT; DROP TABLE users--")
+def test_mariadb_type_names_are_the_grammar_rule(dialect):
+    """The type-name rule is the framework's, not a character filter of ours.
+
+    MariaDB used to police the type specification with a private filter.  It
+    rejected names it did not recognise and could not see the payloads it was
+    meant to stop, so the rule moved to the grammar every backend shares.
+    What a name may be is one rule for all of them; whether the server knows
+    the type is the server's answer, not ours.
+    """
+    from rhosocial.activerecord.backend.expression.type_name import (
+        InvalidTypeNameError,
+        validate_type_name,
+    )
+
+    # A name is a name, whatever the server will make of it.
+    validate_type_name("VARCHAR(255)")
+    validate_type_name("INT")
+
+    # A specification that is not a name never becomes one.
+    with pytest.raises(InvalidTypeNameError):
+        validate_type_name("INT; DROP TABLE users--")
+
+
+def test_mariadba_type_position_refuses_a_payload(dialect):
+    """A type name is a name, and the grammar is what says so.
+
+    The backend has no character filter of its own any more: the type
+    position is guarded by the grammar, which is the framework's rule for
+    what a name may be, and the server decides whether the type exists.
+    """
+    from rhosocial.activerecord.backend.expression import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        AlterColumnAction,
+    )
+    from rhosocial.activerecord.backend.expression.type_name import (
+        InvalidTypeNameError,
+    )
+    from rhosocial.activerecord.backend.expression.xml import (
+        XMLSerializeExpression,
+    )
+
+    # A name is a name: the position takes it.
+    XMLSerializeExpression(dialect, Literal(dialect, "x"), "TEXT")
+    AlterColumnAction(dialect, "c", "SET DATA TYPE", new_value="TEXT")
+
+    # A value that is not a name is refused, and refused before the
+    # statement is ever rendered.
+    with pytest.raises(InvalidTypeNameError):
+        XMLSerializeExpression(
+            dialect, Literal(dialect, "x"), "TEXT; DROP TABLE users--"
+        )
+    with pytest.raises(InvalidTypeNameError):
+        AlterColumnAction(
+            dialect, "c", "SET DATA TYPE", new_value="TEXT; DROP TABLE users--"
+        )
 
 
 def test_mysql_format_column_definition_data_type_validation(dialect):
@@ -160,6 +204,32 @@ def test_mysql_json_table_json_doc_escaped(json_table_dialect):
     assert "b''; DROP TABLE users--" in sql
 
 
+def test_mysql_json_table_json_doc_backslash_escaped(json_table_dialect):
+    """A backslash in a json_doc is doubled, as MariaDB's own policy says.
+
+    MariaDB treats the backslash as an escape character under the default
+    SQL mode, so ``'a\\b'`` is not the three characters ``a``, ``\\``, ``b``
+    -- it is ``a`` followed by a backspace. A literal that does not double
+    the backslash therefore stores a value the caller never sent.
+
+    The escaping must be the dialect's, not the base class's: the two spell
+    the escape differently, and only the dialect knows which one the server
+    will read back unchanged.
+    """
+    dialect = json_table_dialect
+    expr = MariaDBJSONTableExpression(
+        dialect=dialect,
+        json_doc=r'{"a": "b\c"}',
+        path="$.a",
+        columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
+    )
+
+    sql, _ = dialect.format_json_table_expression(expr)
+    assert r"b\\c" in sql
+    # The dialect's own spelling is what must appear.
+    assert dialect.escape_sql_string(r"b\c") in sql
+
+
 def test_mysql_json_table_alias_quoted(json_table_dialect):
     """The JSON_TABLE alias is emitted as a quoted identifier."""
     dialect = json_table_dialect
@@ -221,8 +291,14 @@ class TestMySQLJSONTableTypeValidation:
         assert "`col1` VARCHAR(255) PATH '$.col1'" in sql
 
     def test_injected_type_rejected(self, json_table_dialect):
-        from rhosocial.activerecord.backend.dialect.exceptions import (
-            UnsupportedFeatureError,
+        """A type that is not a name never reaches the statement.
+
+        The column's type is read at render time through the framework's type
+        model, whose grammar decides what a name may be.  The payload is
+        refused there, before any statement text is built.
+        """
+        from rhosocial.activerecord.backend.expression.type_name import (
+            InvalidTypeNameError,
         )
         dialect = json_table_dialect
         expr = MariaDBJSONTableExpression(
@@ -237,7 +313,7 @@ class TestMySQLJSONTableTypeValidation:
                 ),
             ],
         )
-        with pytest.raises(UnsupportedFeatureError):
+        with pytest.raises(InvalidTypeNameError):
             dialect.format_json_table_expression(expr)
 
 
@@ -382,11 +458,11 @@ class TestMySQLCreateTableCommentEscaping:
     def test_create_table_comment_escaped(self, dialect):
         """Test table-level COMMENT is properly escaped."""
         from rhosocial.activerecord.backend.expression.statements import (
-            CreateTableExpression,
+            CreateTableStatement,
             CreateTableOptions,
         )
 
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, "test_table"),
             columns=[],
@@ -404,11 +480,11 @@ class TestMySQLCreateTableCommentEscaping:
     def test_create_table_comment_with_backslash(self, dialect):
         """Test table-level COMMENT with backslash is properly escaped."""
         from rhosocial.activerecord.backend.expression.statements import (
-            CreateTableExpression,
+            CreateTableStatement,
             CreateTableOptions,
         )
 
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, "test_table"),
             columns=[],

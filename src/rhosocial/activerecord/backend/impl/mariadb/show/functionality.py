@@ -15,26 +15,27 @@ The implementation:
 
 from typing import Optional, Tuple, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.expression.objects import Trigger
 from ..expression.show import (
-    ShowCreateTableExpression,
-    ShowCreateViewExpression,
-    ShowColumnsExpression,
-    ShowIndexExpression,
-    ShowTablesExpression,
-    ShowDatabasesExpression,
-    ShowTableStatusExpression,
-    ShowTriggersExpression,
-    ShowCreateTriggerExpression,
-    ShowVariablesExpression,
-    ShowStatusExpression,
-    ShowProcessListExpression,
-    ShowWarningsExpression,
-    ShowErrorsExpression,
-    ShowEnginesExpression,
-    ShowCharsetExpression,
-    ShowCollationExpression,
-    ShowGrantsExpression,
-    ShowPluginsExpression,
+    ShowCreateTableStatement,
+    ShowCreateViewStatement,
+    ShowColumnsStatement,
+    ShowIndexStatement,
+    ShowTablesStatement,
+    ShowDatabasesStatement,
+    ShowTableStatusStatement,
+    ShowTriggersStatement,
+    ShowCreateTriggerStatement,
+    ShowVariablesStatement,
+    ShowStatusStatement,
+    ShowProcessListStatement,
+    ShowWarningsStatement,
+    ShowErrorsStatement,
+    ShowEnginesStatement,
+    ShowCharsetStatement,
+    ShowCollationStatement,
+    ShowGrantsStatement,
+    ShowPluginsStatement,
 )
 
 if TYPE_CHECKING:
@@ -90,7 +91,18 @@ class MariaDBShowFunctionality:
             collation_connection=row.get("collation_connection"),
         )
 
-    def _show_relation(self, expression_cls, relation, schema):
+    def _target(self, object_cls, name, schema):
+        """Name one schema object inside *schema*, database included.
+
+        A table, a view and a trigger are all named the same way -- an object
+        in a database -- so the qualifier is folded into the object here
+        rather than concatenated onto a string by each call site.
+        """
+        if schema:
+            return object_cls(self.dialect, name, catalog_name=schema)
+        return object_cls(self.dialect, name)
+
+    def _show_relation(self, expression_cls, relation, schema, **options):
         """Build one of the relation-named SHOW expressions.
 
         Table and view differ in which verb the statement carries, not in
@@ -98,10 +110,11 @@ class MariaDBShowFunctionality:
         database is folded into the object rather than concatenated onto a
         string by each.
         """
-        expr = expression_cls(self.dialect, relation)
-        if schema:
-            expr.schema(schema)
-        return expr
+        return expression_cls(
+            self.dialect,
+            self._target(expression_cls.relation_kind, relation, schema),
+            **options,
+        )
 
     def _parse_columns_result(self, result):
         """Parse SHOW COLUMNS result."""
@@ -395,7 +408,7 @@ class MariaDBShowFunctionality:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = self._show_relation(ShowCreateTableExpression, table_name, schema)
+        expr = self._show_relation(ShowCreateTableStatement, table_name, schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_table_result(result, table_name)
@@ -414,7 +427,7 @@ class MariaDBShowFunctionality:
         Returns:
             ShowCreateViewResult with view details, or None if view doesn't exist.
         """
-        expr = self._show_relation(ShowCreateViewExpression, view_name, schema)
+        expr = self._show_relation(ShowCreateViewStatement, view_name, schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_view_result(result, view_name)
@@ -439,11 +452,9 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowColumnResult objects.
         """
-        expr = self._show_relation(ShowColumnsExpression, table_name, schema)
-        if full:
-            expr.full()
-        if like:
-            expr.like(like)
+        expr = self._show_relation(
+            ShowColumnsStatement, table_name, schema, full=full, like_pattern=like
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -463,7 +474,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowIndexResult objects.
         """
-        expr = self._show_relation(ShowIndexExpression, table_name, schema)
+        expr = self._show_relation(ShowIndexStatement, table_name, schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_indexes_result(result)
@@ -486,13 +497,9 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowTableResult objects.
         """
-        expr = ShowTablesExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
-        if full:
-            expr.full()
+        expr = ShowTablesStatement(
+            self.dialect, schema=schema, full=full, like_pattern=like
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -509,9 +516,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowDatabaseResult objects.
         """
-        expr = ShowDatabasesExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowDatabasesStatement(self.dialect, like_pattern=like)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -531,11 +536,9 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowTableStatusResult objects.
         """
-        expr = ShowTableStatusExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
+        expr = ShowTableStatusStatement(
+            self.dialect, schema=schema, like_pattern=like
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -555,11 +558,9 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowTriggerResult objects.
         """
-        expr = ShowTriggersExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        expr = ShowTriggersStatement(
+            self.dialect, schema=schema, table_name=table_name
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -577,9 +578,9 @@ class MariaDBShowFunctionality:
         Returns:
             ShowCreateTriggerResult or None if not found.
         """
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
-        if schema:
-            expr.schema(schema)
+        expr = ShowCreateTriggerStatement(
+            self.dialect, self._target(Trigger, trigger_name, schema)
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -599,11 +600,9 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowVariableResult objects.
         """
-        expr = ShowVariablesExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_vars()
+        expr = ShowVariablesStatement(
+            self.dialect, like_pattern=like, session=session
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -623,11 +622,9 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowStatusResult objects.
         """
-        expr = ShowStatusExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_status()
+        expr = ShowStatusStatement(
+            self.dialect, like_pattern=like, session=session
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -644,9 +641,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowProcessListResult objects.
         """
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.full()
+        expr = ShowProcessListStatement(self.dialect, full=full)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -663,9 +658,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowWarningResult objects.
         """
-        expr = ShowWarningsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
+        expr = ShowWarningsStatement(self.dialect, limit=limit)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -680,9 +673,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowWarningResult objects.
         """
-        expr = ShowErrorsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
+        expr = ShowErrorsStatement(self.dialect, limit=limit)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -696,7 +687,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowEngineResult objects.
         """
-        expr = ShowEnginesExpression(self.dialect)
+        expr = ShowEnginesStatement(self.dialect)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_engines_result(result)
@@ -712,9 +703,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowCharsetResult objects.
         """
-        expr = ShowCharsetExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCharsetStatement(self.dialect, like_pattern=like)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -731,9 +720,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowCollationResult objects.
         """
-        expr = ShowCollationExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCollationStatement(self.dialect, like_pattern=like)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -753,9 +740,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowGrantResult objects.
         """
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
+        expr = ShowGrantsStatement(self.dialect, user=user, host=host)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -769,7 +754,7 @@ class MariaDBShowFunctionality:
         Returns:
             List of ShowPluginResult objects.
         """
-        expr = ShowPluginsExpression(self.dialect)
+        expr = ShowPluginsStatement(self.dialect)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_plugins_result(result)
@@ -803,7 +788,7 @@ class AsyncMariaDBShowFunctionality:
         self, table_name: str, schema: Optional[str] = None
     ):
         """Async version of create_table."""
-        expr = self._sync_impl._show_relation(ShowCreateTableExpression, table_name, schema)
+        expr = self._sync_impl._show_relation(ShowCreateTableStatement, table_name, schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_create_table_result(result, table_name)
@@ -814,7 +799,7 @@ class AsyncMariaDBShowFunctionality:
         self, view_name: str, schema: Optional[str] = None
     ):
         """Async version of create_view."""
-        expr = self._sync_impl._show_relation(ShowCreateViewExpression, view_name, schema)
+        expr = self._sync_impl._show_relation(ShowCreateViewStatement, view_name, schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_create_view_result(result, view_name)
@@ -829,11 +814,9 @@ class AsyncMariaDBShowFunctionality:
         like: Optional[str] = None,
     ):
         """Async version of columns."""
-        expr = self._sync_impl._show_relation(ShowColumnsExpression, table_name, schema)
-        if full:
-            expr.full()
-        if like:
-            expr.like(like)
+        expr = self._sync_impl._show_relation(
+            ShowColumnsStatement, table_name, schema, full=full, like_pattern=like
+        )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_columns_result(result)
@@ -844,7 +827,7 @@ class AsyncMariaDBShowFunctionality:
         self, table_name: str, schema: Optional[str] = None
     ):
         """Async version of indexes."""
-        expr = self._sync_impl._show_relation(ShowIndexExpression, table_name, schema)
+        expr = self._sync_impl._show_relation(ShowIndexStatement, table_name, schema)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_indexes_result(result)
@@ -858,13 +841,9 @@ class AsyncMariaDBShowFunctionality:
         full: bool = False,
     ):
         """Async version of tables."""
-        expr = ShowTablesExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
-        if full:
-            expr.full()
+        expr = ShowTablesStatement(
+            self.dialect, schema=schema, full=full, like_pattern=like
+        )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_tables_result(result)
@@ -873,9 +852,7 @@ class AsyncMariaDBShowFunctionality:
 
     async def databases(self, like: Optional[str] = None):
         """Async version of databases."""
-        expr = ShowDatabasesExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowDatabasesStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_databases_result(result)
@@ -886,11 +863,9 @@ class AsyncMariaDBShowFunctionality:
         self, schema: Optional[str] = None, like: Optional[str] = None
     ):
         """Async version of table_status."""
-        expr = ShowTableStatusExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
+        expr = ShowTableStatusStatement(
+            self.dialect, schema=schema, like_pattern=like
+        )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_table_status_result(result)
@@ -901,11 +876,9 @@ class AsyncMariaDBShowFunctionality:
         self, schema: Optional[str] = None, table_name: Optional[str] = None
     ):
         """Async version of triggers."""
-        expr = ShowTriggersExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
+        expr = ShowTriggersStatement(
+            self.dialect, schema=schema, table_name=table_name
+        )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_triggers_result(result)
@@ -914,9 +887,9 @@ class AsyncMariaDBShowFunctionality:
         self, trigger_name: str, schema: Optional[str] = None
     ):
         """Async version of create_trigger."""
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
-        if schema:
-            expr.schema(schema)
+        expr = ShowCreateTriggerStatement(
+            self.dialect, self._target(Trigger, trigger_name, schema)
+        )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_create_trigger_result(result, trigger_name)
@@ -927,11 +900,9 @@ class AsyncMariaDBShowFunctionality:
         self, like: Optional[str] = None, session: bool = True
     ):
         """Async version of variables."""
-        expr = ShowVariablesExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_vars()
+        expr = ShowVariablesStatement(
+            self.dialect, like_pattern=like, session=session
+        )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_variables_result(result)
@@ -942,11 +913,9 @@ class AsyncMariaDBShowFunctionality:
         self, like: Optional[str] = None, session: bool = True
     ):
         """Async version of status."""
-        expr = ShowStatusExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_status()
+        expr = ShowStatusStatement(
+            self.dialect, like_pattern=like, session=session
+        )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_status_result(result)
@@ -955,9 +924,7 @@ class AsyncMariaDBShowFunctionality:
 
     async def processlist(self, full: bool = False):
         """Async version of processlist."""
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.full()
+        expr = ShowProcessListStatement(self.dialect, full=full)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_processlist_result(result)
@@ -966,18 +933,14 @@ class AsyncMariaDBShowFunctionality:
 
     async def warnings(self, limit: Optional[int] = None):
         """Async version of warnings."""
-        expr = ShowWarningsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
+        expr = ShowWarningsStatement(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_warnings_result(result)
 
     async def errors(self, limit: Optional[int] = None):
         """Async version of errors."""
-        expr = ShowErrorsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
+        expr = ShowErrorsStatement(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_errors_result(result)
@@ -986,7 +949,7 @@ class AsyncMariaDBShowFunctionality:
 
     async def engines(self):
         """Async version of engines."""
-        expr = ShowEnginesExpression(self.dialect)
+        expr = ShowEnginesStatement(self.dialect)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_engines_result(result)
@@ -995,9 +958,7 @@ class AsyncMariaDBShowFunctionality:
 
     async def charset(self, like: Optional[str] = None):
         """Async version of charset."""
-        expr = ShowCharsetExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCharsetStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_charset_result(result)
@@ -1006,9 +967,7 @@ class AsyncMariaDBShowFunctionality:
 
     async def collation(self, like: Optional[str] = None):
         """Async version of collation."""
-        expr = ShowCollationExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowCollationStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_collation_result(result)
@@ -1019,9 +978,7 @@ class AsyncMariaDBShowFunctionality:
         self, user: Optional[str] = None, host: Optional[str] = None
     ):
         """Async version of grants."""
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
+        expr = ShowGrantsStatement(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_grants_result(result)
@@ -1030,7 +987,7 @@ class AsyncMariaDBShowFunctionality:
 
     async def plugins(self):
         """Async version of plugins."""
-        expr = ShowPluginsExpression(self.dialect)
+        expr = ShowPluginsStatement(self.dialect)
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
         return self._sync_impl._parse_plugins_result(result)

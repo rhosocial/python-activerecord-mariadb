@@ -41,11 +41,11 @@ from typing import ClassVar, Optional
 from rhosocial.activerecord.base import FieldProxy
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
-from rhosocial.activerecord.backend.expression import CreateTableExpression
+from rhosocial.activerecord.backend.expression import CreateTableStatement
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
-    ColumnConstraintType,
     ColumnDefinition,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.model import ActiveRecord
@@ -73,14 +73,16 @@ User.configure(
 )
 
 dialect = User.__backend__.dialect
-User.__backend__.execute(*CreateTableExpression(
+User.__backend__.execute(*CreateTableStatement(
     dialect,
     "users",
     columns=[
         ColumnDefinition(
             dialect, "id", IntegerType(dialect),
-            constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY,
-                is_auto_increment=True)],
+            constraints=[ColumnConstraint(
+                dialect,
+                branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True),
+            )],
         ),
         ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
         ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
@@ -149,17 +151,19 @@ Gates below are the versions at which this backend's own `supports_*`
 switch returns `True`, probed at 10.1.3, 10.2, 10.2.1, 10.2.3, 10.2.7, 10.3, 10.4, 10.5, 10.6, 11, 11.4, 11.8, 12, 12.3, 13, 13.1.
 A version is the first probe at or above the real gate, so each is an
 upper bound within one ladder step. Switches already `True` at the
-oldest release carry no gate and are omitted.
+oldest release carry no gate and are omitted -- `union` and `union_all`
+are among them: `SELECT 1 UNION SELECT 2` is accepted on every probed
+release, 10.2.44 through 13.1.1.
 
 | Min version | Capabilities that turn on |
 |---|---|
 | 10.2 | `basic_cte`, `filter_clause`, `grant_if_exists`, `grant_or_replace`, `read_only_transaction`, `recursive_cte`, `transaction_mode`, `window_frame_clause`, `window_functions` |
 | 10.2.1 | `check_constraint` |
 | 10.2.3 | `geojson`, `json_merge_patch`, `json_type`, `trigger_order` |
-| 10.3 | `alter_sequence`, `alter_table_wait`, `constraint_enforced`, `create_sequence`, `drop_sequence`, `except`, `for_update_nowait`, `for_update_skip_locked`, `intersect`, `rename_table_wait`, `sequence`, `system_versioning`, `temporal_tables`, `truncate_wait` |
+| 10.3 | `alter_sequence`, `alter_table_wait`, `constraint_enforced`, `create_sequence`, `drop_sequence`, `except`, `for_update_nowait`, `intersect`, `rename_table_wait`, `sequence`, `system_versioning`, `temporal_tables`, `truncate_wait` |
 | 10.4 | `instead_of_trigger`, `multiple_triggers_per_timing` |
 | 10.5 | `alter_table_if_exists`, `analyze_table_persistent`, `rename_table_if_exists`, `returning`, `returning_delete`, `returning_expression`, `returning_for_delete`, `returning_for_insert`, `returning_for_replace`, `returning_insert` |
-| 10.6 | `explain_analyze`, `json_table`, `rename_index` |
+| 10.6 | `explain_analyze`, `for_update_skip_locked`, `json_table`, `rename_index` |
 | 13 | `returning_for_update`, `returning_update` |
 | 13.1 | `deny`, `json_arrow_operators_native` |
 

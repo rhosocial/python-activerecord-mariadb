@@ -27,19 +27,22 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    DropTableStatement,
+    InsertStatement,
     ValuesSource,
-    QueryExpression,
+    QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
     OnConflictClause,
+    ColumnPrimaryKeyConstraint,
+    ColumnUniqueConstraint,
+    ColumnNotNullConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -52,31 +55,30 @@ from rhosocial.activerecord.backend.expression.objects import Table
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
 # Drop dependent tables first for clean setup
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     columns=[
         ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'username', VarCharType(dialect, 100), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-            ColumnConstraint(dialect, ColumnConstraintType.UNIQUE),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+            ColumnConstraint(dialect, branch=ColumnUniqueConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'email', VarCharType(dialect, 100), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ]),
         ColumnDefinition(dialect, 'login_count', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 0)),
         ]),
     ],
     if_not_exists=True,
@@ -90,7 +92,7 @@ backend.execute(sql, params)
 # MariaDB uses ON DUPLICATE KEY UPDATE, which is handled via OnConflictClause
 
 # Initial insert
-insert_expr = InsertExpression(
+insert_expr = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['username', 'email', 'login_count'],
@@ -102,7 +104,7 @@ sql, params = insert_expr.to_sql()
 backend.execute(sql, params)
 
 # Verify initial insert
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, 'id'),
@@ -118,7 +120,7 @@ result = backend.execute(sql, params, options=dql_options)
 print(f"Initial insert: {result.data}")
 
 # Insert again with ON DUPLICATE KEY UPDATE - will update
-upsert_expr = InsertExpression(
+upsert_expr = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['username', 'email', 'login_count'],
@@ -147,7 +149,7 @@ print(f"After UPSERT: {result.data}")
 # ============================================================
 # affected_rows: 1 = inserted, 2 = updated
 
-insert_result = InsertExpression(
+insert_result = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['username', 'email', 'login_count'],
@@ -159,7 +161,7 @@ sql, params = insert_result.to_sql()
 result = backend.execute(sql, params)
 print(f"Insert affected_rows: {result.affected_rows}")
 
-upsert_result = InsertExpression(
+upsert_result = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['username', 'email', 'login_count'],
@@ -183,7 +185,7 @@ print(f"Update affected_rows: {result.affected_rows}")
 # ============================================================
 # MariaDB supports multiple row VALUES()
 
-multi_upsert = InsertExpression(
+multi_upsert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['username', 'email', 'login_count'],
@@ -206,11 +208,11 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

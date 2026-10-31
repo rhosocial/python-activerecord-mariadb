@@ -16,16 +16,16 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression import Literal
 from rhosocial.activerecord.backend.expression.objects import Domain, Type
 from rhosocial.activerecord.backend.expression.statements import (
-    AlterDomainExpression,
-    AlterTypeExpression,
-    CreateDomainExpression,
-    CreateTypeExpression,
+    AlterDomainStatement,
+    AlterTypeStatement,
+    CreateDomainStatement,
+    CreateTypeStatement,
     DomainCheckConstraint,
     DomainNullability,
     DomainValueExpression,
     DropDomainDefaultAction,
-    DropDomainExpression,
-    DropTypeExpression,
+    DropDomainStatement,
+    DropTypeStatement,
     TypeAlterAction,
     TypeDefinition,
 )
@@ -164,29 +164,29 @@ def test_type_and_domain_formatters_and_expressions_fail_fast(dialect):
     condition = DomainValueExpression(dialect) > Literal(
         dialect,
         0,
-        inline_literals=True,
+        inline=True,
     )
     check = DomainCheckConstraint(dialect, condition)
     status_type = Type(dialect, "status")
     positive_domain = Domain(dialect, "positive")
     expressions = (
-        ("format_create_type_statement", CreateTypeExpression(dialect, status_type, definition)),
+        ("format_create_type_statement", CreateTypeStatement(dialect, status_type, definition)),
         (
             "format_alter_type_statement",
-            AlterTypeExpression(dialect, status_type, [alter_action]),
+            AlterTypeStatement(dialect, status_type, [alter_action]),
         ),
-        ("format_drop_type_statement", DropTypeExpression(dialect, status_type)),
+        ("format_drop_type_statement", DropTypeStatement(dialect, status_type)),
         ("format_type_definition", definition),
         ("format_type_alter_action", alter_action),
         (
             "format_create_domain_statement",
-            CreateDomainExpression(dialect, positive_domain, IntegerType(dialect)),
+            CreateDomainStatement(dialect, positive_domain, IntegerType(dialect)),
         ),
         (
             "format_alter_domain_statement",
-            AlterDomainExpression(dialect, positive_domain, [domain_action]),
+            AlterDomainStatement(dialect, positive_domain, [domain_action]),
         ),
-        ("format_drop_domain_statement", DropDomainExpression(dialect, positive_domain)),
+        ("format_drop_domain_statement", DropDomainStatement(dialect, positive_domain)),
         ("format_domain_value_expression", DomainValueExpression(dialect)),
         ("format_domain_check_constraint", check),
         ("format_domain_alter_action", domain_action),
@@ -219,9 +219,9 @@ def test_sequence_support_remains_independent(dialect):
     # keyword, it does not follow it.)
     from rhosocial.activerecord.backend.expression.objects import Sequence
     from rhosocial.activerecord.backend.expression.statements.ddl_sequence import (
-        AlterSequenceExpression,
-        CreateSequenceExpression,
-        DropSequenceExpression,
+        AlterSequenceStatement,
+        CreateSequenceStatement,
+        DropSequenceStatement,
     )
 
     assert dialect.supports_sequence() is True
@@ -229,11 +229,11 @@ def test_sequence_support_remains_independent(dialect):
     assert dialect.supports_sequence_order() is False
     assert dialect.supports_sequence_owned_by() is False
 
-    assert CreateSequenceExpression(dialect, Sequence(dialect, "job_ids")).to_sql() == (
+    assert CreateSequenceStatement(dialect, Sequence(dialect, "job_ids")).to_sql() == (
         "CREATE SEQUENCE `job_ids`",
         (),
     )
-    assert CreateSequenceExpression(
+    assert CreateSequenceStatement(
         dialect,
         Sequence(dialect, "job_ids"),
         if_not_exists=True,
@@ -250,7 +250,7 @@ def test_sequence_support_remains_independent(dialect):
     )
     # The negative spellings are separate parameters now; MariaDB spells them
     # NOCYCLE / NOCACHE (measured accepted on 10.3+; 10.2 has no SEQUENCE).
-    assert CreateSequenceExpression(
+    assert CreateSequenceStatement(
         dialect,
         Sequence(dialect, "job_ids"),
         no_cache=True,
@@ -259,10 +259,10 @@ def test_sequence_support_remains_independent(dialect):
         "CREATE SEQUENCE `job_ids` NOCACHE NOCYCLE",
         (),
     )
-    assert DropSequenceExpression(
+    assert DropSequenceStatement(
         dialect, Sequence(dialect, "job_ids"), if_exists=True
     ).to_sql() == ("DROP SEQUENCE IF EXISTS `job_ids`", ())
-    assert AlterSequenceExpression(
+    assert AlterSequenceStatement(
         dialect,
         Sequence(dialect, "job_ids"),
         restart=100,

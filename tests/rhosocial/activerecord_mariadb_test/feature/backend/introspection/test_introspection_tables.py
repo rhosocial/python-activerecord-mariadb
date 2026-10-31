@@ -9,7 +9,7 @@ for retrieving table metadata.
 import pytest
 
 from rhosocial.activerecord.backend.introspection.types import (
-    TableInfo,
+    IntrospectionTableInfo,
     TableType,
 )
 
@@ -18,14 +18,14 @@ class TestListTables:
     """Tests for list_tables method."""
 
     def test_list_tables_returns_table_info(self, backend_with_tables):
-        """Test that list_tables returns TableInfo objects."""
+        """Test that list_tables returns IntrospectionTableInfo objects."""
         tables = backend_with_tables.introspector.list_tables()
 
         assert isinstance(tables, list)
         assert len(tables) > 0
 
         for table in tables:
-            assert isinstance(table, TableInfo)
+            assert isinstance(table, IntrospectionTableInfo)
 
     def test_list_tables_includes_created_tables(self, backend_with_tables):
         """Test that created tables are listed."""
@@ -62,6 +62,41 @@ class TestListTables:
         assert isinstance(tables, list)
 
 
+class TestListTablesExcludesSequences:
+    """A sequence is a table in ``TABLES``, but not an entry in this listing.
+
+    MariaDB 10.3+ reports ``TABLE_TYPE='SEQUENCE'`` in the same view as base
+    tables and views. Handing those rows back as tables with no columns and no
+    rows is the defect these cases pin; the sequence family reports them.
+    """
+
+    def test_sequence_is_not_listed_as_a_table(self, backend_with_sequence_and_table):
+        names = {
+            table.name
+            for table in backend_with_sequence_and_table.introspector.list_tables()
+        }
+
+        assert "intro_options" in names
+        assert "intro_seq" not in names
+
+    def test_sequence_is_not_reachable_by_table_lookup(self, backend_with_sequence_and_table):
+        """``table_exists`` / ``get_table_info`` read the same listing."""
+        introspector = backend_with_sequence_and_table.introspector
+
+        assert introspector.table_exists("intro_options") is True
+        assert introspector.get_table_info("intro_seq") is None
+        assert introspector.table_exists("intro_seq") is False
+
+    def test_the_sequence_family_still_reports_it(self, backend_with_sequence_and_table):
+        names = {
+            sequence.name
+            for sequence in backend_with_sequence_and_table.introspector.list_sequences()
+        }
+
+        assert "intro_seq" in names
+        assert "intro_options" not in names
+
+
 class TestGetTableInfo:
     """Tests for get_table_info method."""
 
@@ -70,7 +105,7 @@ class TestGetTableInfo:
         table = backend_with_tables.introspector.get_table_info("users")
 
         assert table is not None
-        assert isinstance(table, TableInfo)
+        assert isinstance(table, IntrospectionTableInfo)
         assert table.name == "users"
 
     def test_get_table_info_nonexistent(self, backend_with_tables):
@@ -190,14 +225,14 @@ class TestAsyncTableIntrospection:
 
     @pytest.mark.asyncio
     async def test_async_list_tables(self, async_backend_with_tables):
-        """Test async list_tables returns TableInfo objects."""
+        """Test async list_tables returns IntrospectionTableInfo objects."""
         tables = await async_backend_with_tables.introspector.list_tables()
 
         assert isinstance(tables, list)
         assert len(tables) > 0
 
         for table in tables:
-            assert isinstance(table, TableInfo)
+            assert isinstance(table, IntrospectionTableInfo)
 
     @pytest.mark.asyncio
     async def test_async_get_table_info(self, async_backend_with_tables):
@@ -205,7 +240,7 @@ class TestAsyncTableIntrospection:
         table = await async_backend_with_tables.introspector.get_table_info("users")
 
         assert table is not None
-        assert isinstance(table, TableInfo)
+        assert isinstance(table, IntrospectionTableInfo)
         assert table.name == "users"
 
     @pytest.mark.asyncio
@@ -222,3 +257,23 @@ class TestAsyncTableIntrospection:
 
         # Should return the same cached list
         assert tables1 is tables2
+
+    @pytest.mark.asyncio
+    async def test_async_sequence_is_not_listed_as_a_table(
+        self, async_backend_with_sequence_and_table
+    ):
+        """The async path renders the same statement, so it excludes the same row."""
+        introspector = async_backend_with_sequence_and_table.introspector
+        names = {table.name for table in await introspector.list_tables()}
+
+        assert "intro_options" in names
+        assert "intro_seq" not in names
+
+    @pytest.mark.asyncio
+    async def test_async_the_sequence_family_still_reports_it(
+        self, async_backend_with_sequence_and_table
+    ):
+        introspector = async_backend_with_sequence_and_table.introspector
+        names = {sequence.name for sequence in await introspector.list_sequences()}
+
+        assert "intro_seq" in names

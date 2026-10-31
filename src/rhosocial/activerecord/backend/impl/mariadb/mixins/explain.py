@@ -11,7 +11,7 @@ class MariaDBExplainMixin:
 
     def supports_explain_analyze(self) -> bool:
         """EXPLAIN ANALYZE is supported since MariaDB 10.6."""
-        return self.version >= MARIADB_VERSION_BOUNDARIES['EXPLAIN_FORMAT']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['EXPLAIN_FORMAT'])
 
     def supports_explain_format(self, format_type: str) -> bool:
         """Check if specific EXPLAIN format is supported since MariaDB 10.6.
@@ -19,7 +19,7 @@ class MariaDBExplainMixin:
         MariaDB supports FORMAT=JSON and FORMAT=TRADITIONAL.
         FORMAT=TREE is MySQL 8.0+ only and not supported by MariaDB.
         """
-        if self.version >= MARIADB_VERSION_BOUNDARIES['EXPLAIN_FORMAT']:
+        if self.version_at_least(MARIADB_VERSION_BOUNDARIES['EXPLAIN_FORMAT']):
             return format_type.upper() in ["JSON", "TRADITIONAL"]
         return False
 

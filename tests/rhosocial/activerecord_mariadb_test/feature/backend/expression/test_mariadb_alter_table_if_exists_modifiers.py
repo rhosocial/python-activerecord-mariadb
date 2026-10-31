@@ -10,9 +10,9 @@ import pytest
 
 from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AddColumn,
-    DropColumn,
-    DropTableConstraint,
+    AddColumnAction,
+    DropColumnAction,
+    DropTableConstraintAction,
 )
 from rhosocial.activerecord.backend.expression.types import TextType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
@@ -32,7 +32,7 @@ class TestMariaDBAlterTableModifierCapabilities:
 
 class TestMariaDBAddColumnIfNotExists:
     def test_if_not_exists_renders_qualifier(self, dialect):
-        action = AddColumn(
+        action = AddColumnAction(
             dialect,
             ColumnDefinition(dialect, "content", TextType(dialect)),
             if_not_exists=True,
@@ -42,7 +42,7 @@ class TestMariaDBAddColumnIfNotExists:
         assert params == ()
 
     def test_none_renders_plain_form(self, dialect):
-        action = AddColumn(dialect, ColumnDefinition(dialect, "content", TextType(dialect)))
+        action = AddColumnAction(dialect, ColumnDefinition(dialect, "content", TextType(dialect)))
         sql, params = action.to_sql()
         assert "ADD COLUMN `content` TEXT" == sql
         assert "IF NOT EXISTS" not in sql
@@ -51,13 +51,13 @@ class TestMariaDBAddColumnIfNotExists:
 
 class TestMariaDBDropColumnIfExists:
     def test_if_exists_renders_qualifier(self, dialect):
-        action = DropColumn(dialect, column_name="x", if_exists=True)
+        action = DropColumnAction(dialect, column_name="x", if_exists=True)
         sql, params = action.to_sql()
         assert "DROP COLUMN IF EXISTS `x`" == sql
         assert params == ()
 
     def test_none_renders_plain_form(self, dialect):
-        action = DropColumn(dialect, column_name="x")
+        action = DropColumnAction(dialect, column_name="x")
         sql, params = action.to_sql()
         assert "DROP COLUMN `x`" == sql
         assert "IF EXISTS" not in sql
@@ -66,7 +66,7 @@ class TestMariaDBDropColumnIfExists:
 
 class TestMariaDBDropConstraintIfExists:
     def test_if_exists_renders_qualifier(self, dialect):
-        action = DropTableConstraint(
+        action = DropTableConstraintAction(
             dialect, constraint_name="fk", if_exists=True
         )
         sql, params = action.to_sql()
@@ -74,7 +74,7 @@ class TestMariaDBDropConstraintIfExists:
         assert params == ()
 
     def test_primary_key_never_has_qualifier(self, dialect):
-        action = DropTableConstraint(
+        action = DropTableConstraintAction(
             dialect, constraint_name="PRIMARY", if_exists=True
         )
         sql, params = action.to_sql()
@@ -83,7 +83,7 @@ class TestMariaDBDropConstraintIfExists:
         assert params == ()
 
     def test_none_renders_plain_form(self, dialect):
-        action = DropTableConstraint(dialect, constraint_name="fk")
+        action = DropTableConstraintAction(dialect, constraint_name="fk")
         sql, params = action.to_sql()
         assert "DROP CONSTRAINT `fk`" == sql
         assert "IF EXISTS" not in sql

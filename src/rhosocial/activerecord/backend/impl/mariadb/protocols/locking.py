@@ -10,28 +10,37 @@ from rhosocial.activerecord.backend.dialect.protocols import LockingSupport
 class MariaDBLockingSupport(LockingSupport, Protocol):
     """MariaDB row-level locking protocol.
 
-    Feature Source: MariaDB native (FOR UPDATE all versions, FOR SHARE MariaDB 10.2+)
+    Feature Source: MariaDB native (FOR UPDATE and LOCK IN SHARE MODE on all versions)
 
     MariaDB locking features beyond SQL standard:
-    - FOR SHARE: Shared lock (MariaDB 10.2+, replaces LOCK IN SHARE MODE)
+    - LOCK IN SHARE MODE: Shared lock (all versions). MariaDB does not
+      accept MySQL 8.0's ``FOR SHARE`` spelling at all: errno 1064 on every
+      measured version, 10.2.44 through 13.1.1.
     - NOWAIT: Fail immediately if rows are locked (MariaDB 10.3+)
-    - SKIP LOCKED: Skip locked rows (MariaDB 10.3+)
+    - SKIP LOCKED: Skip locked rows (MariaDB 10.6+)
 
     Note: MariaDB does NOT support PostgreSQL's FOR NO KEY UPDATE or
-    FOR KEY SHARE lock strengths.
+    FOR KEY SHARE lock strengths, nor the ``OF tbl_name`` scoping suffix
+    MySQL and PostgreSQL put after their lock clause (errno 1064 on every
+    measured version, 10.2.44 through 13.1.1).
 
     Official Documentation:
     - Locking Reads: https://mariadb.com/kb/en/locking-reads/
 
     Version Requirements:
     - FOR UPDATE: All MariaDB versions
-    - FOR SHARE (replacing LOCK IN SHARE MODE): MariaDB 10.2+
+    - LOCK IN SHARE MODE: All MariaDB versions
     - NOWAIT: MariaDB 10.3+
-    - SKIP LOCKED: MariaDB 10.3+
+    - SKIP LOCKED: MariaDB 10.6+
     """
 
     def supports_for_share(self) -> bool:
-        """Whether FOR SHARE clause is supported (MariaDB 10.2+)."""
+        """Whether FOR SHARE clause is supported.
+
+        Always False on MariaDB: it kept the pre-8.0 LOCK IN SHARE MODE
+        spelling and rejects FOR SHARE with errno 1064 on every measured
+        version, 10.2.44 through 13.1.1.
+        """
         ...
 
     def supports_for_update_nowait(self) -> bool:
@@ -57,13 +66,6 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         """Whether FOR UPDATE clause is supported.
 
         MariaDB supports FOR UPDATE in all versions.
-        """
-        ...
-
-    def supports_lock_strength(self) -> bool:
-        """Whether different lock strengths (FOR NO KEY UPDATE, FOR KEY SHARE) are supported.
-
-        MariaDB does NOT support different lock strengths (PostgreSQL feature).
         """
         ...
 

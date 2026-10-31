@@ -12,13 +12,15 @@ Expression classes inherit from BaseExpression and implement to_sql(),
 following the expression-dialect pattern used throughout the codebase.
 
 Key design:
-- Expressions collect parameters (table_name, schema, options)
+- Expressions collect every parameter at construction; there is no fluent
+  builder, so an instance is complete the moment ``get_params()`` reads it
+  back (the artifact is the constructor call, nothing else).
 - Expressions hold a dialect reference
 - to_sql() delegates to dialect.format_show_* methods
 - Dialect handles actual SQL generation
 """
 
-from typing import Any, Dict, Optional, TYPE_CHECKING, Union
+from typing import Optional, TYPE_CHECKING, Union
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
 from rhosocial.activerecord.backend.expression.objects import (
@@ -35,25 +37,17 @@ if TYPE_CHECKING:
 class ShowExpression(BaseExpression):
     """Base class for MariaDB SHOW command expressions.
 
-    All MariaDB SHOW expressions inherit from this class and provide
-    fluent API for setting parameters.
+    All MariaDB SHOW expressions inherit from this class. Parameters are
+    declared by each ``__init__`` -- that signature is the wire contract, so
+    a parameter is always passed where the node is built rather than filled
+    in afterwards.
     """
 
     def __init__(self, dialect: "MariaDBDialect", *, schema: Optional[str] = None):
         super().__init__(dialect)
-        self._schema = schema
-
-    def schema(self, name: str) -> "ShowExpression":
-        """Set the schema/database name.
-
-        Args:
-            name: Schema or database name.
-
-        Returns:
-            Self for method chaining.
-        """
-        self._schema = name
-        return self
+        # Stored under the parameter's own name so get_params() reads it
+        # without a detour.
+        self.schema = schema
 
     def to_sql(self) -> SQLQueryAndParams:
         """Generate SQL. Subclasses must implement this method."""
@@ -72,7 +66,8 @@ class ShowRelationExpression(ShowExpression):
     written without hand-building the qualified name.
 
     The relation is therefore one attribute, :attr:`relation`, and the
-    ``schema()`` setter above folds the database into it. A bare string
+    database travels inside it -- :class:`~...objects.relation.Table` and
+    :class:`~...objects.relation.View` carry ``catalog_name``. A bare string
     is accepted as shorthand for an unqualified relation; a
     ``(database, name)`` tuple is refused, because an ordered pair cannot
     say which part is which.
@@ -81,9 +76,9 @@ class ShowRelationExpression(ShowExpression):
     between them is the verb and the options, not the name.
     """
 
-    #: The relation kind a bare name is read as. ``ShowCreateTableExpression``
+    #: The relation kind a bare name is read as. ``ShowCreateTableStatement``
     #: and the table-shaped statements leave this as :class:`Table`;
-    #: ``ShowCreateViewExpression`` narrows it to :class:`View`. Both are
+    #: ``ShowCreateViewStatement`` narrows it to :class:`View`. Both are
     #: relations, so both render through the same qualified-name path.
     relation_kind: type = Table
 
@@ -113,26 +108,20 @@ class ShowRelationExpression(ShowExpression):
             f"got {type(relation).__name__}"
         )
 
-    def schema(self, name: str) -> "ShowRelationExpression":
-        """Set the database the relation lives in."""
-        super().schema(name)
-        self._relation.catalog_name = name
-        return self
-
     @property
     def relation(self) -> RelationObject:
         """The relation this statement names, database included."""
         return self._relation
 
 
-class ShowCreateTableExpression(ShowRelationExpression):
+class ShowCreateTableStatement(ShowRelationExpression):
     """Expression for SHOW CREATE TABLE command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_table(self)
+        return self._dialect.format_show_create_table_statement(self)
 
 
-class ShowCreateViewExpression(ShowRelationExpression):
+class ShowCreateViewStatement(ShowRelationExpression):
     """Expression for SHOW CREATE VIEW command."""
 
     #: A view is a relation; naming it as one is what lets the same
@@ -140,121 +129,104 @@ class ShowCreateViewExpression(ShowRelationExpression):
     relation_kind = View
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_view(self)
+        return self._dialect.format_show_create_view_statement(self)
 
 
-class ShowColumnsExpression(ShowRelationExpression):
+class ShowColumnsStatement(ShowRelationExpression):
     """Expression for SHOW [FULL] COLUMNS command."""
 
     def __init__(self, dialect: "MariaDBDialect", relation: Union[RelationObject, str],
                  *, full: bool = False, like_pattern: Optional[str] = None):
         super().__init__(dialect, relation)
-        self._full = full
-        self._like_pattern = like_pattern
-
-    def full(self) -> "ShowColumnsExpression":
-        """Request full column information."""
-        self._full = True
-        return self
-
-    def like(self, pattern: str) -> "ShowColumnsExpression":
-        """Filter columns by pattern."""
-        self._like_pattern = pattern
-        return self
+        # Both stored under their parameter names, and both given at
+        # construction: a column list is fully described by its target, its
+        # verbosity and its pattern.
+        self.full = full
+        self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_columns(self)
+        return self._dialect.format_show_columns_statement(self)
 
 
-class ShowIndexExpression(ShowRelationExpression):
+class ShowIndexStatement(ShowRelationExpression):
     """Expression for SHOW INDEX command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_index(self)
+        return self._dialect.format_show_index_statement(self)
 
 
-class ShowTablesExpression(ShowExpression):
-    """Expression for SHOW [FULL] TABLES command."""
+class ShowTablesStatement(ShowExpression):
+    """Expression for SHOW [FULL] TABLES command.
+
+    ``schema`` is declared on this class, not only on the base, because
+    ``get_params()`` reads the class's own ``__init__`` signature: a
+    qualifier stored by the base alone would be invisible to the
+    serializer and the ``FROM`` clause would fall out of the artifact.
+    """
 
     def __init__(self, dialect: "MariaDBDialect",
-                 *, full: bool = False, like_pattern: Optional[str] = None):
-        super().__init__(dialect)
-        self._full = full
-        self._like_pattern = like_pattern
-
-    def full(self) -> "ShowTablesExpression":
-        """Request full table information including table type."""
-        self._full = True
-        return self
-
-    def like(self, pattern: str) -> "ShowTablesExpression":
-        """Filter tables by pattern."""
-        self._like_pattern = pattern
-        return self
+                 *, schema: Optional[str] = None,
+                 full: bool = False, like_pattern: Optional[str] = None):
+        super().__init__(dialect, schema=schema)
+        self.full = full
+        self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_tables(self)
+        return self._dialect.format_show_tables_statement(self)
 
 
-class ShowDatabasesExpression(ShowExpression):
+class ShowDatabasesStatement(ShowExpression):
     """Expression for SHOW DATABASES command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None):
         super().__init__(dialect)
-        self._like_pattern = like_pattern
-
-    def like(self, pattern: str) -> "ShowDatabasesExpression":
-        """Filter databases by pattern."""
-        self._like_pattern = pattern
-        return self
+        self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_databases(self)
+        return self._dialect.format_show_databases_statement(self)
 
 
-class ShowTableStatusExpression(ShowExpression):
-    """Expression for SHOW TABLE STATUS command."""
+class ShowTableStatusStatement(ShowExpression):
+    """Expression for SHOW TABLE STATUS command.
+
+    ``schema`` is declared here for the same reason as on
+    :class:`ShowTablesStatement`: the ``FROM`` qualifier has to be a
+    parameter of the class the serializer reads.
+    """
 
     def __init__(self, dialect: "MariaDBDialect",
-                 *, like_pattern: Optional[str] = None):
-        super().__init__(dialect)
-        self._like_pattern = like_pattern
-
-    def like(self, pattern: str) -> "ShowTableStatusExpression":
-        """Filter tables by pattern."""
-        self._like_pattern = pattern
-        return self
+                 *, schema: Optional[str] = None,
+                 like_pattern: Optional[str] = None):
+        super().__init__(dialect, schema=schema)
+        self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_table_status(self)
+        return self._dialect.format_show_table_status_statement(self)
 
 
-class ShowTriggersExpression(ShowExpression):
+class ShowTriggersStatement(ShowExpression):
     """Expression for SHOW TRIGGERS command.
 
     ``table_name`` here is a **LIKE pattern**, not a relation reference:
     MariaDB's ``SHOW TRIGGERS`` filters on the name it prints, not on a
     resolved object. It is therefore kept as a plain string and never
-    qualified -- a trigger's database comes from ``schema()`` above,
-    which is the ``FROM`` clause.
+    qualified -- the database comes from ``schema``, which is the ``FROM``
+    clause and is declared on this class for the same reason as on
+    :class:`ShowTablesStatement`.
     """
 
     def __init__(self, dialect: "MariaDBDialect",
-                 *, table_name: Optional[str] = None):
-        super().__init__(dialect)
-        self._table_name = table_name
-
-    def for_table(self, table_name: str) -> "ShowTriggersExpression":
-        """Filter triggers by table name pattern."""
-        self._table_name = table_name
-        return self
+                 *, schema: Optional[str] = None,
+                 table_name: Optional[str] = None):
+        super().__init__(dialect, schema=schema)
+        self.table_name = table_name
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_triggers(self)
+        return self._dialect.format_show_triggers_statement(self)
 
 
-class ShowCreateTriggerExpression(ShowExpression):
+class ShowCreateTriggerStatement(ShowExpression):
     """Expression for SHOW CREATE TRIGGER command."""
 
     def __init__(self, dialect: "MariaDBDialect", trigger: Union[Trigger, str]):
@@ -282,180 +254,148 @@ class ShowCreateTriggerExpression(ShowExpression):
             f"got {type(trigger).__name__}"
         )
 
-    def schema(self, name: str) -> "ShowCreateTriggerExpression":
-        """Set the database the trigger lives in."""
-        super().schema(name)
-        self._trigger.catalog_name = name
-        return self
-
     @property
     def trigger(self) -> Trigger:
         """The trigger this statement names, database included."""
         return self._trigger
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_trigger(self)
+        return self._dialect.format_show_create_trigger_statement(self)
 
 
-class ShowVariablesExpression(ShowExpression):
-    """Expression for SHOW VARIABLES command."""
-
-    def __init__(self, dialect: "MariaDBDialect",
-                 *, like_pattern: Optional[str] = None, session: bool = True):
-        super().__init__(dialect)
-        self._like_pattern = like_pattern
-        self._session = session
-
-    def like(self, pattern: str) -> "ShowVariablesExpression":
-        """Filter variables by pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def global_vars(self) -> "ShowVariablesExpression":
-        """Show global variables instead of session variables."""
-        self._session = False
-        return self
-
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_variables(self)
-
-
-class ShowStatusExpression(ShowExpression):
-    """Expression for SHOW STATUS command."""
+class ShowVariablesStatement(ShowExpression):
+    """Expression for SHOW [GLOBAL] VARIABLES command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None, session: bool = True):
         super().__init__(dialect)
-        self._like_pattern = like_pattern
-        self._session = session
-
-    def like(self, pattern: str) -> "ShowStatusExpression":
-        """Filter status by pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def global_status(self) -> "ShowStatusExpression":
-        """Show global status instead of session status."""
-        self._session = False
-        return self
+        self.like_pattern = like_pattern
+        self.session = session
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_status(self)
+        return self._dialect.format_show_variables_statement(self)
 
 
-class ShowProcessListExpression(ShowExpression):
-    """Expression for SHOW PROCESSLIST command."""
+class ShowStatusStatement(ShowExpression):
+    """Expression for SHOW [GLOBAL] STATUS command."""
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, like_pattern: Optional[str] = None, session: bool = True):
+        super().__init__(dialect)
+        self.like_pattern = like_pattern
+        self.session = session
+
+    def to_sql(self) -> SQLQueryAndParams:
+        return self._dialect.format_show_status_statement(self)
+
+
+class ShowProcessListStatement(ShowExpression):
+    """Expression for SHOW [FULL] PROCESSLIST command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, full: bool = False):
         super().__init__(dialect)
-        self._full = full
-
-    def full(self) -> "ShowProcessListExpression":
-        """Show full process list."""
-        self._full = True
-        return self
+        self.full = full
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_processlist(self)
+        return self._dialect.format_show_process_list_statement(self)
 
 
-class ShowWarningsExpression(ShowExpression):
+class ShowWarningsStatement(ShowExpression):
     """Expression for SHOW WARNINGS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, limit: Optional[int] = None):
         super().__init__(dialect)
-        self._limit = limit
-
-    def limit(self, count: int) -> "ShowWarningsExpression":
-        """Limit the number of warnings returned."""
-        self._limit = count
-        return self
+        self.limit = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_warnings(self)
+        return self._dialect.format_show_warnings_statement(self)
 
 
-class ShowErrorsExpression(ShowExpression):
+class ShowErrorsStatement(ShowExpression):
     """Expression for SHOW ERRORS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, limit: Optional[int] = None):
         super().__init__(dialect)
-        self._limit = limit
-
-    def limit(self, count: int) -> "ShowErrorsExpression":
-        """Limit the number of errors returned."""
-        self._limit = count
-        return self
+        self.limit = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_errors(self)
+        return self._dialect.format_show_errors_statement(self)
 
 
-class ShowEnginesExpression(ShowExpression):
+class ShowEnginesStatement(ShowExpression):
     """Expression for SHOW ENGINES command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_engines(self)
+        return self._dialect.format_show_engines_statement(self)
 
 
-class ShowCharsetExpression(ShowExpression):
+class ShowCharsetStatement(ShowExpression):
     """Expression for SHOW CHARACTER SET command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None):
         super().__init__(dialect)
-        self._like_pattern = like_pattern
-
-    def like(self, pattern: str) -> "ShowCharsetExpression":
-        """Filter character sets by pattern."""
-        self._like_pattern = pattern
-        return self
+        self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_charset(self)
+        return self._dialect.format_show_charset_statement(self)
 
 
-class ShowCollationExpression(ShowExpression):
+class ShowCollationStatement(ShowExpression):
     """Expression for SHOW COLLATION command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None):
         super().__init__(dialect)
-        self._like_pattern = like_pattern
-
-    def like(self, pattern: str) -> "ShowCollationExpression":
-        """Filter collations by pattern."""
-        self._like_pattern = pattern
-        return self
+        self.like_pattern = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_collation(self)
+        return self._dialect.format_show_collation_statement(self)
 
 
-class ShowGrantsExpression(ShowExpression):
+class ShowGrantsStatement(ShowExpression):
     """Expression for SHOW GRANTS command."""
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, user: Optional[str] = None, host: Optional[str] = None):
         super().__init__(dialect)
-        self._user = user
-        self._host = host
-
-    def for_user(self, user: str, host: Optional[str] = None) -> "ShowGrantsExpression":
-        """Show grants for a specific user."""
-        self._user = user
-        self._host = host
-        return self
+        self.user = user
+        self.host = host
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_grants(self)
+        return self._dialect.format_show_grants_statement(self)
 
 
-class ShowPluginsExpression(ShowExpression):
+class ShowPluginsStatement(ShowExpression):
     """Expression for SHOW PLUGINS command."""
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_plugins(self)
+        return self._dialect.format_show_plugins_statement(self)
+
+
+__all__ = [
+    "ShowExpression",
+    "ShowRelationExpression",
+    "ShowCreateTableStatement",
+    "ShowCreateViewStatement",
+    "ShowColumnsStatement",
+    "ShowIndexStatement",
+    "ShowTablesStatement",
+    "ShowDatabasesStatement",
+    "ShowTableStatusStatement",
+    "ShowTriggersStatement",
+    "ShowCreateTriggerStatement",
+    "ShowVariablesStatement",
+    "ShowStatusStatement",
+    "ShowProcessListStatement",
+    "ShowWarningsStatement",
+    "ShowErrorsStatement",
+    "ShowEnginesStatement",
+    "ShowCharsetStatement",
+    "ShowCollationStatement",
+    "ShowGrantsStatement",
+    "ShowPluginsStatement",
+]

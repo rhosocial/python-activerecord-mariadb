@@ -38,6 +38,7 @@ from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
+from ..expression.status import MariaDBVersionQuery
 from ..transaction import MariaDBTransactionManager
 from ..mixins import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MariaDBConcurrencyMixin
 
@@ -209,9 +210,9 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             return False
 
         try:
-            self.log(logging.DEBUG, "Testing connection with SELECT 1")
+            self.log(logging.DEBUG, "Testing the connection with a liveness probe")
             cursor = self._connection.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute(*self._liveness_probe())
             cursor.close()
             return True
         except mariadb.Error as e:
@@ -241,7 +242,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
         else:
             try:
                 cursor = self._connection.cursor()
-                cursor.execute("SELECT 1")
+                cursor.execute(*self._liveness_probe())
                 cursor.close()
             except (mariadb.Error, OSError, BrokenPipeError):
                 self.log(logging.DEBUG, "Connection lost, reconnecting...")
@@ -503,7 +504,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             if not self._connection:
                 self.connect()
             cursor = self._connection.cursor()
-            cursor.execute("SELECT VERSION()")
+            cursor.execute(*MariaDBVersionQuery(self.dialect).to_sql())
             version_str = cursor.fetchone()[0]
             cursor.close()
 

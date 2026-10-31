@@ -26,31 +26,32 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
     VarCharType,
 )
 
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
     columns=[
@@ -59,15 +60,14 @@ create_table = CreateTableExpression(
             'id',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             dialect,
             'name',
             VarCharType(dialect, 100),
-            constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+            constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
         ),
         ColumnDefinition(dialect, 'age', IntegerType(dialect)),
         ColumnDefinition(dialect, 'status', VarCharType(dialect, 20)),
@@ -78,7 +78,7 @@ sql, params = create_table.to_sql()
 print(f"Create table SQL: {sql}, params: {params}")
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'users'),
     columns=['name', 'age', 'status'],
@@ -98,14 +98,14 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
-    QueryExpression,
+    QueryStatement,
     Column,
     WhereClause,
     OrderByClause,
     LimitOffsetClause,
 )
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, 'id'),

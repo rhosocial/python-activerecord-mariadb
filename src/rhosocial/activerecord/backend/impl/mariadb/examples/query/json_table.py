@@ -1,7 +1,7 @@
 """
 MariaDB JSON_TABLE - Convert JSON data to relational format (MariaDB 8.0+).
 
-Demonstrates using MariaDBJSONTableExpression with QueryExpression to build
+Demonstrates using MariaDBJSONTableExpression with QueryStatement to build
 a SELECT query that flattens JSON array data into relational rows.
 """
 
@@ -28,27 +28,27 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
     JsonType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'orders'),
     columns=[
@@ -57,8 +57,7 @@ create_table = CreateTableExpression(
             "id",
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition(dialect, "order_data", JsonType(dialect)),
@@ -68,7 +67,7 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, 'orders'),
     columns=["order_data"],
@@ -94,7 +93,7 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (
-    QueryExpression,
+    QueryStatement,
     Column,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
@@ -116,11 +115,11 @@ json_table = MariaDBJSONTableExpression(
 json_table_sql, json_table_params = json_table.to_sql()
 print(f"JSON_TABLE SQL: {json_table_sql}")
 
-# Build the query using QueryExpression with a comma-separated FROM clause
+# Build the query using QueryStatement with a comma-separated FROM clause
 # (equivalent to an implicit CROSS JOIN).
 # Note: MariaDBJSONTableExpression is not yet in the FromSourceType validation whitelist,
 # so we temporarily disable strict validation when generating SQL.
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, "id", table="o"),

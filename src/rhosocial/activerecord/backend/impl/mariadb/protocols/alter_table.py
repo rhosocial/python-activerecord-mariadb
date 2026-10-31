@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
-        MariaDBRenameIndexExpression,
+        MariaDBRenameIndexStatement,
     )
 
 
@@ -45,7 +45,7 @@ class MariaDBAlterTableSupport(Protocol):
 
     def format_rename_index_statement(
         self,
-        expr: "MariaDBRenameIndexExpression",
+        expr: "MariaDBRenameIndexStatement",
     ) -> Tuple[str, tuple]:
         """Format a MariaDB ALTER TABLE ... RENAME INDEX statement."""
         ...

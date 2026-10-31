@@ -1,5 +1,15 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/cli/introspect.py
-"""introspect subcommand - Database introspection."""
+"""introspect subcommand - Database introspection.
+
+There is no namespace flag here, and that is deliberate. MariaDB has
+exactly one namespace level and calls it a *database* -- ``CREATE SCHEMA``
+is a synonym for ``CREATE DATABASE`` and nothing sits inside a database
+under a further name. So ``--database``, which the connection already
+takes, is the whole answer: the run connects to a database and asks about
+that database. An earlier version accepted ``--schema`` as well, which
+named the same thing under a word MariaDB does not use; it is gone rather
+than aliased.
+"""
 
 import argparse
 import asyncio
@@ -17,10 +27,29 @@ from .output import create_provider
 
 OUTPUT_CHOICES = ['table', 'json', 'csv', 'tsv']
 
-INTROSPECT_TYPES = [
-    "tables", "views", "table", "columns",
-    "indexes", "foreign-keys", "triggers", "database"
-]
+#: Every family the CLI asks about, mapped to the dialect capability that
+#: decides whether *this* server can answer it.
+#:
+#: One table, not a list of names beside a map of gates: a family added to one
+#: and not the other would either be offered and answered without a check, or
+#: checked while the parser rejects it. `INTROSPECT_TYPES` is derived from this
+#: mapping so the two cannot disagree about which families exist.
+#:
+#: ``sequences`` arrived in 10.3; every other family here is declared
+#: unconditionally by this backend and answered on every server it supports.
+_TYPE_CAPABILITIES = {
+    "tables": "supports_table_introspection",
+    "views": "supports_view_introspection",
+    "columns": "supports_column_introspection",
+    "indexes": "supports_index_introspection",
+    "foreign-keys": "supports_foreign_key_introspection",
+    "triggers": "supports_trigger_introspection",
+    "database": "supports_database_info",
+    "sequences": "supports_sequence_introspection",  # MariaDB 10.3+
+    "table-options": "supports_table_options_introspection",
+}
+
+INTROSPECT_TYPES = list(_TYPE_CAPABILITIES)
 
 
 def create_parser(subparsers):
@@ -35,14 +64,22 @@ def create_parser(subparsers):
   # List all views
   %(prog)s views --database mydb
 
-  # Get detailed table info (columns, indexes, foreign keys)
-  %(prog)s table users --database mydb
+  # One view, with its definition
+  %(prog)s views user_summary --database mydb
 
   # Get column details for a table
   %(prog)s columns users --database mydb
 
   # Output as JSON
   %(prog)s tables --database mydb -o json
+
+  # List sequences, and one sequence's own limits
+  %(prog)s sequences --database mydb
+  %(prog)s sequences my_seq --database mydb
+
+  # Show storage options for every table, or for one
+  %(prog)s table-options --database mydb
+  %(prog)s table-options users --database mydb
 
   # Using environment variables for connection
   export MARIADB_HOST=localhost MARIADB_DATABASE=mydb MARIADB_USER=root MARIADB_PASSWORD=secret
@@ -70,21 +107,22 @@ def create_parser(subparsers):
     )
 
     # introspect-specific arguments
+    # `INTROSPECT_TYPES` is the whole candidate list: it says what MariaDB can
+    # be asked about, which is a fact about the engine and not about the server
+    # this run will reach. The parser is built before the run connects, so it
+    # has no version to consult; a family the connected server cannot answer is
+    # refused by `_refuse_unsupported_family` instead of being hidden here,
+    # because hiding it would also hide it from a server that has it.
     parser.add_argument(
         "type",
         choices=INTROSPECT_TYPES,
-        help="Introspection type: tables, views, table, columns, indexes, foreign-keys, triggers, database",
+        help="Introspection type: " + ", ".join(INTROSPECT_TYPES),
     )
     parser.add_argument(
         "name",
         nargs="?",
         default=None,
-        help="Table/view name (required for some types)",
-    )
-    parser.add_argument(
-        "--schema",
-        default=None,
-        help="Schema name (for databases that support schemas)",
+        help="Table, view or sequence name (required for some types)",
     )
     parser.add_argument(
         "--include-system",
@@ -97,6 +135,18 @@ def create_parser(subparsers):
 
 def handle(args):
     """Handle the introspect subcommand."""
+    # `tables` and `database` answer for the whole database. A name after them
+    # cannot narrow that answer without turning the command into the aggregate
+    # of several families that `table` used to be, so it is refused -- exit 2,
+    # "this request cannot be served here" -- rather than silently ignored,
+    # because a caller who wrote a name believes it selected something.
+    if args.name and args.type in ("tables", "database"):
+        print(
+            f"Error: {args.type} introspection takes no name",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     provider = create_provider(args.output, ascii_borders=args.rich_ascii)
 
     named_conn = getattr(args, "named_connection", None)
@@ -117,6 +167,37 @@ def handle(args):
     else:
         backend = MariaDBBackend(connection_config=config)
         _handle_introspect_sync(args, backend, provider)
+
+
+def _refuse_unsupported_family(args, backend) -> None:
+    """Refuse a family this server cannot answer.
+
+    The parser offers every family MariaDB has, because that is a fact about
+    the engine; which of them *this* server can answer is a fact about its
+    version and its build, and only known after ``connect()`` has adapted the
+    dialect. So the second reading happens here, and it asks the dialect rather
+    than comparing version numbers itself: the dialect is where the boundary
+    for a family is recorded, and a copy of it in the CLI is a second place to
+    keep in step.
+
+    The table is read, not a list of gated families: every declared type is
+    checked, and today only ``sequences`` can answer False (MariaDB 10.3+).
+    A family declared unconditionally is answered on every server this backend
+    supports, so the check costs a call and never refuses.
+
+    The refusal exits **2**, not 1. Exit 1 means the run failed -- a
+    connection that did not open, a query that errored, an exception nobody
+    expected. Here the run succeeded and the answer is that this server
+    cannot be asked; that is the same kind of answer as argparse's "invalid
+    choice", which also exits 2, and it reads that way: the family is valid
+    on this engine, the server is what lacks it.
+    """
+    if not getattr(backend.dialect, _TYPE_CAPABILITIES[args.type])():
+        print(
+            f"Error: {args.type} introspection is not supported by this server",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
 
 # ---------------------------------------------------------------------------
@@ -151,53 +232,35 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
     """Handle introspect subcommand synchronously."""
     try:
         backend.connect()
+        _refuse_unsupported_family(args, backend)
 
         introspector = backend.introspector
 
         if args.type == "tables":
             tables = introspector.list_tables(
-                schema=args.schema,
+                schema=None,
                 include_system=args.include_system
             )
             data = _serialize_for_output(tables)
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = introspector.list_views(schema=args.schema)
-            data = _serialize_for_output(views)
-            provider.display_results(data, title="Views")
-
-        elif args.type == "table":
-            if not args.name:
-                print(
-                    "Error: Table name is required for 'table' introspection",
-                    file=sys.stderr
-                )
-                sys.exit(1)
-            info = introspector.get_table_info(
-                args.name, schema=args.schema
-            )
-            if info:
-                data = _serialize_for_output(info.columns)
+            if args.name:
+                info = introspector.get_view_info(args.name, schema=None)
+                if info is None:
+                    print(
+                        f"Error: View '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
                 provider.display_results(
-                    data, title=f"Columns of {args.name}"
+                    data, title=f"View {args.name}"
                 )
-                if info.indexes:
-                    idata = _serialize_for_output(info.indexes)
-                    provider.display_results(
-                        idata, title=f"Indexes of {args.name}"
-                    )
-                if info.foreign_keys:
-                    fkdata = _serialize_for_output(info.foreign_keys)
-                    provider.display_results(
-                        fkdata, title=f"Foreign Keys of {args.name}"
-                    )
             else:
-                print(
-                    f"Error: Table '{args.name}' not found",
-                    file=sys.stderr
-                )
-                sys.exit(1)
+                views = introspector.list_views(schema=None)
+                data = _serialize_for_output(views)
+                provider.display_results(data, title="Views")
 
         elif args.type == "columns":
             if not args.name:
@@ -207,7 +270,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 sys.exit(1)
             columns = introspector.list_columns(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(columns)
             provider.display_results(
@@ -222,7 +285,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 sys.exit(1)
             indexes = introspector.list_indexes(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(indexes)
             provider.display_results(
@@ -237,7 +300,7 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 sys.exit(1)
             fks = introspector.list_foreign_keys(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(fks)
             provider.display_results(
@@ -247,10 +310,52 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
         elif args.type == "triggers":
             triggers = introspector.list_triggers(
                 table_name=args.name,
-                schema=args.schema
+                schema=None
             )
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
+
+        elif args.type == "sequences":
+            if args.name:
+                info = introspector.get_sequence_info(
+                    args.name, schema=None
+                )
+                if info is None:
+                    print(
+                        f"Error: Sequence '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"Sequence {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    introspector.list_sequences(schema=None)
+                )
+                provider.display_results(data, title="Sequences")
+
+        elif args.type == "table-options":
+            if args.name:
+                options = introspector.get_table_options(
+                    args.name, schema=None
+                )
+                if options is None:
+                    print(
+                        f"Error: Table '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(options)]
+                provider.display_results(
+                    data, title=f"Table Options of {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    introspector.list_table_options(schema=None)
+                )
+                provider.display_results(data, title="Table Options")
 
         elif args.type == "database":
             info = introspector.get_database_info()
@@ -275,55 +380,37 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
     """Handle introspect subcommand asynchronously."""
     try:
         await backend.connect()
+        _refuse_unsupported_family(args, backend)
 
         introspector = backend.introspector
 
         if args.type == "tables":
             tables = await introspector.list_tables(
-                schema=args.schema,
+                schema=None,
                 include_system=args.include_system
             )
             data = _serialize_for_output(tables)
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = await introspector.list_views(
-                schema=args.schema
-            )
-            data = _serialize_for_output(views)
-            provider.display_results(data, title="Views")
-
-        elif args.type == "table":
-            if not args.name:
-                print(
-                    "Error: Table name is required for 'table' introspection",
-                    file=sys.stderr
-                )
-                sys.exit(1)
-            info = await introspector.get_table_info(
-                args.name, schema=args.schema
-            )
-            if info:
-                data = _serialize_for_output(info.columns)
+            if args.name:
+                info = await introspector.get_view_info(args.name, schema=None)
+                if info is None:
+                    print(
+                        f"Error: View '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
                 provider.display_results(
-                    data, title=f"Columns of {args.name}"
+                    data, title=f"View {args.name}"
                 )
-                if info.indexes:
-                    idata = _serialize_for_output(info.indexes)
-                    provider.display_results(
-                        idata, title=f"Indexes of {args.name}"
-                    )
-                if info.foreign_keys:
-                    fkdata = _serialize_for_output(info.foreign_keys)
-                    provider.display_results(
-                        fkdata, title=f"Foreign Keys of {args.name}"
-                    )
             else:
-                print(
-                    f"Error: Table '{args.name}' not found",
-                    file=sys.stderr
+                views = await introspector.list_views(
+                    schema=None
                 )
-                sys.exit(1)
+                data = _serialize_for_output(views)
+                provider.display_results(data, title="Views")
 
         elif args.type == "columns":
             if not args.name:
@@ -333,7 +420,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
                 sys.exit(1)
             columns = await introspector.list_columns(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(columns)
             provider.display_results(
@@ -348,7 +435,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
                 sys.exit(1)
             indexes = await introspector.list_indexes(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(indexes)
             provider.display_results(
@@ -363,7 +450,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 )
                 sys.exit(1)
             fks = await introspector.list_foreign_keys(
-                args.name, schema=args.schema
+                args.name, schema=None
             )
             data = _serialize_for_output(fks)
             provider.display_results(
@@ -373,10 +460,52 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
         elif args.type == "triggers":
             triggers = await introspector.list_triggers(
                 table_name=args.name,
-                schema=args.schema
+                schema=None
             )
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
+
+        elif args.type == "sequences":
+            if args.name:
+                info = await introspector.get_sequence_info(
+                    args.name, schema=None
+                )
+                if info is None:
+                    print(
+                        f"Error: Sequence '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"Sequence {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    await introspector.list_sequences(schema=None)
+                )
+                provider.display_results(data, title="Sequences")
+
+        elif args.type == "table-options":
+            if args.name:
+                options = await introspector.get_table_options(
+                    args.name, schema=None
+                )
+                if options is None:
+                    print(
+                        f"Error: Table '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(options)]
+                provider.display_results(
+                    data, title=f"Table Options of {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    await introspector.list_table_options(schema=None)
+                )
+                provider.display_results(data, title="Table Options")
 
         elif args.type == "database":
             info = await introspector.get_database_info()

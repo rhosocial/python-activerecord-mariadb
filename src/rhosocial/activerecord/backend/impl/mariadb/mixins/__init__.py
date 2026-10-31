@@ -13,7 +13,7 @@ Mixin Organization:
 - system_versioning.py: System-versioned tables (MariaDB 10.3+)
 - dml.py: DML operations (INSERT IGNORE, REPLACE, LOAD DATA)
 - spatial.py: Spatial data types and functions
-- locking.py: Row-level locking (FOR UPDATE, FOR SHARE, SKIP LOCKED)
+- locking.py: Row-level locking (FOR UPDATE, LOCK IN SHARE MODE, SKIP LOCKED)
 - trigger.py: Trigger DDL with INSTEAD OF support (MariaDB 10.4+)
 - json.py: JSON functions and arrow operators
 - set_type.py: SET type support
@@ -39,6 +39,7 @@ Mixin Organization:
 """
 
 from .introspection import MariaDBIntrospectionMixin
+from .status import MariaDBStatusDialectMixin
 from .transaction import MariaDBTransactionMixin
 from .backend import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MARIADB_VERSION_BOUNDARIES
 from .sequence import MariaDBSequenceMixin
@@ -90,10 +91,12 @@ from .generated_column import MariaDBGeneratedColumnMixin
 from .function import MariaDBFunctionMixin
 from .namespace import MariaDBNamespaceMixin
 from .column_type import MariaDBColumnTypeMixin
+from .literal import MariaDBLiteralValueMixin
 
 __all__ = [
     'MARIADB_VERSION_BOUNDARIES',
     'MariaDBIntrospectionMixin',
+    'MariaDBStatusDialectMixin',
     'MariaDBTransactionMixin',
     'MariaDBBackendMixin',
     'CONNECTION_ERROR_CODES',
@@ -145,4 +148,5 @@ __all__ = [
     'MariaDBFunctionMixin',
     'MariaDBNamespaceMixin',
     'MariaDBColumnTypeMixin',
+    'MariaDBLiteralValueMixin',
 ]

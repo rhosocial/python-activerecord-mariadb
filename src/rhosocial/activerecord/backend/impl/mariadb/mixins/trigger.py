@@ -12,8 +12,8 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        CreateTriggerExpression,
-        DropTriggerExpression,
+        CreateTriggerStatement,
+        DropTriggerStatement,
     )
 
 
@@ -78,7 +78,7 @@ class MariaDBTriggerMixin:
         Returns:
             True if MariaDB version >= 10.4.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER'])
 
     def supports_statement_trigger(self) -> bool:
         """Whether FOR EACH STATEMENT triggers are supported.
@@ -119,7 +119,7 @@ class MariaDBTriggerMixin:
         Returns:
             True if MariaDB version >= 10.2.3.
         """
-        return self.version >= (10, 2, 3)
+        return self.version_at_least((10, 2, 3))
 
     def supports_trigger_if_not_exists(self) -> bool:
         """Whether CREATE TRIGGER IF NOT EXISTS is supported.
@@ -150,11 +150,11 @@ class MariaDBTriggerMixin:
         Returns:
             True if MariaDB version >= 10.4.0.
         """
-        return self.version >= MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER']
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER'])
 
     def format_create_trigger_statement(
         self,
-        expr: "CreateTriggerExpression"
+        expr: "CreateTriggerStatement"
     ) -> Tuple[str, tuple]:
         """Format CREATE TRIGGER statement for MariaDB.
 
@@ -168,7 +168,7 @@ class MariaDBTriggerMixin:
             trigger_body
 
         Args:
-            expr: CreateTriggerExpression instance.
+            expr: CreateTriggerStatement instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -178,24 +178,30 @@ class MariaDBTriggerMixin:
 
         # Three objects, each with its own format_method, so each needs its kind
         # checked here: a Function where the table belongs renders as valid SQL
-        # over the function's name.
-        for attribute, kind in (
-            ("trigger", Trigger),
-            ("table", Table),
+        # over the function's name. The slots are the node's declared fields,
+        # read by name rather than probed for.
+        for name, value, kind in (
+            ("trigger", expr.trigger, Trigger),
+            ("table", expr.table, Table),
         ):
-            value = getattr(expr, attribute)
             if not isinstance(value, kind):
                 raise TypeError(
-                    f"CreateTriggerExpression.{attribute} must be a "
+                    f"CreateTriggerStatement.{name} must be a "
                     f"{kind.__name__}, got {type(value).__name__}"
                 )
         if expr.function is not None and not isinstance(expr.function, Function):
             raise TypeError(
-                f"CreateTriggerExpression.function must be a Function, "
+                f"CreateTriggerStatement.function must be a Function, "
                 f"got {type(expr.function).__name__}"
             )
 
-        timing = expr.timing.value if hasattr(expr.timing, 'value') else str(expr.timing)
+        # The timing / level / events slots take the core enum or its raw
+        # spelling; the enum branch is selected with isinstance, which is the
+        # same shape core's ``format_comment_on_statement`` normalises
+        # ``object_type`` with.
+        from enum import Enum
+
+        timing = expr.timing.value if isinstance(expr.timing, Enum) else expr.timing
 
         if timing == "INSTEAD OF" and not self.supports_instead_of_trigger():
             raise UnsupportedFeatureError(
@@ -204,12 +210,14 @@ class MariaDBTriggerMixin:
                 "INSTEAD OF triggers require MariaDB 10.4 or later."
             )
 
-        if expr.level and hasattr(expr.level, 'value') and expr.level.value == "FOR EACH STATEMENT":
-            raise UnsupportedFeatureError(
-                self.name,
-                "FOR EACH STATEMENT triggers",
-                "MariaDB only supports FOR EACH ROW triggers."
-            )
+        if expr.level:
+            level = expr.level.value if isinstance(expr.level, Enum) else expr.level
+            if level == "FOR EACH STATEMENT":
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "FOR EACH STATEMENT triggers",
+                    "MariaDB only supports FOR EACH ROW triggers."
+                )
 
         if expr.condition:
             raise UnsupportedFeatureError(
@@ -251,7 +259,11 @@ class MariaDBTriggerMixin:
         parts.append(timing)
 
         if expr.events:
-            parts.append(expr.events[0].value if hasattr(expr.events[0], 'value') else str(expr.events[0]))
+            parts.append(
+                expr.events[0].value
+                if isinstance(expr.events[0], Enum)
+                else expr.events[0]
+            )
 
         parts.append("ON")
         table_sql, _ = expr.table.to_sql()
@@ -282,12 +294,12 @@ class MariaDBTriggerMixin:
 
     def format_drop_trigger_statement(
         self,
-        expr: "DropTriggerExpression"
+        expr: "DropTriggerStatement"
     ) -> Tuple[str, tuple]:
         """Format DROP TRIGGER statement for MariaDB.
 
         Args:
-            expr: DropTriggerExpression instance.
+            expr: DropTriggerStatement instance.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -299,7 +311,7 @@ class MariaDBTriggerMixin:
 
         if not isinstance(expr.trigger, Trigger):
             raise TypeError(
-                f"DropTriggerExpression.trigger must be a Trigger, "
+                f"DropTriggerStatement.trigger must be a Trigger, "
                 f"got {type(expr.trigger).__name__}"
             )
         parts = ["DROP TRIGGER"]

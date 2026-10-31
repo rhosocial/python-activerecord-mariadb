@@ -17,14 +17,16 @@ from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBCreateTableOptions
 from rhosocial.activerecord.backend.expression import (
-    DropTableExpression,
-    CreateTableExpression,
+    DropTableStatement,
+    CreateTableStatement,
 )
-from rhosocial.activerecord.backend.expression.functions.datetime import current_timestamp
+from rhosocial.activerecord.backend.expression import functions as F
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
+    ColumnNotNullConstraint,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     IndexDefinition,
@@ -52,7 +54,7 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop if exists for clean setup
-drop = DropTableExpression(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
+drop = DropTableStatement(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
@@ -66,8 +68,7 @@ columns = [
         name='id',
         data_type=IntegerType(dialect),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
@@ -75,7 +76,7 @@ columns = [
         name='name',
         data_type=VarCharType(dialect, 200),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
@@ -83,7 +84,7 @@ columns = [
         name='price',
         data_type=DecimalType(dialect, 10, 2),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
@@ -96,7 +97,7 @@ columns = [
         name='is_active',
         data_type=TinyIntType(dialect),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=1),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1)),
         ],
     ),
     ColumnDefinition(
@@ -104,7 +105,7 @@ columns = [
         name='created_at',
         data_type=TimestampType(dialect),
         constraints=[
-            ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=current_timestamp(dialect)),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
         ],
     ),
 ]
@@ -118,7 +119,7 @@ indexes = [
 ]
 
 # Create table with MariaDB-specific ENGINE and CHARSET options
-create_expr = CreateTableExpression(
+create_expr = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, 'products'),
     columns=columns,
@@ -146,7 +147,7 @@ for col in columns_info:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()
@@ -158,5 +159,5 @@ backend.disconnect()
 # 1. Use ColumnConstraint with is_auto_increment=True for AUTO_INCREMENT
 # 2. MariaDB table options (engine/charset) are typed on MariaDBCreateTableOptions
 # 3. IndexDefinition creates inline indexes within CREATE TABLE
-# 4. Use current_timestamp(dialect) for SQL niladic functions (no parentheses)
+# 4. Use F.current_timestamp(dialect) for SQL niladic functions (no parentheses)
 # 5. Use introspector.get_columns() to verify table structure

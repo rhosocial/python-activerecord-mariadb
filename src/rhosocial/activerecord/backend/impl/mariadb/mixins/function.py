@@ -1,6 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/function.py
 """MariaDB SQL function support mixin."""
-from typing import Dict
+from typing import Dict, Tuple
 
 
 class MariaDBFunctionMixin:
@@ -129,20 +129,50 @@ class MariaDBFunctionMixin:
         return self._is_mariadb_function_supported(name.strip().lower())
 
     def _is_mariadb_function_supported(self, func_name: str) -> bool:
-        """Check if a MariaDB-specific function is supported based on version."""
+        """Check if a MariaDB-specific function is supported based on version.
+
+        This is a capability check, so it answers before adaptation rather
+        than raising: a name with no version bound is available on every
+        server, and a version-bounded one is not claimed until a version is
+        known.
+        """
         version_range = self._MARIADB_FUNCTION_VERSIONS.get(func_name)
         if version_range is None:
             return True
 
-        min_version, max_version = version_range
-
-        if min_version is not None and self.version < min_version:
+        version = self.version_or_none
+        if version is None:
             return False
 
-        if max_version is not None and self.version > max_version:
+        min_version, max_version = version_range
+
+        if min_version is not None and version < min_version:
+            return False
+
+        if max_version is not None and version > max_version:
             return False
 
         return True
+
+    def format_char_length_function(self, expr) -> Tuple[str, tuple]:
+        """Render the character length as ``CHAR_LENGTH(operand)``.
+
+        The base spells this ``LENGTH``, and on MariaDB that answers a
+        different question: measured on 13.1.1 (192.168.1.3:15694),
+        ``LENGTH('héllo')`` is 6 -- the byte count, é being two bytes --
+        while ``CHAR_LENGTH('héllo')`` is 5, the characters. The node's
+        ``unit`` records the semantics the caller asked for and the core
+        leaves the spelling to the backend, so the entry point is
+        overridden rather than letting the standard spelling quietly count
+        bytes where characters were meant. ``expr.unit`` is still not
+        rendered: the unit is a semantic the node declares, and
+        ``CHAR_LENGTH`` is this backend's one spelling for it.
+        """
+        operand_sql, operand_params = expr.operand.to_sql()
+        sql = f"CHAR_LENGTH({operand_sql})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, tuple(operand_params)
 
 
 __all__ = ['MariaDBFunctionMixin']
