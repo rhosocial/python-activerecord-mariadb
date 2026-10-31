@@ -94,6 +94,19 @@ class MariaDBIntrospectionMixin:
         so the question is answerable identically in both engines."""
         return True
 
+    def supports_table_storage_introspection(self) -> bool:
+        """Per-table storage metrics, read from ``information_schema.TABLES``.
+
+        MariaDB's storage is row-plus-index shaped: ``DATA_LENGTH`` and
+        ``INDEX_LENGTH`` are reported per table, so the table's footprint
+        is answerable as its total (``size_bytes``) and as its split
+        (``data_size_bytes`` / ``index_size_bytes``). The probe says the
+        family is answerable; what a server that reports neither column
+        yields stays ``None`` rather than zero (see
+        :meth:`~.MariaDBIntrospectorMixin.parse_tables`).
+        """
+        return True
+
     # ========== Capability Detection ==========
 
     def supports_introspection(self) -> bool:
@@ -318,7 +331,14 @@ class MariaDBIntrospectionMixin:
                 Column(self, "TABLE_TYPE"),
                 Column(self, "TABLE_COMMENT"),
                 Column(self, "TABLE_ROWS"),
+                # Data and index bytes are read apart: MariaDB's storage is
+                # row-plus-index shaped, so the two narrow slots of
+                # ``IntrospectionTableInfo`` are answered rather than summed
+                # away here. ``size_bytes`` is their sum, computed in the
+                # parser, so a table that reports only one of them does not
+                # get the other defaulted to zero.
                 Column(self, "DATA_LENGTH"),
+                Column(self, "INDEX_LENGTH"),
                 Column(self, "AUTO_INCREMENT"),
                 Column(self, "CREATE_TIME"),
                 Column(self, "UPDATE_TIME"),

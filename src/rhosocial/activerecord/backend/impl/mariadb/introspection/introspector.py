@@ -140,6 +140,15 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         ``BASE_TABLE`` default rather than be invented as a kind of its own.
         Keeping the fallback is what lets a spelling a later MariaDB release
         adds still appear in the listing instead of failing it.
+
+        The storage slots are filled from the two columns the statement
+        reads: ``DATA_LENGTH`` into ``data_size_bytes``, ``INDEX_LENGTH``
+        into ``index_size_bytes``, and their sum into ``size_bytes``. A
+        server that reports neither column -- a view has no storage and
+        reports ``NULL`` -- leaves all three ``None``, because a value the
+        catalog did not report is not a zero-byte table (rules §5: an
+        engine that cannot answer a slot leaves it ``None``, which is a
+        legal answer rather than a gap).
         """
         target_db = schema if schema is not None else self.default_schema
         table_type_map = {
@@ -150,6 +159,9 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         tables = []
         for row in rows:
             t_type = table_type_map.get(row.get("TABLE_TYPE", "BASE TABLE"), TableType.BASE_TABLE)
+            data_length = self._as_int(row.get("DATA_LENGTH"))
+            index_length = self._as_int(row.get("INDEX_LENGTH"))
+            reported = [size for size in (data_length, index_length) if size is not None]
             tables.append(
                 IntrospectionTableInfo(
                     name=row["TABLE_NAME"],
@@ -157,7 +169,9 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
                     table_type=t_type,
                     comment=row.get("TABLE_COMMENT"),
                     row_count=row.get("TABLE_ROWS"),
-                    size_bytes=row.get("DATA_LENGTH"),
+                    size_bytes=sum(reported) if reported else None,
+                    data_size_bytes=data_length,
+                    index_size_bytes=index_length,
                     auto_increment=row.get("AUTO_INCREMENT"),
                     create_time=str(row["CREATE_TIME"]) if row.get("CREATE_TIME") else None,
                     update_time=str(row["UPDATE_TIME"]) if row.get("UPDATE_TIME") else None,

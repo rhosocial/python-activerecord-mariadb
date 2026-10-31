@@ -2,13 +2,34 @@
 """MariaDB server status introspector.
 
 Provides server status information by querying MariaDB's SHOW VARIABLES,
-SHOW STATUS, and information_schema. Includes MariaDB-specific features
-like Galera cluster status and thread pool metrics.
+SHOW STATUS, and information_schema.
+
+Two families this engine answers are typed in this repository rather than
+in core: the binary log and replication (``status_types.py``). They ride
+the overview this module builds as an ``MariaDBServerOverview`` -- the core
+shape plus its own fields -- because a slot on core's ``ServerOverview``
+would assert that every other engine has something it does not have
+(``.claude/rules/introspection.md`` §5).
+
+Nothing here is a Galera reader. The ``wsrep_*`` variables and the
+``SHOW STATUS LIKE 'wsrep%'`` answers exist only on a Galera-enabled build,
+and a stock primary/replica server answers none of them, so no cluster
+field is claimed: what the commands below answer is what every MariaDB
+server answers.
+
+Design principle: Sync and Async are separate and cannot coexist.
+- SyncMariaDBStatusIntrospector: for synchronous backends
+- AsyncMariaDBStatusIntrospector: for asynchronous backends
 """
 
 from typing import Any, Dict, List, Optional
 
-from ..expression.show import ShowStatusStatement, ShowVariablesStatement
+from ..expression.show import (
+    ShowMasterStatusStatement,
+    ShowSlaveStatusStatement,
+    ShowStatusStatement,
+    ShowVariablesStatement,
+)
 from ..expression.status import (
     MariaDBDatabaseListQuery,
     MariaDBSessionInfoQuery,
@@ -19,7 +40,6 @@ from ..expression.status import (
 from rhosocial.activerecord.backend.introspection.status import (
     StatusItem,
     StatusCategory,
-    ServerOverview,
     DatabaseBriefInfo,
     UserInfo,
     ConnectionInfo,
@@ -27,6 +47,11 @@ from rhosocial.activerecord.backend.introspection.status import (
     SessionInfo,
     SyncAbstractStatusIntrospector,
     AsyncAbstractStatusIntrospector,
+)
+from .status_types import (
+    MariaDBBinaryLogInfo,
+    MariaDBReplicationInfo,
+    MariaDBServerOverview,
 )
 
 MARIADB_CONFIG_VARIABLES = [
@@ -56,6 +81,21 @@ MARIADB_STATUS_VARIABLES = [
     ("Com_delete", StatusCategory.PERFORMANCE, "DELETE statements executed", None),
 ]
 
+#: The variables MariaDB answers for, beside the SHOW rows the two families
+#: read. Grouped here so a family's sources stay in one place: the variables
+#: a row question needs are asked on every run, and a row question is skipped
+#: only when its own variable says the answer is empty anyway.
+MARIADB_BINLOG_VARIABLES = [
+    "log_bin",
+    "binlog_format",
+    "gtid_binlog_pos",
+    "gtid_strict_mode",
+]
+MARIADB_REPLICATION_VARIABLES = [
+    "server_id",
+    "log_slave_updates",
+]
+
 
 class MariaDBStatusIntrospectorMixin:
     """Shared non-I/O logic for MariaDB status introspectors."""
@@ -74,6 +114,43 @@ class MariaDBStatusIntrospectorMixin:
                 return False
         return value
 
+    def parse_optional_bool(self, value: Any) -> Optional[bool]:
+        """Read one yes/no variable, keeping "not reported" as ``None``.
+
+        MariaDB spells switches ON/OFF (and sometimes 1/0); both mean the
+        same switch. ``None`` means the server did not answer, which is not
+        the same as OFF -- a caller must not turn one into the other.
+        """
+        if value is None:
+            return None
+        return bool(self.parse_variable_value(value))
+
+    def parse_optional_int(self, value: Any) -> Optional[int]:
+        """Read one numeric fact, keeping "not reported" as ``None``.
+
+        ``SHOW MASTER STATUS`` reports positions as text and a NULL column
+        as ``None``; both spellings go through here rather than a ternary
+        at each call site, so "the server said nothing" stays one concept.
+        """
+        if value is None:
+            return None
+        return int(value)
+
+    def parse_db_list(self, value: Any) -> List[str]:
+        """Read one comma-separated database filter into names.
+
+        ``SHOW MASTER STATUS`` writes both filters as comma-separated text;
+        an empty string is no filter, not an unread one.
+        """
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple)):
+            return [str(name).strip() for name in value if str(name).strip()]
+        text = str(value).strip()
+        if not text:
+            return []
+        return [name.strip() for name in text.split(",") if name.strip()]
+
     def _create_status_item(
         self, name: str, value: Any, category: StatusCategory,
         description: Optional[str] = None, unit: Optional[str] = None,
@@ -85,13 +162,106 @@ class MariaDBStatusIntrospectorMixin:
             is_readonly=is_readonly, is_dynamic=is_dynamic,
         )
 
+    def parse_binary_log_info(
+        self,
+        variables: Dict[str, Any],
+        master_status_rows: Optional[List[Dict[str, Any]]],
+    ) -> MariaDBBinaryLogInfo:
+        """Read the binlog family from its two sources.
+
+        The variables are always asked, so ``log_enabled`` and the format
+        answer even on a server with the log off. The ``SHOW MASTER STATUS``
+        row is asked only while the log is on, and its three states are kept
+        distinct: ``None`` rows means the command was not asked, ``[]`` means
+        asked and answered with nothing (the log is off, or the row is not
+        readable), and one row is the log the server is writing.
+        """
+        info = MariaDBBinaryLogInfo(
+            log_enabled=self.parse_optional_bool(variables.get("log_bin")),
+            log_format=variables.get("binlog_format") or None,
+            gtid_binlog_pos=variables.get("gtid_binlog_pos") or None,
+            gtid_strict_mode=self.parse_optional_bool(variables.get("gtid_strict_mode")),
+        )
+        if not master_status_rows:
+            return info
+        row = master_status_rows[0]
+        info.current_log_file = row.get("file") or None
+        info.current_log_position = self.parse_optional_int(row.get("position"))
+        info.binlog_do_db = self.parse_db_list(row.get("binlog_do_db"))
+        info.binlog_ignore_db = self.parse_db_list(row.get("binlog_ignore_db"))
+        info.executed_gtid_set = row.get("executed_gtid_set") or None
+        return info
+
+    def parse_replication_info(
+        self,
+        variables: Dict[str, Any],
+        slave_status_rows: Optional[List[Dict[str, Any]]],
+    ) -> MariaDBReplicationInfo:
+        """Read the replication family from its two sources.
+
+        ``server_id`` and ``log_slave_updates`` answer on every server. The
+        ``SHOW SLAVE STATUS`` row answers the replica side, and its three
+        states are the same three the binlog row has: not asked (``None``),
+        asked with no row (not a replica), asked with one row (this is a
+        replica, and the columns describe the connection).
+
+        No Galera field is filled here and the reason is a fact about the
+        server, not about this code: the ``wsrep_*`` state exists only on a
+        Galera build, and a replica of a Galera cluster is an ordinary
+        ``SHOW SLAVE STATUS`` row. See :class:`MariaDBReplicationInfo`.
+        """
+        server_id = variables.get("server_id")
+        info = MariaDBReplicationInfo(
+            server_id=None if server_id is None else int(server_id),
+            log_slave_updates=self.parse_optional_bool(variables.get("log_slave_updates")),
+        )
+        if slave_status_rows is None:
+            return info
+        info.is_replica = bool(slave_status_rows)
+        if not slave_status_rows:
+            return info
+        row = slave_status_rows[0]
+        info.slave_io_running = row.get("slave_io_running")
+        info.slave_sql_running = row.get("slave_sql_running")
+        info.master_host = row.get("master_host")
+        info.master_port = self.parse_optional_int(row.get("master_port"))
+        info.master_user = row.get("master_user")
+        info.seconds_behind_master = self.parse_optional_int(row.get("seconds_behind_master"))
+        info.master_log_file = row.get("master_log_file")
+        info.read_master_log_pos = self.parse_optional_int(row.get("read_master_log_pos"))
+        info.relay_master_log_file = row.get("relay_master_log_file")
+        info.slave_io_state = row.get("slave_io_state")
+        info.last_io_errno = self.parse_optional_int(row.get("last_io_errno"))
+        info.last_io_error = row.get("last_io_error")
+        info.last_sql_errno = self.parse_optional_int(row.get("last_sql_errno"))
+        info.last_sql_error = row.get("last_sql_error")
+        info.relay_log_file = row.get("relay_log_file")
+        info.relay_log_pos = self.parse_optional_int(row.get("relay_log_pos"))
+        info.exec_master_log_pos = self.parse_optional_int(row.get("exec_master_log_pos"))
+        info.using_gtid = row.get("using_gtid")
+        info.gtid_io_pos = row.get("gtid_io_pos")
+        return info
+
     def _build_server_overview(
-        self, version: str, session: SessionInfo,
-        configuration: List[StatusItem], performance: List[StatusItem],
-        connections: ConnectionInfo, storage: StorageInfo,
-        databases: List[DatabaseBriefInfo], users: List[UserInfo],
-    ) -> ServerOverview:
-        return ServerOverview(
+        self,
+        version: str,
+        session: SessionInfo,
+        configuration: List[StatusItem],
+        performance: List[StatusItem],
+        connections: ConnectionInfo,
+        storage: StorageInfo,
+        databases: List[DatabaseBriefInfo],
+        users: List[UserInfo],
+        binary_log: Optional[MariaDBBinaryLogInfo],
+        replication: Optional[MariaDBReplicationInfo],
+    ) -> MariaDBServerOverview:
+        """Build MariaDB's overview: the core shape plus its own families.
+
+        The return is MariaDB's subclass, and ``get_overview()``'s core
+        signature does not change -- the subclass is a legal covariant return
+        of the core one (``.claude/rules/introspection.md`` §5).
+        """
+        return MariaDBServerOverview(
             server_version=version,
             server_vendor=self._get_vendor_name(),
             session=session,
@@ -100,6 +270,8 @@ class MariaDBStatusIntrospectorMixin:
             storage=storage,
             databases=databases,
             users=users,
+            binary_log=binary_log,
+            replication=replication,
         )
 
 
@@ -151,7 +323,7 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
                 pass
         return result
 
-    def get_overview(self) -> ServerOverview:
+    def get_overview(self) -> MariaDBServerOverview:
         version = self._get_version_string()
         session = self.get_session_info()
         config = self.list_configuration()
@@ -160,9 +332,53 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
         storage = self.get_storage_info()
         databases = self.list_databases()
         users = self.list_users()
+        binary_log = self.get_binary_log_info()
+        replication = self.get_replication_info()
         return self._build_server_overview(
-            version, session, config, perf, conn, storage, databases, users,
+            version,
+            session,
+            config,
+            perf,
+            conn,
+            storage,
+            databases,
+            users,
+            binary_log,
+            replication,
         )
+
+    def get_binary_log_info(self) -> MariaDBBinaryLogInfo:
+        """Answer the binary log family, or as much of it as was answered.
+
+        The variables answer on every server. The row is asked only while
+        the log is on, because MariaDB answers ``SHOW MASTER STATUS`` with
+        an empty set when it is off, and asking anyway would spend a round
+        trip to learn what the variable already says.
+        """
+        variables = self._show_variables(MARIADB_BINLOG_VARIABLES)
+        if variables.get("log_bin", "").lower() not in ("on", "1", "true"):
+            return self.parse_binary_log_info(variables, [])
+        return self.parse_binary_log_info(
+            variables,
+            self._execute_query_dict(*ShowMasterStatusStatement(self._backend.dialect).to_sql()),
+        )
+
+    def get_replication_info(self) -> MariaDBReplicationInfo:
+        """Answer the replication family, or as much of it as was answered.
+
+        The variables answer on every server. ``SHOW SLAVE STATUS`` answers
+        the replica side; when it cannot be asked at all the identity facts
+        still come back and ``is_replica`` stays ``None``, because "no
+        answer" is not "not a replica".
+        """
+        variables = self._show_variables(MARIADB_REPLICATION_VARIABLES)
+        try:
+            rows = self._execute_query_dict(
+                *ShowSlaveStatusStatement(self._backend.dialect).to_sql()
+            )
+        except Exception:
+            rows = None
+        return self.parse_replication_info(variables, rows)
 
     def _get_version_string(self) -> str:
         try:
@@ -270,19 +486,18 @@ class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstract
             rows = self._execute_query_dict(
                 *MariaDBSessionInfoQuery(self._backend.dialect).to_sql()
             )
+            if not rows:
+                return SessionInfo()
+            row = rows[0]
+            ssl_enabled = row.get("have_ssl", "").upper() == "YES"
+            return SessionInfo(
+                user=row.get("cur_user"),
+                database=row.get("cur_db"),
+                host=row.get("host"),
+                ssl_enabled=ssl_enabled,
+            )
         except Exception:
             return SessionInfo()
-
-        if not rows:
-            return SessionInfo()
-        row = rows[0]
-        ssl_enabled = row.get("have_ssl", "").upper() == "YES"
-        return SessionInfo(
-            user=row.get("cur_user"),
-            database=row.get("cur_db"),
-            host=row.get("host"),
-            ssl_enabled=ssl_enabled,
-        )
 
 
 class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstractStatusIntrospector):
@@ -335,7 +550,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
                 pass
         return result
 
-    async def get_overview(self) -> ServerOverview:
+    async def get_overview(self) -> MariaDBServerOverview:
         version = await self._get_version_string()
         session = await self.get_session_info()
         config = await self.list_configuration()
@@ -344,9 +559,43 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         storage = await self.get_storage_info()
         databases = await self.list_databases()
         users = await self.list_users()
+        binary_log = await self.get_binary_log_info()
+        replication = await self.get_replication_info()
         return self._build_server_overview(
-            version, session, config, perf, conn, storage, databases, users,
+            version,
+            session,
+            config,
+            perf,
+            conn,
+            storage,
+            databases,
+            users,
+            binary_log,
+            replication,
         )
+
+    async def get_binary_log_info(self) -> MariaDBBinaryLogInfo:
+        """Answer the binary log family, or as much of it as was answered."""
+        variables = await self._show_variables(MARIADB_BINLOG_VARIABLES)
+        if variables.get("log_bin", "").lower() not in ("on", "1", "true"):
+            return self.parse_binary_log_info(variables, [])
+        return self.parse_binary_log_info(
+            variables,
+            await self._execute_query_dict(
+                *ShowMasterStatusStatement(self._backend.dialect).to_sql()
+            ),
+        )
+
+    async def get_replication_info(self) -> MariaDBReplicationInfo:
+        """Answer the replication family, or as much of it was answered."""
+        variables = await self._show_variables(MARIADB_REPLICATION_VARIABLES)
+        try:
+            rows = await self._execute_query_dict(
+                *ShowSlaveStatusStatement(self._backend.dialect).to_sql()
+            )
+        except Exception:
+            rows = None
+        return self.parse_replication_info(variables, rows)
 
     async def _get_version_string(self) -> str:
         try:
@@ -456,16 +705,15 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
             rows = await self._execute_query_dict(
                 *MariaDBSessionInfoQuery(self._backend.dialect).to_sql()
             )
+            if not rows:
+                return SessionInfo()
+            row = rows[0]
+            ssl_enabled = row.get("have_ssl", "").upper() == "YES"
+            return SessionInfo(
+                user=row.get("cur_user"),
+                database=row.get("cur_db"),
+                host=row.get("host"),
+                ssl_enabled=ssl_enabled,
+            )
         except Exception:
             return SessionInfo()
-
-        if not rows:
-            return SessionInfo()
-        row = rows[0]
-        ssl_enabled = row.get("have_ssl", "").upper() == "YES"
-        return SessionInfo(
-            user=row.get("cur_user"),
-            database=row.get("cur_db"),
-            host=row.get("host"),
-            ssl_enabled=ssl_enabled,
-        )

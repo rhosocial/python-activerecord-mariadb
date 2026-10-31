@@ -50,7 +50,8 @@ class TestIntrospectionQueries:
         sql, params = TableListQueryStatement(dialect, schema="app").to_sql()
         assert sql == (
             "SELECT `TABLE_NAME`, `TABLE_TYPE`, `TABLE_COMMENT`, `TABLE_ROWS`, "
-            "`DATA_LENGTH`, `AUTO_INCREMENT`, `CREATE_TIME`, `UPDATE_TIME` "
+            "`DATA_LENGTH`, `INDEX_LENGTH`, `AUTO_INCREMENT`, `CREATE_TIME`, "
+            "`UPDATE_TIME` "
             "FROM `information_schema`.`TABLES` "
             "WHERE `TABLE_SCHEMA` = %s AND `TABLE_TYPE` <> 'SEQUENCE' "
             "AND NOT (`TABLE_SCHEMA` IN "
@@ -60,6 +61,22 @@ class TestIntrospectionQueries:
         # sequence exclusion are statements about this backend's catalogue and
         # stay inline.
         assert params == ("app",)
+
+    def test_table_list_carries_the_storage_split(self, dialect):
+        """Data and index bytes are projected apart, not summed away.
+
+        MariaDB's storage is row-plus-index shaped, so the narrow slots of
+        ``IntrospectionTableInfo`` are answerable: the sum is computed in
+        the parser, which is also where "reported neither" becomes ``None``
+        rather than a zero.
+        """
+        sql, params = TableListQueryStatement(dialect, schema="app").to_sql()
+        assert "`DATA_LENGTH`, `INDEX_LENGTH`" in sql
+        assert params == ("app",)
+
+    def test_supports_table_storage_introspection(self, dialect):
+        """The family is declared, so the dialect answers the storage slots."""
+        assert dialect.supports_table_storage_introspection() is True
 
     def test_table_list_excludes_sequences_inline(self, dialect):
         """A sequence is a table in TABLES, but not a row of this listing.

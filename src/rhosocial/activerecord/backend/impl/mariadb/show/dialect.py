@@ -30,6 +30,8 @@ if TYPE_CHECKING:
         ShowCreateTriggerStatement,
         ShowVariablesStatement,
         ShowStatusStatement,
+        ShowMasterStatusStatement,
+        ShowSlaveStatusStatement,
         ShowProcessListStatement,
         ShowWarningsStatement,
         ShowErrorsStatement,
@@ -228,6 +230,28 @@ class MariaDBShowDialectMixin:
             sql_params = (like_pattern,)
 
         return " ".join(parts), sql_params
+
+    # ========== SHOW MASTER/SLAVE STATUS ==========
+    #
+    # Each of these is a whole command with no parameters, so each has its own
+    # node and its own formatter: a boolean on a neighbouring node would say
+    # "this is a different command" with something other than the class, which
+    # is what the class is for. The binlog's current file and position (the
+    # master) and the replica side (the slave) are two questions, and MariaDB
+    # answers both with an empty set when the setting is off -- a fact, not a
+    # failure.
+
+    def format_show_master_status_statement(
+        self, expr: "ShowMasterStatusStatement"
+    ) -> Tuple[str, tuple]:
+        """Format SHOW MASTER STATUS statement."""
+        return "SHOW MASTER STATUS", ()
+
+    def format_show_slave_status_statement(
+        self, expr: "ShowSlaveStatusStatement"
+    ) -> Tuple[str, tuple]:
+        """Format SHOW SLAVE STATUS statement."""
+        return "SHOW SLAVE STATUS", ()
 
     # ========== SHOW PROCESSLIST/WARNINGS/ERRORS ==========
 
