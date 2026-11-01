@@ -26,7 +26,7 @@ from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
 )
 from rhosocial.activerecord.backend.introspection.executor import (
     AsyncIntrospectorExecutor,
-    SyncIntrospectorExecutor,
+    IntrospectorExecutor,
 )
 from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
 
@@ -43,7 +43,7 @@ def _server_reports_details(backend) -> bool:
     return backend.dialect.version >= SEQUENCE_DETAILS_SINCE
 
 
-class CountingExecutor(SyncIntrospectorExecutor):
+class CountingExecutor(IntrospectorExecutor):
     """An executor that reports how many questions it was asked."""
 
     def __init__(self, backend: Any) -> None:

@@ -39,7 +39,7 @@ from rhosocial.activerecord.backend.impl.mariadb.introspection import (
 from rhosocial.activerecord.backend.impl.mariadb.introspection import (
     SequenceInfo as MariaDBSequenceInfo,
 )
-from rhosocial.activerecord.backend.impl.mariadb.introspection import SyncMariaDBStatusIntrospector
+from rhosocial.activerecord.backend.impl.mariadb.introspection import MariaDBStatusIntrospector
 from rhosocial.activerecord.backend.impl.mariadb.introspection.status_types import (
     MariaDBBinaryLogInfo,
     MariaDBReplicationInfo,
@@ -170,7 +170,7 @@ class TestMariaDBServerOverview:
 
     def test_get_overview_signature_is_the_core_one(self):
         """The covariant return keeps the core signature -- LSP intact."""
-        signature = inspect.signature(SyncMariaDBStatusIntrospector.get_overview)
+        signature = inspect.signature(MariaDBStatusIntrospector.get_overview)
         assert list(signature.parameters) == ["self"]
         assert issubclass(MariaDBServerOverview, ServerOverview)
 
@@ -194,7 +194,7 @@ class TestBinaryLogParsing:
     """What canned rows become, and what an empty answer becomes."""
 
     def test_log_on_reports_the_row_it_is_writing(self):
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_binary_log_info(
             {
                 "log_bin": "ON",
@@ -229,7 +229,7 @@ class TestBinaryLogParsing:
         facts -- while the current file and position stay ``None``: the
         server said nothing about them, and nothing is zeroed.
         """
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_binary_log_info(
             {
                 "log_bin": "OFF",
@@ -248,7 +248,7 @@ class TestBinaryLogParsing:
         assert info.binlog_ignore_db == []
 
     def test_empty_filter_is_no_filter(self):
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_binary_log_info(
             {"log_bin": "ON"},
             [
@@ -265,7 +265,7 @@ class TestBinaryLogParsing:
 
     def test_not_reported_stays_none(self):
         """An unanswered variable is None, never False."""
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_binary_log_info({"binlog_format": "ROW"}, [])
         assert info.log_enabled is None
         assert info.gtid_strict_mode is None
@@ -285,7 +285,7 @@ class TestBinaryLogParsing:
                 _variable_script("gtid_strict_mode", "ON"),
             ]
         )
-        introspector = SyncMariaDBStatusIntrospector(backend)
+        introspector = MariaDBStatusIntrospector(backend)
         info = introspector.get_binary_log_info()
         assert info.log_enabled is False
         assert info.log_format == "ROW"
@@ -301,7 +301,7 @@ class TestReplicationParsing:
     """The replica side, its absence, and the question that cannot be asked."""
 
     def test_replica_row_fills_the_connection(self):
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_replication_info(
             {"server_id": "7", "log_slave_updates": "ON"},
             [
@@ -339,7 +339,7 @@ class TestReplicationParsing:
 
     def test_empty_answer_is_not_a_replica(self):
         """``SHOW SLAVE STATUS`` with no row means "pulls from nothing"."""
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_replication_info(
             {"server_id": "7", "log_slave_updates": "OFF"}, []
         )
@@ -349,7 +349,7 @@ class TestReplicationParsing:
 
     def test_unaskable_stays_none(self):
         """A question that raised is not an answer of "not a replica"."""
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_replication_info(
             {"server_id": "7", "log_slave_updates": "OFF"}, None
         )
@@ -358,13 +358,13 @@ class TestReplicationParsing:
 
     def test_server_id_zero_is_kept(self):
         """``0`` is a valid identity -- no identity -- not a missing value."""
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_replication_info({"server_id": "0"}, [])
         assert info.server_id == 0
 
     def test_null_columns_are_not_zeroed(self):
         """NULL from the server reads as ``None``, per the family's rule."""
-        introspector = SyncMariaDBStatusIntrospector(_ScriptedBackend([]))
+        introspector = MariaDBStatusIntrospector(_ScriptedBackend([]))
         info = introspector.parse_replication_info(
             {"server_id": "1"},
             [{"slave_io_running": "No", "seconds_behind_master": None}],
@@ -388,12 +388,12 @@ class TestSyncAsyncParity:
 
     def test_sync_collectors_are_not_coroutines(self):
         for name in ("get_overview", "get_binary_log_info", "get_replication_info"):
-            assert not inspect.iscoroutinefunction(getattr(SyncMariaDBStatusIntrospector, name))
+            assert not inspect.iscoroutinefunction(getattr(MariaDBStatusIntrospector, name))
 
     def test_async_parsers_are_the_same_functions(self):
         """The parsing is the shared half, not a second implementation."""
         for name in ("parse_binary_log_info", "parse_replication_info"):
-            assert getattr(SyncMariaDBStatusIntrospector, name) is getattr(
+            assert getattr(MariaDBStatusIntrospector, name) is getattr(
                 AsyncMariaDBStatusIntrospector, name
             )
 

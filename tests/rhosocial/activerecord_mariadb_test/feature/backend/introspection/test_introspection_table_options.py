@@ -22,7 +22,7 @@ from rhosocial.activerecord.backend.impl.mariadb.introspection.types import (
 )
 from rhosocial.activerecord.backend.introspection.executor import (
     AsyncIntrospectorExecutor,
-    SyncIntrospectorExecutor,
+    IntrospectorExecutor,
 )
 from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
 
@@ -34,7 +34,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-class CountingExecutor(SyncIntrospectorExecutor):
+class CountingExecutor(IntrospectorExecutor):
     """An executor that reports how many questions it was asked."""
 
     def __init__(self, backend: Any) -> None:

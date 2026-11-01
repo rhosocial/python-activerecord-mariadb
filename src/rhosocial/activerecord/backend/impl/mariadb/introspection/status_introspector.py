@@ -18,7 +18,7 @@ field is claimed: what the commands below answer is what every MariaDB
 server answers.
 
 Design principle: Sync and Async are separate and cannot coexist.
-- SyncMariaDBStatusIntrospector: for synchronous backends
+- MariaDBStatusIntrospector: for synchronous backends
 - AsyncMariaDBStatusIntrospector: for asynchronous backends
 """
 
@@ -45,7 +45,7 @@ from rhosocial.activerecord.backend.introspection.status import (
     ConnectionInfo,
     StorageInfo,
     SessionInfo,
-    SyncAbstractStatusIntrospector,
+    AbstractStatusIntrospector,
     AsyncAbstractStatusIntrospector,
 )
 from .status_types import (
@@ -275,7 +275,7 @@ class MariaDBStatusIntrospectorMixin:
         )
 
 
-class SyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, SyncAbstractStatusIntrospector):
+class MariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AbstractStatusIntrospector):
     """Synchronous MariaDB status introspector."""
 
     def _execute_query(self, sql: str, params: tuple = ()) -> List[tuple]:

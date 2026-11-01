@@ -10,7 +10,7 @@ reports, and the kind a ``information_schema.TABLES`` row names.
 from types import SimpleNamespace
 
 from rhosocial.activerecord.backend.impl.mariadb.introspection import (
-    SyncMariaDBIntrospector,
+    MariaDBIntrospector,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.introspection.types import TableType
@@ -35,8 +35,8 @@ class _UnusedExecutor:
         raise AssertionError("a parser-level test must not execute SQL")
 
 
-def _introspector(**kwargs) -> SyncMariaDBIntrospector:
-    return SyncMariaDBIntrospector(_NoServerBackend(**kwargs), _UnusedExecutor())
+def _introspector(**kwargs) -> MariaDBIntrospector:
+    return MariaDBIntrospector(_NoServerBackend(**kwargs), _UnusedExecutor())
 
 
 _SCHEMATA_ROW = {

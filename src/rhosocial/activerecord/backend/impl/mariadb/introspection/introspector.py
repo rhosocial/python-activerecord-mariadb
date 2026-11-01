@@ -2,7 +2,7 @@
 """
 MariaDB concrete introspectors.
 
-Implements SyncAbstractIntrospector and AsyncAbstractIntrospector for MariaDB
+Implements AbstractIntrospector and AsyncAbstractIntrospector for MariaDB
 databases using the information_schema system tables for metadata queries.
 
 The introspectors are exposed via ``backend.introspector`` and also provide
@@ -22,7 +22,7 @@ Key behaviours:
   - parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
-- SyncMariaDBIntrospector: for synchronous backends
+- MariaDBIntrospector: for synchronous backends
 - AsyncMariaDBIntrospector: for asynchronous backends
 """
 
@@ -33,12 +33,12 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.introspection.base import (
     IntrospectorMixin,
-    SyncAbstractIntrospector,
+    AbstractIntrospector,
     AsyncAbstractIntrospector,
 )
 from rhosocial.activerecord.backend.introspection.cache import IntrospectionCache
 from rhosocial.activerecord.backend.introspection.executor import (
-    SyncIntrospectorExecutor,
+    IntrospectorExecutor,
     AsyncIntrospectorExecutor,
 )
 from rhosocial.activerecord.backend.introspection.types import (
@@ -57,11 +57,11 @@ from rhosocial.activerecord.backend.introspection.types import (
     IntrospectionScope,
 )
 from .show_introspector import (
-    SyncShowIntrospector,
+    ShowIntrospector,
     AsyncShowIntrospector,
 )
 from .status_introspector import (
-    SyncMariaDBStatusIntrospector,
+    MariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
 )
 from .types import SequenceInfo, TableOptionsInfo
@@ -77,7 +77,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class MariaDBIntrospectorMixin(IntrospectorMixin):
     """Mixin providing shared MariaDB-specific introspection logic.
 
-    Both SyncMariaDBIntrospector and AsyncMariaDBIntrospector inherit
+    Both MariaDBIntrospector and AsyncMariaDBIntrospector inherit
     from this mixin to share:
     - Default schema handling
     - The version a database record reports (``server_version``)
@@ -522,10 +522,10 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         )
 
 
-class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector):
+class MariaDBIntrospector(MariaDBIntrospectorMixin, AbstractIntrospector):
     """Synchronous introspector for MariaDB backends.
 
-    In addition to the standard SyncAbstractIntrospector interface, exposes the
+    In addition to the standard AbstractIntrospector interface, exposes the
     ``.show`` sub-introspector for direct SHOW command access::
 
         # Standard API
@@ -539,25 +539,25 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
     def __init__(
         self,
         backend: Any,
-        executor: SyncIntrospectorExecutor,
+        executor: IntrospectorExecutor,
         cache: Optional[IntrospectionCache] = None,
     ) -> None:
         super().__init__(backend, executor, cache)
-        self._show_instance: Optional[SyncShowIntrospector] = None
-        self._status_instance: Optional[SyncMariaDBStatusIntrospector] = None
+        self._show_instance: Optional[ShowIntrospector] = None
+        self._status_instance: Optional[MariaDBStatusIntrospector] = None
 
     @property
-    def show(self) -> SyncShowIntrospector:
+    def show(self) -> ShowIntrospector:
         """MariaDB-specific SHOW sub-introspector (lazily created)."""
         if self._show_instance is None:
-            self._show_instance = SyncShowIntrospector(self._backend, self._executor)
+            self._show_instance = ShowIntrospector(self._backend, self._executor)
         return self._show_instance
 
     @property
-    def status(self) -> SyncMariaDBStatusIntrospector:
+    def status(self) -> MariaDBStatusIntrospector:
         """MariaDB server status introspector (lazily created)."""
         if self._status_instance is None:
-            self._status_instance = SyncMariaDBStatusIntrospector(self._backend)
+            self._status_instance = MariaDBStatusIntrospector(self._backend)
         return self._status_instance
 
     # ------------------------------------------------------------------ #
