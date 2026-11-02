@@ -98,7 +98,7 @@ from typing import Dict
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.dialect.exceptions import (ProtocolNotImplementedError, UnsupportedFeatureError)
 from rhosocial.activerecord.backend.expression import graph as graph_mod
 from rhosocial.activerecord.backend.expression.advanced_functions import (
     CaseExpression,
@@ -1068,7 +1068,17 @@ _NO_FORMATTER = "does not declare its dialect formatting method name"
 _NO_METHOD = "Subclasses must implement to_sql() method"
 
 LEGITIMATE_NON_RENDERS = {
-    # ---- bases that name an expression category, not a renderable thing ----
+        # ---- core introspection families this dialect does not answer ----
+    #  MariaDB ships no per-index use counter and no per-table I/O summary view: its statistics cover size, not
+    # access. The probes answer False, and these classes stay a declared gap until the engine gains such a view.
+    "rhosocial.activerecord.backend.expression.introspection.UnusedIndexesQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+
+# ---- bases that name an expression category, not a renderable thing ----
     # Each of these is a base class that deliberately declares no `format_method`,
     # so `to_sql()` reports that there is nothing to dispatch.
     "rhosocial.activerecord.backend.expression.bases.SQLPredicate": (
