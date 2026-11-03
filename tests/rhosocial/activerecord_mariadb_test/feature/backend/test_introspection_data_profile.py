@@ -49,11 +49,29 @@ decimal in another -- comes back as text (``"1.00"``), not as a number. The
 figures are exact; only the type is the union's. The test reads the decimal
 endpoints through ``Decimal`` and says why, so a future formatter that "fixes"
 this by casting would have to disagree with it on purpose.
+
+And one fact about the *Python* shape, which is the reason the row shape must
+be stated rather than assumed. The connector hands the core executor a bare
+tuple per row and the column names in ``cursor.description``; the executor
+pairs them itself, so the parser receives dicts keyed by the SQL aliases the
+formatter spells -- ``column_name``, ``null_count``, ``distinct_count``,
+``min_value``, ``max_value``, ``row_count`` and ``source``, all lower case,
+because the MariaDB dialect quotes its aliases and the server echoes the
+spelling it was given. The keys are therefore never the upper-case names
+``information_schema`` uses, and a parser that assumed upper case would find
+silence rather than an error: every figure absent, so a caller reading
+``profile.source`` would be reading a slot that was never filled. That is what
+the shape assertions below are for. The generic parser in core already reads
+these keys, so this backend needs no ``parse_column_data_profiles`` override,
+and adding one would only be a second convention where the existing one
+works.
 """
 
 from decimal import Decimal
 
 import pytest
+
+from rhosocial.activerecord.backend.introspection.types import ColumnDataProfile
 
 
 TABLE = "intro_profile_orders"
@@ -197,18 +215,23 @@ class TestColumnDataProfile:
         try:
             # No ANALYZE has been run on this table, so nothing has been
             # persisted for it.
-            profiles = {
-                profile.column_name: profile
-                for profile in mariadb_backend.introspector.list_column_data_profiles(
-                    TABLE
-                )
+            reported = mariadb_backend.introspector.list_column_data_profiles(TABLE)
+            # The answer is parsed records, not the connector's rows: a server
+            # that answered with its own tuples or dicts would make this the
+            # only failure, and the offline parser test is what pins the shape.
+            assert isinstance(reported, list)
+            assert all(
+                isinstance(profile, ColumnDataProfile) for profile in reported
+            )
+            assert {profile.column_name for profile in reported} == {
+                "id", "code", "amount", "note"
             }
-            assert set(profiles) == {"id", "code", "amount", "note"}
-            for profile in profiles:
+            for profile in reported:
                 assert profile.source == "aggregate"
                 assert profile.row_count == ROWS
-            assert profiles["note"].null_fraction == pytest.approx(NULL_SHARE)
-            assert profiles["id"].distinct_count == ROWS
+            by_name = {profile.column_name: profile for profile in reported}
+            assert by_name["note"].null_fraction == pytest.approx(NULL_SHARE)
+            assert by_name["id"].distinct_count == ROWS
         finally:
             _teardown(mariadb_backend)
 
