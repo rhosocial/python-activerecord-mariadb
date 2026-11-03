@@ -1068,6 +1068,20 @@ _NO_FORMATTER = "does not declare its dialect formatting method name"
 _NO_METHOD = "Subclasses must implement to_sql() method"
 
 LEGITIMATE_NON_RENDERS = {
+    # ---- core operational families this dialect does not answer ----
+    #  MariaDB ships no per-index use counter and no dependency catalogue beyond foreign keys; its runtime counters live in performance_schema on the server, which the dialect layer has no schema to address. The probes answer False.
+    "rhosocial.activerecord.backend.expression.introspection.RuntimeMetricsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.IndexUsageStatsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.ObjectDependencyQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.DDLStatementQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
         # ---- core introspection families this dialect does not answer ----
     #  MariaDB ships no per-index use counter and no per-table I/O summary view: its statistics cover size, not
     # access. The probes answer False, and these classes stay a declared gap until the engine gains such a view.
