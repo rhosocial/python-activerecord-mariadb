@@ -1068,6 +1068,17 @@ _NO_FORMATTER = "does not declare its dialect formatting method name"
 _NO_METHOD = "Subclasses must implement to_sql() method"
 
 LEGITIMATE_NON_RENDERS = {
+    # ---- core data-profile families this dialect does not answer ----
+    #  MariaDB has `mysql.column_stats` (with `ANALYZE TABLE ... PERSISTENT FOR COLUMNS`), but the table is empty unless an operator has asked for statistics, so answering from it would report an empty profile as if it were a measurement. Pending a decision on how to express 'catalogue present but unpopulated', the probes answer False.
+    "rhosocial.activerecord.backend.expression.introspection.ColumnDataProfileQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.ColumnValueSampleQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.JoinCoverageQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
     # ---- core operational families this dialect does not answer ----
     #  MariaDB ships no per-index use counter and no dependency catalogue beyond foreign keys; its runtime counters live in performance_schema on the server, which the dialect layer has no schema to address. The probes answer False.
     "rhosocial.activerecord.backend.expression.introspection.RuntimeMetricsQueryStatement": (
