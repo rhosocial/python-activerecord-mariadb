@@ -19,6 +19,9 @@ Key behaviours:
     KEY_COLUMN_USAGE, REFERENTIAL_CONSTRAINTS, VIEWS, TRIGGERS
   - Queries information_schema.TABLES/SEQUENCES for the two MariaDB-only
     families: sequences (10.3+; numeric details 11.7+) and table options
+  - Answers the dependency family from REFERENTIAL_CONSTRAINTS (foreign
+    keys only) and the DDL family from SHOW CREATE TABLE, whose result
+    columns are the engine's own spellings (see parse_ddl_statements)
   - parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
@@ -55,6 +58,7 @@ from rhosocial.activerecord.backend.introspection.types import (
     IntrospectionViewInfo,
     IntrospectionTriggerInfo,
     IntrospectionScope,
+    DDLStatement,
 )
 from .show_introspector import (
     ShowIntrospector,
@@ -484,6 +488,48 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         if not rows:
             return None
         return self.parse_table_options_row(rows[0], schema)
+
+    def parse_ddl_statements(
+        self, rows: List[Dict[str, Any]], schema: str
+    ) -> List[DDLStatement]:
+        """Project ``SHOW CREATE TABLE`` rows into the engine's own DDL.
+
+        ``SHOW CREATE`` names its result columns after the object --
+        ``Table`` and ``Create Table`` -- rather than after the concept, so
+        the spellings core's generic reader looks for (``ddl``, ``sql``,
+        ``definition``) are absent from the row and the table the engine had
+        just described would be answered as having no DDL at all. This is
+        the same override MySQL's introspector carries, for the same reason:
+        the engine's own column name is the wiring fact here, not a spelling
+        the parser should have to know about.
+
+        ``native`` is True because the text is MariaDB's retrieval of what
+        it holds, never an assembly pass over the catalogue. Only the TABLE
+        flavour is read because only it is formatted; see the dialect's
+        ``format_ddl_statement_query_statement``.
+        """
+        found: List[DDLStatement] = []
+        for row in rows or []:
+            # Both spellings are read because the driver is not consistent
+            # about which one it keeps, and the column carries a space either
+            # way. ``ShowCreateTableResult`` reads the same two, and
+            # ``ShowIntrospector.parse_create_table`` is where a caller sees
+            # the identical row.
+            ddl = row.get("Create Table", row.get("CREATE TABLE", ""))
+            if not ddl:
+                continue
+            found.append(
+                DDLStatement(
+                    schema=schema,
+                    object_type="TABLE",
+                    object_name=str(
+                        row.get("Table", row.get("TABLE", ""))
+                    ),
+                    ddl=str(ddl),
+                    native=True,
+                )
+            )
+        return found
 
     # ------------------------------------------------------------------ #
     # Statement factories — one node per question, rendered by the dialect

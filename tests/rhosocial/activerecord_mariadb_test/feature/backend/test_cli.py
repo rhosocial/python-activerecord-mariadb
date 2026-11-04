@@ -467,7 +467,7 @@ class TestCLIBuildProtocolInfo:
         result = _build_protocol_info(dialect, group_name, protocols, verbose=0)
 
         assert isinstance(result, dict)
-        for protocol_name, stats in result.items():
+        for _protocol_name, stats in result.items():
             assert 'supported' in stats
             assert 'total' in stats
             assert 'percentage' in stats
@@ -487,7 +487,7 @@ class TestCLIBuildProtocolInfo:
         result = _build_protocol_info(dialect, group_name, protocols, verbose=2)
 
         assert isinstance(result, dict)
-        for protocol_name, stats in result.items():
+        for _protocol_name, stats in result.items():
             assert 'supported' in stats
             assert 'total' in stats
             assert 'percentage' in stats
@@ -517,7 +517,7 @@ class TestCLIHandleInfo:
 
         # Create a JSON provider
         args.rich_ascii = False
-        provider = create_provider(args.output, ascii_borders=args.rich_ascii)
+        create_provider(args.output, ascii_borders=args.rich_ascii)
 
         handle(args)
 
@@ -659,7 +659,7 @@ class TestCLIHandleInfoVerbose:
         args.rich_ascii = False
         args.named_connection = None
 
-        provider = create_provider(args.output, ascii_borders=args.rich_ascii)
+        create_provider(args.output, ascii_borders=args.rich_ascii)
         handle(args)
 
         captured = capsys.readouterr()
@@ -681,7 +681,7 @@ class TestCLIHandleInfoVerbose:
         args.rich_ascii = False
         args.named_connection = None
 
-        provider = create_provider(args.output, ascii_borders=args.rich_ascii)
+        create_provider(args.output, ascii_borders=args.rich_ascii)
         handle(args)
 
         captured = capsys.readouterr()
@@ -690,8 +690,8 @@ class TestCLIHandleInfoVerbose:
         assert 'protocols' in output
 
         # With verbose >= 2, methods should be included
-        for group_name, protocols in output['protocols'].items():
-            for protocol_name, stats in protocols.items():
+        for _group_name, protocols in output['protocols'].items():
+            for _protocol_name, stats in protocols.items():
                 assert 'methods' in stats
 
     def test_handle_info_with_version(self, capsys):
@@ -708,7 +708,7 @@ class TestCLIHandleInfoVerbose:
         args.rich_ascii = False
         args.named_connection = None
 
-        provider = create_provider(args.output, ascii_borders=args.rich_ascii)
+        create_provider(args.output, ascii_borders=args.rich_ascii)
         handle(args)
 
         captured = capsys.readouterr()
@@ -1063,6 +1063,69 @@ class _FakeIntrospector:
         self.calls.append("get_table_options")
         return {"name": table_name}
 
+    # ---- the nine families shared with the MySQL and PostgreSQL CLIs ----
+    # MariaDB answers six of them and refuses three through a probe (runtime
+    # answers from 10.5, the performance schema's release), so these are the
+    # answers a *server that can* would hand back. A branch that named the
+    # wrong method, or dropped an argument, shows up here as a wrong recorded
+    # call rather than as a plausible listing.
+
+    def list_unused_indexes(self, schema=None):
+        self.calls.append("list_unused_indexes")
+        return []
+
+    def list_table_usage_stats(self, schema=None):
+        self.calls.append("list_table_usage_stats")
+        return []
+
+    def list_runtime_metrics(self, schema=None):
+        self.calls.append("list_runtime_metrics")
+        return []
+
+    def list_index_usage_stats(self, schema=None):
+        self.calls.append("list_index_usage_stats")
+        return []
+
+    def list_object_dependencies(self, object_name=None, schema=None):
+        self.calls.append("list_object_dependencies")
+        return []
+
+    def get_ddl_statement(self, object_name, schema=None):
+        self.calls.append("get_ddl_statement")
+        return {
+            "schema": "app",
+            "object_type": "TABLE",
+            "object_name": object_name,
+            "ddl": "CREATE TABLE `users` (`id` int)",
+            "native": True,
+        }
+
+    def list_column_data_profiles(self, table_name, schema=None):
+        self.calls.append("list_column_data_profiles")
+        return [{
+            "table_name": table_name,
+            "column_name": "email",
+            "distinct_count": 3,
+            "row_count": 4,
+            "source": "aggregate",
+        }]
+
+    def sample_column_values(self, table_name, column_name, limit=100, schema=None):
+        self.calls.append("sample_column_values")
+        return [{"value": "a@example.test", "count": 2}]
+
+    def estimate_join_coverage(self, left_table, left_column, right_table,
+                              right_column, schema=None):
+        self.calls.append("estimate_join_coverage")
+        return {
+            "left_table": left_table,
+            "left_column": left_column,
+            "right_table": right_table,
+            "right_column": right_column,
+            "left_coverage": 1.0,
+            "right_coverage": 0.5,
+        }
+
     def get_database_info(self):
         self.calls.append("get_database_info")
         return {"name": "app"}
@@ -1084,6 +1147,15 @@ class _FakeAsyncIntrospector(_FakeIntrospector):
         "list_table_options",
         "get_table_options",
         "get_database_info",
+        "list_unused_indexes",
+        "list_table_usage_stats",
+        "list_runtime_metrics",
+        "list_index_usage_stats",
+        "list_object_dependencies",
+        "get_ddl_statement",
+        "list_column_data_profiles",
+        "sample_column_values",
+        "estimate_join_coverage",
     )
 
     def __init__(self):
@@ -1115,6 +1187,15 @@ class _FakeBackend:
     def connect(self):
         self.connected = True
 
+    def introspect_and_adapt(self):
+        """The step the real backend runs after connecting.
+
+        The fake dialect already answers for every family -- ``connected`` is
+        set because that is what the handler's callers read afterwards, and
+        ``disconnect`` still has to clear it.
+        """
+        self.connected = True
+
     def disconnect(self):
         self.connected = False
 
@@ -1125,6 +1206,9 @@ class _FakeAsyncBackend(_FakeBackend):
         self.introspector = _FakeAsyncIntrospector()
 
     async def connect(self):
+        self.connected = True
+
+    async def introspect_and_adapt(self):
         self.connected = True
 
     async def disconnect(self):
@@ -1151,7 +1235,27 @@ def _introspect_args(**overrides):
 
 #: The name each family needs, if any: the three table-scoped list types are
 #: the only ones where a name is required.
-_INTROSPECT_NAMES = {"columns": "users", "indexes": "users", "foreign-keys": "users"}
+_INTROSPECT_NAMES = {
+    "columns": "users",
+    "indexes": "users",
+    "foreign-keys": "users",
+    "dependencies": "orders",
+    "ddl": "users",
+    "column-profiles": "users",
+    "value-samples": "users",
+}
+
+#: The flags the four-name families need alongside NAME. Everything else is
+#: answered with the parser's own defaults.
+_INTROSPECT_OPTIONS = {
+    "value-samples": {"column": "email"},
+    "join-coverage": {
+        "left_table": "orders",
+        "left_column": "customer_id",
+        "right_table": "customers",
+        "right_column": "id",
+    },
+}
 
 #: What each family asks the introspector for, so a family that reaches the
 #: handler but no branch is visible as an empty call list.
@@ -1165,7 +1269,30 @@ _INTROSPECT_CALLS = {
     "database": "get_database_info",
     "sequences": "list_sequences",
     "table-options": "list_table_options",
+    # The nine families shared with the MySQL and PostgreSQL CLIs. Four of
+    # them are answered by a probe that says MariaDB cannot, so the rows
+    # below are what the branch *would* ask: the capability gate is what
+    # stops a real run before that, and this dispatch test proves the branch
+    # exists rather than proving the engine answers.
+    "unused-indexes": "list_unused_indexes",
+    "table-stats": "list_table_usage_stats",
+    "runtime": "list_runtime_metrics",
+    "index-stats": "list_index_usage_stats",
+    "dependencies": "list_object_dependencies",
+    "ddl": "get_ddl_statement",
+    "column-profiles": "list_column_data_profiles",
+    "value-samples": "sample_column_values",
+    "join-coverage": "estimate_join_coverage",
 }
+
+
+def _introspect_family_args(family):
+    """The invocation one family is dispatched with, name and flags included."""
+    return _introspect_args(
+        type=family,
+        name=_INTROSPECT_NAMES.get(family),
+        **_INTROSPECT_OPTIONS.get(family, {}),
+    )
 
 
 class TestCLIIntrospectViews:
@@ -1316,7 +1443,7 @@ class TestCLIIntrospectDispatch:
 
         backend = _FakeBackend()
         _handle_introspect_sync(
-            _introspect_args(type=family, name=_INTROSPECT_NAMES.get(family)),
+            _introspect_family_args(family),
             backend,
             create_provider("json"),
         )
@@ -1333,7 +1460,7 @@ class TestCLIIntrospectDispatch:
 
         backend = _FakeAsyncBackend()
         await _handle_introspect_async(
-            _introspect_args(type=family, name=_INTROSPECT_NAMES.get(family)),
+            _introspect_family_args(family),
             backend,
             create_provider("json"),
         )

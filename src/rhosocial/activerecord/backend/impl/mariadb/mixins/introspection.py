@@ -26,6 +26,9 @@ if TYPE_CHECKING:
         ColumnDataProfileQueryStatement,
         ColumnValueSampleQueryStatement,
         JoinCoverageQueryStatement,
+        ObjectDependencyQueryStatement,
+        DDLStatementQueryStatement,
+        RuntimeMetricsQueryStatement,
     )
     from rhosocial.activerecord.backend.expression.sources.relation import NamedRelationRef
     from rhosocial.activerecord.backend.expression.objects import Table
@@ -928,6 +931,301 @@ class MariaDBIntrospectionMixin:
             order_by=OrderByClause(self, [Column(self, "TABLE_NAME")]),
         )
         return query.to_sql()
+
+
+    # ========== Operational families ==========
+    #
+    # MariaDB's performance schema is a partial port of MySQL's. It has the
+    # instrument catalogue, which answers the runtime family, but it does not
+    # register the table I/O summary tables (``table_io_waits_summary_by_table``
+    # and ``table_io_waits_summary_by_index_usage``) that MySQL's unused-index,
+    # table-counter and index-counter families read. MariaDB's own
+    # ``sys`` schema is installed over those tables, but a view over a table
+    # the server does not serve cannot answer, so there is no counter to
+    # project into any of the three families' slots: what the catalogues do
+    # report about an index is its declaration
+    # (``information_schema.STATISTICS``) and an estimated cardinality, which
+    # describe size and shape, never access.
+    #
+    # The runtime family is answerable, and its floor is 10.5 -- the release
+    # that introduced the performance schema and ``setup_instruments`` with
+    # it. The collector is off by default and cannot be enabled at runtime,
+    # so on a server started without it the listing is empty even though the
+    # probe answers True. An empty answer there is the collector's silence,
+    # not "nothing happened", and no row is invented to fill the gap.
+
+    def supports_unused_indexes_detection(self) -> bool:
+        """MariaDB registers no per-index access counter, so the probe refuses.
+
+        MySQL answers this family from ``sys.schema_unused_indexes``, a view
+        over ``performance_schema.table_io_waits_summary_by_index_usage``.
+        MariaDB carries the view's definition in its ported ``sys`` schema
+        but does not implement the summary table it selects from: the
+        performance schema MariaDB ships registers no table I/O summary at
+        all. What is left is ``information_schema.STATISTICS``, which reports
+        an index's declaration and an estimated cardinality -- facts about
+        what an index is, never about how often the optimiser reached for it.
+
+        So the probe answers False on every release this backend supports
+        (10.2 through 13.x, the CI matrix), rather than being gated on a
+        floor the way MySQL's is at 5.7: there is no floor at which MariaDB
+        starts answering. An answering probe would render a statement naming
+        a table the server does not serve (``1146``), turning a
+        definition-time question into an execution error; the capability
+        refusal is the honest answer. The roundtrip matrix in this repository
+        pins ``UnusedIndexesQueryStatement`` as a declared gap with this
+        reason.
+        """
+        return False
+
+    def supports_table_stats(self) -> bool:
+        """MariaDB keeps no per-table access counters, so the probe refuses.
+
+        The inquiry covered every release in the matrix and the answer is the
+        same shape at each: ``information_schema.TABLES`` carries rows, bytes
+        and an estimate of both, and nothing that counts an access; ``ANALYZE
+        TABLE`` refreshes optimiser statistics for the *indexes* and
+        publishes no per-table use figure; the one MariaDB-specific statistics
+        catalogue, ``mysql.column_stats``, is written per column by ``ANALYZE
+        TABLE ... PERSISTENT FOR COLUMNS`` and holds min/max/nulls rather than
+        I/O. There is no counter to project into the family's slots, and an
+        estimate from a different source would be a number the engine never
+        measured.
+
+        Reading that catalogue would also need privileges on the ``mysql``
+        database, which an application account routinely lacks; see
+        :meth:`supports_column_data_profile` for the same privilege audit
+        applied to the family it governs.
+        """
+        return False
+
+    def supports_index_stats(self) -> bool:
+        """MariaDB keeps no per-index use counter, so the probe refuses.
+
+        The same missing table as :meth:`supports_unused_indexes_detection`,
+        one slot further: "how much is this index used" needs the counter
+        "has it ever been used" needs, and MariaDB's performance schema
+        registers neither. Estimated cardinality in
+        ``information_schema.STATISTICS`` is a property of the data, not a
+        measure of the index's use, so projecting it into ``scans`` would put
+        a distribution figure in a slot that promises an engine's count of
+        operations. The roundtrip matrix in this repository pins
+        ``IndexUsageStatsQueryStatement`` as a declared gap with this reason.
+        """
+        return False
+
+    def supports_runtime_stats(self) -> bool:
+        """MariaDB answers runtime measurements from the instrument catalogue.
+
+        ``performance_schema.setup_instruments`` names what is actually being
+        counted on this server: one row per instrument, with whether it is
+        enabled and whether it is timed. An instrument that is not enabled
+        produces no measurement rather than a zero that would read as "idle",
+        which is the honest shape for a "what is alive" listing. It is
+        instance-wide and carries no schema column, exactly as on MySQL, so
+        it is not narrowed by the database the run connected to.
+
+        The performance schema arrived with 10.5, so the probe asks the
+        version accessor rather than answering a bare True: below that floor
+        the statement would name a relation the server does not serve. The
+        collector is off by default and the listing is then empty; no row is
+        manufactured to stand in for a measurement the server never took.
+        """
+        return self.version_at_least((10, 5, 0))
+
+    def format_runtime_metrics_query_statement(
+        self, expr: "RuntimeMetricsQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format the runtime listing from the instrument catalogue.
+
+        ``setup_instruments`` names each instrument, whether it is enabled
+        and whether it is timed, which is what makes it a "what is alive"
+        listing rather than a table of counters: an instrument that is off
+        has no measurement behind it. No schema filter -- the catalogue is
+        server-wide and carries no schema column, so a filter here would
+        refuse a correct query for a nonsensical reason.
+        """
+        from rhosocial.activerecord.backend.expression import Column, QueryStatement
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
+        from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
+
+        statement = QueryStatement(
+            self,
+            select=[
+                Column(self, "NAME").as_("name"),
+                Column(self, "ENABLED").as_("value"),
+                Column(self, "TIMED").as_("kind"),
+            ],
+            from_=NamedRelationRef(
+                self,
+                Table(
+                    self,
+                    "setup_instruments",
+                    catalog_name="performance_schema",
+                ),
+            ),
+            order_by=OrderByClause(self, [Column(self, "NAME")]),
+        )
+        return statement.to_sql()
+
+
+    def supports_object_dependencies(self) -> bool:
+        """MariaDB answers the foreign-key dependency graph, and only that.
+
+        ``information_schema.REFERENTIAL_CONSTRAINTS`` holds one row per
+        foreign key, which is one edge per constraint -- read on every
+        release in the matrix, where the dialect's own constraint tests
+        already read its ``DELETE_RULE`` and ``UPDATE_RULE`` (see
+        ``dialect.py``). MariaDB records no view-on-table or
+        trigger-on-table reference anywhere, so the graph is a real one
+        and a partial one, exactly as on MySQL: a caller asking "what
+        breaks if I drop this" gets the referential answer and no more.
+
+        The ``TABLE_NAME`` filter is applied in the statement rather than by
+        the caller, because the catalogue is database-wide; see
+        :meth:`format_object_dependency_query_statement`.
+        """
+        return True
+
+    def supports_ddl_extraction(self) -> bool:
+        """MariaDB answers natively: ``SHOW CREATE TABLE``.
+
+        Unlike PostgreSQL, the engine hands back the DDL it holds, so
+        ``DDLStatement.native`` is True and the text is MariaDB's own
+        rather than an assembly that would read as authoritative.
+        """
+        return True
+
+    def supports_ddl_extraction_native(self) -> bool:
+        """True -- ``SHOW CREATE`` is MariaDB's own retrieval, not an assembly."""
+        return True
+
+    def format_object_dependency_query_statement(
+        self, expr: "ObjectDependencyQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format the foreign-key dependency graph from the constraint catalogue.
+
+        One row per foreign key, projected onto the slots core's parser
+        reads: the table the constraint belongs to is the *dependent* side,
+        the table its key points at is the *referenced* one, and
+        ``DELETE_RULE`` is what breaking the edge does. Which side a
+        table is on is decided by which column of
+        ``REFERENTIAL_CONSTRAINTS`` it is read from, not by the caller's
+        question -- "what breaks if I drop orders" and "what does orders
+        need" are two readings of the same rows.
+
+        The schema filter narrows to the schema the constraint lives in,
+        because the catalogue is database-wide and a caller asking about
+        one database should not have to post-filter it. ``object_name``
+        narrows to the edges that table carries, which is the question the
+        parameter exists for; omitted, the whole graph is answered.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            QueryStatement,
+            WhereClause,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
+        from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
+
+        params = expr.get_params()
+        schema = params.get("schema", "")
+        object_name = params.get("object_name")
+
+        conditions = [
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "CONSTRAINT_SCHEMA"),
+                Literal(self, schema),
+            )
+        ]
+        if object_name:
+            conditions.append(
+                ComparisonPredicate(
+                    self, "eq", Column(self, "TABLE_NAME"), Literal(self, object_name)
+                )
+            )
+
+        statement = QueryStatement(
+            self,
+            select=[
+                Column(self, "CONSTRAINT_SCHEMA"),
+                Column(self, "CONSTRAINT_NAME"),
+                Column(self, "TABLE_NAME").as_("dependent"),
+                Column(self, "REFERENCED_TABLE_NAME").as_("referenced"),
+                Column(self, "DELETE_RULE").as_("action"),
+            ],
+            from_=NamedRelationRef(
+                self,
+                Table(
+                    self,
+                    "REFERENTIAL_CONSTRAINTS",
+                    catalog_name=INFORMATION_SCHEMA_DATABASE,
+                ),
+            ),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "CONSTRAINT_NAME")]),
+        )
+        return statement.to_sql()
+
+    def format_ddl_statement_query_statement(
+        self, expr: "DDLStatementQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``SHOW CREATE TABLE`` -- the engine's own text.
+
+        The engine's result column is literally named ``Create Table``, so
+        there is nothing to assemble: this is a read, not a reconstruction,
+        which is why ``native`` is True here and False on PostgreSQL. The
+        introspector reads that column under its own name -- see
+        ``MariaDBIntrospectorMixin.parse_ddl_statements`` -- because core's
+        generic projection looks for the spellings a catalogue uses and a
+        ``SHOW`` answer has none of them.
+
+        Only TABLE is rendered. The engine also answers for VIEW,
+        PROCEDURE, FUNCTION, TRIGGER and SEQUENCE through their own
+        ``SHOW CREATE`` statements, and each names a different result
+        column; mapping them means five more shapes, which is a question
+        about which ones callers actually ask. A caller naming one of the
+        others is refused rather than handed the table answer.
+
+        The schema is carried when the caller named one. Left empty, the
+        relation is unqualified and MariaDB resolves it in the database the
+        run connected to -- which is the one namespace level this engine
+        has, and the same answer the unqualified name would get from a
+        hand-typed ``SHOW CREATE TABLE users``.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import (
+            UnsupportedFeatureError,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+            ShowCreateTableStatement,
+        )
+
+        params = expr.get_params()
+        object_name = params.get("object_name", "")
+        object_type = (params.get("object_type") or "TABLE").upper()
+        if object_type != "TABLE":
+            raise UnsupportedFeatureError(
+                dialect_name="MariaDB",
+                feature_name="DDL retrieval for {0!r} objects".format(object_type),
+                suggestion=(
+                    "MariaDB answers natively for TABLE; VIEW, PROCEDURE, "
+                    "FUNCTION, TRIGGER and SEQUENCE each use a different SHOW "
+                    "CREATE statement and result column, and are not mapped yet."
+                ),
+            )
+        schema = params.get("schema")
+
+        return ShowCreateTableStatement(
+            self, Table(self, object_name, catalog_name=schema or None)
+        ).to_sql()
 
     # ========== Data Profiles (row-shaped answers) ==========
 

@@ -212,6 +212,7 @@ from rhosocial.activerecord.backend.impl.dummy.expression import (
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression import routine as maria_routine
 from rhosocial.activerecord.backend.impl.mariadb.expression import show as maria_show
+from rhosocial.activerecord.backend.expression import introspection as core_introspect
 from rhosocial.activerecord.backend.impl.mariadb.expression.dml import (
     MariaDBInsertExpression,
 )
@@ -836,6 +837,27 @@ def register_specials():
         "show.ShowCreateTriggerStatement",
         lambda d: maria_show.ShowCreateTriggerStatement(d, Trigger(d, "probe_trg")),
     )
+
+    # -- the two core statements this round's families answer -----------------
+    # ``DDLStatementQueryStatement`` defaults its ``object_name`` to empty so
+    # that a generic filler can construct it, and an empty relation is refused
+    # by every qualified-name renderer -- MariaDB's included. The real question
+    # always names a table, so the instance built here names one too, and the
+    # form it renders is the one a caller gets.
+    register_special_constructor(
+        "introspection.DDLStatementQueryStatement",
+        lambda d: core_introspect.DDLStatementQueryStatement(
+            d, object_name="orders", schema="probe_schema"
+        ),
+    )
+    # The dependency graph answers whole -- no ``object_name`` -- because that
+    # is the shape the CLI's bare ``dependencies`` asks for, and the wider one.
+    register_special_constructor(
+        "introspection.ObjectDependencyQueryStatement",
+        lambda d: core_introspect.ObjectDependencyQueryStatement(
+            d, schema="probe_schema"
+        ),
+    )
     register_special_constructor(
         "show.ShowIndexStatement",
         lambda d: maria_show.ShowIndexStatement(d, _table_obj(d, "probe_idx")),
@@ -1077,31 +1099,28 @@ LEGITIMATE_NON_RENDERS = {
     # longer a reason for the family to be unanswerable; see
     # ``MariaDBIntrospectionMixin.supports_column_data_profile``.
     # ---- core operational families this dialect does not answer ----
-    #  MariaDB ships no per-index use counter and no dependency catalogue beyond
-    #  foreign keys; its runtime counters live in performance_schema on the
-    #  server, which the dialect layer has no schema to address. The probes
-    #  answer False.
-    "rhosocial.activerecord.backend.expression.introspection.RuntimeMetricsQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
-    ),
+    #  MariaDB's performance schema registers no table I/O summary (the
+    #  ``table_io_waits_summary_by_table`` / ``..._by_index_usage`` tables
+    #  MySQL reads), so it has no per-index or per-table access counter: its
+    #  statistics cover size, not access. The three probes answer False on
+    #  every release and these classes stay a declared gap until the engine
+    #  gains such a table. Runtime is not here: ``setup_instruments`` exists
+    #  from 10.5, so that class renders and the probe is gated on the
+    #  version instead.
     "rhosocial.activerecord.backend.expression.introspection.IndexUsageStatsQueryStatement": (
         ProtocolNotImplementedError, 'does not implement ',
     ),
-    "rhosocial.activerecord.backend.expression.introspection.ObjectDependencyQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
-    ),
-    "rhosocial.activerecord.backend.expression.introspection.DDLStatementQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
-    ),
-        # ---- core introspection families this dialect does not answer ----
-    #  MariaDB ships no per-index use counter and no per-table I/O summary view: its statistics cover size, not
-    # access. The probes answer False, and these classes stay a declared gap until the engine gains such a view.
     "rhosocial.activerecord.backend.expression.introspection.UnusedIndexesQueryStatement": (
         ProtocolNotImplementedError, 'does not implement ',
     ),
     "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
         ProtocolNotImplementedError, 'does not implement ',
     ),
+    #  The two rows that stood under this heading for the dependency and DDL
+    #  families are gone: MariaDB answers both. REFERENTIAL_CONSTRAINTS is
+    #  the foreign-key graph -- a real graph and a partial one -- and
+    #  ``SHOW CREATE TABLE`` is the engine's own retrieval, so the DDL text
+    #  is native rather than an assembly.
 
 # ---- bases that name an expression category, not a renderable thing ----
     # Each of these is a base class that deliberately declares no `format_method`,
