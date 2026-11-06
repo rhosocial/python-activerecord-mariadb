@@ -1422,14 +1422,18 @@ class MariaDBIntrospectionMixin:
         never told about, so an aggregating dialect genuinely needs that list
         where a catalogue-based one does not.
 
-        The one place in this module where a set operator is written as text.
+        The compound question is one node rather than a join of rendered text.
         Every arm is a real :class:`~...expression.statements.dql.QueryStatement`
-        -- the renderer owns its projection, its identifiers and its relation
-        -- because a ``UNION ALL`` over a column list known only at run time
-        has no node to represent it: the column list is a tuple on the
-        expression, not an operand in the tree. So each arm is rendered on its
-        own, its parameters are concatenated in arm order, and the rendered
-        arms are joined by the set operator's word. Nothing else here is text.
+        -- the renderer owns its projection, its identifiers and its relation --
+        and the arms are handed to a
+        :class:`~...expression.statements.dql.SetOperationStatement` as its
+        ``parts``. A column list known only at run time has no operand in the
+        tree, which is why this is the *statement* shape and not the binary
+        ``SetOperation`` source: folding N arms into two nested binary nodes
+        would describe a tree nobody wrote. The node joins the parts with the
+        dialect's own operator word and concatenates their parameters in arm
+        order itself, so the returned tuple is the one this method once built
+        by hand. Nothing here is text.
 
         ``null_count`` rather than a fraction: dividing by a row count that
         may legitimately be zero belongs in the parser, not in a SQL
@@ -1460,12 +1464,7 @@ class MariaDBIntrospectionMixin:
         params = expr.get_params()
         schema = params.get("schema")
 
-        arms = []
-        parameters: "list" = []
-        for name in expr.columns:
-            sql, arm_parameters = self._profile_arm(params.get("table_name"), schema, name).to_sql()
-            arms.append(sql)
-            parameters.extend(arm_parameters)
+        arms = [self._profile_arm(params.get("table_name"), schema, name) for name in expr.columns]
 
         if not arms:
             return QueryStatement(
@@ -1482,7 +1481,18 @@ class MariaDBIntrospectionMixin:
                 ),
             ).to_sql()
 
-        return " UNION ALL ".join(arms), tuple(parameters)
+        # The arms are real QueryStatement nodes, so the compound question is
+        # one node rather than a join of rendered strings: the operator word is
+        # the dialect's, and the projection, identifiers and bind parameters of
+        # every arm stay with the renderer that owns them.
+        from rhosocial.activerecord.backend.expression.query_sources import (
+            SetOperationKind,
+        )
+        from rhosocial.activerecord.backend.expression.statements import (
+            SetOperationStatement,
+        )
+
+        return SetOperationStatement(self, op=SetOperationKind.UNION_ALL, parts=arms).to_sql()
 
     def format_column_value_sample_query_statement(
         self, expr: "ColumnValueSampleQueryStatement"
