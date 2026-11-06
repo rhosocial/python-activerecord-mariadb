@@ -190,7 +190,10 @@ from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     TriggerEvent,
     TriggerTiming,
 )
-from rhosocial.activerecord.backend.expression.statements.dql import QueryStatement
+from rhosocial.activerecord.backend.expression.statements.dql import (
+    QueryStatement,
+    SetOperationStatement,
+)
 from rhosocial.activerecord.backend.expression.statements.dml import (
     MergeAction,
     MergeActionType,
@@ -801,6 +804,28 @@ def register_specials():
             right=QueryStatement(
                 d, select=[Column(d, "id")], from_=_table_obj(d, "other")
             ),
+        ),
+    )
+    # The statement half of the same pair, and it is the one MariaDB builds: a
+    # compound SELECT is how the data-profile formatter asks one question per
+    # column without spelling SQL. ``op`` normalises through the word-form enum
+    # at construction and ``parts`` is a sequence of query statements, so the
+    # guess's bare string is refused and there is no instance to assert on.
+    register_special_constructor(
+        "statements.dql.SetOperationStatement",
+        lambda d: SetOperationStatement(
+            d,
+            op="union_all",
+            parts=[
+                QueryStatement(
+                    d, select=[Column(d, "id")], from_=_table_obj(d)
+                ),
+                QueryStatement(
+                    d,
+                    select=[Column(d, "id")],
+                    from_=_table_obj(d, "other"),
+                ),
+            ],
         ),
     )
 
@@ -2429,3 +2454,120 @@ class TestMatrixIntegrity:
         )
         for feature, methods in sorted(UNMODELLED_FORMATTERS.items()):
             print(f"  not modelled: {feature} ({len(methods)} formatters)")
+
+# ---------------------------------------------------------------------------
+# The set-operation statement, rendered
+# ---------------------------------------------------------------------------
+#
+# Core's ``SetOperationStatement`` is the statement half of the set-operation
+# pair, and MariaDB builds one: its data-profile formatter asks a question per
+# column as a compound SELECT rather than spelling SQL text. The matrix says
+# the class renders, which is a verdict and not a claim about the bytes, so the
+# bytes are pinned here.
+#
+# The parts are real query statements, so each arm renders its own projection
+# and its own relation, and the bind parameters arrive concatenated in part
+# order. The ordering is the part worth pinning: a parameter list assembled
+# out of order still renders valid SQL that binds the wrong value, which is the
+# failure a rendering test exists to catch. The ``all`` word is a second axis
+# -- the plain ``UNION`` over the same arms must render, and must spell
+# something different.
+
+
+def _compound_arms(dialect):
+    """Two single-column SELECTs over two tables, no bind parameters."""
+    return [
+        QueryStatement(dialect, select=[Column(dialect, "id")], from_=_table_obj(dialect)),
+        QueryStatement(
+            dialect, select=[Column(dialect, "id")], from_=_table_obj(dialect, "other")
+        ),
+    ]
+
+
+class TestSetOperationStatementRenders:
+    """Pin the SQL the compound SELECT actually renders on MariaDB."""
+
+    def test_union_all_renders_the_pinned_sql(self, mariadb_dialect):
+        node = SetOperationStatement(
+            mariadb_dialect, op="union_all", parts=_compound_arms(mariadb_dialect)
+        )
+
+        rendered, params = node.to_sql()
+
+        assert rendered == (
+            'SELECT `id` FROM `t` UNION ALL SELECT `id` FROM `other`'
+        )
+        # Neither arm carries a bind parameter, so the concatenation is empty
+        # and the pin is about the SQL alone.
+        assert params == ()
+
+    def test_union_renders_a_different_keyword(self, mariadb_dialect):
+        """The operator word is the only difference, and it must show up.
+
+        Same arms as the pinned ``UNION ALL`` above, so if this produced the
+        same string it would prove the keyword is ignored.
+        """
+        node = SetOperationStatement(
+            mariadb_dialect, op="union", parts=_compound_arms(mariadb_dialect)
+        )
+
+        rendered, params = node.to_sql()
+
+        assert rendered == 'SELECT `id` FROM `t` UNION SELECT `id` FROM `other`'
+        assert params == ()
+
+    def test_parameters_concatenate_in_part_order(self, mariadb_dialect):
+        """Bind parameters arrive in part order, and the SQL pins where they go.
+
+        The first arm takes the predicate, so it owns both of its binds; the
+        second owns one. An ordering bug still renders valid SQL, so this
+        asserts the tuple positionally.
+        """
+        dialect = mariadb_dialect
+        parts = [
+            QueryStatement(
+                dialect,
+                select=[Column(dialect, "id"), Literal(dialect, 1)],
+                from_=_table_obj(dialect),
+                where=ComparisonPredicate(
+                    dialect, "=", Column(dialect, "id"), Literal(dialect, 5)
+                ),
+            ),
+            QueryStatement(
+                dialect,
+                select=[Column(dialect, "id"), Literal(dialect, 2)],
+                from_=_table_obj(dialect, "u"),
+            ),
+        ]
+        node = SetOperationStatement(dialect, op="union_all", parts=parts)
+
+        rendered, params = node.to_sql()
+
+        assert rendered == (
+            "SELECT `id`, %s FROM `t` WHERE `id` = %s "
+            "UNION ALL "
+            "SELECT `id`, %s FROM `u`"
+        )
+        assert params == (1, 5, 2)
+
+    def test_intersect_is_gated_on_version(self, mariadb_dialect):
+        """``INTERSECT`` is refused before 10.3, and the probe is the answer."""
+        from rhosocial.activerecord.backend.dialect.exceptions import (
+            UnsupportedFeatureError,
+        )
+
+        dialect = mariadb_dialect
+        node = SetOperationStatement(
+            dialect, op="intersect", parts=_compound_arms(dialect)
+        )
+
+        if dialect.version_at_least((10, 3, 0)):
+            rendered, params = node.to_sql()
+            assert rendered == (
+                'SELECT `id` FROM `t` INTERSECT SELECT `id` FROM `other`'
+            )
+            assert params == ()
+        else:
+            with pytest.raises(UnsupportedFeatureError) as excinfo:
+                node.to_sql()
+            assert "INTERSECT" in str(excinfo.value)
