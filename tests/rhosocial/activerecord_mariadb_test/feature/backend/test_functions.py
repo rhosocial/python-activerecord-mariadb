@@ -233,7 +233,7 @@ class TestCharLengthSpelling:
     """The character-length entry point spells CHAR_LENGTH here.
 
     The base's LENGTH answers a different question on MariaDB: measured on
-    13.1.1 (192.168.1.3:15694), ``LENGTH('héllo')`` is 6 (bytes, é being
+    13.1.1 (scenario ``mariadb_131rc``), ``LENGTH('héllo')`` is 6 (bytes, é being
     two of them) while ``CHAR_LENGTH('héllo')`` is 5 (characters), so the
     override is what keeps the node's character-unit semantic honest.
     """

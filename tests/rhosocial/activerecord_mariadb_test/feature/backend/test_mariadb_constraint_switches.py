@@ -7,7 +7,7 @@ Every verdict asserted here was measured by running the ``ALTER TABLE`` /
 switch carries records the same measurement -- server version and the exact
 errno or message -- so a verdict can be re-checked without re-measuring.
 
-The servers the numbers come from are reachable on 192.168.1.3 (TLSv1.2),
+The servers the numbers come from are declared in ``tests/config/mariadb_scenarios.yaml`` (TLSv1.2),
 one per release; ``MEASURED_VERSION`` is the one this file's offline tests
 construct a dialect for, and the version-grid docstrings name the others.
 
@@ -55,16 +55,16 @@ from rhosocial.activerecord.backend.impl.mariadb.mixins.ddl.constraint import (
 #: statement about *this* version, not about MariaDB in general.
 MEASURED_VERSION = (13, 1, 1)
 
-#: The releases reachable on 192.168.1.3 that this file's measurements span.
+#: The releases this file's measurements span; each lives on its own declared server.
 #: Named because two of the switches are version-gated, and because the
 #: column-level ``REFERENCES`` behaviour changes twice across the range.
 MEASURED_RELEASES = {
-    (10, 2, 44): 15680,
-    (10, 4, 34): 15682,
-    (10, 5, 29): 15683,
-    (12, 0, 2): 15689,
-    (12, 1, 2): 15690,
-    (13, 1, 1): 15694,
+    (10, 2, 44): "mariadb_102",
+    (10, 4, 34): "mariadb_104",
+    (10, 5, 29): "mariadb_105",
+    (12, 0, 2): "mariadb_120",
+    (12, 1, 2): "mariadb_121",
+    (13, 1, 1): "mariadb_131rc",
 }
 
 #: Every constraint switch this backend relies on, with the verdict measured on
@@ -492,7 +492,7 @@ class TestMariaDBIsNotConflatedWithMySQL:
     Both are MySQL-family and share a ``CREATE TABLE`` surface, so these are
     the verdicts most likely to be copied between them by mistake. The MySQL
     numbers quoted below were measured against MySQL 26.7.0 at
-    192.168.1.3:14686 in the same session.
+    the scenario ``mysql_97`` server in the same session.
     """
 
     #: MariaDB rejects ENFORCED/NOT ENFORCED outright and *does* accept the

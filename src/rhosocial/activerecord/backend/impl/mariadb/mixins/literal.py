@@ -6,7 +6,7 @@ value as SQL text, and it resolves in three tiers: the portable scalars it
 knows, the types a backend spells for themselves, and the
 literal-construction protocol. This module is MariaDB's second tier, and it
 carries the two spellings measured on the live server (13.1.1,
-192.168.1.3:15694):
+scenario ``mariadb_131rc``):
 
 * ``bytes`` becomes ``X'0102FF'``, the x-quoted upper-case hex form.
   ``SELECT X'0102FF'`` returns those bytes and a ``VARBINARY(16)`` /

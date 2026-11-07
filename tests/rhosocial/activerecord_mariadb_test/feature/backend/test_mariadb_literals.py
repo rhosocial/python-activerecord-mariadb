@@ -7,7 +7,7 @@ through the dialect's literal construction (the DDL syntax position), and
 MariaDB's own spellings live in one place: the tier-2 branches of
 ``format_literal`` (impl/mariadb/mixins/literal.py).
 
-* binary -- ``X'0102FF'``, measured on 13.1.1 (192.168.1.3:15694): the
+* binary -- ``X'0102FF'``, measured on 13.1.1 (scenario ``mariadb_131rc``): the
   SELECT returns the bytes and a ``VARBINARY(16)`` / ``TINYBLOB DEFAULT``
   fills the column with them.
 * UUID -- the bare quoted canonical text; ``CHAR(36)`` and the native

@@ -13,7 +13,7 @@ class MariaDBAlterConstraintModifierMixin:
     separate ``DROP PRIMARY KEY`` clause), so that path is preserved and
     emits the bare form even when ``if_exists=True``.
 
-    Measured on **13.1.1** (192.168.1.3:15694, TLSv1.2)::
+    Measured on **13.1.1** (scenario ``mariadb_131rc``, TLSv1.2)::
 
         ALTER TABLE t DROP CONSTRAINT fk          -- accepted
         ALTER TABLE t DROP CONSTRAINT `1`         -- accepted (the positional

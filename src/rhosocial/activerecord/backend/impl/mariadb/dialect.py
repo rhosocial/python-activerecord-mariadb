@@ -715,7 +715,7 @@ class MariaDBDialect(
     # ``REFERENCES``, and it is recorded on
     # :meth:`supports_foreign_key_constraint` with the evidence that settles it.
     #
-    # The server the numbers below come from is **13.1.1** (192.168.1.3:15694,
+    # The server the numbers below come from is **13.1.1** (scenario ``mariadb_131rc``,
     # TLSv1.2) unless the docstring says otherwise; several were re-measured
     # across 10.2.44 / 10.4.34 / 10.5.29 / 12.0.2 / 12.1.2 as well and the
     # version grid is recorded where it applies.
@@ -818,7 +818,7 @@ class MariaDBDialect(
         shortcut -- from **10.5** onward, which is the part the official MariaDB
         documentation gets wrong. It says the shortcut ``"does nothing"``
         (``mariadb.com/docs/server/reference/sql-statements/
-        data-definition/constraint``). Measured live (192.168.1.3, TLSv1.2, one
+        data-definition/constraint``). Measured live (scenario ``mariadb_131rc``, TLSv1.2, one
         server per release):
 
         ============  =========================================================
@@ -958,7 +958,7 @@ class MariaDBDialect(
         it, but they drop it differently, and a caller reading the catalog back
         sees a different answer on each.
 
-        Measured on **MariaDB 13.1.1** (192.168.1.3:15694, TLSv1.2), and the
+        Measured on **MariaDB 13.1.1** (scenario ``mariadb_131rc``, TLSv1.2), and the
         same shape re-measured on 10.2.44 / 10.4.34 / 10.5.29 / 12.0.2 /
         12.1.2 -- every version accepts it::
 
@@ -978,7 +978,7 @@ class MariaDBDialect(
         ``'NONE'`` is MariaDB's own answer and it is worth not generalizing
         from the sibling: **MySQL 26.7.0 records ``'FULL'`` in the same
         column** for the same statement (measured on the same day, against
-        192.168.1.3:14686). So "was MATCH recorded" cannot be ported between
+        scenario ``mysql_97``). So "was MATCH recorded" cannot be ported between
         the two servers -- MariaDB loses the token outright, MySQL keeps the
         mode and enforces nothing from it. A test that asserts
         ``MATCH_OPTION == 'NONE'`` is a MariaDB-only statement and reads as a
@@ -1029,7 +1029,7 @@ class MariaDBDialect(
 
         This is the clause where the MySQL family's split is most likely to be
         got wrong: **MySQL 26.7 accepts both** on the same statement shape
-        (measured the same day on 192.168.1.3:14686), so a value copied across
+        (measured the same day on the scenario ``mysql_97`` server), so a value copied across
         from MySQL would tell a MariaDB caller its ``NOT ENFORCED`` constraint
         would be stored unenforced when the server would have refused the
         statement outright. Do not copy MySQL's values here.
@@ -1103,7 +1103,7 @@ class MariaDBDialect(
         True, and the answer is *level-dependent*, which is why the boolean
         answers the family and the column level narrows it.
 
-        Measured on **13.1.1** (192.168.1.3:15694, TLSv1.2):
+        Measured on **13.1.1** (scenario ``mariadb_131rc``, TLSv1.2):
 
         * **Table level: every kind.** ``ALTER TABLE t ADD CONSTRAINT uq UNIQUE
           (v)`` is accepted and the symbol survives as ``UNIQUE KEY `uq```;
