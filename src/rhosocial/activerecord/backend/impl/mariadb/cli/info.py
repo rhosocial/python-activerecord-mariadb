@@ -36,11 +36,9 @@ from rhosocial.activerecord.backend.impl.mariadb.protocols import (
 )
 
 from .connection import add_connection_args, add_version_arg, resolve_connection_config_from_args
-from .output import create_provider, RICH_AVAILABLE
+from .output import INFO_OUTPUT_CHOICES, create_provider, RICH_AVAILABLE
 
 logger = logging.getLogger(__name__)
-
-OUTPUT_CHOICES = ['table', 'json']
 
 # Groups that are specific to MariaDB dialect
 DIALECT_SPECIFIC_GROUPS = {"MariaDB-specific"}
@@ -113,7 +111,7 @@ def create_parser(subparsers):
     # Output format (only table and json; info has nested output)
     parser.add_argument(
         '-o', '--output',
-        choices=OUTPUT_CHOICES,
+        choices=INFO_OUTPUT_CHOICES,
         default='table',
         help='Output format (default: table)',
     )

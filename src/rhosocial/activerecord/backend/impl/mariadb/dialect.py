@@ -226,12 +226,6 @@ if TYPE_CHECKING:
         ReturningClause,
     )
 
-_SUGGESTION_GRAPH_MATCH = "MariaDB does not support graph MATCH clause."
-_SUGGESTION_ORDERED_SET_AGG = "MariaDB does not support ordered-set aggregate functions (WITHIN GROUP)."
-_SUGGESTION_QUALIFY = "MariaDB does not support QUALIFY clause. Use a subquery or CTE instead."
-_SUGGESTION_MERGE = "MariaDB does not support MERGE statement. Use INSERT ... ON DUPLICATE KEY UPDATE instead."
-_SUGGESTION_TEMPORAL = "MariaDB system-versioned tables require specific table creation syntax."
-
 
 class MariaDBDialect(
     # The bases below come in bundles: a backend mixin, then the core bundle
