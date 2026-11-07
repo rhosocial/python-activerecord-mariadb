@@ -1,4 +1,4 @@
-rhosocial-activerecord[test]
+rhosocial-activerecord[test]>=1.0.0.dev30,<2.0.0
 rhosocial-activerecord-testsuite
 pydantic[email]
 pytest
