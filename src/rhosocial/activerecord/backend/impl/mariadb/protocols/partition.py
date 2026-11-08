@@ -66,6 +66,14 @@ class MariaDBPartitionSupport(PartitionSupport, Protocol):
         """Format a MariaDB PARTITION definition."""
         ...
 
+    def format_subpartition_clause(self, expr: Any) -> Tuple[str, tuple]:
+        """Format a ``SUBPARTITION BY HASH|KEY`` clause.
+
+        MariaDB accepts only HASH and KEY subpartitioning; a RANGE or LIST
+        strategy is refused at construction with ``UnsupportedFeatureError``.
+        """
+        ...
+
     def format_partition_value(self, expr: Any) -> Tuple[str, tuple]:
         """Format a MariaDB partition boundary value."""
         ...
@@ -99,5 +107,9 @@ class MariaDBPartitionSupport(PartitionSupport, Protocol):
         ...
 
     def format_partition_name_list(self, partitions: Sequence[str]) -> Tuple[str, tuple]:
-        """Format a list of partition names."""
+        """Format a non-empty list of partition names."""
+        ...
+
+    def format_get_partitions_expression(self, expr: Any) -> Tuple[str, tuple]:
+        """Format the ``information_schema.PARTITIONS`` lookup query."""
         ...
