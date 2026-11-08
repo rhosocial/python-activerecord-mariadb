@@ -14,26 +14,39 @@ Architecture:
   - Query execution: Handled by IntrospectorExecutor
   - Result parsing: parse_* methods in introspector.py (pure Python, no I/O)
 
+The families MariaDB owns outright -- sequences, table options, and the two
+status families typed in ``status_types.py`` -- live here rather than in
+core: a slot on a core shape would assert that every other engine has
+something it does not have (``.claude/rules/introspection.md`` §5).
+
 Design principle: Sync and Async are separate and cannot coexist.
-- SyncMariaDBIntrospector: for synchronous backends
+- MariaDBIntrospector: for synchronous backends
 - AsyncMariaDBIntrospector: for asynchronous backends
 """
 
-from .introspector import SyncMariaDBIntrospector, AsyncMariaDBIntrospector
-from .show_introspector import SyncShowIntrospector, AsyncShowIntrospector
+from .introspector import MariaDBIntrospector, AsyncMariaDBIntrospector
+from .show_introspector import ShowIntrospector, AsyncShowIntrospector
 from .status_introspector import (
-    SyncMariaDBStatusIntrospector,
+    MariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
+)
+from .status_types import (
+    MariaDBBinaryLogInfo,
+    MariaDBReplicationInfo,
+    MariaDBServerOverview,
 )
 from .types import SequenceInfo, TableOptionsInfo
 
 __all__ = [
-    "SyncMariaDBIntrospector",
+    "MariaDBIntrospector",
     "AsyncMariaDBIntrospector",
-    "SyncShowIntrospector",
+    "ShowIntrospector",
     "AsyncShowIntrospector",
-    "SyncMariaDBStatusIntrospector",
+    "MariaDBStatusIntrospector",
     "AsyncMariaDBStatusIntrospector",
+    "MariaDBBinaryLogInfo",
+    "MariaDBReplicationInfo",
+    "MariaDBServerOverview",
     "SequenceInfo",
     "TableOptionsInfo",
 ]

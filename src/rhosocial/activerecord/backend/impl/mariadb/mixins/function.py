@@ -158,7 +158,7 @@ class MariaDBFunctionMixin:
         """Render the character length as ``CHAR_LENGTH(operand)``.
 
         The base spells this ``LENGTH``, and on MariaDB that answers a
-        different question: measured on 13.1.1 (192.168.1.3:15694),
+        different question: measured on 13.1.1 (scenario ``mariadb_131rc``),
         ``LENGTH('héllo')`` is 6 -- the byte count, é being two bytes --
         while ``CHAR_LENGTH('héllo')`` is 5, the characters. The node's
         ``unit`` records the semantics the caller asked for and the core

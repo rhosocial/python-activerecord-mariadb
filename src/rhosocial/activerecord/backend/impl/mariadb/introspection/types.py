@@ -63,6 +63,36 @@ class SequenceInfo:
     cache_size: Optional[int] = None
     data_type: Optional[str] = None
 
+    def to_core(self):
+        """Project this sequence onto core's common minimum.
+
+        Four backends grew four sequence classes, so core now carries the
+        smallest shape every engine with sequences can answer
+        (:class:`rhosocial.activerecord.backend.introspection.SequenceInfo`)
+        as the cross-dialect entry point. This class stays the complete
+        MariaDB semantics; the projection joins the two by mapping, not by
+        inheritance, so a field core has no meaning for is ``None`` rather
+        than a guess (``.claude/rules/introspection.md`` §5).
+
+        ``last_value`` is the one core slot MariaDB has no view to read a
+        sequence's current value from, so it is reported as not exposed
+        rather than filled from a different kind of source.
+        """
+        from rhosocial.activerecord.backend.introspection import SequenceInfo as CoreSequenceInfo
+
+        return CoreSequenceInfo(
+            name=self.name,
+            schema=self.schema,
+            data_type=self.data_type,
+            start_value=self.start_value,
+            minimum_value=self.minimum_value,
+            maximum_value=self.maximum_value,
+            increment=self.increment,
+            cycle=self.cycle,
+            cache_size=self.cache_size,
+            last_value=None,
+        )
+
 
 @dataclass(frozen=True)
 class TableOptionsInfo:

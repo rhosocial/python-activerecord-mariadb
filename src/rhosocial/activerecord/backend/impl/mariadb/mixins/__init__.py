@@ -28,7 +28,6 @@ Mixin Organization:
 - explain.py: EXPLAIN FORMAT/ANALYZE support
 - grouping.py: ROLLUP support
 - join.py: LATERAL join support
-- temporal.py: System-versioned temporal tables
 - array.py: Array support (not natively supported)
 - ddl_column.py: DDL column/table capability checks
 - view.py: View DDL support
@@ -83,7 +82,6 @@ from .upsert import MariaDBUpsertMixin
 from .explain import MariaDBExplainMixin
 from .grouping import MariaDBGroupingMixin
 from .join import MariaDBJoinMixin
-from .temporal import MariaDBTemporalMixin
 from .array import MariaDBArrayMixin
 from .ddl_column import MariaDBDDLColumnMixin
 from .ddl_view import MariaDBViewMixin
@@ -140,7 +138,6 @@ __all__ = [
     'MariaDBExplainMixin',
     'MariaDBGroupingMixin',
     'MariaDBJoinMixin',
-    'MariaDBTemporalMixin',
     'MariaDBArrayMixin',
     'MariaDBDDLColumnMixin',
     'MariaDBViewMixin',

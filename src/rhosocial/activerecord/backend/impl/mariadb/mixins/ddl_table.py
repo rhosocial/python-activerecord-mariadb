@@ -384,7 +384,7 @@ class MariaDBTableMixin:
 
         **A name.** ``CONSTRAINT <symbol>`` in a **column definition** is
         accepted for exactly one kind and refused with **errno 1064 / SQLSTATE
-        42000** for the rest. Measured on **13.1.1** (192.168.1.3:15694,
+        42000** for the rest. Measured on **13.1.1** (scenario ``mariadb_131rc``,
         TLSv1.2), every one of these is a syntax error::
 
             u  INT CONSTRAINT uq_u UNIQUE                 -- 1064

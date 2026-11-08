@@ -3,7 +3,7 @@
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.introspection import (
-    SyncMariaDBIntrospector,
+    MariaDBIntrospector,
     AsyncMariaDBIntrospector,
 )
 
@@ -14,9 +14,9 @@ def make_config(**overrides) -> MariaDBConnectionConfig:
     return MariaDBConnectionConfig(**params)
 
 
-def make_introspector() -> SyncMariaDBIntrospector:
+def make_introspector() -> MariaDBIntrospector:
     backend = MariaDBBackend(connection_config=make_config())
-    return SyncMariaDBIntrospector(backend, executor=object())
+    return MariaDBIntrospector(backend, executor=object())
 
 
 class TestSyncStatusProperty:

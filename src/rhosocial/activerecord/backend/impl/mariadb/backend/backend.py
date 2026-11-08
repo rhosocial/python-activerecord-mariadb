@@ -33,7 +33,7 @@ from rhosocial.activerecord.backend.errors import (
 from rhosocial.activerecord.backend.options import DeleteOptions, ExecutionOptions, InsertOptions, StatementType, UpdateOptions
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
-from rhosocial.activerecord.backend.introspection.executor import SyncIntrospectorExecutor
+from rhosocial.activerecord.backend.introspection.executor import IntrospectorExecutor
 from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 
 from ..config import MariaDBConnectionConfig
@@ -534,8 +534,8 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
     def _create_introspector(self):
         """Create the MariaDB introspector instance."""
-        from ..introspection import SyncMariaDBIntrospector
-        return SyncMariaDBIntrospector(self, SyncIntrospectorExecutor(self))
+        from ..introspection import MariaDBIntrospector
+        return MariaDBIntrospector(self, IntrospectorExecutor(self))
 
     def insert(self, options: InsertOptions) -> QueryResult:
         """Insert a record with special handling for RETURNING clause."""

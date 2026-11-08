@@ -2,7 +2,7 @@
 """
 MariaDB concrete introspectors.
 
-Implements SyncAbstractIntrospector and AsyncAbstractIntrospector for MariaDB
+Implements AbstractIntrospector and AsyncAbstractIntrospector for MariaDB
 databases using the information_schema system tables for metadata queries.
 
 The introspectors are exposed via ``backend.introspector`` and also provide
@@ -19,10 +19,13 @@ Key behaviours:
     KEY_COLUMN_USAGE, REFERENTIAL_CONSTRAINTS, VIEWS, TRIGGERS
   - Queries information_schema.TABLES/SEQUENCES for the two MariaDB-only
     families: sequences (10.3+; numeric details 11.7+) and table options
+  - Answers the dependency family from REFERENTIAL_CONSTRAINTS (foreign
+    keys only) and the DDL family from SHOW CREATE TABLE, whose result
+    columns are the engine's own spellings (see parse_ddl_statements)
   - parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
-- SyncMariaDBIntrospector: for synchronous backends
+- MariaDBIntrospector: for synchronous backends
 - AsyncMariaDBIntrospector: for asynchronous backends
 """
 
@@ -33,12 +36,12 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.introspection.base import (
     IntrospectorMixin,
-    SyncAbstractIntrospector,
+    AbstractIntrospector,
     AsyncAbstractIntrospector,
 )
 from rhosocial.activerecord.backend.introspection.cache import IntrospectionCache
 from rhosocial.activerecord.backend.introspection.executor import (
-    SyncIntrospectorExecutor,
+    IntrospectorExecutor,
     AsyncIntrospectorExecutor,
 )
 from rhosocial.activerecord.backend.introspection.types import (
@@ -55,13 +58,14 @@ from rhosocial.activerecord.backend.introspection.types import (
     IntrospectionViewInfo,
     IntrospectionTriggerInfo,
     IntrospectionScope,
+    DDLStatement,
 )
 from .show_introspector import (
-    SyncShowIntrospector,
+    ShowIntrospector,
     AsyncShowIntrospector,
 )
 from .status_introspector import (
-    SyncMariaDBStatusIntrospector,
+    MariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
 )
 from .types import SequenceInfo, TableOptionsInfo
@@ -77,7 +81,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class MariaDBIntrospectorMixin(IntrospectorMixin):
     """Mixin providing shared MariaDB-specific introspection logic.
 
-    Both SyncMariaDBIntrospector and AsyncMariaDBIntrospector inherit
+    Both MariaDBIntrospector and AsyncMariaDBIntrospector inherit
     from this mixin to share:
     - Default schema handling
     - The version a database record reports (``server_version``)
@@ -140,6 +144,15 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         ``BASE_TABLE`` default rather than be invented as a kind of its own.
         Keeping the fallback is what lets a spelling a later MariaDB release
         adds still appear in the listing instead of failing it.
+
+        The storage slots are filled from the two columns the statement
+        reads: ``DATA_LENGTH`` into ``data_size_bytes``, ``INDEX_LENGTH``
+        into ``index_size_bytes``, and their sum into ``size_bytes``. A
+        server that reports neither column -- a view has no storage and
+        reports ``NULL`` -- leaves all three ``None``, because a value the
+        catalog did not report is not a zero-byte table (rules §5: an
+        engine that cannot answer a slot leaves it ``None``, which is a
+        legal answer rather than a gap).
         """
         target_db = schema if schema is not None else self.default_schema
         table_type_map = {
@@ -150,6 +163,9 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         tables = []
         for row in rows:
             t_type = table_type_map.get(row.get("TABLE_TYPE", "BASE TABLE"), TableType.BASE_TABLE)
+            data_length = self._as_int(row.get("DATA_LENGTH"))
+            index_length = self._as_int(row.get("INDEX_LENGTH"))
+            reported = [size for size in (data_length, index_length) if size is not None]
             tables.append(
                 IntrospectionTableInfo(
                     name=row["TABLE_NAME"],
@@ -157,7 +173,9 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
                     table_type=t_type,
                     comment=row.get("TABLE_COMMENT"),
                     row_count=row.get("TABLE_ROWS"),
-                    size_bytes=row.get("DATA_LENGTH"),
+                    size_bytes=sum(reported) if reported else None,
+                    data_size_bytes=data_length,
+                    index_size_bytes=index_length,
                     auto_increment=row.get("AUTO_INCREMENT"),
                     create_time=str(row["CREATE_TIME"]) if row.get("CREATE_TIME") else None,
                     update_time=str(row["UPDATE_TIME"]) if row.get("UPDATE_TIME") else None,
@@ -471,6 +489,48 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             return None
         return self.parse_table_options_row(rows[0], schema)
 
+    def parse_ddl_statements(
+        self, rows: List[Dict[str, Any]], schema: str
+    ) -> List[DDLStatement]:
+        """Project ``SHOW CREATE TABLE`` rows into the engine's own DDL.
+
+        ``SHOW CREATE`` names its result columns after the object --
+        ``Table`` and ``Create Table`` -- rather than after the concept, so
+        the spellings core's generic reader looks for (``ddl``, ``sql``,
+        ``definition``) are absent from the row and the table the engine had
+        just described would be answered as having no DDL at all. This is
+        the same override MySQL's introspector carries, for the same reason:
+        the engine's own column name is the wiring fact here, not a spelling
+        the parser should have to know about.
+
+        ``native`` is True because the text is MariaDB's retrieval of what
+        it holds, never an assembly pass over the catalogue. Only the TABLE
+        flavour is read because only it is formatted; see the dialect's
+        ``format_ddl_statement_query_statement``.
+        """
+        found: List[DDLStatement] = []
+        for row in rows or []:
+            # Both spellings are read because the driver is not consistent
+            # about which one it keeps, and the column carries a space either
+            # way. ``ShowCreateTableResult`` reads the same two, and
+            # ``ShowIntrospector.parse_create_table`` is where a caller sees
+            # the identical row.
+            ddl = row.get("Create Table", row.get("CREATE TABLE", ""))
+            if not ddl:
+                continue
+            found.append(
+                DDLStatement(
+                    schema=schema,
+                    object_type="TABLE",
+                    object_name=str(
+                        row.get("Table", row.get("TABLE", ""))
+                    ),
+                    ddl=str(ddl),
+                    native=True,
+                )
+            )
+        return found
+
     # ------------------------------------------------------------------ #
     # Statement factories — one node per question, rendered by the dialect
     # ------------------------------------------------------------------ #
@@ -508,10 +568,10 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         )
 
 
-class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector):
+class MariaDBIntrospector(MariaDBIntrospectorMixin, AbstractIntrospector):
     """Synchronous introspector for MariaDB backends.
 
-    In addition to the standard SyncAbstractIntrospector interface, exposes the
+    In addition to the standard AbstractIntrospector interface, exposes the
     ``.show`` sub-introspector for direct SHOW command access::
 
         # Standard API
@@ -525,25 +585,25 @@ class SyncMariaDBIntrospector(MariaDBIntrospectorMixin, SyncAbstractIntrospector
     def __init__(
         self,
         backend: Any,
-        executor: SyncIntrospectorExecutor,
+        executor: IntrospectorExecutor,
         cache: Optional[IntrospectionCache] = None,
     ) -> None:
         super().__init__(backend, executor, cache)
-        self._show_instance: Optional[SyncShowIntrospector] = None
-        self._status_instance: Optional[SyncMariaDBStatusIntrospector] = None
+        self._show_instance: Optional[ShowIntrospector] = None
+        self._status_instance: Optional[MariaDBStatusIntrospector] = None
 
     @property
-    def show(self) -> SyncShowIntrospector:
+    def show(self) -> ShowIntrospector:
         """MariaDB-specific SHOW sub-introspector (lazily created)."""
         if self._show_instance is None:
-            self._show_instance = SyncShowIntrospector(self._backend, self._executor)
+            self._show_instance = ShowIntrospector(self._backend, self._executor)
         return self._show_instance
 
     @property
-    def status(self) -> SyncMariaDBStatusIntrospector:
+    def status(self) -> MariaDBStatusIntrospector:
         """MariaDB server status introspector (lazily created)."""
         if self._status_instance is None:
-            self._status_instance = SyncMariaDBStatusIntrospector(self._backend)
+            self._status_instance = MariaDBStatusIntrospector(self._backend)
         return self._status_instance
 
     # ------------------------------------------------------------------ #

@@ -98,7 +98,7 @@ from typing import Dict
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.dialect.exceptions import (ProtocolNotImplementedError, UnsupportedFeatureError)
 from rhosocial.activerecord.backend.expression import graph as graph_mod
 from rhosocial.activerecord.backend.expression.advanced_functions import (
     CaseExpression,
@@ -190,7 +190,10 @@ from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     TriggerEvent,
     TriggerTiming,
 )
-from rhosocial.activerecord.backend.expression.statements.dql import QueryStatement
+from rhosocial.activerecord.backend.expression.statements.dql import (
+    QueryStatement,
+    SetOperationStatement,
+)
 from rhosocial.activerecord.backend.expression.statements.dml import (
     MergeAction,
     MergeActionType,
@@ -212,6 +215,7 @@ from rhosocial.activerecord.backend.impl.dummy.expression import (
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression import routine as maria_routine
 from rhosocial.activerecord.backend.impl.mariadb.expression import show as maria_show
+from rhosocial.activerecord.backend.expression import introspection as core_introspect
 from rhosocial.activerecord.backend.impl.mariadb.expression.dml import (
     MariaDBInsertExpression,
 )
@@ -802,6 +806,28 @@ def register_specials():
             ),
         ),
     )
+    # The statement half of the same pair, and it is the one MariaDB builds: a
+    # compound SELECT is how the data-profile formatter asks one question per
+    # column without spelling SQL. ``op`` normalises through the word-form enum
+    # at construction and ``parts`` is a sequence of query statements, so the
+    # guess's bare string is refused and there is no instance to assert on.
+    register_special_constructor(
+        "statements.dql.SetOperationStatement",
+        lambda d: SetOperationStatement(
+            d,
+            op="union_all",
+            parts=[
+                QueryStatement(
+                    d, select=[Column(d, "id")], from_=_table_obj(d)
+                ),
+                QueryStatement(
+                    d,
+                    select=[Column(d, "id")],
+                    from_=_table_obj(d, "other"),
+                ),
+            ],
+        ),
+    )
 
     # -- MariaDB's own expressions ------------------------------------------
     # Each of these guesses a bare string where the formatter wants an object.
@@ -835,6 +861,27 @@ def register_specials():
     register_special_constructor(
         "show.ShowCreateTriggerStatement",
         lambda d: maria_show.ShowCreateTriggerStatement(d, Trigger(d, "probe_trg")),
+    )
+
+    # -- the two core statements this round's families answer -----------------
+    # ``DDLStatementQueryStatement`` defaults its ``object_name`` to empty so
+    # that a generic filler can construct it, and an empty relation is refused
+    # by every qualified-name renderer -- MariaDB's included. The real question
+    # always names a table, so the instance built here names one too, and the
+    # form it renders is the one a caller gets.
+    register_special_constructor(
+        "introspection.DDLStatementQueryStatement",
+        lambda d: core_introspect.DDLStatementQueryStatement(
+            d, object_name="orders", schema="probe_schema"
+        ),
+    )
+    # The dependency graph answers whole -- no ``object_name`` -- because that
+    # is the shape the CLI's bare ``dependencies`` asks for, and the wider one.
+    register_special_constructor(
+        "introspection.ObjectDependencyQueryStatement",
+        lambda d: core_introspect.ObjectDependencyQueryStatement(
+            d, schema="probe_schema"
+        ),
     )
     register_special_constructor(
         "show.ShowIndexStatement",
@@ -1068,7 +1115,39 @@ _NO_FORMATTER = "does not declare its dialect formatting method name"
 _NO_METHOD = "Subclasses must implement to_sql() method"
 
 LEGITIMATE_NON_RENDERS = {
-    # ---- bases that name an expression category, not a renderable thing ----
+    # ---- core data-profile families -----------------------------------------
+    # The three rows that stood here are gone: MariaDB now renders all of them.
+    # ``mysql.column_stats`` was audited and refused as a source -- it has no
+    # distinct count, its min/max are the column's internal encoding, and it
+    # records no collection time -- so every figure is aggregated from the rows
+    # and labelled ``aggregate``. An unpopulated catalogue is therefore no
+    # longer a reason for the family to be unanswerable; see
+    # ``MariaDBIntrospectionMixin.supports_column_data_profile``.
+    # ---- core operational families this dialect does not answer ----
+    #  MariaDB's performance schema registers no table I/O summary (the
+    #  ``table_io_waits_summary_by_table`` / ``..._by_index_usage`` tables
+    #  MySQL reads), so it has no per-index or per-table access counter: its
+    #  statistics cover size, not access. The three probes answer False on
+    #  every release and these classes stay a declared gap until the engine
+    #  gains such a table. Runtime is not here: ``setup_instruments`` exists
+    #  from 10.5, so that class renders and the probe is gated on the
+    #  version instead.
+    "rhosocial.activerecord.backend.expression.introspection.IndexUsageStatsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.UnusedIndexesQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    #  The two rows that stood under this heading for the dependency and DDL
+    #  families are gone: MariaDB answers both. REFERENTIAL_CONSTRAINTS is
+    #  the foreign-key graph -- a real graph and a partial one -- and
+    #  ``SHOW CREATE TABLE`` is the engine's own retrieval, so the DDL text
+    #  is native rather than an assembly.
+
+# ---- bases that name an expression category, not a renderable thing ----
     # Each of these is a base class that deliberately declares no `format_method`,
     # so `to_sql()` reports that there is nothing to dispatch.
     "rhosocial.activerecord.backend.expression.bases.SQLPredicate": (
@@ -2375,3 +2454,120 @@ class TestMatrixIntegrity:
         )
         for feature, methods in sorted(UNMODELLED_FORMATTERS.items()):
             print(f"  not modelled: {feature} ({len(methods)} formatters)")
+
+# ---------------------------------------------------------------------------
+# The set-operation statement, rendered
+# ---------------------------------------------------------------------------
+#
+# Core's ``SetOperationStatement`` is the statement half of the set-operation
+# pair, and MariaDB builds one: its data-profile formatter asks a question per
+# column as a compound SELECT rather than spelling SQL text. The matrix says
+# the class renders, which is a verdict and not a claim about the bytes, so the
+# bytes are pinned here.
+#
+# The parts are real query statements, so each arm renders its own projection
+# and its own relation, and the bind parameters arrive concatenated in part
+# order. The ordering is the part worth pinning: a parameter list assembled
+# out of order still renders valid SQL that binds the wrong value, which is the
+# failure a rendering test exists to catch. The ``all`` word is a second axis
+# -- the plain ``UNION`` over the same arms must render, and must spell
+# something different.
+
+
+def _compound_arms(dialect):
+    """Two single-column SELECTs over two tables, no bind parameters."""
+    return [
+        QueryStatement(dialect, select=[Column(dialect, "id")], from_=_table_obj(dialect)),
+        QueryStatement(
+            dialect, select=[Column(dialect, "id")], from_=_table_obj(dialect, "other")
+        ),
+    ]
+
+
+class TestSetOperationStatementRenders:
+    """Pin the SQL the compound SELECT actually renders on MariaDB."""
+
+    def test_union_all_renders_the_pinned_sql(self, mariadb_dialect):
+        node = SetOperationStatement(
+            mariadb_dialect, op="union_all", parts=_compound_arms(mariadb_dialect)
+        )
+
+        rendered, params = node.to_sql()
+
+        assert rendered == (
+            'SELECT `id` FROM `t` UNION ALL SELECT `id` FROM `other`'
+        )
+        # Neither arm carries a bind parameter, so the concatenation is empty
+        # and the pin is about the SQL alone.
+        assert params == ()
+
+    def test_union_renders_a_different_keyword(self, mariadb_dialect):
+        """The operator word is the only difference, and it must show up.
+
+        Same arms as the pinned ``UNION ALL`` above, so if this produced the
+        same string it would prove the keyword is ignored.
+        """
+        node = SetOperationStatement(
+            mariadb_dialect, op="union", parts=_compound_arms(mariadb_dialect)
+        )
+
+        rendered, params = node.to_sql()
+
+        assert rendered == 'SELECT `id` FROM `t` UNION SELECT `id` FROM `other`'
+        assert params == ()
+
+    def test_parameters_concatenate_in_part_order(self, mariadb_dialect):
+        """Bind parameters arrive in part order, and the SQL pins where they go.
+
+        The first arm takes the predicate, so it owns both of its binds; the
+        second owns one. An ordering bug still renders valid SQL, so this
+        asserts the tuple positionally.
+        """
+        dialect = mariadb_dialect
+        parts = [
+            QueryStatement(
+                dialect,
+                select=[Column(dialect, "id"), Literal(dialect, 1)],
+                from_=_table_obj(dialect),
+                where=ComparisonPredicate(
+                    dialect, "=", Column(dialect, "id"), Literal(dialect, 5)
+                ),
+            ),
+            QueryStatement(
+                dialect,
+                select=[Column(dialect, "id"), Literal(dialect, 2)],
+                from_=_table_obj(dialect, "u"),
+            ),
+        ]
+        node = SetOperationStatement(dialect, op="union_all", parts=parts)
+
+        rendered, params = node.to_sql()
+
+        assert rendered == (
+            "SELECT `id`, %s FROM `t` WHERE `id` = %s "
+            "UNION ALL "
+            "SELECT `id`, %s FROM `u`"
+        )
+        assert params == (1, 5, 2)
+
+    def test_intersect_is_gated_on_version(self, mariadb_dialect):
+        """``INTERSECT`` is refused before 10.3, and the probe is the answer."""
+        from rhosocial.activerecord.backend.dialect.exceptions import (
+            UnsupportedFeatureError,
+        )
+
+        dialect = mariadb_dialect
+        node = SetOperationStatement(
+            dialect, op="intersect", parts=_compound_arms(dialect)
+        )
+
+        if dialect.version_at_least((10, 3, 0)):
+            rendered, params = node.to_sql()
+            assert rendered == (
+                'SELECT `id` FROM `t` INTERSECT SELECT `id` FROM `other`'
+            )
+            assert params == ()
+        else:
+            with pytest.raises(UnsupportedFeatureError) as excinfo:
+                node.to_sql()
+            assert "INTERSECT" in str(excinfo.value)

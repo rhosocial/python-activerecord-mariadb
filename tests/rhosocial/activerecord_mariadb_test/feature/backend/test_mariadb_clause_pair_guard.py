@@ -640,7 +640,7 @@ class TestConstraintCapabilityGatesAreDeclaredAndMeasured:
     could change under this backend with no MariaDB file edited, and no MariaDB
     test would notice.
 
-    Measured live on **MariaDB 13.1.1** (192.168.1.3:15694, TLSv1.2, driver
+    Measured live on **MariaDB 13.1.1** (scenario ``mariadb_131rc``, TLSv1.2, driver
     ``mariadb``). The errno, SQLSTATE or server output behind each row is in the
     docstring of the declaration on ``MariaDBDialect``; the one value the
     official documentation contradicts is spelled out below.

@@ -289,6 +289,37 @@ class ShowStatusStatement(ShowExpression):
         return self._dialect.format_show_status_statement(self)
 
 
+class ShowMasterStatusStatement(ShowExpression):
+    """Expression for SHOW MASTER STATUS command.
+
+    The binlog's own file, position, do/ignore databases and executed GTID
+    set -- the facts of the log the server is writing. No parameter, and no
+    mode flag: the whole command is the question, which is what a class
+    names.
+
+    MariaDB answers with an *empty set* while ``log_bin`` is off, which is a
+    different answer from an error, so the caller reads the row count rather
+    than catching a failure.
+    """
+
+    def to_sql(self) -> SQLQueryAndParams:
+        return self._dialect.format_show_master_status_statement(self)
+
+
+class ShowSlaveStatusStatement(ShowExpression):
+    """Expression for SHOW SLAVE STATUS command.
+
+    The replica side of replication: one row per configured replica, empty
+    when this server pulls from nothing. ``SHOW REPLICA STATUS`` is MariaDB
+    10.5's alias for the same row set; this node renders the spelling every
+    server in the supported range answers, because the alias is newer than
+    the backend's floor and the row is the same either way.
+    """
+
+    def to_sql(self) -> SQLQueryAndParams:
+        return self._dialect.format_show_slave_status_statement(self)
+
+
 class ShowProcessListStatement(ShowExpression):
     """Expression for SHOW [FULL] PROCESSLIST command."""
 
@@ -390,6 +421,8 @@ __all__ = [
     "ShowCreateTriggerStatement",
     "ShowVariablesStatement",
     "ShowStatusStatement",
+    "ShowMasterStatusStatement",
+    "ShowSlaveStatusStatement",
     "ShowProcessListStatement",
     "ShowWarningsStatement",
     "ShowErrorsStatement",

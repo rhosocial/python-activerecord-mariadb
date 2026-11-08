@@ -7,20 +7,18 @@ import json
 import sys
 from dataclasses import asdict, is_dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
 
 from .connection import add_connection_args, resolve_connection_config_from_args
-from .output import create_provider, RICH_AVAILABLE
-
-OUTPUT_CHOICES = ['table', 'json', 'csv', 'tsv']
+from .output import OUTPUT_CHOICES, create_provider, RICH_AVAILABLE
 
 STATUS_TYPES = [
     "all", "config", "performance", "connections", "storage",
-    "databases", "users"
+    "databases", "users", "binlog", "replication"
 ]
 
 
@@ -41,6 +39,13 @@ def create_parser(subparsers):
 
   # Show connection information
   %(prog)s connections --database mydb
+
+  # Show storage information
+  %(prog)s storage --database mydb
+
+  # Show the binary log family and the replication family
+  %(prog)s binlog --database mydb
+  %(prog)s replication --database mydb
 
   # Output as JSON
   %(prog)s all --database mydb -o json
@@ -84,7 +89,8 @@ def create_parser(subparsers):
         nargs="?",
         default="all",
         choices=STATUS_TYPES,
-        help="Status type: all (default), config, performance, connections, storage, databases, users",
+        help="Status type: all (default), config, performance, connections, "
+             "storage, databases, users, binlog, replication",
     )
 
     return parser
@@ -148,6 +154,18 @@ def _format_size(size_bytes: int) -> str:
     return f"{size:.1f} PB"
 
 
+def _format_switch(value: Optional[bool]) -> str:
+    """Render one yes/no fact, keeping "not reported" out of the answers.
+
+    MariaDB answers a switch ON or OFF and leaves a fact the question
+    could not reach unset, so ``None`` renders as ``N/A`` rather than being
+    read as OFF.
+    """
+    if value is None:
+        return "N/A"
+    return "Yes" if value else "No"
+
+
 def _handle_status_sync(args, backend: MariaDBBackend, provider):
     """Handle status subcommand synchronously."""
     from rhosocial.activerecord.backend.introspection.status import StatusCategory
@@ -195,6 +213,14 @@ def _handle_status_sync(args, backend: MariaDBBackend, provider):
             users = status_introspector.list_users()
             data = _serialize_for_output(users)
             provider.display_results(data, title="Users")
+        elif status_type == "binlog":
+            binary_log = status_introspector.get_binary_log_info()
+            data = _serialize_for_output(binary_log)
+            provider.display_results([data], title="Binary Log")
+        elif status_type == "replication":
+            replication = status_introspector.get_replication_info()
+            data = _serialize_for_output(replication)
+            provider.display_results([data], title="Replication")
 
     except ConnectionError as e:
         provider.display_connection_error(e)
@@ -257,6 +283,14 @@ async def _handle_status_async(args, backend: AsyncMariaDBBackend, provider):
             users = await status_introspector.list_users()
             data = _serialize_for_output(users)
             provider.display_results(data, title="Users")
+        elif status_type == "binlog":
+            binary_log = await status_introspector.get_binary_log_info()
+            data = _serialize_for_output(binary_log)
+            provider.display_results([data], title="Binary Log")
+        elif status_type == "replication":
+            replication = await status_introspector.get_replication_info()
+            data = _serialize_for_output(replication)
+            provider.display_results([data], title="Replication")
 
     except ConnectionError as e:
         provider.display_connection_error(e)
@@ -324,6 +358,29 @@ def _display_status_rich(status, verbose: int = 0):
             )
 
     console.print()
+
+    # Storage section -- the total beside its data/index split, because
+    # MariaDB's storage is row-plus-index shaped and answering "how big"
+    # without "big with what" is half the answer.
+    if hasattr(status, 'storage') and status.storage:
+        storage = status.storage
+        storage_rows = [
+            ("Total", storage.total_size_bytes),
+            ("Data", storage.data_size_bytes),
+            ("Index", storage.index_size_bytes),
+        ]
+        if any(value is not None for _, value in storage_rows):
+            console.print("[bold green]Storage[/bold green]")
+            storage_table = Table(show_header=True, header_style="bold")
+            storage_table.add_column("Scope")
+            storage_table.add_column("Size")
+            for label, value in storage_rows:
+                storage_table.add_row(
+                    label,
+                    _format_size(value) if value is not None else "N/A",
+                )
+            console.print(storage_table)
+            console.print()
 
     # Configuration section
     config_items = [
@@ -416,4 +473,58 @@ def _display_status_rich(status, verbose: int = 0):
             )
 
         console.print(user_table)
+        console.print()
+
+    # Binary log section -- MariaDB's own family, typed in
+    # status_types.py. A fact the server did not report renders as N/A,
+    # never as off.
+    binary_log = getattr(status, "binary_log", None)
+    if binary_log is not None:
+        console.print("[bold green]Binary Log[/bold green]")
+        binlog_table = Table(show_header=True, header_style="bold")
+        binlog_table.add_column("Fact")
+        binlog_table.add_column("Value")
+        binlog_table.add_row(
+            "Enabled",
+            _format_switch(binary_log.log_enabled),
+        )
+        binlog_table.add_row("Format", binary_log.log_format or "N/A")
+        if binary_log.current_log_file:
+            binlog_table.add_row("Current File", binary_log.current_log_file)
+        if binary_log.current_log_position is not None:
+            binlog_table.add_row("Position", str(binary_log.current_log_position))
+        if binary_log.executed_gtid_set:
+            binlog_table.add_row("Executed GTID Set", binary_log.executed_gtid_set)
+        console.print(binlog_table)
+        console.print()
+
+    # Replication section -- the same family rule: the identity facts
+    # answer on every server, the replica facts only on a replica.
+    replication = getattr(status, "replication", None)
+    if replication is not None:
+        console.print("[bold green]Replication[/bold green]")
+        repl_table = Table(show_header=True, header_style="bold")
+        repl_table.add_column("Fact")
+        repl_table.add_column("Value")
+        repl_table.add_row(
+            "Server ID",
+            str(replication.server_id) if replication.server_id is not None else "N/A",
+        )
+        repl_table.add_row(
+            "Replica",
+            _format_switch(replication.is_replica),
+        )
+        if replication.is_replica:
+            repl_table.add_row(
+                "IO Thread",
+                replication.slave_io_running or "N/A",
+            )
+            repl_table.add_row(
+                "SQL Thread",
+                replication.slave_sql_running or "N/A",
+            )
+            if replication.master_host:
+                master = f"{replication.master_host}:{replication.master_port or 'N/A'}"
+                repl_table.add_row("Master", master)
+        console.print(repl_table)
         console.print()

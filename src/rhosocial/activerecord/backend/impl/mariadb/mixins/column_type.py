@@ -193,7 +193,13 @@ class MariaDBColumnTypeMixin(ColumnTypeMixin):
         """
         table: Dict[Any, Optional[Type[ColumnBase]]] = dict(MARIADB_COLUMN_TYPES)
 
-        if self.version < MARIADB_VERSION_BOUNDARIES["JSON_FUNCTIONS"]:
+        # ``version_at_least``, not a bare ``self.version``: this map is read
+        # while a model class is being built, which happens before any
+        # connection, and the strict form raises when the dialect has not been
+        # adapted. An unadapted dialect answers "not at least 10.2", which is
+        # the conservative answer -- ``None`` for ``dict`` -- and adaptation
+        # re-asks with the real version.
+        if not self.version_at_least(MARIADB_VERSION_BOUNDARIES["JSON_FUNCTIONS"]):
             # No JSON function family exists below 10.2 (see above), so no
             # column class can keep the promise a `dict` value needs: the
             # last-resort `None`, not a class that silently degrades.

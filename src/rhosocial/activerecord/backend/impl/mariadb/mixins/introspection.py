@@ -10,7 +10,9 @@ renders them. Nothing in this module assembles SQL text clause by clause --
 what a query *asks* stays a structure the rest of the framework can inspect,
 and the spelling belongs to the formatters it delegates to.
 """
-from typing import List, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
+
+from rhosocial.activerecord.backend.introspection.types import ProfileSource
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
@@ -23,6 +25,12 @@ if TYPE_CHECKING:
         ViewListQueryStatement,
         ViewInfoQueryStatement,
         TriggerListQueryStatement,
+        ColumnDataProfileQueryStatement,
+        ColumnValueSampleQueryStatement,
+        JoinCoverageQueryStatement,
+        ObjectDependencyQueryStatement,
+        DDLStatementQueryStatement,
+        RuntimeMetricsQueryStatement,
     )
     from rhosocial.activerecord.backend.expression.sources.relation import NamedRelationRef
     from rhosocial.activerecord.backend.expression.objects import Table
@@ -92,6 +100,19 @@ class MariaDBIntrospectionMixin:
         ``information_schema.TABLES`` -- the capability for the
         ``introspect table-options`` family. Named the same as MySQL's
         so the question is answerable identically in both engines."""
+        return True
+
+    def supports_table_storage_introspection(self) -> bool:
+        """Per-table storage metrics, read from ``information_schema.TABLES``.
+
+        MariaDB's storage is row-plus-index shaped: ``DATA_LENGTH`` and
+        ``INDEX_LENGTH`` are reported per table, so the table's footprint
+        is answerable as its total (``size_bytes``) and as its split
+        (``data_size_bytes`` / ``index_size_bytes``). The probe says the
+        family is answerable; what a server that reports neither column
+        yields stays ``None`` rather than zero (see
+        :meth:`~.MariaDBIntrospectorMixin.parse_tables`).
+        """
         return True
 
     # ========== Capability Detection ==========
@@ -318,7 +339,14 @@ class MariaDBIntrospectionMixin:
                 Column(self, "TABLE_TYPE"),
                 Column(self, "TABLE_COMMENT"),
                 Column(self, "TABLE_ROWS"),
+                # Data and index bytes are read apart: MariaDB's storage is
+                # row-plus-index shaped, so the two narrow slots of
+                # ``IntrospectionTableInfo`` are answered rather than summed
+                # away here. ``size_bytes`` is their sum, computed in the
+                # parser, so a table that reports only one of them does not
+                # get the other defaulted to zero.
                 Column(self, "DATA_LENGTH"),
+                Column(self, "INDEX_LENGTH"),
                 Column(self, "AUTO_INCREMENT"),
                 Column(self, "CREATE_TIME"),
                 Column(self, "UPDATE_TIME"),
@@ -905,6 +933,777 @@ class MariaDBIntrospectionMixin:
             order_by=OrderByClause(self, [Column(self, "TABLE_NAME")]),
         )
         return query.to_sql()
+
+
+    # ========== Operational families ==========
+    #
+    # MariaDB's performance schema is a partial port of MySQL's. It has the
+    # instrument catalogue, which answers the runtime family, but it does not
+    # register the table I/O summary tables (``table_io_waits_summary_by_table``
+    # and ``table_io_waits_summary_by_index_usage``) that MySQL's unused-index,
+    # table-counter and index-counter families read. MariaDB's own
+    # ``sys`` schema is installed over those tables, but a view over a table
+    # the server does not serve cannot answer, so there is no counter to
+    # project into any of the three families' slots: what the catalogues do
+    # report about an index is its declaration
+    # (``information_schema.STATISTICS``) and an estimated cardinality, which
+    # describe size and shape, never access.
+    #
+    # The runtime family is answerable, and its floor is 10.5 -- the release
+    # that introduced the performance schema and ``setup_instruments`` with
+    # it. The collector is off by default and cannot be enabled at runtime,
+    # so on a server started without it the listing is empty even though the
+    # probe answers True. An empty answer there is the collector's silence,
+    # not "nothing happened", and no row is invented to fill the gap.
+
+    def supports_unused_indexes_detection(self) -> bool:
+        """MariaDB registers no per-index access counter, so the probe refuses.
+
+        MySQL answers this family from ``sys.schema_unused_indexes``, a view
+        over ``performance_schema.table_io_waits_summary_by_index_usage``.
+        MariaDB carries the view's definition in its ported ``sys`` schema
+        but does not implement the summary table it selects from: the
+        performance schema MariaDB ships registers no table I/O summary at
+        all. What is left is ``information_schema.STATISTICS``, which reports
+        an index's declaration and an estimated cardinality -- facts about
+        what an index is, never about how often the optimiser reached for it.
+
+        So the probe answers False on every release this backend supports
+        (10.2 through 13.x, the CI matrix), rather than being gated on a
+        floor the way MySQL's is at 5.7: there is no floor at which MariaDB
+        starts answering. An answering probe would render a statement naming
+        a table the server does not serve (``1146``), turning a
+        definition-time question into an execution error; the capability
+        refusal is the honest answer. The roundtrip matrix in this repository
+        pins ``UnusedIndexesQueryStatement`` as a declared gap with this
+        reason.
+        """
+        return False
+
+    def supports_table_stats(self) -> bool:
+        """MariaDB keeps no per-table access counters, so the probe refuses.
+
+        The inquiry covered every release in the matrix and the answer is the
+        same shape at each: ``information_schema.TABLES`` carries rows, bytes
+        and an estimate of both, and nothing that counts an access; ``ANALYZE
+        TABLE`` refreshes optimiser statistics for the *indexes* and
+        publishes no per-table use figure; the one MariaDB-specific statistics
+        catalogue, ``mysql.column_stats``, is written per column by ``ANALYZE
+        TABLE ... PERSISTENT FOR COLUMNS`` and holds min/max/nulls rather than
+        I/O. There is no counter to project into the family's slots, and an
+        estimate from a different source would be a number the engine never
+        measured.
+
+        Reading that catalogue would also need privileges on the ``mysql``
+        database, which an application account routinely lacks; see
+        :meth:`supports_column_data_profile` for the same privilege audit
+        applied to the family it governs.
+        """
+        return False
+
+    def supports_index_stats(self) -> bool:
+        """MariaDB keeps no per-index use counter, so the probe refuses.
+
+        The same missing table as :meth:`supports_unused_indexes_detection`,
+        one slot further: "how much is this index used" needs the counter
+        "has it ever been used" needs, and MariaDB's performance schema
+        registers neither. Estimated cardinality in
+        ``information_schema.STATISTICS`` is a property of the data, not a
+        measure of the index's use, so projecting it into ``scans`` would put
+        a distribution figure in a slot that promises an engine's count of
+        operations. The roundtrip matrix in this repository pins
+        ``IndexUsageStatsQueryStatement`` as a declared gap with this reason.
+        """
+        return False
+
+    def supports_runtime_stats(self) -> bool:
+        """MariaDB answers runtime measurements from the instrument catalogue.
+
+        ``performance_schema.setup_instruments`` names what is actually being
+        counted on this server: one row per instrument, with whether it is
+        enabled and whether it is timed. An instrument that is not enabled
+        produces no measurement rather than a zero that would read as "idle",
+        which is the honest shape for a "what is alive" listing. It is
+        instance-wide and carries no schema column, exactly as on MySQL, so
+        it is not narrowed by the database the run connected to.
+
+        The performance schema arrived with 10.5, so the probe asks the
+        version accessor rather than answering a bare True: below that floor
+        the statement would name a relation the server does not serve. The
+        collector is off by default and the listing is then empty; no row is
+        manufactured to stand in for a measurement the server never took.
+        """
+        return self.version_at_least((10, 5, 0))
+
+    def format_runtime_metrics_query_statement(
+        self, expr: "RuntimeMetricsQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format the runtime listing from the instrument catalogue.
+
+        ``setup_instruments`` names each instrument, whether it is enabled
+        and whether it is timed, which is what makes it a "what is alive"
+        listing rather than a table of counters: an instrument that is off
+        has no measurement behind it. No schema filter -- the catalogue is
+        server-wide and carries no schema column, so a filter here would
+        refuse a correct query for a nonsensical reason.
+        """
+        from rhosocial.activerecord.backend.expression import Column, QueryStatement
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
+        from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
+
+        statement = QueryStatement(
+            self,
+            select=[
+                Column(self, "NAME").as_("name"),
+                Column(self, "ENABLED").as_("value"),
+                Column(self, "TIMED").as_("kind"),
+            ],
+            from_=NamedRelationRef(
+                self,
+                Table(
+                    self,
+                    "setup_instruments",
+                    catalog_name="performance_schema",
+                ),
+            ),
+            order_by=OrderByClause(self, [Column(self, "NAME")]),
+        )
+        return statement.to_sql()
+
+
+    def supports_object_dependencies(self) -> bool:
+        """MariaDB answers the foreign-key dependency graph, and only that.
+
+        ``information_schema.REFERENTIAL_CONSTRAINTS`` holds one row per
+        foreign key, which is one edge per constraint -- read on every
+        release in the matrix, where the dialect's own constraint tests
+        already read its ``DELETE_RULE`` and ``UPDATE_RULE`` (see
+        ``dialect.py``). MariaDB records no view-on-table or
+        trigger-on-table reference anywhere, so the graph is a real one
+        and a partial one, exactly as on MySQL: a caller asking "what
+        breaks if I drop this" gets the referential answer and no more.
+
+        The ``TABLE_NAME`` filter is applied in the statement rather than by
+        the caller, because the catalogue is database-wide; see
+        :meth:`format_object_dependency_query_statement`.
+        """
+        return True
+
+    def supports_ddl_extraction(self) -> bool:
+        """MariaDB answers natively: ``SHOW CREATE TABLE``.
+
+        Unlike PostgreSQL, the engine hands back the DDL it holds, so
+        ``DDLStatement.native`` is True and the text is MariaDB's own
+        rather than an assembly that would read as authoritative.
+        """
+        return True
+
+    def supports_ddl_extraction_native(self) -> bool:
+        """True -- ``SHOW CREATE`` is MariaDB's own retrieval, not an assembly."""
+        return True
+
+    def format_object_dependency_query_statement(
+        self, expr: "ObjectDependencyQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format the foreign-key dependency graph from the constraint catalogue.
+
+        One row per foreign key, projected onto the slots core's parser
+        reads: the table the constraint belongs to is the *dependent* side,
+        the table its key points at is the *referenced* one, and
+        ``DELETE_RULE`` is what breaking the edge does. Which side a
+        table is on is decided by which column of
+        ``REFERENTIAL_CONSTRAINTS`` it is read from, not by the caller's
+        question -- "what breaks if I drop orders" and "what does orders
+        need" are two readings of the same rows.
+
+        The schema filter narrows to the schema the constraint lives in,
+        because the catalogue is database-wide and a caller asking about
+        one database should not have to post-filter it. ``object_name``
+        narrows to the edges that table carries, which is the question the
+        parameter exists for; omitted, the whole graph is answered.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            QueryStatement,
+            WhereClause,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
+        from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
+
+        params = expr.get_params()
+        schema = params.get("schema", "")
+        object_name = params.get("object_name")
+
+        conditions = [
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "CONSTRAINT_SCHEMA"),
+                Literal(self, schema),
+            )
+        ]
+        if object_name:
+            conditions.append(
+                ComparisonPredicate(
+                    self, "eq", Column(self, "TABLE_NAME"), Literal(self, object_name)
+                )
+            )
+
+        statement = QueryStatement(
+            self,
+            select=[
+                Column(self, "CONSTRAINT_SCHEMA"),
+                Column(self, "CONSTRAINT_NAME"),
+                Column(self, "TABLE_NAME").as_("dependent"),
+                Column(self, "REFERENCED_TABLE_NAME").as_("referenced"),
+                Column(self, "DELETE_RULE").as_("action"),
+            ],
+            from_=NamedRelationRef(
+                self,
+                Table(
+                    self,
+                    "REFERENTIAL_CONSTRAINTS",
+                    catalog_name=INFORMATION_SCHEMA_DATABASE,
+                ),
+            ),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "CONSTRAINT_NAME")]),
+        )
+        return statement.to_sql()
+
+    def format_ddl_statement_query_statement(
+        self, expr: "DDLStatementQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``SHOW CREATE TABLE`` -- the engine's own text.
+
+        The engine's result column is literally named ``Create Table``, so
+        there is nothing to assemble: this is a read, not a reconstruction,
+        which is why ``native`` is True here and False on PostgreSQL. The
+        introspector reads that column under its own name -- see
+        ``MariaDBIntrospectorMixin.parse_ddl_statements`` -- because core's
+        generic projection looks for the spellings a catalogue uses and a
+        ``SHOW`` answer has none of them.
+
+        Only TABLE is rendered. The engine also answers for VIEW,
+        PROCEDURE, FUNCTION, TRIGGER and SEQUENCE through their own
+        ``SHOW CREATE`` statements, and each names a different result
+        column; mapping them means five more shapes, which is a question
+        about which ones callers actually ask. A caller naming one of the
+        others is refused rather than handed the table answer.
+
+        The schema is carried when the caller named one. Left empty, the
+        relation is unqualified and MariaDB resolves it in the database the
+        run connected to -- which is the one namespace level this engine
+        has, and the same answer the unqualified name would get from a
+        hand-typed ``SHOW CREATE TABLE users``.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import (
+            UnsupportedFeatureError,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+            ShowCreateTableStatement,
+        )
+
+        params = expr.get_params()
+        object_name = params.get("object_name", "")
+        object_type = (params.get("object_type") or "TABLE").upper()
+        if object_type != "TABLE":
+            raise UnsupportedFeatureError(
+                dialect_name="MariaDB",
+                feature_name="DDL retrieval for {0!r} objects".format(object_type),
+                suggestion=(
+                    "MariaDB answers natively for TABLE; VIEW, PROCEDURE, "
+                    "FUNCTION, TRIGGER and SEQUENCE each use a different SHOW "
+                    "CREATE statement and result column, and are not mapped yet."
+                ),
+            )
+        schema = params.get("schema")
+
+        return ShowCreateTableStatement(
+            self, Table(self, object_name, catalog_name=schema or None)
+        ).to_sql()
+
+    # ========== Data Profiles (row-shaped answers) ==========
+
+    def supports_column_data_profile(self) -> bool:
+        """MariaDB answers a column data profile by aggregating the rows.
+
+        MariaDB is the one MySQL-family engine with a per-column statistics
+        catalogue of its own -- ``mysql.column_stats``, written by ``ANALYZE
+        TABLE ... PERSISTENT FOR COLUMNS`` -- and it was measured rather than
+        assumed. Its layout is ``db_name``, ``table_name``, ``column_name``,
+        ``min_value``, ``max_value`` (both ``varbinary(255)``),
+        ``nulls_ratio`` (``decimal(12,4)``), ``avg_length``, ``avg_frequency``,
+        ``hist_size``, ``hist_type`` and ``histogram``. Read against the five
+        figures core promises, that is one usable field out of five:
+
+        * ``nulls_ratio`` is the null fraction, already a ratio. It is
+          *approximate*, and the table records no collection time, so the
+          family's rule that an estimate carries its vintage cannot be met for
+          it: the honest label would be ``UNKNOWN``, never ``ESTIMATE``.
+        * ``min_value``/``max_value`` hold the value in the column's *internal
+          encoding*, not in a form SQL can read back. Strings happen to be
+          their bytes, but an ``INT`` is a packed integer, a ``DATETIME`` is a
+          packed long, and a ``DECIMAL`` is its binary decimal -- decoding
+          those is per-type work in the client, not a cast the engine can do,
+          so both endpoints stay ``None`` rather than being reported as
+          mojibake.
+        * There is no distinct count. ``avg_frequency`` is the average number
+          of rows sharing a value, so a count is only reachable by dividing
+          the table's row count by it -- a quotient of two estimates from two
+          different tables, in a slot that promises a count.
+        * ``histogram``/``hist_type`` are the optimiser's bucket encoding, a
+          distribution core does not model and does not want half of.
+
+        Two further facts decide the matter. The table is **empty** until an
+        operator asks for statistics -- so a catalogue-only answer is "not
+        measured" on every fresh server, which is correct but useless, and a
+        zero-filled profile there would be worse than useless. And reading it
+        needs ``SELECT`` on the ``mysql`` database, which an application
+        account routinely does not have; a profile that failed on privileges
+        where the aggregate would have answered would be a regression dressed
+        as an optimisation. A row whose four other figures came from the rows
+        while its fraction came from the catalogue would have to be labelled
+        with one source it does not deserve.
+
+        So every figure comes from the same place, exactly as on MySQL: one
+        ``UNION ALL`` arm per column, each arm a full scan of the table, and
+        the provenance ``aggregate`` -- which is a word this engine has earned
+        rather than inherited. The empty catalogue is then not a special case
+        at all: there is nothing to read, so nothing can be mistaken for a
+        measurement.
+        """
+        return True
+
+    def supports_column_value_sample(self) -> bool:
+        """MariaDB answers a value listing by aggregating with a limit.
+
+        ``mysql.column_stats`` keeps a histogram, not a value list: the buckets
+        are the optimiser's own encoding and the set of values it retained is
+        not recoverable from them. So the answer is a ``GROUP BY`` over the
+        column plus a sort of the groups -- the same order as the profile
+        itself, which is why the two are separate probes rather than one call
+        that would make the cheap half pay for the dear one.
+        """
+        return True
+
+    def supports_join_coverage(self) -> bool:
+        """MariaDB answers overlap by counting distinct values on both sides.
+
+        Exact, and paid for with two scans of each column: one for the
+        overlap, one for the denominator. ``COUNT(DISTINCT col)`` is the
+        engine's own spelling for the second half, so no separate ``SELECT
+        DISTINCT`` pass is needed for it. Answering ``True`` is right because
+        the probe asks whether the engine *can* answer, not whether it can
+        answer cheaply -- the cost belongs in the docstring, not in a False
+        that would claim MariaDB cannot measure its own rows.
+        """
+        return True
+
+    def _user_relation(self, table_name: str, alias: str, schema: "Optional[str]"):
+        """A user table as a FROM source, quoted by the dialect.
+
+        The opposite of :meth:`_information_schema`: this relation is whatever
+        its owner declared -- mixed case, a space, a reserved word -- so the
+        name and the database are left to the dialect's identifier renderer.
+        MariaDB's one namespace level is the database, which rides the catalog
+        slot (see ``mixins/namespace.py``); naming it in ``schema_name`` would
+        be refused rather than silently dropped.
+        """
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.sources import (
+            NamedRelationRef,
+        )
+
+        return NamedRelationRef(
+            self,
+            Table(self, table_name, catalog_name=schema or None),
+            alias=alias,
+        )
+
+    def _profile_label(self, text: "Optional[str]", alias: str):
+        """A constant label as a named select-list entry.
+
+        ``Literal`` is deliberately unaliasable -- a value has nothing to name
+        (see :class:`~...expression.core.Literal`) -- so the constant is cast
+        to text, which is the smallest node in the tree that produces a named
+        result. The cast is not there for its type: it is there so the label
+        can be called ``column_name`` or ``source``, which is what the parser
+        reads. ``None`` is the same node carrying SQL NULL, which is how the
+        empty profile says "the column name is absent" without inventing one.
+
+        The cast target is ``CHAR`` rather than a length-bounded string type
+        because MariaDB's ``CAST`` accepts ``CHAR`` bare and a label has no
+        width to declare.
+        """
+        from rhosocial.activerecord.backend.expression.core import (
+            CastExpression,
+            Literal,
+        )
+        from rhosocial.activerecord.backend.expression.types.string import CharType
+
+        return CastExpression(self, Literal(self, text, inline=True), CharType(self), alias=alias)
+
+    def _profile_arm(self, table_name: str, schema: "Optional[str]", column_name: str):
+        """One column's arm of the profile, as a node.
+
+        The seven entries are the family's contract: the column's own name,
+        the null count, the distinct count, the two endpoints, the row count
+        the parser divides by, and the provenance. The null count is a ``SUM``
+        over a ``CASE`` so an empty table answers NULL rather than a
+        fabricated zero; the distinct count is ``COUNT(DISTINCT ...)``; the
+        endpoints are the engine's own ``MIN``/``MAX``; and ``COUNT(*)`` rides
+        the same scan as the divisor, so an arm reads its table once.
+
+        ``COUNT(*)`` and the null count share a scan because they are two
+        halves of one fraction: the parser divides one by the other, and
+        reading the same table twice to get them would double the cost of the
+        cheapest part of the answer.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            CaseExpression,
+            Column,
+            CountFunction,
+            FunctionCall,
+            IsNullPredicate,
+            Literal,
+            QueryStatement,
+            RowCountWildcard,
+            SumFunction,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        return QueryStatement(
+            self,
+            select=[
+                self._profile_label(column_name, "column_name"),
+                SumFunction(
+                    self,
+                    CaseExpression(
+                        self,
+                        cases=[
+                            (
+                                IsNullPredicate(self, Column(self, column_name)),
+                                Literal(self, 1, inline=True),
+                            )
+                        ],
+                        else_result=Literal(self, 0, inline=True),
+                    ),
+                ).as_("null_count"),
+                CountFunction(self, Column(self, column_name), distinct=True).as_("distinct_count"),
+                FunctionCall(self, "MIN", Column(self, column_name)).as_("min_value"),
+                FunctionCall(self, "MAX", Column(self, column_name)).as_("max_value"),
+                CountFunction(self, RowCountWildcard(self)).as_("row_count"),
+                self._profile_label(ProfileSource.AGGREGATE.value, "source"),
+            ],
+            from_=Table(self, table_name, catalog_name=schema or None),
+        )
+
+    def format_column_data_profile_query_statement(
+        self, expr: "ColumnDataProfileQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format a per-column profile by aggregating the rows themselves.
+
+        The engine's statistics catalogue was audited and refused -- see
+        :meth:`supports_column_data_profile` for what it does and does not
+        carry -- so every figure here is counted, and the row says so: the
+        ``aggregate`` label is projected *into* each row rather than stamped
+        onto the result afterwards, so a consumer comparing a MariaDB profile
+        with a PostgreSQL estimate can tell the two apart without knowing
+        which engine it asked. Sorting them out afterwards is the one thing
+        the label must not require.
+
+        One arm per column, over the column list the expression carries: SQL
+        cannot pivot ``SUM(CASE WHEN col IS NULL ...)`` across columns it was
+        never told about, so an aggregating dialect genuinely needs that list
+        where a catalogue-based one does not.
+
+        The compound question is one node rather than a join of rendered text.
+        Every arm is a real :class:`~...expression.statements.dql.QueryStatement`
+        -- the renderer owns its projection, its identifiers and its relation --
+        and the arms are handed to a
+        :class:`~...expression.statements.dql.SetOperationStatement` as its
+        ``parts``. A column list known only at run time has no operand in the
+        tree, which is why this is the *statement* shape and not the binary
+        ``SetOperation`` source: folding N arms into two nested binary nodes
+        would describe a tree nobody wrote. The node joins the parts with the
+        dialect's own operator word and concatenates their parameters in arm
+        order itself, so the returned tuple is the one this method once built
+        by hand. Nothing here is text.
+
+        ``null_count`` rather than a fraction: dividing by a row count that
+        may legitimately be zero belongs in the parser, not in a SQL
+        expression that would then have to guard against it. That is also what
+        keeps an empty table from answering ``0.0`` -- ``SUM`` over no rows is
+        NULL, so the fraction is not derived at all.
+
+        An empty column list answers with no rows. That case cannot arise from
+        a real table -- MariaDB requires at least one column -- but the branch
+        has to render, so it is a statement that selects no rows rather than a
+        special-case string.
+
+        One consequence of the union is worth reading before the figures are:
+        MariaDB resolves *one* result type per column position across every
+        arm, so ``min_value`` -- which carries ``code``'s text in one arm and
+        ``amount``'s decimal in another -- arrives as text, ``'1.00'`` rather
+        than a number. The values are exact; only the Python type is the
+        union's. One query per column would keep each type, at the price of a
+        round trip per column, which is the loop this family exists to avoid.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            ComparisonPredicate,
+            Literal,
+            QueryStatement,
+            WhereClause,
+        )
+
+        params = expr.get_params()
+        schema = params.get("schema")
+
+        arms = [self._profile_arm(params.get("table_name"), schema, name) for name in expr.columns]
+
+        if not arms:
+            return QueryStatement(
+                self,
+                select=[self._profile_label(None, "column_name")],
+                where=WhereClause(
+                    self,
+                    ComparisonPredicate(
+                        self,
+                        "eq",
+                        Literal(self, 0, inline=True),
+                        Literal(self, 1, inline=True),
+                    ),
+                ),
+            ).to_sql()
+
+        # The arms are real QueryStatement nodes, so the compound question is
+        # one node rather than a join of rendered strings: the operator word is
+        # the dialect's, and the projection, identifiers and bind parameters of
+        # every arm stay with the renderer that owns them.
+        from rhosocial.activerecord.backend.expression.query_sources import (
+            SetOperationKind,
+        )
+        from rhosocial.activerecord.backend.expression.statements import (
+            SetOperationStatement,
+        )
+
+        return SetOperationStatement(self, op=SetOperationKind.UNION_ALL, parts=arms).to_sql()
+
+    def format_column_value_sample_query_statement(
+        self, expr: "ColumnValueSampleQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format a most-frequent-values listing with a grouped scan.
+
+        Nothing usable is precomputed in MariaDB -- the catalogue keeps
+        histogram buckets, not the values in them -- so this costs a ``GROUP
+        BY`` over the column plus a sort of the groups: the same order as the
+        profile itself, which is why the two are separate probes rather than
+        one call that would make the cheap half pay for the dear one.
+
+        ``ORDER BY COUNT(*) DESC`` is what makes the answer "the most frequent
+        values" rather than "the first values"; ties break by the value so two
+        runs of the same query agree. The ``LIMIT`` is a bind parameter, as it
+        is everywhere else in this dialect: keeping it bound means the
+        caller's integer is never spliced into statement text, and MariaDB
+        accepts it once the placeholder reaches it as a number.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            CountFunction,
+            GroupByHavingClause,
+            LimitOffsetClause,
+            OrderByClause,
+            QueryStatement,
+            RowCountWildcard,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        relation = Table(self, expr.table_name, catalog_name=expr.schema or None)
+        column = Column(self, expr.column_name)
+
+        return QueryStatement(
+            self,
+            select=[
+                column.as_("value"),
+                CountFunction(self, RowCountWildcard(self)).as_("count"),
+            ],
+            from_=relation,
+            group_by_having=GroupByHavingClause(self, group_by=[Column(self, expr.column_name)]),
+            order_by=OrderByClause(
+                self,
+                expressions=[
+                    (CountFunction(self, RowCountWildcard(self)), "DESC"),
+                    (Column(self, expr.column_name), "ASC"),
+                ],
+            ),
+            limit_offset=LimitOffsetClause(self, limit=int(expr.limit)),
+        ).to_sql()
+
+    def _coverage_fraction(self, column, source, other_column, other_source):
+        """One side of the overlap: the share of *column* the other side holds.
+
+        The numerator counts the *distinct* values of *column* that also occur
+        in *other_column*, as a ``COUNT(*)`` over a derived table of those
+        distinct values; the denominator counts *column*'s distinct non-NULL
+        values. Distinct on both sides is what makes the figure a coverage of
+        values rather than of rows -- a key repeated a thousand times that
+        matches once would otherwise read as well covered.
+
+        ``IS NOT NULL`` is written on both halves rather than relied upon. In
+        the numerator it is load-bearing: a DISTINCT treats a NULL as one
+        value, so counting it would credit the tested side with a match it
+        does not have. In the divisor ``COUNT(DISTINCT ...)`` skips NULLs on
+        its own, but the statement says so explicitly, because the share is of
+        the values that could join and that is the fact being measured.
+        ``NULLIF(..., 0)`` then makes a column with no value at all answer
+        NULL rather than 0, which the parser reads as "no fraction": the
+        difference between "nothing matched" and "nothing to match" survives
+        to the caller.
+
+        There is no ``* 1.0`` here, unlike PostgreSQL's version of this
+        method: MariaDB's ``/`` over two integer counts already answers a
+        fractional DECIMAL, so multiplying first would add noise and change
+        nothing. The division is kept as a plain node division because that is
+        the spelling both engines of this family agree on.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            FunctionCall,
+            InPredicate,
+            Literal,
+            LogicalPredicate,
+            QueryStatement,
+            RowCountWildcard,
+            SelectModifier,
+            Subquery,
+            WhereClause,
+        )
+        from rhosocial.activerecord.backend.expression.functions import (
+            CountFunction,
+        )
+        from rhosocial.activerecord.backend.expression.sources import (
+            DerivedTableSource,
+        )
+
+        overlap = QueryStatement(
+            self,
+            select=[column],
+            from_=source,
+            where=WhereClause(
+                self,
+                LogicalPredicate(
+                    self,
+                    "AND",
+                    column.is_not_null(),
+                    InPredicate(
+                        self,
+                        column,
+                        Subquery(
+                            self,
+                            QueryStatement(
+                                self,
+                                select=[other_column],
+                                from_=other_source,
+                                where=WhereClause(self, other_column.is_not_null()),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            select_modifier=SelectModifier.DISTINCT,
+        )
+        covered = Subquery(
+            self,
+            QueryStatement(
+                self,
+                select=[CountFunction(self, RowCountWildcard(self))],
+                from_=DerivedTableSource(self, overlap, alias="covered"),
+            ),
+        )
+        total = Subquery(
+            self,
+            QueryStatement(
+                self,
+                select=[
+                    FunctionCall(
+                        self,
+                        "NULLIF",
+                        CountFunction(self, column, distinct=True),
+                        Literal(self, 0, inline=True),
+                    )
+                ],
+                from_=source,
+                where=WhereClause(self, column.is_not_null()),
+            ),
+        )
+        return covered / total
+
+    def format_join_coverage_query_statement(
+        self, expr: "JoinCoverageQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format a two-sided measurement of two columns' value domains.
+
+        Unlike every other statement in this module, this one names two user
+        tables rather than one catalogue relation: the question is a relation
+        between two objects, so both sides are carried explicitly and their
+        identifiers are the dialect's to quote (see :meth:`_user_relation`).
+        The aliases ``l`` and ``r`` are what keep the two columns apart in the
+        rendered statement, and they are quoted like every other identifier.
+
+        The row carries both fractions because neither is meaningful alone. A
+        left share of 1.0 beside a right share of 0.2 says every tested value
+        exists on the other side while most of that other domain is
+        unaccounted for; a single similarity score would average the two and
+        describe neither. A caller deciding whether a join is worth writing
+        needs to know which direction is incomplete.
+
+        Both figures are counted over *distinct* values, with NULLs excluded
+        from the numerators and the denominators alike -- a NULL is not a value
+        that could ever join, so it belongs in neither half of the fraction.
+        The denominators are ``NULLIF``-guarded so a column with nothing to
+        match answers NULL, which the parser reports as "no measurement"
+        instead of a zero overlap that would read as a real answer. See
+        :meth:`_coverage_fraction` for both rules in place.
+
+        The cost is the two sides read for their distinct domains plus an
+        intersection of the two -- a double scan, and the reason the probe
+        belongs behind an explicit call rather than in any automatic pass.
+
+        Collations are not reconciled. MariaDB compares the two columns under
+        whichever collation applies, so values the database would treat as
+        equal may be counted as distinct here, and the fractions are a *lower*
+        bound across mismatched collations -- never an upper one.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            QueryStatement,
+        )
+
+        params = expr.get_params()
+        schema = params.get("schema")
+
+        left_source = self._user_relation(params.get("left_table"), "l", schema)
+        right_source = self._user_relation(params.get("right_table"), "r", schema)
+        left_column = Column(self, params.get("left_column"), table="l")
+        right_column = Column(self, params.get("right_column"), table="r")
+
+        return QueryStatement(
+            self,
+            select=[
+                self._coverage_fraction(left_column, left_source, right_column, right_source).as_(
+                    "left_coverage"
+                ),
+                self._coverage_fraction(right_column, right_source, left_column, left_source).as_(
+                    "right_coverage"
+                ),
+            ],
+        ).to_sql()
 
 
 __all__ = [
