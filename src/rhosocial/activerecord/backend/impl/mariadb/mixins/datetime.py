@@ -57,5 +57,23 @@ class MariaDBDateTimeMixin:
         sql = f"TIMESTAMPDIFF({expr.unit.value.upper()}, {start_sql}, {end_sql})"
         return self.apply_alias(sql, start_params + end_params, expr)
 
+    def format_seconds_between_expression(self, expr: "Any") -> Tuple[str, tuple]:
+        """Format the signed seconds between two instants for MariaDB.
+
+        ``TIMESTAMPDIFF`` counts ``end - start`` and keeps the direction, so an
+        ``end`` earlier than the ``start`` is negative. Counting in
+        ``MICROSECOND`` and dividing by ``1000000`` keeps the sub-second part
+        that ``TIMESTAMPDIFF(SECOND, ...)`` would drop, and the division is
+        parenthesised so the node composes as an operand.
+
+        The operands are rendered in the order the SQL writes them -- ``start``
+        then ``end`` -- so the bind parameters follow that order rather than the
+        constructor's argument order.
+        """
+        start_sql, start_params = expr.start.to_sql()
+        end_sql, end_params = expr.end.to_sql()
+        sql = f"(TIMESTAMPDIFF(MICROSECOND, {start_sql}, {end_sql}) / 1000000)"
+        return self.apply_alias(sql, start_params + end_params, expr)
+
 
 __all__ = ['MariaDBDateTimeMixin']
