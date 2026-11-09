@@ -62,6 +62,9 @@ _TYPE_CAPABILITIES = {
     "database": "supports_database_info",
     "sequences": "supports_sequence_introspection",  # MariaDB 10.3+
     "table-options": "supports_table_options_introspection",
+    "partitions": "supports_partition_info",
+    "routines": "supports_routine_introspection",
+    "constraints": "supports_constraint_introspection",  # MariaDB 10.2.1+
     "unused-indexes": "supports_unused_indexes_detection",
     "table-stats": "supports_table_stats",
     "runtime": "supports_runtime_stats",
@@ -93,6 +96,9 @@ _NAME_RULE = {
     "triggers": "optional",
     "sequences": "optional",
     "table-options": "optional",
+    "partitions": "required",
+    "routines": "optional",
+    "constraints": "required",
     "unused-indexes": "forbidden",
     "table-stats": "forbidden",
     "runtime": "forbidden",
@@ -158,6 +164,16 @@ def create_parser(subparsers):
   %(prog)s table-options --database mydb
   %(prog)s table-options users --database mydb
 
+  # Partitions of one table (empty when the table is not partitioned)
+  %(prog)s partitions orders --database mydb
+
+  # Stored procedures and functions, or one of them by name
+  %(prog)s routines --database mydb
+  %(prog)s routines app_monthly_cleanup --database mydb
+
+  # CHECK constraints of one table
+  %(prog)s constraints orders --database mydb
+
   # The foreign-key dependency graph, or one table's edges
   %(prog)s dependencies --database mydb
   %(prog)s dependencies orders --database mydb
@@ -182,11 +198,11 @@ def create_parser(subparsers):
   # Output as JSON
   %(prog)s tables --database mydb -o json
 
-  # NAME is a table for columns/indexes/foreign-keys/ddl/
-  # column-profiles/value-samples, the object itself for views/triggers/
-  # table-options/dependencies, and is refused for the families that answer
-  # for the whole database (tables, database, unused-indexes, table-stats,
-  # runtime, index-stats, join-coverage).
+  # NAME is a table for columns/indexes/foreign-keys/partitions/constraints/
+  # ddl/column-profiles/value-samples, the object itself for views/triggers/
+  # routines/table-options/dependencies, and is refused for the families that
+  # answer for the whole database (tables, database, unused-indexes,
+  # table-stats, runtime, index-stats, join-coverage).
 
   # Using environment variables for connection
   export MARIADB_HOST=localhost MARIADB_DATABASE=mydb MARIADB_USER=root MARIADB_PASSWORD=secret
@@ -229,7 +245,7 @@ def create_parser(subparsers):
         "name",
         nargs="?",
         default=None,
-        help="Table, view or sequence name (required for some types)",
+        help="Table, view, sequence or routine name (required for some types)",
     )
     parser.add_argument(
         "--column",
@@ -583,6 +599,43 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 )
                 provider.display_results(data, title="Table Options")
 
+        elif args.type == "partitions":
+            partitions = introspector.list_partitions(
+                args.name, schema=None
+            )
+            provider.display_results(
+                _serialize_for_output(partitions),
+                title=f"Partitions of {args.name}",
+            )
+
+        elif args.type == "routines":
+            if args.name:
+                info = introspector.get_routine_info(args.name, schema=None)
+                if info is None:
+                    print(
+                        f"Error: Routine '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"Routine {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    introspector.list_routines(schema=None)
+                )
+                provider.display_results(data, title="Routines")
+
+        elif args.type == "constraints":
+            constraints = introspector.list_constraints(
+                args.name, schema=None
+            )
+            provider.display_results(
+                _serialize_for_output(constraints),
+                title=f"Constraints of {args.name}",
+            )
+
         elif args.type == "database":
             info = introspector.get_database_info()
             data = _serialize_for_output(info)
@@ -818,6 +871,43 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                     await introspector.list_table_options(schema=None)
                 )
                 provider.display_results(data, title="Table Options")
+
+        elif args.type == "partitions":
+            partitions = await introspector.list_partitions(
+                args.name, schema=None
+            )
+            provider.display_results(
+                _serialize_for_output(partitions),
+                title=f"Partitions of {args.name}",
+            )
+
+        elif args.type == "routines":
+            if args.name:
+                info = await introspector.get_routine_info(args.name, schema=None)
+                if info is None:
+                    print(
+                        f"Error: Routine '{args.name}' not found",
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
+                data = [_serialize_for_output(info)]
+                provider.display_results(
+                    data, title=f"Routine {args.name}"
+                )
+            else:
+                data = _serialize_for_output(
+                    await introspector.list_routines(schema=None)
+                )
+                provider.display_results(data, title="Routines")
+
+        elif args.type == "constraints":
+            constraints = await introspector.list_constraints(
+                args.name, schema=None
+            )
+            provider.display_results(
+                _serialize_for_output(constraints),
+                title=f"Constraints of {args.name}",
+            )
 
         elif args.type == "database":
             info = await introspector.get_database_info()

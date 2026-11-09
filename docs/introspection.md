@@ -14,6 +14,9 @@ The contract those answers fill is core's, and this page does not restate it: th
 - **Views and triggers**: definitions from `VIEWS` and `TRIGGERS`
 - **Table options**: engine, row format, collation, auto-increment and create options — MariaDB's own `table-options` family
 - **Sequences**: from 10.3, with numeric details from 11.7 — MariaDB's own `sequences` family
+- **Partitions**: RANGE/LIST/HASH/KEY, subpartitions, boundaries and per-partition size, from `information_schema.PARTITIONS`
+- **Stored routines**: procedures and functions with parameters, return type, language, deterministic flag, SQL data access, security type and comment
+- **CHECK constraints**: name, table and engine clause, from `TABLE_CONSTRAINTS` joined to `CHECK_CONSTRAINTS` (10.2.1+)
 - **Operational answers**: runtime instruments, foreign-key dependency edges, the engine's own DDL; three counter families refused
 - **Data answers**: per-column profiles, value listings and join coverage, all aggregated over the rows
 
@@ -42,10 +45,10 @@ Every question in the introspection contract has a probe on the dialect, and a p
 | `supports_column_data_profile()` | `True` | What each column of a table holds |
 | `supports_column_value_sample()` | `True` | Which values occur, and how often |
 | `supports_join_coverage()` | `True` | How much two columns' domains overlap |
-| `supports_partition_info()` | `False` | Core's partition family |
+| `supports_partition_info()` | `True` | Partitions of one table |
 | `supports_extensions()` | `False` | Installed add-on components |
 
-Two switches beyond core's set are this backend's own: `supports_table_options_introspection()`, which answers `True` for the `table-options` family, and `supports_sequence_introspection()`, which answers `version_at_least((10, 3))` for `sequences`. Each CLI type is gated on its own switch. A `True` promises only that the query renders and the server accepts it; it says nothing about the shape of the answer or its price, and the price of every family is stated where the family is described.
+Four switches beyond core's set are this backend's own: `supports_table_options_introspection()`, which answers `True` for the `table-options` family; `supports_sequence_introspection()`, which answers `version_at_least((10, 3))` for `sequences`; `supports_routine_introspection()`, which answers `True` for `routines`; and `supports_constraint_introspection()`, which follows `supports_check_constraint()` — `True` from 10.2.1, where MariaDB starts recording and enforcing CHECK constraints. Each CLI type is gated on its own switch. A `True` promises only that the query renders and the server accepts it; it says nothing about the shape of the answer or its price, and the price of every family is stated where the family is described.
 
 `supports_runtime_stats()` is the only probe above whose answer depends on a version: `True` from 10.5.0, the release that introduced the performance schema and `performance_schema.setup_instruments` with it. Below that floor the statement would name a relation the server does not serve, so the accessor is asked rather than a bare `True`.
 
@@ -57,7 +60,7 @@ What MariaDB does report about an index — `information_schema.STATISTICS` — 
 
 `supports_ddl_extraction()` and `supports_ddl_extraction_native()` are both `True`, because `SHOW CREATE TABLE` is MariaDB's own retrieval of the text it holds, not an assembly that reads as authoritative.
 
-`supports_partition_info()` and `supports_extensions()` stay `False` by inheritance. This backend declares no partition family of the kind core's probe gates and no catalogue for installable add-on components, so there is no answer behind a `True`.
+`supports_partition_info()` is `True`: `list_partitions()` reads `information_schema.PARTITIONS` and returns an empty list for a table that is not partitioned, because the statement excludes the NULL-partition sentinel row. `supports_extensions()` stays `False` by inheritance: MariaDB exposes no catalogue of installable add-on components, so there is no answer behind a `True`.
 
 ## Basic Usage
 
@@ -89,7 +92,7 @@ for column in introspector.list_columns("orders"):
 
 `backend.introspect_and_adapt()` is the step that makes a version-gated probe answer for the server the handshake reached, rather than for the version the backend was constructed with. The CLI calls it at the entrance; a caller gating on a probe should do the same. `schema` is optional throughout: MariaDB has exactly one namespace level and calls it a database, so omitting it asks about the database the connection selected.
 
-MariaDB's two own families sit beside the core API:
+MariaDB's own families sit beside the core API:
 
 ```python
 for sequence in introspector.list_sequences():
@@ -99,9 +102,22 @@ options = introspector.get_table_options("orders")
 if options:
     print(options.engine, options.row_format,
           options.collation, options.auto_increment)
+
+for partition in introspector.list_partitions("orders"):
+    print(partition.partition_name, partition.partition_method,
+          partition.partition_description, partition.total_length)
+
+for routine in introspector.list_routines():
+    print(routine.kind, routine.name, routine.return_type,
+          [p.name for p in routine.parameters])
+
+for constraint in introspector.list_constraints("orders"):
+    print(constraint.name, constraint.check_clause)
 ```
 
 `get_table_options()` answers for any relation in `information_schema.TABLES` — base table, view or sequence — and the record carries the row's `table_type`, so the caller decides whether the answer is the one it wanted. `get_sequence_info()` returns `None` below 10.3, where a sequence cannot exist; its numeric fields are `None` below 11.7, where `information_schema.SEQUENCES` arrives. Above that floor a sequence is still listed from `TABLES`, because a sequence *is* a table there.
+
+`list_partitions()` returns `[]` for a table that is not partitioned. `list_routines()` returns both kinds in one read; a function's `return_type` is filled and a procedure's is `None`, and `get_routine_info(name, kind=...)` disambiguates a name used by both. `list_constraints()` answers CHECK constraints only — primary keys and unique keys are reported by `list_indexes()`, and foreign keys by `list_foreign_keys()` — and returns `[]` below 10.2.1, where MariaDB has no `CHECK_CONSTRAINTS` view. `IntrospectionColumnInfo.is_auto_increment` is filled from the column's `EXTRA` token, so an `AUTO_INCREMENT` primary key is visible without a second query.
 
 ## Structure answers worth knowing
 
@@ -232,6 +248,7 @@ Two limits decide whether an operational or data family can answer at all, and n
 | `runtime` | MariaDB 10.5.0, where the performance schema and `setup_instruments` arrive | probe `False`; the CLI exits 2 without running the query |
 | `unused-indexes`, `table-stats`, `index-stats` | none — no release answers them | probe `False` on every version; the CLI exits 2 without running the query |
 | `sequences` (MariaDB's own family) | 10.3, where a sequence can exist; numeric details from 11.7 | empty list / `None` below 10.3; detail fields `None` below 11.7 |
+| `constraints` (MariaDB's own family) | 10.2.1, where CHECK is enforced and `CHECK_CONSTRAINTS` is part of the catalog | probe `False`; empty list without sending a query |
 | every other family | none established here | — |
 
 The performance schema is a version floor for `runtime` and an install-time option for what it reports. The probe cannot see the server's startup options, so it answers `True` from 10.5 on, where the relation exists; on a server started with the collector off the listing returns nothing, and that empty answer is not a measurement of idleness.
@@ -250,6 +267,14 @@ python -m rhosocial.activerecord.backend.impl.mariadb introspect tables \
 # One table, or one sequence
 python -m rhosocial.activerecord.backend.impl.mariadb introspect columns orders --database mydb
 python -m rhosocial.activerecord.backend.impl.mariadb introspect sequences my_seq --database mydb
+
+# Partitions of one table, and its CHECK constraints
+python -m rhosocial.activerecord.backend.impl.mariadb introspect partitions orders --database mydb
+python -m rhosocial.activerecord.backend.impl.mariadb introspect constraints orders --database mydb
+
+# Stored procedures and functions, or one by name
+python -m rhosocial.activerecord.backend.impl.mariadb introspect routines --database mydb
+python -m rhosocial.activerecord.backend.impl.mariadb introspect routines app_cleanup --database mydb
 
 # The engine's own DDL, and exact profiles over the rows
 python -m rhosocial.activerecord.backend.impl.mariadb introspect ddl orders --database mydb
@@ -276,6 +301,9 @@ There is no `--schema` flag, and that is deliberate: MariaDB has one namespace l
 | `database` | Name, charset, collation and version | not accepted |
 | `sequences` | List sequences, or describe one | optional (sequence) |
 | `table-options` | Engine, row format, collation, auto-increment, create options | optional (relation) |
+| `partitions` | Partitions and subpartitions of one table | required (table) |
+| `routines` | Stored procedures and functions, or one by name | optional (routine) |
+| `constraints` | CHECK constraints of one table | required (table) |
 | `unused-indexes` | Indexes with no recorded access — refused on every version | not accepted |
 | `table-stats` | Per-table usage counters — refused on every version | not accepted |
 | `runtime` | Live instrument listing, from 10.5 | not accepted |

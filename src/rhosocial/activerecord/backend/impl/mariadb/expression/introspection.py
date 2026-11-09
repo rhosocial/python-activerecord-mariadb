@@ -1,11 +1,12 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/expression/introspection.py
 """MariaDB introspection expressions.
 
-Two catalogue reads the cross-backend introspection model has no statement
-for: sequences and table options. Both read ``information_schema``. As with
-the status nodes, the node carries the parameters and the dialect formatter
-writes the text (expression-dialect §16.2), so what the query asks stays a
-structure and only MariaDB's spelling lives in the formatter.
+Catalogue reads the cross-backend introspection model has no statement for:
+sequences, table options, partitions, stored routines and CHECK constraints.
+All read ``information_schema``. As with the status nodes, the node carries
+the parameters and the dialect formatter writes the text (expression-dialect
+§16.2), so what the query asks stays a structure and only MariaDB's spelling
+lives in the formatter.
 """
 
 from typing import Optional, TYPE_CHECKING
@@ -19,6 +20,9 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = [
     "MariaDBSequenceQuery",
     "MariaDBTableOptionsQuery",
+    "MariaDBPartitionQuery",
+    "MariaDBRoutineQuery",
+    "MariaDBConstraintQuery",
 ]
 
 
@@ -77,3 +81,84 @@ class MariaDBTableOptionsQuery(BaseExpression):
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
         return "format_mariadb_table_options_query"
+
+
+class MariaDBPartitionQuery(BaseExpression):
+    """The partitions and subpartitions of one table.
+
+    ``information_schema.PARTITIONS`` reports a non-partitioned table with
+    one row whose ``PARTITION_NAME`` is NULL. The formatter excludes that
+    row, so an empty result means "not partitioned" rather than "the server
+    had nothing to say". The table is required: a partition belongs to exactly
+    one table and a whole-database partition listing would be a different
+    question with a much larger answer.
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        schema: str,
+        table_name: str,
+    ):
+        super().__init__(dialect)
+        self.schema = schema
+        self.table_name = table_name
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_mariadb_partition_query"
+
+
+class MariaDBRoutineQuery(BaseExpression):
+    """The stored routines in one schema, optionally narrowed to one.
+
+    One row per (routine, parameter) pair: ``ROUTINES`` is joined to
+    ``PARAMETERS`` so the parameter list travels with the routine instead of
+    needing a second round trip. ``name`` narrows to one routine, and
+    ``kind`` (``PROCEDURE`` or ``FUNCTION``) disambiguates a name used by both
+    kinds. Both filters are optional; both absent asks for the whole schema.
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        schema: str,
+        name: Optional[str] = None,
+        kind: Optional[str] = None,
+    ):
+        super().__init__(dialect)
+        self.schema = schema
+        self.name = name
+        self.kind = kind
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_mariadb_routine_query"
+
+
+class MariaDBConstraintQuery(BaseExpression):
+    """The CHECK constraints of one table.
+
+    ``TABLE_CONSTRAINTS`` names the constraint and its table;
+    ``CHECK_CONSTRAINTS`` carries the clause. The formatter joins them on
+    schema and constraint name and filters to ``CONSTRAINT_TYPE = 'CHECK'``,
+    so the answer is the check family and not every constraint MariaDB can
+    hold (indexes and foreign keys have their own families).
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        schema: str,
+        table_name: str,
+    ):
+        super().__init__(dialect)
+        self.schema = schema
+        self.table_name = table_name
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_mariadb_constraint_query"

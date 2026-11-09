@@ -68,13 +68,23 @@ from .status_introspector import (
     MariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
 )
-from .types import SequenceInfo, TableOptionsInfo
+from .types import (
+    SequenceInfo,
+    TableOptionsInfo,
+    MariaDBPartitionInfo,
+    MariaDBRoutineInfo,
+    MariaDBRoutineParameterInfo,
+    MariaDBConstraintInfo,
+)
 from ..mixins.introspection import SEQUENCES_SINCE
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..expression.introspection import (
         MariaDBSequenceQuery,
         MariaDBTableOptionsQuery,
+        MariaDBPartitionQuery,
+        MariaDBRoutineQuery,
+        MariaDBConstraintQuery,
     )
 
 
@@ -404,6 +414,194 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         ]
 
     # ------------------------------------------------------------------ #
+    # MariaDB-only families: partitions, routines and CHECK constraints
+    # ------------------------------------------------------------------ #
+
+    def parse_partitions(
+        self, rows: List[Dict[str, Any]], table_name: str, schema: str
+    ) -> List[MariaDBPartitionInfo]:
+        """Read ``information_schema.PARTITIONS`` rows into partition records.
+
+        The view reports one row per partition, or per (partition,
+        subpartition) pair. The statement has already excluded the
+        NULL-partition row a non-partitioned table carries, so every row here
+        is a real partition and no sentinel is invented.
+        """
+        return [
+            MariaDBPartitionInfo(
+                schema=row.get("TABLE_SCHEMA") or schema,
+                table_name=row.get("TABLE_NAME") or table_name,
+                partition_name=row.get("PARTITION_NAME"),
+                subpartition_name=row.get("SUBPARTITION_NAME"),
+                partition_method=row.get("PARTITION_METHOD"),
+                subpartition_method=row.get("SUBPARTITION_METHOD"),
+                partition_expression=row.get("PARTITION_EXPRESSION"),
+                subpartition_expression=row.get("SUBPARTITION_EXPRESSION"),
+                partition_description=row.get("PARTITION_DESCRIPTION"),
+                subpartition_description=row.get("SUBPARTITION_DESCRIPTION"),
+                partition_ordinal_position=self._as_int(
+                    row.get("PARTITION_ORDINAL_POSITION")
+                ),
+                subpartition_ordinal_position=self._as_int(
+                    row.get("SUBPARTITION_ORDINAL_POSITION")
+                ),
+                table_rows=self._as_int(row.get("TABLE_ROWS")),
+                data_length=self._as_int(row.get("DATA_LENGTH")),
+                index_length=self._as_int(row.get("INDEX_LENGTH")),
+                partition_comment=row.get("PARTITION_COMMENT"),
+            )
+            for row in rows
+        ]
+
+    def parse_routines(
+        self, rows: List[Dict[str, Any]], schema: str
+    ) -> List[MariaDBRoutineInfo]:
+        """Read joined ``ROUTINES``/``PARAMETERS`` rows into routine records.
+
+        One row per (routine, parameter) pair arrives from the statement, so
+        the parameters are grouped back onto the routine they belong to. The
+        grouping key is (schema, name, kind): a procedure and a function may
+        share a name, and grouping by name alone would merge their arguments.
+
+        A function's return value is reported by ``PARAMETERS`` at ordinal 0
+        and is not an argument. Those rows are skipped here; the return type
+        itself comes from ``ROUTINES.DTD_IDENTIFIER``.
+        """
+        builders: Dict[tuple, Dict[str, Any]] = {}
+        for row in rows:
+            routine_schema = row.get("ROUTINE_SCHEMA") or schema
+            routine_name = row.get("ROUTINE_NAME", "")
+            kind = (row.get("ROUTINE_TYPE") or "").upper()
+            key = (routine_schema, routine_name, kind)
+
+            builder = builders.get(key)
+            if builder is None:
+                builder = self._routine_builder(
+                    row, routine_schema, routine_name, kind
+                )
+                builders[key] = builder
+
+            ordinal = self._as_int(row.get("PARAMETER_ORDINAL_POSITION"))
+            if ordinal is None or ordinal <= 0:
+                continue
+            builder["parameters"].append(
+                MariaDBRoutineParameterInfo(
+                    ordinal_position=ordinal,
+                    mode=row.get("PARAMETER_MODE"),
+                    name=row.get("PARAMETER_NAME"),
+                    data_type=row.get("PARAMETER_DATA_TYPE")
+                    or row.get("DATA_TYPE"),
+                    data_type_full=row.get("PARAMETER_DTD_IDENTIFIER")
+                    or row.get("DTD_IDENTIFIER"),
+                )
+            )
+
+        return [self._routine_from_builder(builder) for builder in builders.values()]
+
+    def _routine_builder(
+        self,
+        row: Dict[str, Any],
+        schema: str,
+        name: str,
+        kind: str,
+    ) -> Dict[str, Any]:
+        """Collect the routine-level slots from the first row of a group."""
+        return {
+            "schema": schema,
+            "name": name,
+            "kind": kind,
+            "return_type": self._routine_return_type(row, kind),
+            "language": row.get("EXTERNAL_LANGUAGE") or row.get("ROUTINE_BODY"),
+            "deterministic": self._as_yes_no(row.get("IS_DETERMINISTIC")),
+            "sql_data_access": row.get("SQL_DATA_ACCESS"),
+            "security_type": row.get("SECURITY_TYPE"),
+            "comment": row.get("ROUTINE_COMMENT"),
+            "definer": row.get("DEFINER"),
+            "created": (
+                str(row["CREATED"]) if row.get("CREATED") is not None else None
+            ),
+            "last_altered": (
+                str(row["LAST_ALTERED"])
+                if row.get("LAST_ALTERED") is not None
+                else None
+            ),
+            "parameters": [],
+        }
+
+    @staticmethod
+    def _routine_return_type(row: Dict[str, Any], kind: str) -> Optional[str]:
+        """Return a function's declared return type; procedures have none."""
+        if kind != "FUNCTION":
+            return None
+        return (
+            row.get("ROUTINE_DTD_IDENTIFIER")
+            or row.get("DTD_IDENTIFIER")
+            or row.get("ROUTINE_DATA_TYPE")
+            or row.get("DATA_TYPE")
+            or None
+        )
+
+    @staticmethod
+    def _routine_from_builder(builder: Dict[str, Any]) -> MariaDBRoutineInfo:
+        """Freeze one grouped builder into a result record."""
+        return MariaDBRoutineInfo(
+            schema=builder["schema"],
+            name=builder["name"],
+            kind=builder["kind"],
+            return_type=builder["return_type"],
+            parameters=tuple(builder["parameters"]),
+            language=builder["language"],
+            deterministic=builder["deterministic"],
+            sql_data_access=builder["sql_data_access"],
+            security_type=builder["security_type"],
+            comment=builder["comment"],
+            definer=builder["definer"],
+            created=builder["created"],
+            last_altered=builder["last_altered"],
+        )
+
+    def parse_routine_info(
+        self,
+        rows: List[Dict[str, Any]],
+        name: str,
+        schema: str,
+        kind: Optional[str] = None,
+    ) -> Optional[MariaDBRoutineInfo]:
+        """Pick one routine out of the joined rows, or ``None``.
+
+        ``kind`` narrows when a procedure and a function share the name. Left
+        out, the first match in the statement's (kind, name) order is
+        returned; the statement already narrowed to the name, so this is not
+        a guess among unrelated routines.
+        """
+        for routine in self.parse_routines(rows, schema):
+            if routine.name != name:
+                continue
+            if kind is not None and routine.kind != kind.upper():
+                continue
+            return routine
+        return None
+
+    def parse_constraints(
+        self, rows: List[Dict[str, Any]], table_name: str, schema: str
+    ) -> List[MariaDBConstraintInfo]:
+        """Read joined ``TABLE_CONSTRAINTS``/``CHECK_CONSTRAINTS`` rows.
+
+        The statement filters ``CONSTRAINT_TYPE = 'CHECK'``; the type is still
+        carried on the record so a future widening does not change the shape.
+        """
+        return [
+            MariaDBConstraintInfo(
+                schema=row.get("CONSTRAINT_SCHEMA") or schema,
+                table_name=row.get("TABLE_NAME") or table_name,
+                name=row.get("CONSTRAINT_NAME", ""),
+                constraint_type=row.get("CONSTRAINT_TYPE") or "CHECK",
+                check_clause=row.get("CHECK_CLAUSE"),
+            )
+            for row in rows
+        ]
+
+    # ------------------------------------------------------------------ #
     # MariaDB-only families: sequences and table options
     # ------------------------------------------------------------------ #
 
@@ -420,11 +618,22 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         return None if value is None else int(value)
 
     @staticmethod
-    def _as_cycle(value: Any) -> Optional[bool]:
-        """Read ``CYCLE_OPTION``; MariaDB spells it ``'1'`` / ``'0'``."""
+    def _as_yes_no(value: Any) -> Optional[bool]:
+        """Read a catalogue boolean, keeping "not reported" as ``None``.
+
+        MariaDB is inconsistent across views: ``CYCLE_OPTION`` is ``'1'`` /
+        ``'0'``, while ``IS_DETERMINISTIC`` is ``'YES'`` / ``'NO'``. Both
+        spell the same fact, so one reader accepts both and anything else the
+        server may add later.
+        """
         if value is None:
             return None
         return str(value).strip().lower() in ("1", "y", "yes", "true")
+
+    @staticmethod
+    def _as_cycle(value: Any) -> Optional[bool]:
+        """Read ``CYCLE_OPTION``; MariaDB spells it ``'1'`` / ``'0'``."""
+        return MariaDBIntrospectorMixin._as_yes_no(value)
 
     def parse_sequence_row(self, row: Dict[str, Any], schema: str) -> SequenceInfo:
         """Read one ``TABLES``/``SEQUENCES`` row into a :class:`SequenceInfo`.
@@ -535,9 +744,17 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     # Statement factories — one node per question, rendered by the dialect
     # ------------------------------------------------------------------ #
 
-    def sequence_target_schema(self, schema: Optional[str]) -> str:
+    def target_schema(self, schema: Optional[str]) -> str:
         """Return the schema to read, defaulting to this backend's own."""
         return schema if schema is not None else self.default_schema
+
+    def sequence_target_schema(self, schema: Optional[str]) -> str:
+        """Return the schema to read, defaulting to this backend's own.
+
+        Kept as the sequence family's spelling of :meth:`target_schema`; both
+        resolve the same way, and every new family uses the generic name.
+        """
+        return self.target_schema(schema)
 
     def sequence_list_statement(
         self, *, schema: Optional[str]
@@ -565,6 +782,40 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
 
         return MariaDBTableOptionsQuery(
             self.dialect, self.sequence_target_schema(schema), table_name=table_name
+        )
+
+    def partition_statement(
+        self, *, table_name: str, schema: Optional[str]
+    ) -> "MariaDBPartitionQuery":
+        """Return the statement that lists one table's partitions."""
+        from ..expression.introspection import MariaDBPartitionQuery
+
+        return MariaDBPartitionQuery(
+            self.dialect, self.target_schema(schema), table_name
+        )
+
+    def routine_statement(
+        self,
+        *,
+        schema: Optional[str],
+        name: Optional[str] = None,
+        kind: Optional[str] = None,
+    ) -> "MariaDBRoutineQuery":
+        """Return the statement that reads routines, optionally one by name."""
+        from ..expression.introspection import MariaDBRoutineQuery
+
+        return MariaDBRoutineQuery(
+            self.dialect, self.target_schema(schema), name=name, kind=kind
+        )
+
+    def constraint_statement(
+        self, *, table_name: str, schema: Optional[str]
+    ) -> "MariaDBConstraintQuery":
+        """Return the statement that lists one table's CHECK constraints."""
+        from ..expression.introspection import MariaDBConstraintQuery
+
+        return MariaDBConstraintQuery(
+            self.dialect, self.target_schema(schema), table_name
         )
 
 
@@ -755,6 +1006,128 @@ class MariaDBIntrospector(MariaDBIntrospectorMixin, AbstractIntrospector):
             self._cache.set(key, result)
         return result
 
+    # ------------------------------------------------------------------ #
+    # MariaDB-only families: partitions, routines and CHECK constraints
+    # ------------------------------------------------------------------ #
+
+    def list_partitions(
+        self, table_name: str, schema: Optional[str] = None
+    ) -> List[MariaDBPartitionInfo]:
+        """List the partitions of one table.
+
+        An empty list means the table is not partitioned: the statement
+        excludes the NULL-partition row the view carries for such a table, so
+        there is no sentinel row to filter here.
+
+        The cache entry is under ``TABLE`` with the ``mariadb:partitions``
+        namespace, because partitions are table facts but not the table
+        record itself.
+        """
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=schema, extra="mariadb:partitions"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self.partition_statement(
+            table_name=table_name, schema=schema
+        ).to_sql()
+        result = self.parse_partitions(
+            self._executor.execute(sql, params),
+            table_name,
+            self.target_schema(schema),
+        )
+        self._cache.set(key, result)
+        return result
+
+    def list_routines(
+        self, schema: Optional[str] = None
+    ) -> List[MariaDBRoutineInfo]:
+        """List the stored procedures and functions in *schema*.
+
+        One query covers both kinds: ``ROUTINES`` names each routine and the
+        join to ``PARAMETERS`` carries the arguments. The cache entry is
+        schema-scoped with the ``mariadb:routines`` namespace.
+        """
+        key = self._cache.key(
+            IntrospectionScope.SCHEMA, schema=schema, extra="mariadb:routines"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self.routine_statement(schema=schema).to_sql()
+        result = self.parse_routines(
+            self._executor.execute(sql, params),
+            self.target_schema(schema),
+        )
+        self._cache.set(key, result)
+        return result
+
+    def get_routine_info(
+        self,
+        name: str,
+        kind: Optional[str] = None,
+        schema: Optional[str] = None,
+    ) -> Optional[MariaDBRoutineInfo]:
+        """Return the named routine, or ``None`` when it does not exist.
+
+        ``kind`` (``PROCEDURE`` or ``FUNCTION``) disambiguates a name used by
+        both. A miss is not cached, so a routine created after the first
+        lookup is visible to the next one.
+        """
+        key = self._cache.key(
+            IntrospectionScope.SCHEMA, name, schema=schema, extra="mariadb:routines"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self.routine_statement(
+            schema=schema, name=name, kind=kind
+        ).to_sql()
+        result = self.parse_routine_info(
+            self._executor.execute(sql, params),
+            name,
+            self.target_schema(schema),
+            kind=kind,
+        )
+        if result is not None:
+            self._cache.set(key, result)
+        return result
+
+    def list_constraints(
+        self, table_name: str, schema: Optional[str] = None
+    ) -> List[MariaDBConstraintInfo]:
+        """List the CHECK constraints of one table.
+
+        Servers before 10.2.1 have no ``CHECK_CONSTRAINTS`` view and did not
+        enforce CHECK constraints, so the answer there is an empty list and no
+        query is sent. The cache entry is written either way, so asking twice
+        costs nothing.
+        """
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=schema, extra="mariadb:constraints"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        if not self.dialect.supports_constraint_introspection():
+            result: List[MariaDBConstraintInfo] = []
+        else:
+            sql, params = self.constraint_statement(
+                table_name=table_name, schema=schema
+            ).to_sql()
+            result = self.parse_constraints(
+                self._executor.execute(sql, params),
+                table_name,
+                self.target_schema(schema),
+            )
+        self._cache.set(key, result)
+        return result
+
 
 class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospector):
     """Asynchronous introspector for MariaDB backends.
@@ -928,4 +1301,110 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         )
         if result is not None:
             self._cache.set(key, result)
+        return result
+
+    # ------------------------------------------------------------------ #
+    # MariaDB-only families: partitions, routines and CHECK constraints
+    # ------------------------------------------------------------------ #
+
+    async def list_partitions(
+        self, table_name: str, schema: Optional[str] = None
+    ) -> List[MariaDBPartitionInfo]:
+        """List the partitions of one table.
+
+        An empty list means the table is not partitioned: the statement
+        excludes the NULL-partition row the view carries for such a table.
+        """
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=schema, extra="mariadb:partitions"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self.partition_statement(
+            table_name=table_name, schema=schema
+        ).to_sql()
+        result = self.parse_partitions(
+            await self._executor.execute(sql, params),
+            table_name,
+            self.target_schema(schema),
+        )
+        self._cache.set(key, result)
+        return result
+
+    async def list_routines(
+        self, schema: Optional[str] = None
+    ) -> List[MariaDBRoutineInfo]:
+        """List the stored procedures and functions in *schema*."""
+        key = self._cache.key(
+            IntrospectionScope.SCHEMA, schema=schema, extra="mariadb:routines"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self.routine_statement(schema=schema).to_sql()
+        result = self.parse_routines(
+            await self._executor.execute(sql, params),
+            self.target_schema(schema),
+        )
+        self._cache.set(key, result)
+        return result
+
+    async def get_routine_info(
+        self,
+        name: str,
+        kind: Optional[str] = None,
+        schema: Optional[str] = None,
+    ) -> Optional[MariaDBRoutineInfo]:
+        """Return the named routine, or ``None`` when it does not exist."""
+        key = self._cache.key(
+            IntrospectionScope.SCHEMA, name, schema=schema, extra="mariadb:routines"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        sql, params = self.routine_statement(
+            schema=schema, name=name, kind=kind
+        ).to_sql()
+        result = self.parse_routine_info(
+            await self._executor.execute(sql, params),
+            name,
+            self.target_schema(schema),
+            kind=kind,
+        )
+        if result is not None:
+            self._cache.set(key, result)
+        return result
+
+    async def list_constraints(
+        self, table_name: str, schema: Optional[str] = None
+    ) -> List[MariaDBConstraintInfo]:
+        """List the CHECK constraints of one table.
+
+        Servers before 10.2.1 have no ``CHECK_CONSTRAINTS`` view and did not
+        enforce CHECK constraints, so the answer there is an empty list and no
+        query is sent.
+        """
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=schema, extra="mariadb:constraints"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        if not self.dialect.supports_constraint_introspection():
+            result: List[MariaDBConstraintInfo] = []
+        else:
+            sql, params = self.constraint_statement(
+                table_name=table_name, schema=schema
+            ).to_sql()
+            result = self.parse_constraints(
+                await self._executor.execute(sql, params),
+                table_name,
+                self.target_schema(schema),
+            )
+        self._cache.set(key, result)
         return result

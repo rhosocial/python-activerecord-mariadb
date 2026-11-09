@@ -25,6 +25,11 @@ from rhosocial.activerecord.backend.expression.introspection import (
     ViewListQueryStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression.introspection import (
+    MariaDBConstraintQuery,
+    MariaDBPartitionQuery,
+    MariaDBRoutineQuery,
+)
 from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
     INFORMATION_SCHEMA_DATABASE,
     SYSTEM_SCHEMAS,
@@ -222,6 +227,105 @@ class TestIntrospectionQueries:
             "ORDER BY `TRIGGER_NAME`"
         )
         assert params == ("app", "users")
+
+
+class TestPartitionRoutineConstraintQueries:
+    """The three families added for introspection coverage."""
+
+    def test_partition_query_excludes_the_non_partitioned_row(self, dialect):
+        sql, params = MariaDBPartitionQuery(dialect, "app", "orders").to_sql()
+        assert sql == (
+            "SELECT `PARTITION_NAME`, `SUBPARTITION_NAME`, `PARTITION_METHOD`, "
+            "`SUBPARTITION_METHOD`, `PARTITION_EXPRESSION`, "
+            "`SUBPARTITION_EXPRESSION`, `PARTITION_DESCRIPTION`, "
+            "`SUBPARTITION_DESCRIPTION`, `PARTITION_ORDINAL_POSITION`, "
+            "`SUBPARTITION_ORDINAL_POSITION`, `TABLE_ROWS`, `DATA_LENGTH`, "
+            "`INDEX_LENGTH`, `PARTITION_COMMENT` "
+            "FROM `information_schema`.`PARTITIONS` "
+            "WHERE `TABLE_SCHEMA` = %s AND `TABLE_NAME` = %s "
+            "AND `PARTITION_NAME` IS NOT NULL "
+            "ORDER BY `PARTITION_ORDINAL_POSITION`, "
+            "`SUBPARTITION_ORDINAL_POSITION`"
+        )
+        assert params == ("app", "orders")
+
+    def test_routine_query_joins_on_schema_name_and_kind(self, dialect):
+        sql, params = MariaDBRoutineQuery(dialect, "app").to_sql()
+        assert "LEFT JOIN `information_schema`.`PARAMETERS` AS `p`" in sql
+        assert (
+            "`p`.`SPECIFIC_SCHEMA` = `r`.`ROUTINE_SCHEMA` "
+            "AND `p`.`SPECIFIC_NAME` = `r`.`ROUTINE_NAME` "
+            "AND `p`.`ROUTINE_TYPE` = `r`.`ROUTINE_TYPE`"
+        ) in sql
+        assert params == ("app",)
+
+    def test_routine_query_aliases_the_two_data_type_columns(self, dialect):
+        """ROUTINES and PARAMETERS both have DATA_TYPE; one row cannot hold both."""
+        sql, _ = MariaDBRoutineQuery(dialect, "app").to_sql()
+        assert "`r`.`DATA_TYPE` AS `ROUTINE_DATA_TYPE`" in sql
+        assert "`r`.`DTD_IDENTIFIER` AS `ROUTINE_DTD_IDENTIFIER`" in sql
+        assert "`p`.`DATA_TYPE` AS `PARAMETER_DATA_TYPE`" in sql
+        assert "`p`.`DTD_IDENTIFIER` AS `PARAMETER_DTD_IDENTIFIER`" in sql
+
+    def test_routine_query_name_and_kind_are_bound_only_when_given(self):
+        """A whole-schema listing binds only the schema."""
+        dialect = MariaDBDialect(version=(10, 6, 0))
+        _, listing_params = MariaDBRoutineQuery(dialect, "app").to_sql()
+        assert listing_params == ("app",)
+
+        sql, params = MariaDBRoutineQuery(
+            dialect, "app", name="app_cleanup", kind="PROCEDURE"
+        ).to_sql()
+        assert "`r`.`ROUTINE_NAME` = %s" in sql
+        assert "`r`.`ROUTINE_TYPE` = %s" in sql
+        assert params == ("app", "app_cleanup", "PROCEDURE")
+
+    def test_constraint_query_filters_check_inline(self, dialect):
+        sql, params = MariaDBConstraintQuery(dialect, "app", "orders").to_sql()
+        assert (
+            "FROM `information_schema`.`TABLE_CONSTRAINTS` AS `tc` "
+            "LEFT JOIN `information_schema`.`CHECK_CONSTRAINTS` AS `cc` "
+            "ON `tc`.`CONSTRAINT_SCHEMA` = `cc`.`CONSTRAINT_SCHEMA` "
+            "AND `tc`.`CONSTRAINT_NAME` = `cc`.`CONSTRAINT_NAME`"
+        ) in sql
+        assert "`tc`.`CONSTRAINT_TYPE` = 'CHECK'" in sql
+        assert params == ("app", "orders")
+
+    def test_constraint_query_does_not_put_the_type_in_the_tuple(self, dialect):
+        """The type is a catalog fact, not caller data."""
+        _, params = MariaDBConstraintQuery(dialect, "app", "orders").to_sql()
+        assert "CHECK" not in params
+
+
+class TestNewFamilyCapabilitySwitches:
+    """Each family's probe answers for the family it governs."""
+
+    def test_partition_info_is_declared(self, dialect):
+        """Core's probe and the DDL protocol's probe answer the same."""
+        assert dialect.supports_partition_info() is True
+        assert dialect.supports_partition_metadata_introspection() is True
+
+    def test_routine_introspection_is_declared(self, dialect):
+        assert dialect.supports_routine_introspection() is True
+
+    def test_constraint_introspection_follows_the_check_release(self):
+        """No second copy of the 10.2.1 boundary."""
+        old = MariaDBDialect(version=(10, 2, 0))
+        new = MariaDBDialect(version=(10, 2, 1))
+        assert old.supports_constraint_introspection() is False
+        assert new.supports_constraint_introspection() is True
+        assert new.supports_constraint_introspection() is (
+            new.supports_check_constraint()
+        )
+
+    def test_old_server_also_reports_check_as_unsupported(self):
+        """The two questions agree on every boundary the backend claims."""
+        for version in ((10, 2, 0), (10, 2, 1), (10, 4, 34), (13, 1, 1)):
+            dialect = MariaDBDialect(version)
+            assert (
+                dialect.supports_constraint_introspection()
+                is dialect.supports_check_constraint()
+            ), version
 
 
 class TestSharedCatalogueConstants:
