@@ -16,6 +16,7 @@ from enum import Enum
 from math import isfinite
 from typing import Any, Optional, Sequence, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
@@ -189,6 +190,82 @@ class MariaDBPartitionDefinition(PartitionDefinition):
             raise ValueError("partition definition requires less_than or in_values")
 
 
+def _normalize_subpartition_strategy(
+    dialect: "MariaDBDialect",
+    strategy: Any,
+) -> MariaDBSubpartitionStrategy:
+    """Return the strategy member, refusing RANGE/LIST by name.
+
+    MariaDB restricts subpartitioning to HASH and KEY (and their LINEAR
+    variants).  ``SUBPARTITION BY RANGE`` is refused with
+    ``UnsupportedFeatureError`` rather than silently downgraded to HASH.
+    """
+    try:
+        return MariaDBSubpartitionStrategy(strategy)
+    except ValueError as error:
+        word = str(strategy).strip().upper()
+        if word in {"RANGE", "RANGE COLUMNS", "LIST", "LIST COLUMNS"}:
+            raise UnsupportedFeatureError(
+                getattr(dialect, "name", "MariaDB"),
+                f"SUBPARTITION BY {word}",
+                "MariaDB supports only HASH and KEY subpartitioning.",
+            ) from error
+        raise
+
+
+class MariaDBSubpartitionClause(BaseExpression):
+    """MariaDB ``SUBPARTITION BY {HASH|KEY}(...) SUBPARTITIONS N`` clause.
+
+    Appears after ``PARTITION BY ...`` and before the partition definitions.
+    When ``definitions`` is provided, those explicit subpartition names
+    override the template for each parent partition.
+
+    Raises:
+        ValueError: if strategy is not a MariaDBSubpartitionStrategy word.
+        UnsupportedFeatureError: if strategy names RANGE or LIST subpartitioning.
+        ValueError: if ``expression`` is missing; MariaDB requires a column
+            list for every SUBPARTITION BY HASH/KEY form, including LINEAR.
+        ValueError: if count is provided but is not a positive integer.
+    """
+
+    def __init__(
+        self,
+        dialect: "MariaDBDialect",
+        strategy: MariaDBSubpartitionStrategy,
+        *,
+        expression: Optional[BaseExpression] = None,
+        count: Optional[int] = None,
+        definitions: Optional[Sequence[MariaDBSubpartitionDefinition]] = None,
+    ):
+        super().__init__(dialect)
+        self.strategy = _normalize_subpartition_strategy(dialect, strategy)
+        if expression is None:
+            raise ValueError(
+                "SUBPARTITION BY %s requires an expression (column list)"
+                % self.strategy.value
+            )
+        if count is not None and (not isinstance(count, int) or count <= 0):
+            raise ValueError("count must be a positive integer when provided")
+        self.expression = expression
+        self.count = count
+        self.definitions = list(definitions) if definitions else None
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_subpartition_clause"
+
+
+def _require_subpartition_clause(
+    subpartition_by: Optional["MariaDBSubpartitionClause"],
+) -> None:
+    """Reject a subpartition_by value that is not the MariaDB clause."""
+    if subpartition_by is not None and not isinstance(
+        subpartition_by, MariaDBSubpartitionClause
+    ):
+        raise TypeError("subpartition_by must be a MariaDBSubpartitionClause")
+
+
 class MariaDBPartitionClause(PartitionClause):
     """Base MariaDB partition clause with MariaDB-specific strategy enum."""
 
@@ -196,7 +273,10 @@ class MariaDBPartitionClause(PartitionClause):
 
 
 class MariaDBPartitionByRange(MariaDBPartitionClause):
-    """MariaDB PARTITION BY RANGE expression."""
+    """MariaDB PARTITION BY RANGE expression.
+
+    Supports optional subpartitioning via ``subpartition_by``.
+    """
 
     def __init__(
         self,
@@ -204,13 +284,19 @@ class MariaDBPartitionByRange(MariaDBPartitionClause):
         keys: Sequence[BaseExpression],
         *,
         partitions: Optional[Sequence[MariaDBPartitionDefinition]] = None,
+        subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, MariaDBPartitionStrategy.RANGE, keys)
+        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
+        self.subpartition_by = subpartition_by
 
 
 class MariaDBPartitionByRangeColumns(MariaDBPartitionClause):
-    """MariaDB PARTITION BY RANGE COLUMNS expression."""
+    """MariaDB PARTITION BY RANGE COLUMNS expression.
+
+    Supports optional subpartitioning via ``subpartition_by``.
+    """
 
     def __init__(
         self,
@@ -218,13 +304,19 @@ class MariaDBPartitionByRangeColumns(MariaDBPartitionClause):
         keys: Sequence[BaseExpression],
         *,
         partitions: Optional[Sequence[MariaDBPartitionDefinition]] = None,
+        subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, MariaDBPartitionStrategy.RANGE_COLUMNS, keys)
+        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
+        self.subpartition_by = subpartition_by
 
 
 class MariaDBPartitionByList(MariaDBPartitionClause):
-    """MariaDB PARTITION BY LIST expression."""
+    """MariaDB PARTITION BY LIST expression.
+
+    Supports optional subpartitioning via ``subpartition_by``.
+    """
 
     def __init__(
         self,
@@ -232,13 +324,19 @@ class MariaDBPartitionByList(MariaDBPartitionClause):
         keys: Sequence[BaseExpression],
         *,
         partitions: Optional[Sequence[MariaDBPartitionDefinition]] = None,
+        subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, MariaDBPartitionStrategy.LIST, keys)
+        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
+        self.subpartition_by = subpartition_by
 
 
 class MariaDBPartitionByListColumns(MariaDBPartitionClause):
-    """MariaDB PARTITION BY LIST COLUMNS expression."""
+    """MariaDB PARTITION BY LIST COLUMNS expression.
+
+    Supports optional subpartitioning via ``subpartition_by``.
+    """
 
     def __init__(
         self,
@@ -246,9 +344,12 @@ class MariaDBPartitionByListColumns(MariaDBPartitionClause):
         keys: Sequence[BaseExpression],
         *,
         partitions: Optional[Sequence[MariaDBPartitionDefinition]] = None,
+        subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, MariaDBPartitionStrategy.LIST_COLUMNS, keys)
+        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
+        self.subpartition_by = subpartition_by
 
 
 class MariaDBPartitionByHash(MariaDBPartitionClause):
@@ -294,6 +395,228 @@ class MariaDBPartitionByKey(MariaDBPartitionClause):
             self.keys = []
         self.partitions_count = partitions_count
         self.linear = linear
+
+
+class MariaDBPartitionTableExpression(BaseExpression):
+    """Base for every ``ALTER TABLE ... <partition action>`` expression.
+
+    A partition statement names one base table, so the target is a
+    :class:`Table` rather than a bare string: a string cannot say which
+    database it belongs to, and a dropped qualifier would address a different
+    table than the caller meant.
+
+    Raises:
+        TypeError: if ``table`` is not a :class:`Table`.
+    """
+
+    def __init__(self, dialect: "MariaDBDialect", table: Table):
+        super().__init__(dialect)
+        if not isinstance(table, Table):
+            raise TypeError(
+                f"{type(self).__name__} target must be a Table object, got "
+                f"{type(table).__name__}; pass "
+                f"Table(dialect, 'users', catalog_name='app') to name a table "
+                f"in another database"
+            )
+        self.table = table
+
+
+class MariaDBAddPartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... ADD PARTITION``."""
+
+    def __init__(
+        self,
+        dialect: "MariaDBDialect",
+        table: Table,
+        partitions: Sequence[MariaDBPartitionDefinition],
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_add_partition_statement"
+
+
+class MariaDBDropPartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... DROP PARTITION``."""
+
+    def __init__(
+        self,
+        dialect: "MariaDBDialect",
+        table: Table,
+        partitions: Sequence[str],
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_drop_partition_statement"
+
+
+class MariaDBTruncatePartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... TRUNCATE PARTITION``."""
+
+    def __init__(
+        self,
+        dialect: "MariaDBDialect",
+        table: Table,
+        partitions: Sequence[str],
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_truncate_partition_statement"
+
+
+class MariaDBReorganizePartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... REORGANIZE PARTITION``."""
+
+    def __init__(
+        self,
+        dialect: "MariaDBDialect",
+        table: Table,
+        partition: str,
+        into: Sequence[MariaDBPartitionDefinition],
+    ):
+        super().__init__(dialect, table)
+        self.partition = partition
+        self.into = list(into)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_reorganize_partition_statement"
+
+
+class MariaDBRemovePartitioningExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... REMOVE PARTITIONING``."""
+
+    def __init__(self, dialect: "MariaDBDialect", table: Table):
+        super().__init__(dialect, table)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_remove_partitioning_statement"
+
+
+class MariaDBCoalescePartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... COALESCE PARTITION``."""
+
+    def __init__(self, dialect: "MariaDBDialect", table: Table, count: int):
+        if not isinstance(count, int) or count <= 0:
+            raise ValueError("count must be a positive integer")
+        super().__init__(dialect, table)
+        self.count = count
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_coalesce_partition_statement"
+
+
+class MariaDBAnalyzePartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... ANALYZE PARTITION``."""
+
+    def __init__(
+        self, dialect: "MariaDBDialect", table: Table, partitions: Sequence[str]
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_analyze_partition_statement"
+
+
+class MariaDBCheckPartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... CHECK PARTITION``."""
+
+    def __init__(
+        self, dialect: "MariaDBDialect", table: Table, partitions: Sequence[str]
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_check_partition_statement"
+
+
+class MariaDBOptimizePartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... OPTIMIZE PARTITION``."""
+
+    def __init__(
+        self, dialect: "MariaDBDialect", table: Table, partitions: Sequence[str]
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_optimize_partition_statement"
+
+
+class MariaDBRebuildPartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... REBUILD PARTITION``."""
+
+    def __init__(
+        self, dialect: "MariaDBDialect", table: Table, partitions: Sequence[str]
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_rebuild_partition_statement"
+
+
+class MariaDBRepairPartitionExpression(MariaDBPartitionTableExpression):
+    """Expression for ``ALTER TABLE ... REPAIR PARTITION``."""
+
+    def __init__(
+        self, dialect: "MariaDBDialect", table: Table, partitions: Sequence[str]
+    ):
+        super().__init__(dialect, table)
+        self.partitions = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_repair_partition_statement"
+
+
+class MariaDBGetPartitionsExpression(BaseExpression):
+    """Expression that queries ``information_schema.PARTITIONS`` for a table.
+
+    ``table_name`` stays a plain string: it is matched against the
+    ``TABLE_NAME`` column, not used to name a relation.
+
+    Raises:
+        ValueError: if table_name is empty.
+    """
+
+    def __init__(self, dialect: "MariaDBDialect", table_name: str):
+        super().__init__(dialect)
+        if not table_name or not table_name.strip():
+            raise ValueError("table_name must not be empty")
+        self.table_name = table_name
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_get_partitions_expression"
 
 
 class MariaDBExchangePartitionStatement(BaseExpression):
@@ -368,6 +691,7 @@ __all__ = [
     "MariaDBPartitionMaxValue",
     "MariaDBPartitionValue",
     "MariaDBSubpartitionDefinition",
+    "MariaDBSubpartitionClause",
     "MariaDBPartitionDefinition",
     "MariaDBPartitionClause",
     "MariaDBPartitionByRange",
@@ -376,5 +700,18 @@ __all__ = [
     "MariaDBPartitionByListColumns",
     "MariaDBPartitionByHash",
     "MariaDBPartitionByKey",
+    "MariaDBPartitionTableExpression",
+    "MariaDBAddPartitionExpression",
+    "MariaDBDropPartitionExpression",
+    "MariaDBTruncatePartitionExpression",
+    "MariaDBReorganizePartitionExpression",
+    "MariaDBRemovePartitioningExpression",
+    "MariaDBCoalescePartitionExpression",
+    "MariaDBAnalyzePartitionExpression",
+    "MariaDBCheckPartitionExpression",
+    "MariaDBOptimizePartitionExpression",
+    "MariaDBRebuildPartitionExpression",
+    "MariaDBRepairPartitionExpression",
+    "MariaDBGetPartitionsExpression",
     "MariaDBExchangePartitionStatement",
 ]

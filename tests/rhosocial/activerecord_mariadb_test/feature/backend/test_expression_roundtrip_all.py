@@ -1054,15 +1054,30 @@ UNCONSTRUCTIBLE = (
     # data type; the class needs a dialect-bound type to render, and the guess's
     # type placeholder is not one.
     "rhosocial.activerecord.backend.impl.mariadb.expression.column.MariaDBColumnDefinition",
-    # The six partition classes. Each takes a keyword-only `columns` / `expr`
-    # list behind a defaulted positional, so the introspective constructor skips
-    # it and the class is left declaring no members, which it refuses.
+    # The seven partition clause classes. Each takes a keyword-only `columns` /
+    # `expr` list behind a defaulted positional, so the introspective
+    # constructor skips it and the class is left declaring no members, which it
+    # refuses.
     "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByHash",
     "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByList",
     "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByListColumns",
     "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByRange",
     "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByRangeColumns",
     "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionClause",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBSubpartitionClause",
+    # The partition lifecycle expressions take a keyword-only `table` and, for
+    # most of them, a keyword-only partition list or count; the introspective
+    # constructor supplies neither and the class refuses an empty target.
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBAddPartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBAnalyzePartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBCheckPartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBCoalescePartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBDropPartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBOptimizePartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBRebuildPartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBReorganizePartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBRepairPartitionExpression",
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBTruncatePartitionExpression",
     # ENUM and SET. `values` is keyword-only behind a defaulted positional, so
     # the introspective constructor skips it and the type declares no members.
     "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBEnumType",
@@ -1150,6 +1165,9 @@ LEGITIMATE_NON_RENDERS = {
 # ---- bases that name an expression category, not a renderable thing ----
     # Each of these is a base class that deliberately declares no `format_method`,
     # so `to_sql()` reports that there is nothing to dispatch.
+    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionTableExpression": (
+        NotImplementedError, _NO_FORMATTER
+    ),
     "rhosocial.activerecord.backend.expression.bases.SQLPredicate": (
         NotImplementedError, _NO_FORMATTER
     ),
