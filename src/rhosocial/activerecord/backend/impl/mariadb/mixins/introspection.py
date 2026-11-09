@@ -37,6 +37,9 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.impl.mariadb.expression.introspection import (
         MariaDBSequenceQuery,
         MariaDBTableOptionsQuery,
+        MariaDBPartitionQuery,
+        MariaDBRoutineQuery,
+        MariaDBConstraintQuery,
     )
 
 #: Schemas owned by the server rather than the user. Excluded from user-facing
@@ -159,6 +162,42 @@ class MariaDBIntrospectionMixin:
         10.3 on.
         """
         return self.version_at_least(SEQUENCES_SINCE)
+
+    def supports_partition_info(self) -> bool:
+        """Partitions, read from ``information_schema.PARTITIONS``.
+
+        Core's ``IntrospectionSupport`` names this question
+        ``supports_partition_info``; MariaDB's DDL protocol already carries
+        ``supports_partition_metadata_introspection`` for the same catalog
+        family, and both answer ``True`` because the view exists on every
+        release this backend supports (10.2 through 13.x). The two names are
+        kept in step rather than one being treated as an alias here: a caller
+        checking either gets the same measured answer.
+        """
+        return True
+
+    def supports_routine_introspection(self) -> bool:
+        """Stored procedures and functions, read from ``information_schema``.
+
+        ``ROUTINES`` names the routine, its kind, deterministic flag, SQL data
+        access, security type and comment; ``PARAMETERS`` carries the argument
+        list. Both views exist on every release in this backend's matrix
+        (10.2 through 13.x), so there is no version floor to gate: MariaDB has
+        had stored routines since 5.2.
+        """
+        return True
+
+    def supports_constraint_introspection(self) -> bool:
+        """CHECK constraints, read from ``TABLE_CONSTRAINTS``/``CHECK_CONSTRAINTS``.
+
+        MariaDB recorded CHECK constraints in ``information_schema`` and began
+        enforcing them at 10.2.1. Before that release ``CHECK`` was parsed and
+        ignored, and the ``CHECK_CONSTRAINTS`` view is not part of the catalog
+        answer. The probe therefore delegates to ``supports_check_constraint``
+        rather than keeping a second copy of that boundary: the catalog family
+        and the DDL family become available together, on the same release.
+        """
+        return self.supports_check_constraint()
 
     def get_supported_introspection_scopes(self) -> List["IntrospectionScope"]:
         """Get list of supported introspection scopes."""
@@ -931,6 +970,318 @@ class MariaDBIntrospectionMixin:
             from_=self._information_schema("TABLES"),
             where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
             order_by=OrderByClause(self, [Column(self, "TABLE_NAME")]),
+        )
+        return query.to_sql()
+
+    def format_mariadb_partition_query(
+        self, expr: "MariaDBPartitionQuery"
+    ) -> Tuple[str, tuple]:
+        """Format the partition read for one table.
+
+        ``PARTITION_NAME IS NOT NULL`` is part of the question: the view
+        answers a non-partitioned table with one row whose partition name is
+        NULL, and that row is not a partition. With the predicate in the
+        statement, an empty result means exactly "this table is not
+        partitioned" and no caller has to filter a sentinel row out.
+
+        Ordering is the engine's own ordinal pair, so a subpartitioned table
+        lists partition by partition and subpartition within it.
+
+        Args:
+            expr: Partition expression with the schema and table name.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
+        conditions = [
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "TABLE_SCHEMA"),
+                Literal(self, expr.schema),
+            ),
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "TABLE_NAME"),
+                Literal(self, expr.table_name),
+            ),
+            Column(self, "PARTITION_NAME").is_not_null(),
+        ]
+
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "PARTITION_NAME"),
+                Column(self, "SUBPARTITION_NAME"),
+                Column(self, "PARTITION_METHOD"),
+                Column(self, "SUBPARTITION_METHOD"),
+                Column(self, "PARTITION_EXPRESSION"),
+                Column(self, "SUBPARTITION_EXPRESSION"),
+                Column(self, "PARTITION_DESCRIPTION"),
+                Column(self, "SUBPARTITION_DESCRIPTION"),
+                Column(self, "PARTITION_ORDINAL_POSITION"),
+                Column(self, "SUBPARTITION_ORDINAL_POSITION"),
+                Column(self, "TABLE_ROWS"),
+                Column(self, "DATA_LENGTH"),
+                Column(self, "INDEX_LENGTH"),
+                Column(self, "PARTITION_COMMENT"),
+            ],
+            from_=self._information_schema("PARTITIONS"),
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(
+                self,
+                [
+                    Column(self, "PARTITION_ORDINAL_POSITION"),
+                    Column(self, "SUBPARTITION_ORDINAL_POSITION"),
+                ],
+            ),
+        )
+        return query.to_sql()
+
+    def format_mariadb_routine_query(
+        self, expr: "MariaDBRoutineQuery"
+    ) -> Tuple[str, tuple]:
+        """Format the stored-routine read for one schema.
+
+        ``ROUTINES`` and ``PARAMETERS`` are joined on schema, name *and*
+        kind. The kind belongs in the join key because a procedure and a
+        function may share a name, and joining on the name alone would attach
+        one routine's arguments to the other.
+
+        A function's return value is reported by ``PARAMETERS`` as a synthetic
+        row at ordinal position 0. It is not an argument, so the projection
+        leaves it in place and the parser skips it; that way the same
+        statement shape works for both kinds without a second predicate.
+
+        ``name`` and ``kind`` narrow the same read. Neither is a bind
+        parameter when absent, so a whole-schema listing binds only the
+        schema -- the tuple callers see stays as small as the question.
+
+        Args:
+            expr: Routine expression with the schema and optional filters.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            JoinClause,
+            JoinType,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
+        routines = self._relation_ref(self._information_schema("ROUTINES"), "r")
+        parameters = self._relation_ref(
+            self._information_schema("PARAMETERS"), "p"
+        )
+
+        join = JoinClause(
+            self,
+            left_table=routines,
+            right_table=parameters,
+            join_type=JoinType.LEFT,
+            condition=LogicalPredicate(
+                self,
+                "AND",
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "SPECIFIC_SCHEMA", table="p"),
+                    Column(self, "ROUTINE_SCHEMA", table="r"),
+                ),
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "SPECIFIC_NAME", table="p"),
+                    Column(self, "ROUTINE_NAME", table="r"),
+                ),
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "ROUTINE_TYPE", table="p"),
+                    Column(self, "ROUTINE_TYPE", table="r"),
+                ),
+            ),
+        )
+
+        conditions = [
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "ROUTINE_SCHEMA", table="r"),
+                Literal(self, expr.schema),
+            )
+        ]
+        if expr.name is not None:
+            conditions.append(
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "ROUTINE_NAME", table="r"),
+                    Literal(self, expr.name),
+                )
+            )
+        if expr.kind is not None:
+            conditions.append(
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "ROUTINE_TYPE", table="r"),
+                    Literal(self, expr.kind),
+                )
+            )
+
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "ROUTINE_SCHEMA", table="r"),
+                Column(self, "ROUTINE_NAME", table="r"),
+                Column(self, "ROUTINE_TYPE", table="r"),
+                Column(self, "DATA_TYPE", table="r").as_("ROUTINE_DATA_TYPE"),
+                Column(self, "DTD_IDENTIFIER", table="r").as_("ROUTINE_DTD_IDENTIFIER"),
+                Column(self, "ROUTINE_BODY", table="r"),
+                Column(self, "EXTERNAL_LANGUAGE", table="r"),
+                Column(self, "IS_DETERMINISTIC", table="r"),
+                Column(self, "SQL_DATA_ACCESS", table="r"),
+                Column(self, "SECURITY_TYPE", table="r"),
+                Column(self, "ROUTINE_COMMENT", table="r"),
+                Column(self, "DEFINER", table="r"),
+                Column(self, "CREATED", table="r"),
+                Column(self, "LAST_ALTERED", table="r"),
+                Column(self, "ORDINAL_POSITION", table="p").as_(
+                    "PARAMETER_ORDINAL_POSITION"
+                ),
+                Column(self, "PARAMETER_MODE", table="p"),
+                Column(self, "PARAMETER_NAME", table="p"),
+                Column(self, "DATA_TYPE", table="p").as_("PARAMETER_DATA_TYPE"),
+                Column(self, "DTD_IDENTIFIER", table="p").as_(
+                    "PARAMETER_DTD_IDENTIFIER"
+                ),
+            ],
+            from_=join,
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(
+                self,
+                [
+                    Column(self, "ROUTINE_TYPE", table="r"),
+                    Column(self, "ROUTINE_NAME", table="r"),
+                    Column(self, "ORDINAL_POSITION", table="p"),
+                ],
+            ),
+        )
+        return query.to_sql()
+
+    def format_mariadb_constraint_query(
+        self, expr: "MariaDBConstraintQuery"
+    ) -> Tuple[str, tuple]:
+        """Format the CHECK-constraint read for one table.
+
+        ``TABLE_CONSTRAINTS`` holds the constraint identity and type;
+        ``CHECK_CONSTRAINTS`` holds the clause. They are joined on schema and
+        constraint name -- the columns both views share -- and the type filter
+        is inline because it is a statement about this catalog family, not
+        caller data. The tuple therefore binds only the schema and table.
+
+        MariaDB's constraint names are unique within a schema, so the join
+        does not need (and ``CHECK_CONSTRAINTS`` may not carry) the table name.
+
+        Args:
+            expr: Constraint expression with the schema and table name.
+
+        Returns:
+            Tuple of (SQL string, parameters tuple).
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            ComparisonPredicate,
+            JoinClause,
+            JoinType,
+            Literal,
+            LogicalPredicate,
+            OrderByClause,
+            QueryStatement,
+            WhereClause,
+        )
+
+        table_constraints = self._relation_ref(
+            self._information_schema("TABLE_CONSTRAINTS"), "tc"
+        )
+        check_constraints = self._relation_ref(
+            self._information_schema("CHECK_CONSTRAINTS"), "cc"
+        )
+
+        join = JoinClause(
+            self,
+            left_table=table_constraints,
+            right_table=check_constraints,
+            join_type=JoinType.LEFT,
+            condition=LogicalPredicate(
+                self,
+                "AND",
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "CONSTRAINT_SCHEMA", table="tc"),
+                    Column(self, "CONSTRAINT_SCHEMA", table="cc"),
+                ),
+                ComparisonPredicate(
+                    self,
+                    "eq",
+                    Column(self, "CONSTRAINT_NAME", table="tc"),
+                    Column(self, "CONSTRAINT_NAME", table="cc"),
+                ),
+            ),
+        )
+
+        conditions = [
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "TABLE_SCHEMA", table="tc"),
+                Literal(self, expr.schema),
+            ),
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "TABLE_NAME", table="tc"),
+                Literal(self, expr.table_name),
+            ),
+            ComparisonPredicate(
+                self,
+                "eq",
+                Column(self, "CONSTRAINT_TYPE", table="tc"),
+                Literal(self, "CHECK", inline=True),
+            ),
+        ]
+
+        query = QueryStatement(
+            self,
+            select=[
+                Column(self, "CONSTRAINT_SCHEMA", table="tc"),
+                Column(self, "TABLE_NAME", table="tc"),
+                Column(self, "CONSTRAINT_NAME", table="tc"),
+                Column(self, "CONSTRAINT_TYPE", table="tc"),
+                Column(self, "CHECK_CLAUSE", table="cc"),
+            ],
+            from_=join,
+            where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
+            order_by=OrderByClause(self, [Column(self, "CONSTRAINT_NAME", table="tc")]),
         )
         return query.to_sql()
 

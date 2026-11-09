@@ -1063,6 +1063,38 @@ class _FakeIntrospector:
         self.calls.append("get_table_options")
         return {"name": table_name}
 
+    def list_partitions(self, table_name, schema=None):
+        self.calls.append("list_partitions")
+        return [{"table_name": table_name, "partition_name": "p0"}]
+
+    def list_routines(self, schema=None):
+        self.calls.append("list_routines")
+        return [{
+            "schema": "app",
+            "name": "app_cleanup",
+            "kind": "PROCEDURE",
+            "parameters": [],
+        }]
+
+    def get_routine_info(self, name, kind=None, schema=None):
+        self.calls.append("get_routine_info")
+        return {
+            "schema": "app",
+            "name": name,
+            "kind": "PROCEDURE",
+            "parameters": [],
+        }
+
+    def list_constraints(self, table_name, schema=None):
+        self.calls.append("list_constraints")
+        return [{
+            "schema": "app",
+            "table_name": table_name,
+            "name": "ck_orders_total",
+            "constraint_type": "CHECK",
+            "check_clause": "`total` >= 0",
+        }]
+
     # ---- the nine families shared with the MySQL and PostgreSQL CLIs ----
     # MariaDB answers six of them and refuses three through a probe (runtime
     # answers from 10.5, the performance schema's release), so these are the
@@ -1146,6 +1178,10 @@ class _FakeAsyncIntrospector(_FakeIntrospector):
         "get_sequence_info",
         "list_table_options",
         "get_table_options",
+        "list_partitions",
+        "list_routines",
+        "get_routine_info",
+        "list_constraints",
         "get_database_info",
         "list_unused_indexes",
         "list_table_usage_stats",
@@ -1239,6 +1275,8 @@ _INTROSPECT_NAMES = {
     "columns": "users",
     "indexes": "users",
     "foreign-keys": "users",
+    "partitions": "orders",
+    "constraints": "orders",
     "dependencies": "orders",
     "ddl": "users",
     "column-profiles": "users",
@@ -1269,6 +1307,9 @@ _INTROSPECT_CALLS = {
     "database": "get_database_info",
     "sequences": "list_sequences",
     "table-options": "list_table_options",
+    "partitions": "list_partitions",
+    "routines": "list_routines",
+    "constraints": "list_constraints",
     # The nine families shared with the MySQL and PostgreSQL CLIs. Four of
     # them are answered by a probe that says MariaDB cannot, so the rows
     # below are what the branch *would* ask: the capability gate is what
@@ -1396,6 +1437,123 @@ class TestCLIIntrospectViews:
         err = capsys.readouterr().err
         assert introspect_type in err
         assert "takes no name" in err
+
+
+class TestCLIIntrospectRoutinesAndNewFamilies:
+    """The named path of the new families, and the names they cannot omit."""
+
+    def test_routines_name_answers_one_routine(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="routines", name="app_cleanup"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["app_cleanup"]
+        assert backend.introspector.calls == ["get_routine_info"]
+
+    async def test_async_routines_name_answers_one_routine(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend()
+        await _handle_introspect_async(
+            _introspect_args(type="routines", name="app_cleanup"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["app_cleanup"]
+        assert backend.introspector.calls == ["get_routine_info"]
+
+    def test_unknown_routine_exits_one(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        backend.introspector.get_routine_info = lambda name, kind=None, schema=None: None
+
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_introspect_sync(
+                _introspect_args(type="routines", name="missing"),
+                backend,
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 1
+        assert "not found" in capsys.readouterr().err
+
+    def test_partitions_name_is_required(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import handle
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle(_introspect_args(type="partitions"))
+
+        assert excinfo.value.code == 1
+        assert "Table name is required" in capsys.readouterr().err
+
+    def test_constraints_name_is_required(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import handle
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle(_introspect_args(type="constraints"))
+
+        assert excinfo.value.code == 1
+        assert "Table name is required" in capsys.readouterr().err
+
+    def test_partitions_answer_is_table_scoped(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="partitions", name="orders"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload[0]["partition_name"] == "p0"
+        assert backend.introspector.calls == ["list_partitions"]
+
+    def test_constraints_answer_is_table_scoped(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="constraints", name="orders"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload[0]["check_clause"] == "`total` >= 0"
+        assert backend.introspector.calls == ["list_constraints"]
 
 
 class TestCLIIntrospectTypeList:

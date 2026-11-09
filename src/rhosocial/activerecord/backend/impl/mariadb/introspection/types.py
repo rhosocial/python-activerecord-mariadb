@@ -1,19 +1,30 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/introspection/types.py
 """Typed results for MariaDB's own introspection families.
 
-Two families live here that the cross-backend introspection model does not
-have: sequences and table options. Both are read from ``information_schema``
-and both are MariaDB vocabulary, so they are typed in this backend and
-returned by its introspectors alone.
+The families here are MariaDB vocabulary rather than part of the
+cross-backend introspection model: sequences and table options (from
+``information_schema.TABLES``), partitions (from ``PARTITIONS``), stored
+routines (from ``ROUTINES``/``PARAMETERS``) and CHECK constraints (from
+``TABLE_CONSTRAINTS``/``CHECK_CONSTRAINTS``). Each is typed in this backend
+and returned by its introspectors alone.
 
-Both dataclasses are frozen: an introspection result reports what the server
+Every dataclass is frozen: an introspection result reports what the server
 held when it was read, and a caller mutating it would make the cache lie.
+Fields are optional when the server did not report a value; ``None`` always
+means "not reported", never an invented default.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
-__all__ = ["SequenceInfo", "TableOptionsInfo"]
+__all__ = [
+    "SequenceInfo",
+    "TableOptionsInfo",
+    "MariaDBPartitionInfo",
+    "MariaDBRoutineInfo",
+    "MariaDBRoutineParameterInfo",
+    "MariaDBConstraintInfo",
+]
 
 
 @dataclass(frozen=True)
@@ -120,3 +131,183 @@ class TableOptionsInfo:
     auto_increment: Optional[int] = None
     comment: Optional[str] = None
     create_options: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class MariaDBPartitionInfo:
+    """One row of ``information_schema.PARTITIONS`` for a table.
+
+    A sequence is a table on MariaDB; a partition is a *row* of that table's
+    physical layout. The view reports one row per partition, and one row per
+    (partition, subpartition) pair when the table is subpartitioned. The
+    subpartition identity is therefore carried alongside the partition one:
+    without it two rows of the same partition would look identical.
+
+    ``partition_method`` is the server's own spelling -- ``RANGE``, ``RANGE
+    COLUMNS``, ``LIST``, ``LIST COLUMNS``, ``HASH``, ``LINEAR HASH``, ``KEY``
+    or ``LINEAR KEY`` -- rather than a normalised enum, because MariaDB keeps
+    the exact grammar token the DDL used and a caller re-deriving DDL needs it.
+    ``partition_expression`` is the expression the method applied to
+    (``YEAR(created_at)``, a column list, or an empty string for ``KEY``).
+    ``partition_description`` is the RANGE/LIST boundary text as the server
+    writes it; it is deliberately not parsed into values here, because the
+    parsing rules depend on the partition method and on the column's type.
+
+    ``None`` means the server did not report the slot. A non-partitioned
+    table is not represented at all: the ``PARTITION_NAME IS NULL`` row the
+    view returns for it is excluded by the statement, so an empty list means
+    exactly "this table is not partitioned".
+
+    Fields:
+        schema: The database the table lives in.
+        table_name: The partitioned table's name.
+        partition_name: The partition's name.
+        subpartition_name: The subpartition's name when subpartitioned.
+        partition_method: The server's partition method token.
+        subpartition_method: The server's subpartition method token.
+        partition_expression: The top-level partitioning expression.
+        subpartition_expression: The subpartitioning expression.
+        partition_description: The RANGE/LIST boundary text.
+        subpartition_description: The subpartition boundary text.
+        partition_ordinal_position: 1-based partition position.
+        subpartition_ordinal_position: 1-based position within the partition.
+        table_rows: Rows the server estimates this partition holds.
+        data_length: Bytes the server accounts to this partition's rows.
+        index_length: Bytes the server accounts to this partition's indexes.
+        partition_comment: The partition's ``COMMENT``, when declared.
+    """
+
+    schema: str
+    table_name: str
+    partition_name: Optional[str] = None
+    subpartition_name: Optional[str] = None
+    partition_method: Optional[str] = None
+    subpartition_method: Optional[str] = None
+    partition_expression: Optional[str] = None
+    subpartition_expression: Optional[str] = None
+    partition_description: Optional[str] = None
+    subpartition_description: Optional[str] = None
+    partition_ordinal_position: Optional[int] = None
+    subpartition_ordinal_position: Optional[int] = None
+    table_rows: Optional[int] = None
+    data_length: Optional[int] = None
+    index_length: Optional[int] = None
+    partition_comment: Optional[str] = None
+
+    @property
+    def is_subpartition(self) -> bool:
+        """Whether this row describes a subpartition rather than a partition."""
+        return self.subpartition_name is not None
+
+    @property
+    def total_length(self) -> Optional[int]:
+        """Data plus index bytes, or ``None`` when neither was reported."""
+        if self.data_length is None and self.index_length is None:
+            return None
+        return (self.data_length or 0) + (self.index_length or 0)
+
+
+@dataclass(frozen=True)
+class MariaDBRoutineParameterInfo:
+    """One parameter of a stored procedure or function.
+
+    ``information_schema.PARAMETERS`` reports a function's return value as
+    a synthetic row at ``ORDINAL_POSITION = 0``; that row is not a parameter
+    and is filtered out before parsing, so ordinal positions here start at
+    one. ``mode`` is ``IN``, ``OUT``, ``INOUT`` or ``None`` for a parameter
+    whose direction the server did not report.
+
+    ``data_type`` is the base type word (``INT``, ``VARCHAR``, ...) and
+    ``data_type_full`` is ``DTD_IDENTIFIER`` -- the declared type with its
+    length, precision or enum/set labels. Keeping both means a caller can
+    branch on the family without losing the declaration.
+    """
+
+    ordinal_position: int
+    mode: Optional[str] = None
+    name: Optional[str] = None
+    data_type: Optional[str] = None
+    data_type_full: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class MariaDBRoutineInfo:
+    """One stored procedure or function, from ``information_schema.ROUTINES``.
+
+    ``kind`` is the server's ``ROUTINE_TYPE`` -- ``PROCEDURE`` or
+    ``FUNCTION``. The two share ``ROUTINES`` and can, on MariaDB, share a
+    name, which is why the kind is part of the identity and why
+    ``get_routine_info`` accepts it to disambiguate.
+
+    ``return_type`` is populated for a function only. A procedure has no
+    return type, so the field stays ``None`` rather than repeating ``DATA_TYPE``
+    (which the server fills with an empty value for procedures).
+
+    ``language`` is ``EXTERNAL_LANGUAGE`` when the routine is external, and
+    ``ROUTINE_BODY`` (``SQL``) otherwise. ``deterministic`` is the server's
+    ``IS_DETERMINISTIC``; ``None`` means it was not reported. The routine
+    body text is not part of this type: it lives in ``ROUTINE_DEFINITION`` and
+    can be very large, so it is deliberately left to ``SHOW CREATE`` rather
+    than duplicated in every listing.
+
+    Fields:
+        schema: The database the routine lives in.
+        name: The routine name.
+        kind: ``PROCEDURE`` or ``FUNCTION``.
+        return_type: The declared return type, for functions only.
+        parameters: The routine's parameters, ordered by position.
+        language: The routine language, when reported.
+        deterministic: Whether the routine is declared deterministic.
+        sql_data_access: ``CONTAINS SQL``, ``NO SQL``, ``READS SQL DATA`` or
+            ``MODIFIES SQL DATA``.
+        security_type: ``DEFINER`` or ``INVOKER``.
+        comment: The routine's ``COMMENT``.
+        definer: The definer as ``user@host``.
+        created: Creation timestamp, as the server rendered it.
+        last_altered: Last-alteration timestamp, as the server rendered it.
+    """
+
+    schema: str
+    name: str
+    kind: str
+    return_type: Optional[str] = None
+    parameters: Tuple[MariaDBRoutineParameterInfo, ...] = ()
+    language: Optional[str] = None
+    deterministic: Optional[bool] = None
+    sql_data_access: Optional[str] = None
+    security_type: Optional[str] = None
+    comment: Optional[str] = None
+    definer: Optional[str] = None
+    created: Optional[str] = None
+    last_altered: Optional[str] = None
+
+    @property
+    def is_function(self) -> bool:
+        """Whether this routine is a function (and therefore has a return type)."""
+        return self.kind.upper() == "FUNCTION"
+
+
+@dataclass(frozen=True)
+class MariaDBConstraintInfo:
+    """One CHECK constraint on a table.
+
+    This family answers CHECK constraints only. PRIMARY KEY and UNIQUE live
+    in ``information_schema.STATISTICS`` and are reported by ``list_indexes``;
+    FOREIGN KEY has its own family and its referenced table, which a CHECK
+    row could not carry without inventing columns. So ``constraint_type`` is
+    kept -- always ``CHECK`` today -- so the shape can grow if a later family
+    adds kinds, without a caller having to change its field access.
+
+    MariaDB's catalog has no ``ENFORCED`` column (the constraint is enforced
+    from the release that started recording CHECK rows at all), so ``enforced``
+    stays ``None``: "not reported", not "disabled". ``check_clause`` is the
+    engine's own expression text, which is the only reliable source for
+    re-creating the constraint.
+    """
+
+    schema: str
+    table_name: str
+    name: str
+    constraint_type: str = "CHECK"
+    check_clause: Optional[str] = None
+    enforced: Optional[bool] = None
