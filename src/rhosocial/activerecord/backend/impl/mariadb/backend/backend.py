@@ -16,25 +16,33 @@ Features:
 
 import logging
 import time
-import datetime
 import mariadb
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from rhosocial.activerecord.backend.base import StorageBackend
+from rhosocial.activerecord.backend.base.execution_logging import (
+    log_batch_start,
+    log_batch_summary,
+    log_execution_error,
+)
 from rhosocial.activerecord.backend.config import ConnectionConfig
 from rhosocial.activerecord.backend.errors import (
     ConnectionError,
     DatabaseError,
-    IntegrityError,
     OperationalError,
-    QueryError,
-    DeadlockError,
 )
-from rhosocial.activerecord.backend.options import DeleteOptions, ExecutionOptions, InsertOptions, StatementType, UpdateOptions
+from rhosocial.activerecord.backend.options import (
+    DeleteOptions,
+    ExecutionOptions,
+    InsertOptions,
+    StatementType,
+    UpdateOptions,
+)
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.introspection.executor import IntrospectorExecutor
 from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
+from rhosocial.activerecord.logging.redaction import unwrap_sensitive
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
@@ -42,7 +50,13 @@ from ..expression.status import MariaDBVersionQuery
 from ..transaction import MariaDBTransactionManager
 from ..mixins import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MariaDBConcurrencyMixin
 
-class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBackendMixin, IntrospectorBackendMixin, StorageBackend):
+class MariaDBBackend(
+    MariaDBBackendMixin,
+    MariaDBConcurrencyMixin,
+    SyncExplainBackendMixin,
+    IntrospectorBackendMixin,
+    StorageBackend,
+):
     """Synchronous MariaDB backend implementation.
 
     Provides:
@@ -55,6 +69,9 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
     Plan A (Pre-check): Before each operation, check if connection is alive
     Plan B (Retry): If connection error occurs mid-query, retry up to max_retries
     """
+
+    # Sync and async backends share one library logger name.
+    _logger_name = "rhosocial.activerecord.backend.mariadb"
 
     def __init__(
         self,
@@ -163,7 +180,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             self._fetch_concurrency_hint()
             self.introspect_and_adapt()
         except mariadb.Error as e:
-            self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
+            self.log(logging.DEBUG, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect: {str(e)}") from e
 
     def disconnect(self) -> None:
@@ -185,7 +202,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             else:
                 self.log(logging.DEBUG, "Disconnect called on already closed connection")
         except mariadb.Error as e:
-            self.log(logging.ERROR, f"Error during disconnect: {str(e)}")
+            self.log(logging.DEBUG, f"Error during disconnect: {str(e)}")
             raise ConnectionError(f"Failed to disconnect: {str(e)}") from e
 
     def ping(self, reconnect: bool = True) -> bool:
@@ -289,7 +306,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             self.log(logging.INFO, "Reconnection successful")
             return True
         except Exception as e:
-            self.log(logging.ERROR, f"Reconnection failed: {str(e)}")
+            self.log(logging.WARNING, f"Reconnection failed: {str(e)}")
             return False
 
     def _handle_error(self, error: Exception) -> None:
@@ -344,7 +361,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
         sql: str,
         params: Optional[Union[Tuple, Dict, List]] = None,
         *,
-        options=None,
+        options: Optional[ExecutionOptions] = None,
         max_retries: int = 2,
         **kwargs
     ) -> Optional[QueryResult]:
@@ -403,7 +420,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
                     if self._reconnect():
                         continue
                     else:
-                        self.log(logging.ERROR, "Reconnection failed, aborting retry")
+                        self.log(logging.DEBUG, "Reconnection failed, aborting retry")
                         break
                 else:
                     break
@@ -413,17 +430,27 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
 
         raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")
 
-    def execute_many(self, sql: str, params_list: List[Tuple]) -> Optional[QueryResult]:
+    def execute_many(
+        self,
+        sql: str,
+        params_list: List[Tuple],
+        *,
+        options: Optional[ExecutionOptions] = None,
+    ) -> Optional[QueryResult]:
         """Execute batch operations with the same SQL statement and multiple parameter sets.
 
         Args:
             sql: The SQL statement to execute.
             params_list: List of parameter tuples.
+            options: Optional ExecutionOptions carrying the logging context.
 
         Returns:
             QueryResult or None.
         """
-        self.log(logging.DEBUG, f"Executing batch operation with {len(params_list)} parameter sets")
+        if options is None:
+            options = ExecutionOptions(stmt_type=StatementType.DML)
+        params_list = [unwrap_sensitive(params) for params in params_list]
+        log_batch_start(self, sql, params_list, options)
         start_time = time.perf_counter()
 
         try:
@@ -436,13 +463,10 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             rowcount = cursor.rowcount
             duration = time.perf_counter() - start_time
 
-            self.log(
-                logging.DEBUG,
-                f"Batch operation completed, affected {rowcount} rows, duration={duration:.3f}s"
-            )
+            log_batch_summary(self, sql, params_list, rowcount, duration, options)
             return QueryResult(affected_rows=rowcount, duration=duration)
         except Exception as e:
-            self.log(logging.ERROR, f"Error in batch operation: {str(e)}")
+            log_execution_error(self, e, options)
             self._handle_error(e)
             return None
 
@@ -477,7 +501,10 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             duration = time.perf_counter() - start_time
             self.log(logging.DEBUG, f"SQL script executed successfully, duration={duration:.3f}s")
         except Exception as e:
-            self.log(logging.ERROR, f"Error executing SQL script: {str(e)}")
+            self.log(
+                logging.DEBUG,
+                f"Error executing SQL script, exception will be re-raised: {str(e)}",
+            )
             self._handle_error(e)
 
     @property
@@ -518,7 +545,7 @@ class MariaDBBackend(MariaDBBackendMixin, MariaDBConcurrencyMixin, SyncExplainBa
             return self._server_version_cache
         except Exception as e:
             error_msg = f"Failed to determine MariaDB version: {str(e)}"
-            self.log(logging.ERROR, error_msg)
+            self.log(logging.DEBUG, error_msg)
             raise OperationalError(error_msg) from e
 
     def introspect_and_adapt(self) -> None:

@@ -107,7 +107,7 @@ class AsyncMariaDBTransactionManager(MariaDBTransactionMixin, AsyncTransactionMa
             await cursor.close()
         except Exception as e:
             error_msg = f"Failed to create savepoint {name}: {str(e)}"
-            self.log(logging.ERROR, error_msg)
+            self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg) from e
 
     async def _do_release_savepoint(self, name: str) -> None:
@@ -121,7 +121,7 @@ class AsyncMariaDBTransactionManager(MariaDBTransactionMixin, AsyncTransactionMa
             await cursor.close()
         except Exception as e:
             error_msg = f"Failed to release savepoint {name}: {str(e)}"
-            self.log(logging.ERROR, error_msg)
+            self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg) from e
 
     async def _do_rollback_savepoint(self, name: str) -> None:
@@ -135,5 +135,5 @@ class AsyncMariaDBTransactionManager(MariaDBTransactionMixin, AsyncTransactionMa
             await cursor.close()
         except Exception as e:
             error_msg = f"Failed to rollback to savepoint {name}: {str(e)}"
-            self.log(logging.ERROR, error_msg)
+            self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg) from e
