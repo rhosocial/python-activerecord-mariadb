@@ -9,6 +9,10 @@ database backends.
 """
 
 from rhosocial.activerecord.testsuite.core.registry import ProviderRegistry
+from rhosocial.activerecord.testsuite.feature.cli.providers import (
+    GenericAsyncCLIProvider,
+    GenericSyncCLIProvider,
+)
 from .basic import BasicSyncProvider, BasicAsyncProvider
 from .events import EventsSyncProvider, EventsAsyncProvider
 from .mixins import MixinsSyncProvider, MixinsAsyncProvider
@@ -45,3 +49,7 @@ provider_registry.register("feature.relation.IRelationAsyncProvider", RelationAs
 
 provider_registry.register("feature.basic.connection.IBasicConnectionProvider", BasicConnectionProvider)
 provider_registry.register("feature.query.connection.IQueryConnectionProvider", QueryConnectionProvider)
+
+# Register CLI providers, assembled from the basic and mixins providers above.
+provider_registry.register("feature.cli.ICLISyncProvider", GenericSyncCLIProvider)
+provider_registry.register("feature.cli.ICLIAsyncProvider", GenericAsyncCLIProvider)
