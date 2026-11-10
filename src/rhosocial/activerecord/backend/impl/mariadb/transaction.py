@@ -51,7 +51,7 @@ class MariaDBTransactionMixin:
         if level not in self._ISOLATION_LEVELS:
             error_msg = f"Unsupported isolation level: {level}"
             if hasattr(self, "log"):
-                self.log(logging.ERROR, error_msg)
+                self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg)
 
     def _check_no_active_transaction(self) -> None:
@@ -63,7 +63,7 @@ class MariaDBTransactionMixin:
         if self.is_active:
             error_msg = "Cannot change isolation level during active transaction"
             if hasattr(self, "log"):
-                self.log(logging.ERROR, error_msg)
+                self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg)
 
     def supports_savepoint(self) -> bool:
@@ -167,7 +167,7 @@ class MariaDBTransactionManager(MariaDBTransactionMixin, TransactionManager):
             cursor.close()
         except Exception as e:
             error_msg = f"Failed to create savepoint {name}: {str(e)}"
-            self.log(logging.ERROR, error_msg)
+            self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg) from e
 
     def _do_release_savepoint(self, name: str) -> None:
@@ -181,7 +181,7 @@ class MariaDBTransactionManager(MariaDBTransactionMixin, TransactionManager):
             cursor.close()
         except Exception as e:
             error_msg = f"Failed to release savepoint {name}: {str(e)}"
-            self.log(logging.ERROR, error_msg)
+            self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg) from e
 
     def _do_rollback_savepoint(self, name: str) -> None:
@@ -195,7 +195,7 @@ class MariaDBTransactionManager(MariaDBTransactionMixin, TransactionManager):
             cursor.close()
         except Exception as e:
             error_msg = f"Failed to rollback to savepoint {name}: {str(e)}"
-            self.log(logging.ERROR, error_msg)
+            self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg) from e
 
     @property

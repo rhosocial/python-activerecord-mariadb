@@ -6,23 +6,25 @@ MariaDB databases, handling connections, queries, transactions, and type
 adaptations tailored for MariaDB's specific behaviors and SQL dialect.
 """
 
-import datetime
 import logging
 import time
-from typing import List, Optional, Tuple, Any, Dict
+from typing import List, Optional, Tuple, Any
 
 from rhosocial.activerecord.backend.base import AsyncStorageBackend
+from rhosocial.activerecord.backend.base.execution_logging import (
+    log_batch_start,
+    log_batch_summary,
+    log_execution_error,
+)
 from rhosocial.activerecord.backend.errors import (
     ConnectionError,
-    DatabaseError,
-    DeadlockError,
-    IntegrityError,
     OperationalError,
-    QueryError,
 )
+from rhosocial.activerecord.backend.options import ExecutionOptions, StatementType
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.explain import AsyncExplainBackendMixin
+from rhosocial.activerecord.logging.redaction import unwrap_sensitive
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
@@ -43,6 +45,9 @@ class AsyncMariaDBBackend(
     This backend uses the mariadb connector's native async support, provided by
     Connector/Python 2.0 through ``mariadb.asyncConnect``.
     """
+
+    # Sync and async backends share one library logger name.
+    _logger_name = "rhosocial.activerecord.backend.mariadb"
 
     def __init__(self, **kwargs):
         """Initialize async MariaDB backend with connection configuration.
@@ -93,7 +98,7 @@ class AsyncMariaDBBackend(
 
         self._register_mariadb_adapters()
 
-        self.log(logging.INFO, "AsyncMariaDBBackend initialized")
+        self.log(logging.DEBUG, "AsyncMariaDBBackend initialized")
 
     async def executescript(self, sql_script: str) -> None:
         """Execute a multi-statement SQL script asynchronously.
@@ -123,7 +128,10 @@ class AsyncMariaDBBackend(
             duration = time.perf_counter() - start_time
             self.log(logging.DEBUG, f"SQL script executed successfully, duration={duration:.3f}s")
         except Exception as e:
-            self.log(logging.ERROR, f"Error executing SQL script: {str(e)}")
+            self.log(
+                logging.DEBUG,
+                f"Error executing SQL script, exception will be re-raised: {str(e)}",
+            )
             self._handle_error(e)
 
     def _parse_explain_result(self, raw_rows, sql, duration):
@@ -196,7 +204,7 @@ class AsyncMariaDBBackend(
             await self._fetch_concurrency_hint()
             await self.introspect_and_adapt()
         except mariadb.Error as e:
-            self.log(logging.ERROR, f"Failed to connect to MariaDB database: {str(e)}")
+            self.log(logging.DEBUG, f"Failed to connect to MariaDB database: {str(e)}")
             raise ConnectionError(f"Failed to connect to MariaDB: {str(e)}") from e
 
     async def disconnect(self):
@@ -210,7 +218,7 @@ class AsyncMariaDBBackend(
                 self._connection = None
                 self.log(logging.INFO, "Disconnected from MariaDB database")
             except Exception as e:
-                self.log(logging.ERROR, f"Error during disconnect: {str(e)}")
+                self.log(logging.DEBUG, f"Error during disconnect: {str(e)}")
                 raise OperationalError(f"Error during MariaDB disconnect: {str(e)}") from e
 
     async def _get_cursor(self):
@@ -220,43 +228,44 @@ class AsyncMariaDBBackend(
 
         return self._connection.cursor()
 
-    async def execute_many(self, sql: str, params_list: List[Tuple]) -> QueryResult:
+    async def execute_many(
+        self,
+        sql: str,
+        params_list: List[Tuple],
+        *,
+        options: Optional[ExecutionOptions] = None,
+    ) -> QueryResult:
         """Execute the same SQL statement multiple times with different parameters."""
+        if options is None:
+            options = ExecutionOptions(stmt_type=StatementType.DML)
+        params_list = [unwrap_sensitive(params) for params in params_list]
+        log_batch_start(self, sql, params_list, options)
+        start_time = time.perf_counter()
+
         if not self._connection:
+            self.log(logging.DEBUG, "No active connection, establishing new connection")
             await self.connect()
 
         cursor = None
-        start_time = datetime.datetime.now()
-
         try:
             cursor = await self._get_cursor()
-
-            if getattr(self.config, 'log_queries', False):
-                self.log(logging.DEBUG, f"Executing batch operation: {sql}")
-                self.log(logging.DEBUG, f"With {len(params_list)} parameter sets")
 
             affected_rows = 0
             for params in params_list:
                 await cursor.execute(sql, params)
                 affected_rows += cursor.rowcount
 
-            duration = (datetime.datetime.now() - start_time).total_seconds()
+            duration = time.perf_counter() - start_time
+            log_batch_summary(self, sql, params_list, affected_rows, duration, options)
 
-            result = QueryResult(
+            return QueryResult(
                 affected_rows=affected_rows,
                 data=None,
                 duration=duration
             )
 
-            self.log(
-                logging.INFO,
-                f"Batch operation completed, affected {affected_rows} rows, "
-                f"duration={duration:.3f}s"
-            )
-            return result
-
         except Exception as e:
-            self.log(logging.ERROR, f"Error in batch operation: {str(e)}")
+            log_execution_error(self, e, options)
             await self._handle_error(e)
         finally:
             if cursor:
@@ -331,7 +340,7 @@ class AsyncMariaDBBackend(
                     await self.connect()
                     return True
                 except Exception as connect_error:
-                    self.log(logging.ERROR, f"Failed to reconnect: {str(connect_error)}")
+                    self.log(logging.WARNING, f"Failed to reconnect: {str(connect_error)}")
                     return False
             return False
 
@@ -357,12 +366,10 @@ class AsyncMariaDBBackend(
         sql: str,
         params: Optional[Tuple] = None,
         *,
-        options=None,
+        options: Optional[ExecutionOptions] = None,
         **kwargs
     ) -> QueryResult:
         """Execute a SQL statement with optional parameters asynchronously."""
-        from rhosocial.activerecord.backend.options import ExecutionOptions, StatementType
-
         if options is None:
             sql_upper = sql.strip().upper()
             if sql_upper.startswith(('SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'EXPLAIN')):

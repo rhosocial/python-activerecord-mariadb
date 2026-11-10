@@ -103,7 +103,7 @@ class MariaDBBackendMixin:
     - self._connection: Database connection
     - self.adapter_registry: Type adapter registry
     - self.config: Connection configuration
-    - self._logger: Logger instance
+    - self.logger: Logger instance (from ``BackendLoggingMixin``)
     """
 
     def _register_mariadb_adapters(self):
@@ -197,13 +197,6 @@ class MariaDBBackendMixin:
 
         return suggestions
 
-    def log(self, level: int, message: str):
-        """Log a message with the specified level."""
-        if hasattr(self, '_logger') and self._logger:
-            self._logger.log(level, message)
-        else:
-            print(f"[{logging.getLevelName(level)}] {message}")
-
     def _liveness_probe(self) -> Tuple[str, tuple]:
         """The statement that answers "is this connection still usable?".
 
@@ -282,46 +275,46 @@ class MariaDBBackendMixin:
         error_code = getattr(error, 'errno', None)
 
         if isinstance(error, mariadb.OperationalError) and error_code in CONNECTION_ERROR_CODES:
-            self.log(logging.ERROR, f"Connection error ({error_code}): {error_msg}")
+            self.log(logging.DEBUG, f"Connection error ({error_code}): {error_msg}")
             raise ConnectionError(error_msg) from error
 
         if "Deadlock found" in error_msg:
-            self.log(logging.ERROR, f"Deadlock: {error_msg}")
+            self.log(logging.DEBUG, f"Deadlock: {error_msg}")
             raise DeadlockError(error_msg) from error
 
         if "Lock wait timeout exceeded" in error_msg:
-            self.log(logging.ERROR, f"Lock timeout: {error_msg}")
+            self.log(logging.DEBUG, f"Lock timeout: {error_msg}")
             raise OperationalError(error_msg) from error
 
         if isinstance(error, mariadb.OperationalError):
             if "Connection timed out" in error_msg or "Can't connect" in error_msg:
-                self.log(logging.ERROR, f"Connection error: {error_msg}")
+                self.log(logging.DEBUG, f"Connection error: {error_msg}")
                 raise ConnectionError(error_msg) from error
-            self.log(logging.ERROR, f"MariaDB operational error: {error_msg}")
+            self.log(logging.DEBUG, f"MariaDB operational error: {error_msg}")
             raise OperationalError(error_msg) from error
 
         if isinstance(error, mariadb.IntegrityError):
             if "Duplicate entry" in error_msg:
-                self.log(logging.ERROR, f"Duplicate key error: {error_msg}")
+                self.log(logging.DEBUG, f"Duplicate key error: {error_msg}")
                 raise IntegrityError(f"Duplicate key error: {error_msg}") from error
             if "foreign key constraint" in error_msg.lower():
-                self.log(logging.ERROR, f"Foreign key constraint violation: {error_msg}")
+                self.log(logging.DEBUG, f"Foreign key constraint violation: {error_msg}")
                 raise IntegrityError(f"Foreign key constraint violation: {error_msg}") from error
             if "cannot be null" in error_msg.lower():
-                self.log(logging.ERROR, f"Null constraint violation: {error_msg}")
+                self.log(logging.DEBUG, f"Null constraint violation: {error_msg}")
                 raise IntegrityError(f"Null constraint violation: {error_msg}") from error
-            self.log(logging.ERROR, f"MariaDB integrity error: {error_msg}")
+            self.log(logging.DEBUG, f"MariaDB integrity error: {error_msg}")
             raise IntegrityError(error_msg) from error
 
         if isinstance(error, mariadb.ProgrammingError):
-            self.log(logging.ERROR, f"MariaDB programming error: {error_msg}")
+            self.log(logging.DEBUG, f"MariaDB programming error: {error_msg}")
             raise QueryError(error_msg) from error
 
         if isinstance(error, mariadb.Error):
-            self.log(logging.ERROR, f"MariaDB error: {error_msg}")
+            self.log(logging.DEBUG, f"MariaDB error: {error_msg}")
             raise DatabaseError(error_msg) from error
 
-        self.log(logging.ERROR, f"Unhandled error: {error_msg}")
+        self.log(logging.DEBUG, f"Unhandled error: {error_msg}")
         raise error
 
 
