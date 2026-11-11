@@ -171,13 +171,24 @@ class _FailingAsyncCursor:
 
 
 class _FakeConnection:
-    """Connection stand-in exposing only ``cursor()``."""
+    """Connection stand-in exposing only ``cursor()`` and ``commit()``."""
 
     def __init__(self, cursor):
         self._cursor = cursor
+        self.commit_count = 0
 
     def cursor(self):
         return self._cursor
+
+    def commit(self):
+        self.commit_count += 1
+
+
+class _FakeAsyncConnection(_FakeConnection):
+    """Async connection stand-in: ``commit`` is a coroutine."""
+
+    async def commit(self):
+        self.commit_count += 1
 
 
 class _CloseFailingConnection:
@@ -271,7 +282,7 @@ class TestAsyncBatchLogging:
     async def test_execute_many_hides_parameter_values(self, caplog):
         cursor = _FakeAsyncCursor(rowcount=1)
         backend = AsyncMariaDBBackend(database="logging_unit_db")
-        backend._connection = _FakeConnection(cursor)
+        backend._connection = _FakeAsyncConnection(cursor)
 
         with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
             result = await backend.execute_many(
@@ -289,7 +300,7 @@ class TestAsyncBatchLogging:
     async def test_error_is_logged_and_mapped(self, caplog):
         cursor = _FailingAsyncCursor(mariadb.Error("batch failure", 1064))
         backend = AsyncMariaDBBackend(database="logging_unit_db")
-        backend._connection = _FakeConnection(cursor)
+        backend._connection = _FakeAsyncConnection(cursor)
 
         with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
             with pytest.raises(backend_errors.DatabaseError):
@@ -453,17 +464,18 @@ class TestConnectionLifecycle:
         assert "Reconnection failed" in caplog.text
 
     def test_execute_retry_aborts_when_reconnect_fails(self, caplog):
-        error = backend_errors.OperationalError("connection lost")
+        error = backend_errors.attach_diagnostics(
+            backend_errors.OperationalError("connection lost"), transient=True
+        )
         cursor = _FailingSyncCursor(error)
         backend = MariaDBBackend(database="logging_unit_db")
         backend._connection = _FakeConnection(cursor)
         backend._cursor = cursor
 
-        with patch.object(backend, "_is_connection_error", return_value=True):
-            with patch.object(backend, "_reconnect", return_value=False):
-                with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
-                    with pytest.raises(backend_errors.OperationalError):
-                        backend.execute("SELECT 1", max_retries=1)
+        with patch.object(backend, "_reconnect", return_value=False):
+            with caplog.at_level(logging.DEBUG, logger=_LOGGER_NAME):
+                with pytest.raises(backend_errors.OperationalError):
+                    backend.execute("SELECT 1", max_retries=1)
 
         assert "Reconnection failed, aborting retry" in caplog.text
 
@@ -514,7 +526,7 @@ class TestAsyncConnectionLifecycle:
         backend = AsyncMariaDBBackend(database="logging_unit_db")
 
         async def fake_connect():
-            backend._connection = _FakeConnection(cursor)
+            backend._connection = _FakeAsyncConnection(cursor)
 
         backend.connect = fake_connect
 
