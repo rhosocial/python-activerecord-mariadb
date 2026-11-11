@@ -18,7 +18,9 @@ from rhosocial.activerecord.backend.base.execution_logging import (
 )
 from rhosocial.activerecord.backend.errors import (
     ConnectionError,
+    DatabaseError,
     OperationalError,
+    TransactionError,
 )
 from rhosocial.activerecord.backend.options import ExecutionOptions, StatementType
 from rhosocial.activerecord.backend.result import QueryResult
@@ -235,7 +237,13 @@ class AsyncMariaDBBackend(
         *,
         options: Optional[ExecutionOptions] = None,
     ) -> QueryResult:
-        """Execute the same SQL statement multiple times with different parameters."""
+        """Execute the same SQL statement multiple times asynchronously.
+
+        Each parameter set is executed through the shared error mapper, so
+        deadlocks and lock waits keep their semantic type. Auto-commit runs
+        before the result is returned, and a failing ``cursor.close()`` in the
+        cleanup path is logged instead of replacing the error being raised.
+        """
         if options is None:
             options = ExecutionOptions(stmt_type=StatementType.DML)
         params_list = [unwrap_sensitive(params) for params in params_list]
@@ -258,6 +266,8 @@ class AsyncMariaDBBackend(
             duration = time.perf_counter() - start_time
             log_batch_summary(self, sql, params_list, affected_rows, duration, options)
 
+            # Batch DML is only successful once it is committed.
+            await self._handle_auto_commit_if_needed()
             return QueryResult(
                 affected_rows=affected_rows,
                 data=None,
@@ -266,10 +276,20 @@ class AsyncMariaDBBackend(
 
         except Exception as e:
             log_execution_error(self, e, options)
+            if isinstance(e, DatabaseError):
+                raise
             await self._handle_error(e)
+            raise DatabaseError(str(e)) from e
         finally:
             if cursor:
-                await cursor.close()
+                try:
+                    await cursor.close()
+                except Exception as close_error:
+                    # Cleanup must never replace the exception in flight.
+                    self.log(
+                        logging.DEBUG,
+                        f"Ignoring cursor close error: {str(close_error)}",
+                    )
 
     async def get_server_version(self) -> tuple:
         """Get MariaDB server version asynchronously."""
@@ -344,22 +364,55 @@ class AsyncMariaDBBackend(
                     return False
             return False
 
+    async def _reconnect(self) -> bool:
+        """Attempt to reconnect to the MariaDB server asynchronously.
+
+        Returns:
+            True if reconnection was successful, False otherwise.
+        """
+        try:
+            self.log(logging.INFO, "Attempting to reconnect...")
+            await self.disconnect()
+            await self.connect()
+            self.log(logging.INFO, "Reconnection successful")
+            return True
+        except Exception as exc:
+            self.log(logging.WARNING, f"Reconnection failed: {str(exc)}")
+            return False
+
     async def _handle_error(self, error: Exception) -> None:
-        """Delegate to the shared driver error mapping."""
+        """Delegate to the shared driver error mapping.
+
+        The mapper recognizes the driver exception class first, then the
+        MariaDB error code, then the message text, and raises the matching
+        semantic error with driver diagnostics attached.
+        """
         self._handle_mariadb_error(error)
 
     async def _handle_auto_commit(self) -> None:
-        """Handle auto commit based on connection and transaction state."""
-        try:
-            if not self._connection:
-                return
+        """Handle auto commit based on connection and transaction state.
 
-            if not self._transaction_manager or not self._transaction_manager.is_active:
-                if not getattr(self.config, 'autocommit', False):
-                    await self._connection.commit()
-                    self.log(logging.DEBUG, "Auto-committed operation")
-        except Exception as e:
-            self.log(logging.WARNING, f"Failed to auto-commit: {str(e)}")
+        Raises:
+            TransactionError: If the connection cannot commit the statement.
+                The driver exception is kept as the cause. A silent WARNING
+                would let a caller treat an uncommitted DML statement as
+                successful.
+        """
+        if not self._connection:
+            return
+
+        if self._transaction_manager and self._transaction_manager.is_active:
+            return
+
+        if getattr(self.config, 'autocommit', False):
+            return
+
+        try:
+            await self._connection.commit()
+        except Exception as exc:
+            raise TransactionError("Auto-commit failed") from exc
+
+        self.log(logging.DEBUG, "Auto-committed operation")
 
     async def execute(
         self,
@@ -367,9 +420,15 @@ class AsyncMariaDBBackend(
         params: Optional[Tuple] = None,
         *,
         options: Optional[ExecutionOptions] = None,
+        max_retries: int = 2,
         **kwargs
     ) -> QueryResult:
-        """Execute a SQL statement with optional parameters asynchronously."""
+        """Execute a SQL statement with optional parameters asynchronously.
+
+        Only framework ``ConnectionError`` / ``OperationalError`` instances
+        whose ``transient`` flag is ``True`` are retried after a reconnect.
+        Every other error, and an exhausted retry budget, is raised unchanged.
+        """
         if options is None:
             sql_upper = sql.strip().upper()
             if sql_upper.startswith(('SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'EXPLAIN')):
@@ -394,4 +453,23 @@ class AsyncMariaDBBackend(
             if 'column_adapters' in kwargs:
                 options.column_adapters = kwargs['column_adapters']
 
-        return await super().execute(sql, params, options=options)
+        for attempt in range(max_retries + 1):
+            try:
+                return await super().execute(sql, params, options=options)
+            except (ConnectionError, OperationalError) as exc:
+                if exc.transient is not True:
+                    raise
+                if attempt >= max_retries:
+                    raise
+
+                self.log(
+                    logging.WARNING,
+                    f"Connection error on attempt {attempt + 1}/{max_retries + 1}: {str(exc)}"
+                )
+                if await self._reconnect():
+                    continue
+
+                self.log(logging.DEBUG, "Reconnection failed, aborting retry")
+                raise
+
+        raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")

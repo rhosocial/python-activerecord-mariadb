@@ -987,6 +987,15 @@ class MariaDBIntrospectionMixin:
         Ordering is the engine's own ordinal pair, so a subpartitioned table
         lists partition by partition and subpartition within it.
 
+        ``SUBPARTITION_DESCRIPTION`` is deliberately not projected: MariaDB's
+        ``information_schema.PARTITIONS`` publishes the subpartition name,
+        method, expression and ordinal, but no boundary text, and naming a
+        column the view does not have makes the server reject the whole
+        statement (``Unknown column ... in 'field list'``) regardless of which
+        projection is read. The parser therefore leaves that field ``None``;
+        the boundary text would only come from de-parsed ``SHOW CREATE TABLE``
+        output, which this backend does not read.
+
         Args:
             expr: Partition expression with the schema and table name.
 
@@ -1029,7 +1038,6 @@ class MariaDBIntrospectionMixin:
                 Column(self, "PARTITION_EXPRESSION"),
                 Column(self, "SUBPARTITION_EXPRESSION"),
                 Column(self, "PARTITION_DESCRIPTION"),
-                Column(self, "SUBPARTITION_DESCRIPTION"),
                 Column(self, "PARTITION_ORDINAL_POSITION"),
                 Column(self, "SUBPARTITION_ORDINAL_POSITION"),
                 Column(self, "TABLE_ROWS"),

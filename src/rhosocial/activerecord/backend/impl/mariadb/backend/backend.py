@@ -30,6 +30,7 @@ from rhosocial.activerecord.backend.errors import (
     ConnectionError,
     DatabaseError,
     OperationalError,
+    TransactionError,
 )
 from rhosocial.activerecord.backend.options import (
     DeleteOptions,
@@ -310,7 +311,12 @@ class MariaDBBackend(
             return False
 
     def _handle_error(self, error: Exception) -> None:
-        """Handle MariaDB-specific errors."""
+        """Handle MariaDB-specific errors.
+
+        Delegates to the shared mapper, which recognizes the driver exception
+        class first, then the MariaDB error code, then the message text, and
+        raises the matching semantic error with driver diagnostics attached.
+        """
         self._handle_mariadb_error(error)
 
     def _handle_auto_commit(self) -> None:
@@ -318,16 +324,25 @@ class MariaDBBackend(
 
         This hook is called by the base execute pipeline via
         _handle_auto_commit_if_needed() when not in an active transaction.
-        """
-        try:
-            if not self._connection:
-                return
 
-            if not getattr(self.config, 'autocommit', False):
-                self._connection.commit()
-                self.log(logging.DEBUG, "Auto-committed operation")
-        except Exception as e:
-            self.log(logging.WARNING, f"Failed to auto-commit: {str(e)}")
+        Raises:
+            TransactionError: If the connection cannot commit the statement.
+                The driver exception is kept as the cause so callers still see
+                why the commit failed. A silent WARNING would let a caller treat
+                an uncommitted DML statement as successful.
+        """
+        if not self._connection:
+            return
+
+        if getattr(self.config, 'autocommit', False):
+            return
+
+        try:
+            self._connection.commit()
+        except Exception as exc:
+            raise TransactionError("Auto-commit failed") from exc
+
+        self.log(logging.DEBUG, "Auto-committed operation")
 
     def _prepare_sql_and_params(
         self,
@@ -364,21 +379,29 @@ class MariaDBBackend(
         options: Optional[ExecutionOptions] = None,
         max_retries: int = 2,
         **kwargs
-    ) -> Optional[QueryResult]:
+    ) -> QueryResult:
         """Execute a SQL query with automatic reconnection on connection errors.
 
         This method implements Plan B: Error retry mechanism for handling
-        connection loss that occurs mid-query.
+        connection loss that occurs mid-query. Only framework
+        ``ConnectionError`` / ``OperationalError`` instances whose ``transient``
+        flag is ``True`` are retried; every other error is raised immediately.
 
         Args:
             sql: The SQL statement to execute.
             params: Parameters for the statement.
             options: Execution options.
-            max_retries: Maximum retry attempts for connection errors.
+            max_retries: Maximum retry attempts for transient connection errors.
             **kwargs: Additional arguments.
 
         Returns:
-            QueryResult or None if execution failed.
+            QueryResult for the completed statement.
+
+        Raises:
+            DatabaseError: Always raised on failure. The framework error mapped
+                by ``_handle_error`` is raised unchanged; a retry that exhausts
+                its budget re-raises the original framework error instead of
+                translating it a second time.
         """
         if options is None:
             sql_upper = sql.strip().upper()
@@ -404,29 +427,28 @@ class MariaDBBackend(
             if 'column_adapters' in kwargs:
                 options.column_adapters = kwargs['column_adapters']
 
-        last_error = None
-
         for attempt in range(max_retries + 1):
             try:
                 return super().execute(sql, params, options=options)
-            except (ConnectionError, OperationalError) as e:
-                last_error = e
+            except (ConnectionError, OperationalError) as exc:
+                # The shared mapper already translated the driver error and
+                # marked genuine infrastructure failures transient. Anything
+                # else (authentication, non-transient shutdowns, integrity or
+                # query errors) must not be retried.
+                if exc.transient is not True:
+                    raise
+                if attempt >= max_retries:
+                    raise
 
-                if self._is_connection_error(e) and attempt < max_retries:
-                    self.log(
-                        logging.WARNING,
-                        f"Connection error on attempt {attempt + 1}/{max_retries + 1}: {str(e)}"
-                    )
-                    if self._reconnect():
-                        continue
-                    else:
-                        self.log(logging.DEBUG, "Reconnection failed, aborting retry")
-                        break
-                else:
-                    break
+                self.log(
+                    logging.WARNING,
+                    f"Connection error on attempt {attempt + 1}/{max_retries + 1}: {str(exc)}"
+                )
+                if self._reconnect():
+                    continue
 
-        if last_error:
-            self._handle_error(last_error)
+                self.log(logging.DEBUG, "Reconnection failed, aborting retry")
+                raise
 
         raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")
 
@@ -436,8 +458,13 @@ class MariaDBBackend(
         params_list: List[Tuple],
         *,
         options: Optional[ExecutionOptions] = None,
-    ) -> Optional[QueryResult]:
+    ) -> QueryResult:
         """Execute batch operations with the same SQL statement and multiple parameter sets.
+
+        The batch goes through the same error mapper as ``execute``, so a
+        deadlock stays a ``DeadlockError`` and a lock wait stays a
+        ``LockError``. Auto-commit runs before the result is returned; a
+        commit failure propagates as ``TransactionError``.
 
         Args:
             sql: The SQL statement to execute.
@@ -445,7 +472,11 @@ class MariaDBBackend(
             options: Optional ExecutionOptions carrying the logging context.
 
         Returns:
-            QueryResult or None.
+            QueryResult containing the total affected rows.
+
+        Raises:
+            DatabaseError: The mapped semantic error from ``_handle_error``.
+                Never returns ``None`` on failure.
         """
         if options is None:
             options = ExecutionOptions(stmt_type=StatementType.DML)
@@ -464,11 +495,19 @@ class MariaDBBackend(
             duration = time.perf_counter() - start_time
 
             log_batch_summary(self, sql, params_list, rowcount, duration, options)
+            # Batch DML is only successful once it is committed: the caller
+            # must not receive a result for a batch that is still uncommitted.
+            self._handle_auto_commit_if_needed()
             return QueryResult(affected_rows=rowcount, duration=duration)
         except Exception as e:
             log_execution_error(self, e, options)
+            # Framework errors (including the TransactionError raised by
+            # _handle_auto_commit) are already in the taxonomy and keep their
+            # type; only raw driver failures go through the shared mapper.
+            if isinstance(e, DatabaseError):
+                raise
             self._handle_error(e)
-            return None
+            raise DatabaseError(str(e)) from e
 
     def executescript(self, sql_script: str) -> None:
         """Execute a multi-statement SQL script.

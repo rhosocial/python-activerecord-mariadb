@@ -2,6 +2,7 @@
 """Offline tests for the MariaDB backend auto-commit handlers."""
 import pytest
 
+from rhosocial.activerecord.backend.errors import TransactionError
 from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
@@ -70,15 +71,21 @@ class TestSyncAutoCommit:
         backend._handle_auto_commit_if_needed()
         assert backend._connection.commit_count == 0
 
-    def test_handle_auto_commit_swallows_commit_error(self):
+    def test_handle_auto_commit_raises_transaction_error(self):
         backend = MariaDBBackend(connection_config=make_config())
+
+        failure = RuntimeError("connection lost")
 
         class _Failing:
             def commit(self):
-                raise RuntimeError("connection lost")
+                raise failure
 
         backend._connection = _Failing()
-        backend._handle_auto_commit()
+
+        with pytest.raises(TransactionError) as exc_info:
+            backend._handle_auto_commit()
+
+        assert exc_info.value.__cause__ is failure
 
 
 class TestAsyncAutoCommit:
@@ -111,12 +118,18 @@ class TestAsyncAutoCommit:
         assert backend._connection.commit_count == 0
 
     @pytest.mark.asyncio
-    async def test_handle_auto_commit_swallows_commit_error(self):
+    async def test_handle_auto_commit_raises_transaction_error(self):
         backend = AsyncMariaDBBackend(connection_config=make_config())
+
+        failure = RuntimeError("connection lost")
 
         class _Failing:
             async def commit(self):
-                raise RuntimeError("connection lost")
+                raise failure
 
         backend._connection = _Failing()
-        await backend._handle_auto_commit()
+
+        with pytest.raises(TransactionError) as exc_info:
+            await backend._handle_auto_commit()
+
+        assert exc_info.value.__cause__ is failure
