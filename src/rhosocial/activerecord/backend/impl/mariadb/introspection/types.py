@@ -168,7 +168,12 @@ class MariaDBPartitionInfo:
         partition_expression: The top-level partitioning expression.
         subpartition_expression: The subpartitioning expression.
         partition_description: The RANGE/LIST boundary text.
-        subpartition_description: The subpartition boundary text.
+        subpartition_description: The subpartition boundary text, when the
+            server publishes it. MariaDB's ``information_schema.PARTITIONS``
+            has no such column (it publishes the subpartition name, method,
+            expression and ordinal, but not the boundary text), so this field
+            stays ``None`` there; the only source would be the de-parsed
+            ``SHOW CREATE TABLE`` text, which this backend does not read.
         partition_ordinal_position: 1-based partition position.
         subpartition_ordinal_position: 1-based position within the partition.
         table_rows: Rows the server estimates this partition holds.
