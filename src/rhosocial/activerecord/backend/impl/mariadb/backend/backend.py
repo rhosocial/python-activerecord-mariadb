@@ -310,7 +310,12 @@ class MariaDBBackend(
             return False
 
     def _handle_error(self, error: Exception) -> None:
-        """Handle MariaDB-specific errors."""
+        """Handle MariaDB-specific errors.
+
+        Delegates to the shared mapper, which recognizes the driver exception
+        class first, then the MariaDB error code, then the message text, and
+        raises the matching semantic error with driver diagnostics attached.
+        """
         self._handle_mariadb_error(error)
 
     def _handle_auto_commit(self) -> None:

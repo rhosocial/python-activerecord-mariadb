@@ -11,12 +11,14 @@ from rhosocial.activerecord.backend.errors import (
     DatabaseError,
     DeadlockError,
     IntegrityError,
+    LockError,
     OperationalError,
     QueryError,
+    attach_diagnostics,
 )
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, Tuple, Type, TYPE_CHECKING
+from typing import Dict, Optional, Tuple, Type, TYPE_CHECKING
 from uuid import UUID
 
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
@@ -90,6 +92,100 @@ MARIADB_VERSION_BOUNDARIES = {
     'DENY': (13, 1, 0),
     'JSON_ARROW_NATIVE': (13, 1, 0),
 }
+
+
+#: MariaDB server error codes -> the label used for an integrity violation.
+#: Reference: https://mariadb.com/kb/en/mariadb-error-codes/
+INTEGRITY_ERROR_REASONS: Dict[int, str] = {
+    1022: "Duplicate key error",
+    1048: "Null constraint violation",
+    1062: "Duplicate key error",
+    1169: "Duplicate key error",
+    1364: "Null constraint violation",
+    1451: "Foreign key constraint violation",
+    1452: "Foreign key constraint violation",
+    3819: "Check constraint violation",
+    4025: "Check constraint violation",
+}
+
+#: Server codes that carry a taxonomy of their own.
+DEADLOCK_ERROR_CODE = 1213
+LOCK_WAIT_TIMEOUT_ERROR_CODE = 1205
+READ_ONLY_ERROR_CODE = 1290
+
+#: Client codes. A lost connection is transient (a retry can succeed), while a
+#: refused connection or an unknown protocol is not.
+LOST_CONNECTION_ERROR_CODES = frozenset({2006, 2013, 2055, 2502})
+CONNECT_FAILURE_ERROR_CODES = frozenset({2002, 2003, 2048})
+
+#: Message fallbacks, only consulted when neither the class nor the code has
+#: settled the category. Kept together so a wording change is one edit.
+LOST_CONNECTION_MESSAGE_PATTERNS = (
+    "lost connection",
+    "server has gone away",
+    "gone away",
+    "broken pipe",
+    "connection reset",
+)
+CONNECT_FAILURE_MESSAGE_PATTERNS = (
+    "can't connect",
+    "cannot connect",
+    "connection refused",
+    "connection timed out",
+    "unknown server host",
+    "is not allowed to connect",
+)
+
+
+def _integrity_reason(error_code, error_msg: str) -> Optional[str]:
+    """Label an integrity violation by code first, then by message text."""
+    if error_code in INTEGRITY_ERROR_REASONS:
+        return INTEGRITY_ERROR_REASONS[error_code]
+    lowered = error_msg.lower()
+    if "duplicate entry" in lowered:
+        return "Duplicate key error"
+    if "cannot delete or update" in lowered or "foreign key constraint" in lowered:
+        return "Foreign key constraint violation"
+    if "cannot be null" in lowered:
+        return "Null constraint violation"
+    if "check constraint" in lowered:
+        return "Check constraint violation"
+    return None
+
+
+def _outcome_from_code(error_code):
+    """Return (error_class, message_prefix, transient, sqlstate) for a code."""
+    if error_code is None:
+        return None
+    if error_code in INTEGRITY_ERROR_REASONS:
+        return IntegrityError, INTEGRITY_ERROR_REASONS[error_code], None, None
+    if error_code == DEADLOCK_ERROR_CODE:
+        return DeadlockError, None, True, None
+    if error_code == LOCK_WAIT_TIMEOUT_ERROR_CODE:
+        return LockError, None, True, None
+    if error_code == READ_ONLY_ERROR_CODE:
+        return OperationalError, None, False, "HY000"
+    if error_code in LOST_CONNECTION_ERROR_CODES:
+        return OperationalError, None, True, None
+    if error_code in CONNECT_FAILURE_ERROR_CODES:
+        return ConnectionError, None, False, None
+    return None
+
+
+def _outcome_from_message(error_msg: str):
+    """Return (error_class, message_prefix, transient, sqlstate) from text."""
+    if "Deadlock found" in error_msg:
+        return DeadlockError, None, True, None
+    if "Lock wait timeout exceeded" in error_msg:
+        return LockError, None, True, None
+    lowered = error_msg.lower()
+    if "read-only" in lowered or "read only" in lowered:
+        return OperationalError, None, False, "HY000"
+    if any(pattern in lowered for pattern in LOST_CONNECTION_MESSAGE_PATTERNS):
+        return OperationalError, None, True, None
+    if any(pattern in lowered for pattern in CONNECT_FAILURE_MESSAGE_PATTERNS):
+        return ConnectionError, None, False, None
+    return None
 
 
 class MariaDBBackendMixin:
@@ -258,7 +354,11 @@ class MariaDBBackendMixin:
         return result
 
     def _handle_mariadb_error(self, error: Exception) -> None:
-        """Map a driver error onto the framework's exception hierarchy.
+        """Map a driver error onto the framework's error taxonomy.
+
+        Recognition order: driver exception class, then MariaDB error code, then
+        message text. Codes are stable across driver versions, so they win over
+        the message text, which is a last-resort fallback.
 
         Detection is by isinstance and message, never by class name: callers
         raise subclasses of the mariadb errors, so a name-based check silently
@@ -272,50 +372,53 @@ class MariaDBBackendMixin:
             original error when it is not a driver error at all.
         """
         error_msg = str(error)
-        error_code = getattr(error, 'errno', None)
+        # The connector reports errno 0 for failures that carry no server code.
+        error_code = getattr(error, "errno", None) or None
 
-        if isinstance(error, mariadb.OperationalError) and error_code in CONNECTION_ERROR_CODES:
-            self.log(logging.DEBUG, f"Connection error ({error_code}): {error_msg}")
-            raise ConnectionError(error_msg) from error
-
-        if "Deadlock found" in error_msg:
-            self.log(logging.DEBUG, f"Deadlock: {error_msg}")
-            raise DeadlockError(error_msg) from error
-
-        if "Lock wait timeout exceeded" in error_msg:
-            self.log(logging.DEBUG, f"Lock timeout: {error_msg}")
-            raise OperationalError(error_msg) from error
-
-        if isinstance(error, mariadb.OperationalError):
-            if "Connection timed out" in error_msg or "Can't connect" in error_msg:
-                self.log(logging.DEBUG, f"Connection error: {error_msg}")
-                raise ConnectionError(error_msg) from error
-            self.log(logging.DEBUG, f"MariaDB operational error: {error_msg}")
-            raise OperationalError(error_msg) from error
+        # 1. Driver exception class.
+        if isinstance(error, mariadb.ProgrammingError):
+            self.log(logging.DEBUG, f"Programming error ({error_code}): {error_msg}")
+            raise attach_diagnostics(
+                QueryError(error_msg),
+                operation="execute",
+                driver_code=error_code,
+                backend="mariadb",
+            ) from error
 
         if isinstance(error, mariadb.IntegrityError):
-            if "Duplicate entry" in error_msg:
-                self.log(logging.DEBUG, f"Duplicate key error: {error_msg}")
-                raise IntegrityError(f"Duplicate key error: {error_msg}") from error
-            if "foreign key constraint" in error_msg.lower():
-                self.log(logging.DEBUG, f"Foreign key constraint violation: {error_msg}")
-                raise IntegrityError(f"Foreign key constraint violation: {error_msg}") from error
-            if "cannot be null" in error_msg.lower():
-                self.log(logging.DEBUG, f"Null constraint violation: {error_msg}")
-                raise IntegrityError(f"Null constraint violation: {error_msg}") from error
-            self.log(logging.DEBUG, f"MariaDB integrity error: {error_msg}")
-            raise IntegrityError(error_msg) from error
+            reason = _integrity_reason(error_code, error_msg)
+            message = f"{reason}: {error_msg}" if reason else error_msg
+            self.log(logging.DEBUG, f"Integrity error ({error_code}): {error_msg}")
+            raise attach_diagnostics(
+                IntegrityError(message),
+                operation="execute",
+                driver_code=error_code,
+                backend="mariadb",
+            ) from error
 
-        if isinstance(error, mariadb.ProgrammingError):
-            self.log(logging.DEBUG, f"MariaDB programming error: {error_msg}")
-            raise QueryError(error_msg) from error
+        if not isinstance(error, mariadb.Error):
+            self.log(logging.DEBUG, f"Unhandled error: {error_msg}")
+            raise error
 
-        if isinstance(error, mariadb.Error):
-            self.log(logging.DEBUG, f"MariaDB error: {error_msg}")
-            raise DatabaseError(error_msg) from error
+        # 2. Error code, then 3. message text, for the remaining driver classes.
+        outcome = _outcome_from_code(error_code) or _outcome_from_message(error_msg)
+        if outcome is None:
+            if isinstance(error, mariadb.OperationalError):
+                outcome = (OperationalError, None, None, None)
+            else:
+                outcome = (DatabaseError, None, None, None)
 
-        self.log(logging.DEBUG, f"Unhandled error: {error_msg}")
-        raise error
+        error_class, message_prefix, transient, sqlstate = outcome
+        message = f"{message_prefix}: {error_msg}" if message_prefix else error_msg
+        self.log(logging.DEBUG, f"{error_class.__name__} ({error_code}): {error_msg}")
+        raise attach_diagnostics(
+            error_class(message),
+            operation="execute",
+            sqlstate=sqlstate,
+            driver_code=error_code,
+            backend="mariadb",
+            transient=transient,
+        ) from error
 
 
 # MariaDB connection error codes that indicate connection loss

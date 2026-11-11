@@ -345,7 +345,12 @@ class AsyncMariaDBBackend(
             return False
 
     async def _handle_error(self, error: Exception) -> None:
-        """Delegate to the shared driver error mapping."""
+        """Delegate to the shared driver error mapping.
+
+        The mapper recognizes the driver exception class first, then the
+        MariaDB error code, then the message text, and raises the matching
+        semantic error with driver diagnostics attached.
+        """
         self._handle_mariadb_error(error)
 
     async def _handle_auto_commit(self) -> None:

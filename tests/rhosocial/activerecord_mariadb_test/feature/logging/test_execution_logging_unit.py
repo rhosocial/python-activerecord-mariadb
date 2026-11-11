@@ -301,7 +301,7 @@ class TestAsyncBatchLogging:
 _DRIVER_ERROR_CASES = [
     pytest.param(
         lambda: mariadb.OperationalError("Lost connection to server", 2013),
-        backend_errors.ConnectionError,
+        backend_errors.OperationalError,
         id="connection-error-code",
     ),
     pytest.param(
@@ -321,7 +321,7 @@ _DRIVER_ERROR_CASES = [
     ),
     pytest.param(
         lambda: mariadb.OperationalError("Lock wait timeout exceeded"),
-        backend_errors.OperationalError,
+        backend_errors.LockError,
         id="lock-timeout",
     ),
     pytest.param(
