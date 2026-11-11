@@ -338,6 +338,15 @@ class TestAsyncAutoCommit:
         assert exc_info.value.__cause__ is failure
         assert backend._connection.commit_count == 1
 
+    @pytest.mark.asyncio
+    async def test_autocommit_enabled_does_not_commit(self):
+        backend = _make_async_backend(autocommit=True)
+        backend._connection = _AsyncCommitFailingConnection(RuntimeError("unused"))
+
+        await backend._handle_auto_commit()
+
+        assert backend._connection.commit_count == 0
+
 
 class TestExecuteMany:
     """Batch execution uses the shared mapper and commits before returning."""
@@ -437,6 +446,19 @@ class TestAsyncExecuteMany:
 
         assert result.affected_rows == 2
         assert connection.commit_count == 1
+
+    @pytest.mark.asyncio
+    async def test_commit_failure_propagates_as_transaction_error(self):
+        backend = _make_async_backend()
+        failure = mariadb.Error("Lost connection during commit", 2013)
+        backend._connection = _AsyncCommitFailingConnection(failure)
+        cursor = _AsyncBatchCursor(rowcount=1)
+        backend._get_cursor = AsyncMock(return_value=cursor)
+
+        with pytest.raises(TransactionError) as exc_info:
+            await backend.execute_many("INSERT INTO t VALUES (%s)", [(1,)])
+
+        assert exc_info.value.__cause__ is failure
 
 
 class TestExecuteReturnContract:
