@@ -1,0 +1,180 @@
+{
+  "entries": {
+    "0d3852f7ba8b76e3": 1,
+    "1733228f0faaf7fb": 1,
+    "1c222663c2ff230c": 1,
+    "25584d8b645569f1": 1,
+    "3038bd0d0e5dcd27": 1,
+    "3715c5f92c09460a": 1,
+    "38ab2da142dab644": 2,
+    "40ca24046bbddecd": 1,
+    "488fd080f7966cde": 2,
+    "50b81498e3d15a2e": 1,
+    "6c9c2319fe934f93": 1,
+    "75efe01dcaf4e7bf": 4,
+    "8983eb94844190c3": 1,
+    "8b7f4ab3b24c1f7b": 1,
+    "96091eb1eba4302d": 1,
+    "9aaed2de90b39a01": 1,
+    "9b9ad66ba54eee09": 2,
+    "a01b9b7363bd773e": 1,
+    "a606fcded0220d2e": 1,
+    "b0c0dd9e3ac04202": 1,
+    "b567771f220e6529": 2,
+    "c956e1c067df95c1": 1,
+    "eef973453cc73e51": 1
+  },
+  "findings": [
+    {
+      "found": "invisible: Optional[bool]",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/expression/column.py",
+      "rule": "ED-10.2"
+    },
+    {
+      "found": "invisible: Optional[bool]",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/expression/column.py",
+      "rule": "ED-10.2"
+    },
+    {
+      "found": "kwargs: Any",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/expression/json.py",
+      "rule": "ED-KWARGS"
+    },
+    {
+      "found": "getattr(expr, \"if_exists\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/alter_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"wait\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/alter_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"nowait\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/alter_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(action, \"if_not_exists\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/column.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(action, \"if_exists\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/column.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(action, \"if_exists\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/constraint.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(action, \"cascade\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/constraint.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"cascade\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/routine.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"restrict\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/routine.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"cascade\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/routine.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"table_options\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"table_options\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(table_options, \"comment\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, 'replace', False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/dml.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, 'ignore', False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/dml.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"columns\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"json_column\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"nested_paths\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"partitions\", [])",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"partitions\", [])",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"partitions\", [])",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"partitions\", [])",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"partitions_count\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"partitions_count\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(definition, \"subpartition_definitions\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"nowait\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/truncate.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"wait\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/mariadb/mixins/truncate.py",
+      "rule": "ED-11.2"
+    }
+  ],
+  "format": 1
+}

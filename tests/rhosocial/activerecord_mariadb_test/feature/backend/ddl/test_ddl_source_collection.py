@@ -168,8 +168,14 @@ class BackendColumnOptionsHandler(DDLAnnotationHandler):
 
 
 class DDLDeclarations:
-    __table_name__ = "ddl_source_orders"
-    __primary_key__ = ("tenant_key", "order_key")
+    @classmethod
+    def table_name(cls):
+        return "ddl_source_orders"
+
+    @classmethod
+    def primary_key(cls):
+        return ("tenant_key", "order_key")
+
     __table_constraints__ = TABLE_CONSTRAINTS
     __table_indexes__ = TABLE_INDEXES
     _feature_handlers = [BackendColumnOptionsHandler]
@@ -235,8 +241,13 @@ SINGLE_SQL_TYPE_MARKER = UseSqlType(SINGLE_SQL_TYPE)
 
 
 class SingleKeyDeclarations:
-    __table_name__ = "ddl_source_single_key"
-    __primary_key__ = "record_pk"
+    @classmethod
+    def table_name(cls):
+        return "ddl_source_single_key"
+
+    @classmethod
+    def primary_key(cls):
+        return "record_pk"
 
     record_id: Annotated[
         int,

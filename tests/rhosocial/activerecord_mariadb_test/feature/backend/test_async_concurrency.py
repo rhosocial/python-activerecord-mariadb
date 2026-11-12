@@ -41,7 +41,10 @@ logger = logging.getLogger(__name__)
 
 class ConcurrentUser(AsyncActiveRecord):
     """User model for concurrency testing."""
-    __table_name__ = "concurrent_users"
+    @classmethod
+    def table_name(cls):
+        return "concurrent_users"
+
     c: ClassVar[FieldProxy] = FieldProxy()
 
     id: Optional[int] = None
@@ -53,7 +56,10 @@ class ConcurrentUser(AsyncActiveRecord):
 
 class ConcurrentTask(AsyncActiveRecord):
     """Task model for concurrency testing with status tracking."""
-    __table_name__ = "concurrent_tasks"
+    @classmethod
+    def table_name(cls):
+        return "concurrent_tasks"
+
     c: ClassVar[FieldProxy] = FieldProxy()
 
     id: Optional[int] = None
@@ -276,7 +282,10 @@ async def test_recommended_pattern_independent_backends(mysql_config):
 
             # Configure a task-specific model class
             class WorkerUser(AsyncActiveRecord):
-                __table_name__ = "concurrent_users"
+                @classmethod
+                def table_name(cls):
+                    return "concurrent_users"
+
                 c: ClassVar[FieldProxy] = FieldProxy()
                 id: Optional[int] = None
                 username: str
@@ -336,7 +345,7 @@ async def test_recommended_pattern_independent_backends(mysql_config):
         await backend.execute("DROP TABLE IF EXISTS concurrent_users")
         await backend.disconnect()
 
-    print(f"\nSUCCESS: All 10 concurrent tasks with independent backends completed")
+    print("\nSUCCESS: All 10 concurrent tasks with independent backends completed")
 
 
 # --- Test 4: Transaction Isolation with Independent Backends ---
@@ -369,7 +378,10 @@ async def test_transaction_isolation_with_independent_backends(mysql_config):
             await backend.connect()
 
             class TxUser(AsyncActiveRecord):
-                __table_name__ = "concurrent_users"
+                @classmethod
+                def table_name(cls):
+                    return "concurrent_users"
+
                 c: ClassVar[FieldProxy] = FieldProxy()
                 id: Optional[int] = None
                 username: str
@@ -445,7 +457,7 @@ async def test_transaction_isolation_with_independent_backends(mysql_config):
         await backend.execute("DROP TABLE IF EXISTS concurrent_users")
         await backend.disconnect()
 
-    print(f"\nConfirmed: Transaction isolation works with independent backends")
+    print("\nConfirmed: Transaction isolation works with independent backends")
     print(f"  Committed: {results['committed']}")
     print(f"  Rolled back: {results['rolled_back']}")
 
@@ -478,7 +490,10 @@ async def test_sequential_vs_concurrent_comparison(mysql_config):
     await shared_backend.connect()
 
     class SharedUser(AsyncActiveRecord):
-        __table_name__ = "concurrent_users"
+        @classmethod
+        def table_name(cls):
+            return "concurrent_users"
+
         c: ClassVar[FieldProxy] = FieldProxy()
         id: Optional[int] = None
         username: str
@@ -507,7 +522,10 @@ async def test_sequential_vs_concurrent_comparison(mysql_config):
         await backend.connect()
         try:
             class ConcurrentUser(AsyncActiveRecord):
-                __table_name__ = "concurrent_users"
+                @classmethod
+                def table_name(cls):
+                    return "concurrent_users"
+
                 c: ClassVar[FieldProxy] = FieldProxy()
                 id: Optional[int] = None
                 username: str
@@ -543,7 +561,7 @@ async def test_sequential_vs_concurrent_comparison(mysql_config):
 
     assert len(users) == 20
 
-    print(f"\nPerformance Comparison:")
+    print("\nPerformance Comparison:")
     print(f"  Sequential (shared backend): {sequential_time:.3f}s")
     print(f"  Concurrent (independent backends): {concurrent_time:.3f}s")
 
@@ -592,7 +610,10 @@ async def test_concurrency_best_practices_documentation(mysql_config):
         await backend.connect()
         try:
             class SafeUser(AsyncActiveRecord):
-                __table_name__ = "concurrent_users"
+                @classmethod
+                def table_name(cls):
+                    return "concurrent_users"
+
                 c: ClassVar[FieldProxy] = FieldProxy()
                 id: Optional[int] = None
                 username: str

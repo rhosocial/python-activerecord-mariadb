@@ -85,7 +85,9 @@ class TestMariaDBFunctionCapabilityGating:
 
 
 class InheritedTable(ActiveRecord):
-    __table_name__ = "inherited"
+    @classmethod
+    def table_name(cls):
+        return "inherited"
 
     id: int
 
@@ -95,7 +97,9 @@ class InheritedTable(ActiveRecord):
 
 
 class TablespacedTable(ActiveRecord):
-    __table_name__ = "tablespaced"
+    @classmethod
+    def table_name(cls):
+        return "tablespaced"
 
     id: int
 
@@ -107,14 +111,16 @@ class TablespacedTable(ActiveRecord):
 class TestMariaDBTableDeclarationGating:
     def test_table_declaration_defaults_are_absent(self):
         class Plain(ActiveRecord):
-            __table_name__ = "plain_table_defaults"
+            @classmethod
+            def table_name(cls):
+                return "plain_table_defaults"
 
             id: int
 
         dialect = MariaDBDialect()
         expression = CreateTableStatement(
             dialect,
-            Table(dialect, Plain.__table_name__),
+            Table(dialect, Plain.table_name()),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=Plain.table_inherits(),
             tablespace=Plain.table_tablespace(),
@@ -127,7 +133,7 @@ class TestMariaDBTableDeclarationGating:
         assert dialect.supports_table_inheritance() is False
         expression = CreateTableStatement(
             dialect,
-            Table(dialect, InheritedTable.__table_name__),
+            Table(dialect, InheritedTable.table_name()),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=InheritedTable.table_inherits(),
             tablespace=InheritedTable.table_tablespace(),
@@ -141,7 +147,7 @@ class TestMariaDBTableDeclarationGating:
         assert dialect.supports_table_tablespace() is False
         expression = CreateTableStatement(
             dialect,
-            Table(dialect, TablespacedTable.__table_name__),
+            Table(dialect, TablespacedTable.table_name()),
             columns=[ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=TablespacedTable.table_inherits(),
             tablespace=TablespacedTable.table_tablespace(),
