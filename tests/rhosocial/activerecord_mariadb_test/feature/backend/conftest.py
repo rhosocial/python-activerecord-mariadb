@@ -1,158 +1,133 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/conftest.py
-"""
-Pytest fixtures for MariaDB backend tests.
+"""Fixtures for the backend-owned tests.
 
-This module provides fixtures for testing MariaDB backend functionality
-including introspection, SHOW commands, and CRUD operations.
+The backend runs these against a real server. The scenario supplies the
+connection parameters; the database name is derived from the directory that
+owns the test, so two directories never share tables.
 """
 import os
+from typing import Any, Dict, Tuple, Type
+
 import pytest
 import pytest_asyncio
-import yaml
-from typing import Dict, Any, Tuple, Type
+
+import support.mariadb
 
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import AsyncMariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import SEQUENCES_SINCE
 
 # --- Scenario Loading Logic ---
 
-SCENARIO_MAP: Dict[str, Dict[str, Any]] = {}
-
-
-def register_scenario(name: str, config: Dict[str, Any]):
-    SCENARIO_MAP[name] = config
-
-
-def _load_scenarios_from_config():
-    """
-    Load scenarios from a configuration file with the following priority:
-    1. Environment variable specified path (highest priority)
-    2. Default path tests/config/mariadb_scenarios.yaml (lowest priority)
-    If no valid configuration file is found, use default configuration.
-    """
-    config_path = None
-    env_config_path = os.getenv("MARIADB_SCENARIOS_CONFIG_PATH")
-
-    if env_config_path and os.path.exists(env_config_path):
-        print(f"Loading MariaDB scenarios from environment-specified path: {env_config_path}")
-        config_path = env_config_path
-
-    if not config_path:
-        # Try multiple possible default paths
-        default_paths = [
-            os.path.join(os.path.dirname(__file__), "../../../../config", "mariadb_scenarios.yaml"),
-            os.path.join(os.path.dirname(__file__), "../../../../../config", "config.yml"),
-            os.path.join(os.path.dirname(__file__), "../../../../../config", "mariadb_scenarios.yaml"),
-        ]
-        for path in default_paths:
-            if os.path.exists(path):
-                config_path = path
-                break
-
-    if not config_path:
-        # Use default configuration if no file found
-        print("No MariaDB scenarios configuration file found, using default configuration")
-        register_scenario('default', {
-            'host': '127.0.0.1',
-            'port': 3307,
-            'database': 'test',
-            'username': 'root',
-            'password': '',
-        })
-        return
-
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config_data = yaml.safe_load(f)
-
-        # Handle both 'scenarios' and 'databases.mariadb.versions' formats
-        if 'scenarios' in config_data:
-            for scenario_name, config in config_data['scenarios'].items():
-                register_scenario(scenario_name, config)
-        elif 'databases' in config_data and 'mariadb' in config_data['databases']:
-            versions = config_data['databases']['mariadb'].get('versions', [])
-            for i, version_config in enumerate(versions):
-                label = version_config.get('label', f"mariadb_{i}")
-                register_scenario(label, version_config)
-        else:
-            # Use the entire config as a single scenario
-            register_scenario('default', config_data)
-
-        _apply_scenario_filter()
-
-    except ImportError:
-        raise ImportError("PyYAML is required to load MariaDB scenario configuration files")
+SCENARIO_MAP: Dict[str, Dict[str, Any]] = dict(support.mariadb.SCENARIO_MAP)
 
 
 def _apply_scenario_filter():
-    """Filter SCENARIO_MAP based on MARIADB_ACTIVE_SCENARIOS env var.
+    """Filter SCENARIO_MAP based on the active scenarios env var.
 
-    The env var is set by the --scenarios pytest option in the root conftest.
-    It contains comma-separated full scenario names (e.g., "mariadb_102,mariadb_122").
+    Keeps the backend-feature scenarios consistent with the scenarios active
+    for the rest of the test run.
     """
-    filter_str = os.getenv("MARIADB_ACTIVE_SCENARIOS")
+    filter_str = os.getenv(
+        "MARIADB_ACTIVE_SCENARIOS"
+    ) or os.getenv("TESTSUITE_ACTIVE_SCENARIOS")
     if not filter_str:
         return
-
-    allowed = set(s.strip() for s in filter_str.split(',') if s.strip())
+    allowed = set(s.strip() for s in filter_str.split(",") if s.strip())
     if not allowed:
         return
-
-    to_remove = [name for name in SCENARIO_MAP if name not in allowed]
-    for name in to_remove:
+    for name in [n for n in SCENARIO_MAP if n not in allowed]:
         del SCENARIO_MAP[name]
 
-    if to_remove:
-        print(f"Filtered scenarios: kept {list(SCENARIO_MAP.keys())}, "
-              f"removed {to_remove} (--scenarios={filter_str})")
 
-
-_load_scenarios_from_config()
-
-
-def get_scenario(name: str) -> Tuple[Type[MariaDBBackend], MariaDBConnectionConfig]:
-    if name not in SCENARIO_MAP:
-        if SCENARIO_MAP:
-            name = next(iter(SCENARIO_MAP))
-        else:
-            raise ValueError("No scenarios registered")
-    scenario_config = SCENARIO_MAP[name].copy()
-    # Apply the pooled database name so parallel workers never share a schema.
-    from providers.pooling import resolve_database_name
-
-    pooled_db = resolve_database_name(name)
-    if pooled_db:
-        scenario_config["database"] = pooled_db
-    config = MariaDBConnectionConfig(**scenario_config)
-    return MariaDBBackend, config
+_apply_scenario_filter()
 
 
 def get_enabled_scenarios() -> Dict[str, Any]:
     return SCENARIO_MAP
 
 
+def get_scenario_names():
+    return list(get_enabled_scenarios().keys())
+
+
+_PREPARED_DATABASES = set()
+
+
+def _database_for(request) -> str:
+    """Derive the logical database the directory owning the test runs in."""
+    parts = list(request.node.path.parts)
+    try:
+        index = max(i for i, part in enumerate(parts) if part == "backend")
+        names = [part for part in parts[index + 1 : -1] if part]
+        return "test_backend" + "".join("_" + name for name in names)
+    except ValueError:
+        if "feature" in parts:
+            index = max(i for i, part in enumerate(parts) if part == "feature")
+            names = [part for part in parts[index + 1 : -1] if part]
+            return "test_" + "_".join(names) if names else "test_misc"
+        return "test_backend"
+
+
+def _prepare_database(scenario_name: str, database: str) -> None:
+    """Create the directory's database once per scenario."""
+    key = (scenario_name, database)
+    if key in _PREPARED_DATABASES:
+        return
+    support.mariadb.scenario(scenario_name).reset_database(database)
+    _PREPARED_DATABASES.add(key)
+
+
+def get_scenario(
+    name: str, database: str = "test_backend"
+) -> Tuple[Type[MariaDBBackend], MariaDBConnectionConfig]:
+    if name not in SCENARIO_MAP:
+        if SCENARIO_MAP:
+            name = next(iter(SCENARIO_MAP))
+        else:
+            raise ValueError("No scenarios registered")
+    _prepare_database(name, database)
+    return MariaDBBackend, support.mariadb.scenario(name).make_config(database)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Pin a backend directory's tests to one worker.
+
+    These directories create and drop tables in the directory's own database,
+    so two workers must never run tests from the same directory at once.
+    """
+    for item in items:
+        parts = item.path.parts
+        if "backend" not in parts:
+            continue
+        item.add_marker(
+            pytest.mark.xdist_group("mariadb-backend::" + str(item.path.parent))
+        )
+
+
 # --- Provider Logic ---
+
 
 class BackendFeatureProvider:
     def __init__(self):
         self._backend = None
         self._async_backend = None
 
-    def setup_backend(self, scenario_name: str):
+    def setup_backend(self, scenario_name: str, database: str):
         if self._backend:
             return self._backend
-        backend_class, config = get_scenario(scenario_name)
+        backend_class, config = get_scenario(scenario_name, database)
         self._backend = backend_class(connection_config=config)
         self._backend.connect()
         self._backend.introspect_and_adapt()
         return self._backend
 
-    async def setup_async_backend(self, scenario_name: str):
+    async def setup_async_backend(self, scenario_name: str, database: str):
         if self._async_backend:
             return self._async_backend
-        _, config = get_scenario(scenario_name)
+        _, config = get_scenario(scenario_name, database)
         self._async_backend = AsyncMariaDBBackend(connection_config=config)
         await self._async_backend.connect()
         await self._async_backend.introspect_and_adapt()
@@ -171,34 +146,29 @@ class BackendFeatureProvider:
 
 # --- Fixtures ---
 
-def get_scenario_names():
-    return list(get_enabled_scenarios().keys())
-
 
 @pytest.fixture(scope="function", params=get_scenario_names())
 def mariadb_backend(request):
     """Parameterized fixture providing MariaDB backend for each scenario."""
     scenario_name = request.param
     provider = BackendFeatureProvider()
-    backend = provider.setup_backend(scenario_name)
+    backend = provider.setup_backend(scenario_name, _database_for(request))
     yield backend
     provider.cleanup()
 
 
 @pytest.fixture(scope="function")
-def mariadb_backend_single():
+def mariadb_backend_single(request):
     """Non-parameterized fixture using the first available scenario.
 
     Use this for tests whose results do not vary across database versions.
-    In --scenario-parallel mode, tests using this fixture are automatically
-    pinned to the first scenario's worker to avoid table conflicts.
     """
     scenario_names = get_scenario_names()
     if not scenario_names:
         pytest.skip("No MariaDB scenarios configured")
     scenario_name = scenario_names[0]
     provider = BackendFeatureProvider()
-    backend = provider.setup_backend(scenario_name)
+    backend = provider.setup_backend(scenario_name, _database_for(request))
     yield backend
     provider.cleanup()
 
@@ -208,7 +178,9 @@ async def async_mariadb_backend(request):
     """Parameterized async fixture providing MariaDB backend for each scenario."""
     scenario_name = request.param
     provider = BackendFeatureProvider()
-    backend = await provider.setup_async_backend(scenario_name)
+    backend = await provider.setup_async_backend(
+        scenario_name, _database_for(request)
+    )
     yield backend
     await provider.async_cleanup()
 
@@ -252,19 +224,19 @@ async def async_mariadb_control_backend(async_mariadb_backend):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_mariadb_backend_single():
+async def async_mariadb_backend_single(request):
     """Non-parameterized async fixture using the first available scenario.
 
     Use this for tests whose results do not vary across database versions.
-    In --scenario-parallel mode, tests using this fixture are automatically
-    pinned to the first scenario's worker to avoid table conflicts.
     """
     scenario_names = get_scenario_names()
     if not scenario_names:
         pytest.skip("No MariaDB scenarios configured")
     scenario_name = scenario_names[0]
     provider = BackendFeatureProvider()
-    backend = await provider.setup_async_backend(scenario_name)
+    backend = await provider.setup_async_backend(
+        scenario_name, _database_for(request)
+    )
     yield backend
     await provider.async_cleanup()
 
@@ -276,6 +248,7 @@ def mariadb_dialect():
 
 
 # --- Type Adapters ---
+
 
 @pytest.fixture(scope="module")
 def json_column_adapter():
@@ -292,4 +265,94 @@ def json_column_adapter():
         )
     """
     from rhosocial.activerecord.backend.impl.mariadb.adapters import MariaDBJSONAdapter
+
     return MariaDBJSONAdapter()
+
+
+# --- sequence fixtures shared by introspection and CLI ---------------------
+
+_SEQUENCE_SQL = """
+    DROP SEQUENCE IF EXISTS intro_seq;
+    CREATE SEQUENCE intro_seq
+        START WITH 10 INCREMENT BY 2
+        MINVALUE 5 MAXVALUE 100
+        CYCLE;
+"""
+
+_CLEANUP_SEQUENCE_SQL = """
+    DROP SEQUENCE IF EXISTS intro_seq;
+"""
+
+#: MariaDB gained sequences in 10.3. Below that the statements above are a
+#: syntax error, not an empty answer, so the fixtures skip instead of poisoning
+#: the run: ``DROP SEQUENCE``/``CREATE SEQUENCE`` do not exist to be optional.
+#: ``SEQUENCES_SINCE`` is the mixin's own constant and the one the introspector
+#: gates on, so the test and the code under test read the same line.
+MIN_MARIADB_FOR_SEQUENCES = SEQUENCES_SINCE
+
+
+def _has_sequences(backend) -> bool:
+    """Whether this server can create a sequence at all.
+
+    Read from the backend's own version tuple rather than a scenario name, so
+    the answer follows the connection the fixture actually holds.
+    """
+    version = getattr(backend, "_version", None) or (0, 0, 0)
+    return tuple(version[:3]) >= SEQUENCES_SINCE
+
+
+def _require_sequences(backend) -> None:
+    """Skip the calling test when this server predates sequences.
+
+    A skip rather than an error: the question the test asks is unanswerable on
+    this server, which is different from the code being wrong.
+    """
+    if not _has_sequences(backend):
+        pytest.skip(
+            "MariaDB {} has no sequences (they arrived in {})".format(
+                ".".join(str(p) for p in (getattr(backend, "_version", None) or (0, 0, 0))[:3]),
+                ".".join(str(p) for p in SEQUENCES_SINCE),
+            )
+        )
+
+
+# A sequence is a table, so it lands in information_schema.TABLES beside the
+# base tables -- the same list table options reads.
+_SEQUENCE_TABLE_SQL = _SEQUENCE_SQL + """
+    CREATE TABLE IF NOT EXISTS intro_options (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        note VARCHAR(64) NOT NULL
+    ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+"""
+
+_CLEANUP_SEQUENCE_TABLE_SQL = """
+    DROP TABLE IF EXISTS intro_options;
+""" + _CLEANUP_SEQUENCE_SQL
+
+
+@pytest.fixture(scope="function")
+def backend_with_sequence(mariadb_backend):
+    """Fixture providing backend with a sequence that states its own limits."""
+    _require_sequences(mariadb_backend)
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_SEQUENCE_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_SEQUENCE_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_sequence(async_mariadb_backend):
+    """Async fixture providing backend with a sequence."""
+    _require_sequences(async_mariadb_backend)
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_SEQUENCE_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_SEQUENCE_SQL)
+    except Exception:
+        pass

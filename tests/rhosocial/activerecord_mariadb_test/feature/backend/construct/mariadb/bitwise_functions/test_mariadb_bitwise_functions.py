@@ -1,0 +1,254 @@
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/construct/mariadb/bitwise_functions/test_mariadb_bitwise_functions.py
+"""
+Tests for MariaDB-specific bitwise functions.
+
+Functions: bit_and, bit_or, bit_xor, bit_count, bit_get_bit,
+           bit_shift_left, bit_shift_right
+
+Note: bit_and, bit_or, bit_xor, bit_get_bit, bit_shift_left, bit_shift_right
+are implemented using native MySQL operators (&, |, ^, <<, >>) since the
+function versions (BIT_AND, etc.) are aggregate functions that require
+GROUP BY context.
+
+Every operand is an expression: a ``Column`` for a column, a ``Literal`` for a
+value.
+"""
+
+from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.functions.bitwise import (
+    bit_and,
+    bit_or,
+    bit_xor,
+    bit_count,
+    bit_get_bit,
+    bit_shift_left,
+    bit_shift_right,
+)
+
+
+class TestMySQLBitwiseFunctions:
+    """Tests for MySQL bitwise functions."""
+
+    def test_bit_and_single_column(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_and() with a single column returns the column itself."""
+        result = bit_and(mariadb_dialect, Column(mariadb_dialect, "flags"))
+        sql, _ = result.to_sql()
+        # Single column returns the column (no operator needed)
+        assert "`flags`" in sql
+
+    def test_bit_and_multiple_columns(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_and() with multiple columns."""
+        result = bit_and(
+            mariadb_dialect,
+            Column(mariadb_dialect, "a"),
+            Column(mariadb_dialect, "b"),
+            Column(mariadb_dialect, "c"),
+        )
+        sql, _ = result.to_sql()
+        assert "`a`" in sql
+        assert "`b`" in sql
+        assert "`c`" in sql
+        assert " & " in sql
+
+    def test_bit_and_with_literal(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_and() with literal value."""
+        result = bit_and(mariadb_dialect, Literal(mariadb_dialect, 255))
+        sql, _ = result.to_sql()
+        assert "%s" in sql
+
+    def test_bit_or_single_column(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_or() with a single column returns the column itself."""
+        result = bit_or(mariadb_dialect, Column(mariadb_dialect, "flags"))
+        sql, _ = result.to_sql()
+        # Single column returns the column (no operator needed)
+        assert "`flags`" in sql
+
+    def test_bit_or_multiple_columns(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_or() with multiple columns."""
+        result = bit_or(
+            mariadb_dialect,
+            Column(mariadb_dialect, "a"),
+            Column(mariadb_dialect, "b"),
+        )
+        sql, _ = result.to_sql()
+        assert "`a`" in sql
+        assert "`b`" in sql
+        assert " | " in sql
+
+    def test_bit_or_with_literal(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_or() with literal value."""
+        result = bit_or(mariadb_dialect, Literal(mariadb_dialect, 0xFF))
+        sql, _ = result.to_sql()
+        assert "%s" in sql
+
+    def test_bit_xor_single_column(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_xor() with a single column returns the column itself."""
+        result = bit_xor(mariadb_dialect, Column(mariadb_dialect, "flags"))
+        sql, _ = result.to_sql()
+        # Single column returns the column (no operator needed)
+        assert "`flags`" in sql
+
+    def test_bit_xor_multiple_columns(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_xor() with multiple columns."""
+        result = bit_xor(
+            mariadb_dialect,
+            Column(mariadb_dialect, "a"),
+            Column(mariadb_dialect, "b"),
+        )
+        sql, _ = result.to_sql()
+        assert "`a`" in sql
+        assert "`b`" in sql
+        assert " ^ " in sql
+
+    def test_bit_xor_with_literal(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_xor() with literal value."""
+        result = bit_xor(mariadb_dialect, Literal(mariadb_dialect, 0xAA))
+        sql, _ = result.to_sql()
+        assert "%s" in sql
+
+    def test_bit_count_column(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_count() with a column."""
+        result = bit_count(mariadb_dialect, Column(mariadb_dialect, "value"))
+        sql, _ = result.to_sql()
+        assert "BIT_COUNT(" in sql
+        assert "`value`" in sql
+
+    def test_bit_count_literal(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_count() with a literal value."""
+        result = bit_count(mariadb_dialect, Literal(mariadb_dialect, 255))
+        sql, _ = result.to_sql()
+        assert "BIT_COUNT(" in sql
+        assert "%s" in sql
+
+    def test_bit_count_binary(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_count() with a binary value."""
+        result = bit_count(mariadb_dialect, Literal(mariadb_dialect, 0b10101010))
+        sql, _ = result.to_sql()
+        assert "BIT_COUNT(" in sql
+        assert "%s" in sql
+
+    def test_bit_get_bit_column_and_literal(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_get_bit() with column and literal.
+        Implemented as ((value >> bit) & 1).
+        """
+        result = bit_get_bit(
+            mariadb_dialect,
+            Column(mariadb_dialect, "value"),
+            Literal(mariadb_dialect, 0),
+        )
+        sql, _ = result.to_sql()
+        assert "`value`" in sql
+        assert ">>" in sql
+        assert "&" in sql
+        assert "%s" in sql
+
+    def test_bit_get_bit_both_columns(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_get_bit() with both arguments as columns."""
+        result = bit_get_bit(
+            mariadb_dialect,
+            Column(mariadb_dialect, "value"),
+            Column(mariadb_dialect, "bit_pos"),
+        )
+        sql, _ = result.to_sql()
+        assert "`value`" in sql
+        assert "`bit_pos`" in sql
+        assert ">>" in sql
+        assert "&" in sql
+
+    def test_bit_shift_left_column_by_literal(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_shift_left() with column and literal."""
+        result = bit_shift_left(
+    mariadb_dialect,
+    Column(mariadb_dialect, "value"),
+    Literal(mariadb_dialect, 1),
+)
+        sql, _ = result.to_sql()
+        assert "`value`" in sql
+        assert "<<" in sql
+        assert "%s" in sql
+
+    def test_bit_shift_left_both_columns(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_shift_left() with both arguments as columns."""
+        result = bit_shift_left(
+            mariadb_dialect,
+            Column(mariadb_dialect, "value"),
+            Column(mariadb_dialect, "shift"),
+        )
+        sql, _ = result.to_sql()
+        assert "`value`" in sql
+        assert "`shift`" in sql
+        assert "<<" in sql
+
+    def test_bit_shift_right_column_by_literal(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_shift_right() with column and literal."""
+        result = bit_shift_right(
+    mariadb_dialect,
+    Column(mariadb_dialect, "value"),
+    Literal(mariadb_dialect, 2),
+)
+        sql, _ = result.to_sql()
+        assert "`value`" in sql
+        assert ">>" in sql
+        assert "%s" in sql
+
+    def test_bit_shift_right_both_columns(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_shift_right() with both arguments as columns."""
+        result = bit_shift_right(
+            mariadb_dialect,
+            Column(mariadb_dialect, "value"),
+            Column(mariadb_dialect, "shift"),
+        )
+        sql, _ = result.to_sql()
+        assert "`value`" in sql
+        assert "`shift`" in sql
+        assert ">>" in sql
+
+    def test_bit_shift_left_with_literal_base(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_shift_left() with literal base value."""
+        result = bit_shift_left(
+            mariadb_dialect, Literal(mariadb_dialect, 1), Literal(mariadb_dialect, 8),
+        )
+        sql, _ = result.to_sql()
+        assert "<<" in sql
+        assert "%s" in sql
+
+    def test_bit_shift_right_with_literal_base(self, mariadb_dialect: MariaDBDialect):
+        """Test bit_shift_right() with literal base value."""
+        result = bit_shift_right(
+            mariadb_dialect, Literal(mariadb_dialect, 256), Literal(mariadb_dialect, 4),
+        )
+        sql, _ = result.to_sql()
+        assert ">>" in sql
+        assert "%s" in sql
+
+    def test_bit_count_with_column_named_like_a_number(self, mariadb_dialect: MariaDBDialect):
+        """A column whose name is a number is reachable, because the caller says so.
+
+        bit_count() used to decide from the argument's type that the string
+        "255" was the name of a column, and a caller who meant the number had
+        no way to say so.
+        """
+        result = bit_count(mariadb_dialect, Column(mariadb_dialect, "255"))
+        sql, _ = result.to_sql()
+        assert "BIT_COUNT(" in sql
+        assert "`255`" in sql
+        assert "%s" not in sql
+
+    def test_bit_count_with_the_number_255(self, mariadb_dialect: MariaDBDialect):
+        """The number 255 is a value, and renders as a bound parameter."""
+        result = bit_count(mariadb_dialect, Literal(mariadb_dialect, 255))
+        sql, params = result.to_sql()
+        assert "BIT_COUNT(%s)" == sql
+        assert params == (255,)
+
+    def test_bit_get_bit_with_column_named_zero(self, mariadb_dialect: MariaDBDialect):
+        """bit_get_bit() takes a column for the bit position when there is one."""
+        result = bit_get_bit(
+            mariadb_dialect,
+            Column(mariadb_dialect, "value"),
+            Column(mariadb_dialect, "0"),
+        )
+        sql, _ = result.to_sql()
+        assert "`value`" in sql
+        assert "`0`" in sql

@@ -1,0 +1,329 @@
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/execute/introspection/conftest.py
+"""
+Pytest fixtures for MariaDB introspection tests.
+
+This module provides fixtures for testing database introspection
+functionality with MariaDB backends.
+"""
+
+import pytest
+import pytest_asyncio
+
+from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
+    SEQUENCES_SINCE,
+)
+
+
+# SQL script for creating test tables
+_TABLES_SQL = """
+    SET FOREIGN_KEY_CHECKS = 0;
+    DROP TABLE IF EXISTS post_tags;
+    DROP TABLE IF EXISTS posts;
+    DROP TABLE IF EXISTS tags;
+    DROP TABLE IF EXISTS users;
+    SET FOREIGN_KEY_CHECKS = 1;
+
+    CREATE TABLE users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        age INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE INDEX idx_users_email (email),
+        INDEX idx_users_name_age (name, age)
+    ) ENGINE=InnoDB;
+
+    CREATE TABLE posts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        content TEXT,
+        user_id INT NOT NULL,
+        status ENUM('draft', 'published', 'archived') DEFAULT 'draft',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_posts_user_id (user_id),
+        CONSTRAINT fk_posts_user
+            FOREIGN KEY (user_id)
+            REFERENCES users(id)
+            ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+
+    CREATE TABLE tags (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(50) NOT NULL UNIQUE
+    ) ENGINE=InnoDB;
+
+    CREATE TABLE post_tags (
+        post_id INT NOT NULL,
+        tag_id INT NOT NULL,
+        PRIMARY KEY (post_id, tag_id),
+        CONSTRAINT fk_post_tags_post
+            FOREIGN KEY (post_id)
+            REFERENCES posts(id)
+            ON DELETE CASCADE,
+        CONSTRAINT fk_post_tags_tag
+            FOREIGN KEY (tag_id)
+            REFERENCES tags(id)
+            ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+"""
+
+_CLEANUP_TABLES_SQL = """
+    SET FOREIGN_KEY_CHECKS = 0;
+    DROP TABLE IF EXISTS post_tags;
+    DROP TABLE IF EXISTS posts;
+    DROP TABLE IF EXISTS tags;
+    DROP TABLE IF EXISTS users;
+    SET FOREIGN_KEY_CHECKS = 1;
+"""
+
+_VIEW_SQL = """
+    SET FOREIGN_KEY_CHECKS = 0;
+    DROP VIEW IF EXISTS user_summary;
+    DROP TABLE IF EXISTS user_stats;
+    DROP TABLE IF EXISTS users;
+    SET FOREIGN_KEY_CHECKS = 1;
+
+    CREATE TABLE users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) NOT NULL
+    ) ENGINE=InnoDB;
+
+    CREATE TABLE user_stats (
+        user_id INT PRIMARY KEY,
+        post_count INT DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    ) ENGINE=InnoDB;
+
+    CREATE VIEW user_summary AS
+    SELECT u.id, u.name, u.email, COALESCE(s.post_count, 0) as post_count
+    FROM users u
+    LEFT JOIN user_stats s ON u.id = s.user_id;
+"""
+
+_CLEANUP_VIEW_SQL = """
+    SET FOREIGN_KEY_CHECKS = 0;
+    DROP VIEW IF EXISTS user_summary;
+    DROP TABLE IF EXISTS user_stats;
+    DROP TABLE IF EXISTS users;
+    SET FOREIGN_KEY_CHECKS = 1;
+"""
+
+_TRIGGER_SQL = """
+    SET FOREIGN_KEY_CHECKS = 0;
+    DROP TRIGGER IF EXISTS update_user_timestamp;
+    DROP TABLE IF EXISTS users;
+    SET FOREIGN_KEY_CHECKS = 1;
+
+    CREATE TABLE users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+
+    CREATE TRIGGER update_user_timestamp
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+"""
+
+_CLEANUP_TRIGGER_SQL = """
+    SET FOREIGN_KEY_CHECKS = 0;
+    DROP TRIGGER IF EXISTS update_user_timestamp;
+    DROP TABLE IF EXISTS users;
+    SET FOREIGN_KEY_CHECKS = 1;
+"""
+
+
+@pytest.fixture(scope="function")
+def backend_with_tables(mariadb_backend):
+    """Fixture providing backend with test tables created."""
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_TABLES_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_TABLES_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_tables(async_mariadb_backend):
+    """Async fixture providing backend with test tables created."""
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_TABLES_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_TABLES_SQL)
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="function")
+def backend_with_view(mariadb_backend):
+    """Fixture providing backend with a test view."""
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_VIEW_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_VIEW_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_view(async_mariadb_backend):
+    """Async fixture providing backend with a test view."""
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_VIEW_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_VIEW_SQL)
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="function")
+def backend_with_trigger(mariadb_backend):
+    """Fixture providing backend with a test trigger."""
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_TRIGGER_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_TRIGGER_SQL)
+    except Exception:
+        pass
+
+
+# One sequence with every clause spelled out, so a server that reports the
+# numeric details gives the deck back rather than a guess at the defaults.
+_SEQUENCE_SQL = """
+    DROP SEQUENCE IF EXISTS intro_seq;
+    CREATE SEQUENCE intro_seq
+        START WITH 10 INCREMENT BY 2
+        MINVALUE 5 MAXVALUE 100
+        CYCLE;
+"""
+
+_CLEANUP_SEQUENCE_SQL = """
+    DROP SEQUENCE IF EXISTS intro_seq;
+"""
+
+#: MariaDB gained sequences in 10.3. Below that the statements above are a
+#: syntax error, not an empty answer, so the fixtures skip instead of poisoning
+#: the run: ``DROP SEQUENCE``/``CREATE SEQUENCE`` do not exist to be optional.
+#: ``SEQUENCES_SINCE`` is the mixin's own constant and the one the introspector
+#: gates on, so the test and the code under test read the same line.
+MIN_MARIADB_FOR_SEQUENCES = SEQUENCES_SINCE
+
+
+def _has_sequences(backend) -> bool:
+    """Whether this server can create a sequence at all.
+
+    Read from the backend's own version tuple rather than a scenario name, so
+    the answer follows the connection the fixture actually holds.
+    """
+    version = getattr(backend, "_version", None) or (0, 0, 0)
+    return tuple(version[:3]) >= SEQUENCES_SINCE
+
+
+def _require_sequences(backend) -> None:
+    """Skip the calling test when this server predates sequences.
+
+    A skip rather than an error: the question the test asks is unanswerable on
+    this server, which is different from the code being wrong.
+    """
+    if not _has_sequences(backend):
+        pytest.skip(
+            "MariaDB {} has no sequences (they arrived in {})".format(
+                ".".join(str(p) for p in (getattr(backend, "_version", None) or (0, 0, 0))[:3]),
+                ".".join(str(p) for p in SEQUENCES_SINCE),
+            )
+        )
+
+# A sequence is a table, so it lands in information_schema.TABLES beside the
+# base tables -- the same list table options reads.
+_SEQUENCE_TABLE_SQL = _SEQUENCE_SQL + """
+    CREATE TABLE IF NOT EXISTS intro_options (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        note VARCHAR(64) NOT NULL
+    ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+"""
+
+_CLEANUP_SEQUENCE_TABLE_SQL = """
+    DROP TABLE IF EXISTS intro_options;
+""" + _CLEANUP_SEQUENCE_SQL
+
+
+@pytest.fixture(scope="function")
+def backend_with_sequence(mariadb_backend):
+    """Fixture providing backend with a sequence that states its own limits."""
+    _require_sequences(mariadb_backend)
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_SEQUENCE_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_SEQUENCE_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_sequence(async_mariadb_backend):
+    """Async fixture providing backend with a sequence."""
+    _require_sequences(async_mariadb_backend)
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_SEQUENCE_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_SEQUENCE_SQL)
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="function")
+def backend_with_sequence_and_table(mariadb_backend):
+    """A sequence and a table in one schema, for the list families."""
+    _require_sequences(mariadb_backend)
+    mariadb_backend.introspector.clear_cache()
+    mariadb_backend.executescript(_SEQUENCE_TABLE_SQL)
+    yield mariadb_backend
+    try:
+        mariadb_backend.introspector.clear_cache()
+        mariadb_backend.executescript(_CLEANUP_SEQUENCE_TABLE_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_trigger(async_mariadb_backend):
+    """Async fixture providing backend with a test trigger."""
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_TRIGGER_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_TRIGGER_SQL)
+    except Exception:
+        pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_backend_with_sequence_and_table(async_mariadb_backend):
+    """Async counterpart of :func:`backend_with_sequence_and_table`."""
+    _require_sequences(async_mariadb_backend)
+    async_mariadb_backend.introspector.clear_cache()
+    await async_mariadb_backend.executescript(_SEQUENCE_TABLE_SQL)
+    yield async_mariadb_backend
+    try:
+        async_mariadb_backend.introspector.clear_cache()
+        await async_mariadb_backend.executescript(_CLEANUP_SEQUENCE_TABLE_SQL)
+    except Exception:
+        pass

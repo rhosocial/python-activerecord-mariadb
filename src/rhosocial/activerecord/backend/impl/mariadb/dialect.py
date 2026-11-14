@@ -57,6 +57,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
+    TransactionalDDLSupport,
     GeneratedColumnSupport,
     # One protocol per mechanism: MariaDB accepts the parameterless
     # AUTO_INCREMENT marker and refuses the parameterised standard identity
@@ -402,6 +403,7 @@ class MariaDBDialect(
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
+    TransactionalDDLSupport,
     GeneratedColumnSupport,
     # One protocol per mechanism: MariaDB accepts the parameterless
     # AUTO_INCREMENT marker and refuses the parameterised standard identity
@@ -497,6 +499,10 @@ class MariaDBDialect(
     def get_server_version(self) -> Tuple[int, int, int]:
         """Return the MariaDB version this dialect is configured for."""
         return self.version
+
+    def supports_transactional_ddl(self) -> bool:
+        """MariaDB commits each DDL statement implicitly."""
+        return False
 
     def create_schema_differ(self):
         """Return the MariaDB schema differ (ordinal-position aware)."""

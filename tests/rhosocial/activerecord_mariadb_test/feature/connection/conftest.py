@@ -22,6 +22,11 @@ from rhosocial.activerecord.connection.pool import (
 )
 
 
+def resolve_database_name(scenario_name: str) -> str:
+    """Name the database these pool tests own on each scenario's server."""
+    return f"test_connection_{scenario_name}"
+
+
 # No event loop workaround is needed on Windows. This backend's async driver
 # (mariadb-connector-python) talks over asyncio streams, which the platform's
 # default ProactorEventLoop serves natively; only a driver that registers the
@@ -80,6 +85,10 @@ def _load_scenarios_from_config():
 
 _load_scenarios_from_config()
 
+from support.mariadb import scenario as _support_scenario
+
+_PREPARED_DATABASES = set()
+
 
 def get_scenario_config(name: str) -> Dict[str, Any]:
     if name not in SCENARIO_MAP:
@@ -89,11 +98,12 @@ def get_scenario_config(name: str) -> Dict[str, Any]:
             raise ValueError("No scenarios registered or enabled")
     scenario_config = SCENARIO_MAP[name].copy()
     # Apply the pooled database name so parallel workers never share a schema.
-    from providers.pooling import resolve_database_name
-
     pooled_db = resolve_database_name(name)
     if pooled_db:
         scenario_config["database"] = pooled_db
+        if pooled_db not in _PREPARED_DATABASES:
+            _support_scenario(name).reset_database(pooled_db)
+            _PREPARED_DATABASES.add(pooled_db)
     return scenario_config
 
 
@@ -277,3 +287,17 @@ async def async_mariadb_pool_with_tables(async_mariadb_pool: AsyncBackendPool) -
     async with async_mariadb_pool.connection() as backend:
         await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
         await backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
+
+
+# --- directory contract: keep this directory on one worker per scenario ---
+def ensure_database(environment):
+    """The pool fixtures create their own database on first use."""
+    return
+
+
+def prepare(environment):
+    return
+
+
+def teardown(environment):
+    return

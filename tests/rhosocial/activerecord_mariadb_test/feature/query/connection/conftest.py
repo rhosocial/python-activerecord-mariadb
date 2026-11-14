@@ -1,9 +1,3 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/query/connection/conftest.py
-"""
-Pytest configuration for query connection pool feature tests.
-
-This file imports fixtures from the corresponding testsuite, making them
-available to the tests in this directory.
-"""
-
-from rhosocial.activerecord.testsuite.feature.query.connection.conftest import *  # noqa: F403
+"""Use the shared ``query/connection`` minimal test set."""
+from rhosocial.activerecord.testsuite.feature.query.connection.conftest import *  # noqa: F401,F403

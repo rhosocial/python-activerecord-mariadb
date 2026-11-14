@@ -8,7 +8,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import pytest
 
 from rhosocial.activerecord.backend.impl.mariadb.__main__ import main
-from providers.scenarios import get_scenario_raw
+from support.mariadb import get_scenario_raw
 
 import socket
 COMMANDS = [

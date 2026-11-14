@@ -137,3 +137,7 @@ class AsyncMariaDBTransactionManager(MariaDBTransactionMixin, AsyncTransactionMa
             error_msg = f"Failed to rollback to savepoint {name}: {str(e)}"
             self.log(logging.DEBUG, error_msg)
             raise TransactionError(error_msg) from e
+
+    async def supports_savepoint(self) -> bool:
+        """Async counterpart of the sync capability probe."""
+        return self._backend.dialect.supports_savepoint()

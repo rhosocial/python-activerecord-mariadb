@@ -66,8 +66,8 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev30"  # NOSONAR
-          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev17"  # NOSONAR
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/activerecord-ddl"  # NOSONAR
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/activerecord-ddl"  # NOSONAR
 
       - name: Install dependencies
         run: |
@@ -95,14 +95,14 @@ jobs:
         if: matrix.mariadb-version != '11.8'
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short -n auto --dist=loadgroup -x
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short -n 8 --dist=loadgroup -x
 
       - name: Run tests with coverage (only for MariaDB 11.8)
         if: matrix.mariadb-version == '11.8'
         run: |
           export PYTHONPATH=src:tests
           pip install codecov
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=src --cov-report=xml -n auto --dist=loadgroup
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=src --cov-report=xml -n 8 --dist=loadgroup
 
       - name: Upload coverage to Codecov
         if: matrix.mariadb-version == '11.8'
@@ -153,8 +153,8 @@ jobs:
 
       - name: Install activerecord and testsuite
         run: |
-          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev30"  # NOSONAR
-          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@release/v1.0.0.dev17"  # NOSONAR
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/activerecord-ddl"  # NOSONAR
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/activerecord-ddl"  # NOSONAR
 
       - name: Install dependencies
         run: |

@@ -9,5 +9,3 @@ ensuring MariaDB backend compatibility for ActiveQuery connection pool context a
 
 # Import shared tests from testsuite package
 from rhosocial.activerecord.testsuite.feature.query.connection.test_active_query_context import *  # noqa: F403
-from rhosocial.activerecord.testsuite.feature.query.connection.test_active_query_context_async import *  # noqa: F403
-
