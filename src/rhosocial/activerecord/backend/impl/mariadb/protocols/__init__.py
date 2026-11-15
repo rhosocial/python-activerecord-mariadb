@@ -31,6 +31,7 @@ Protocol Organization:
 """
 
 from .charset import MariaDBCharsetCollationSupport
+from .server_parameters import MariaDBServerParametersSupport
 from .cte import MariaDBCTESupport
 from .dml import MariaDBDMLOperationSupport
 from .fulltext_search import MariaDBFullTextSearchSupport
@@ -78,4 +79,5 @@ __all__ = [
     'MariaDBRoutineSupport',
     'MariaDBAdminSupport',
     'MariaDBTypeSupport',
+    'MariaDBServerParametersSupport',
 ]

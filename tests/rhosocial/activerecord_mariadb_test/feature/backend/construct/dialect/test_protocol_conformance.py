@@ -127,6 +127,7 @@ MYSQL_PROTOCOLS = [
     # parameterised standard clause. MariaDB declares both interfaces; its
     # probes answer True and False respectively.
     dialect_protocols.AutoIncrementColumnSupport,
+    dialect_protocols.DatabaseAssignedColumnSupport,
     dialect_protocols.IdentityColumnSupport,
     dialect_protocols.ConstraintSupport,
     dialect_protocols.CreateDomainSupport,
@@ -172,6 +173,7 @@ MYSQL_PROTOCOLS = [
     mysql_protocols.MariaDBRenameTableSupport,
     mysql_protocols.MariaDBReturningSupport,
     mysql_protocols.MariaDBRoutineSupport,
+    mysql_protocols.MariaDBServerParametersSupport,
     mysql_protocols.MariaDBSequenceSupport,
     mysql_protocols.MariaDBSetTypeSupport,
     mysql_protocols.MariaDBSpatialSupport,

@@ -504,6 +504,34 @@ class MariaDBDialect(
         """MariaDB commits each DDL statement implicitly."""
         return False
 
+    #: Server and session parameters recorded during adaptation.
+    #:
+    #: They are not capabilities: an operator can change them, so no version
+    #: decides them. ``introspect_and_adapt`` reads them from the live session
+    #: (``SHOW SESSION VARIABLES``) and records the answers here.
+    _server_parameters: Dict[str, str] = {}
+
+    def set_server_parameters(self, values: Dict[str, str]) -> None:
+        """Record what the live server reported about itself."""
+        self._server_parameters = dict(values)
+
+    def server_parameters(self) -> dict:
+        """Every recorded value, keyed by its MariaDB variable name."""
+        return dict(self._server_parameters)
+
+    def explicit_defaults_for_timestamp(self) -> bool:
+        """Whether TIMESTAMP columns hold only what a statement wrote.
+
+        The session's recorded value wins (MariaDB reports ``ON`` / ``OFF``).
+        With no record, this answers ``False``: the measured server (11.8.9)
+        reports ``ON``, earlier versions were not measured, and a capability
+        nobody confirmed is not claimed.
+        """
+        recorded = self._server_parameters.get("explicit_defaults_for_timestamp")
+        if recorded is not None:
+            return str(recorded).strip().upper() in ("ON", "1", "TRUE")
+        return False
+
     def create_schema_differ(self):
         """Return the MariaDB schema differ (ordinal-position aware)."""
         from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (
