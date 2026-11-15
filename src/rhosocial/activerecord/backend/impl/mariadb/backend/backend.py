@@ -131,29 +131,41 @@ class MariaDBBackend(
     def _register_mariadb_adapters(self):
         """Register MariaDB-specific type adapters."""
         from ..adapters import (
+            MariaDBBitStringAdapter,
             MariaDBBlobAdapter,
             MariaDBBooleanAdapter,
             MariaDBDateAdapter,
             MariaDBDatetimeAdapter,
             MariaDBDecimalAdapter,
             MariaDBEnumAdapter,
+            MariaDBGeometryAdapter,
             MariaDBJSONAdapter,
+            MariaDBMacAddressAdapter,
+            MariaDBRangeAdapter,
             MariaDBSetAdapter,
             MariaDBTimeAdapter,
             MariaDBUUIDAdapter,
+            MariaDBVectorAdapter,
         )
 
         adapters = [
+            MariaDBBitStringAdapter(),
             MariaDBBlobAdapter(),
             MariaDBBooleanAdapter(),
             MariaDBDateAdapter(),
             MariaDBDatetimeAdapter(self._version),
             MariaDBDecimalAdapter(),
             MariaDBEnumAdapter(use_int_storage=False),
+            # Neutral adapters are keyed by their neutral Python type, so they
+            # cannot shadow the JSON/date/... adapters above.
+            MariaDBGeometryAdapter(),
             MariaDBJSONAdapter(),
+            MariaDBMacAddressAdapter(),
+            MariaDBRangeAdapter(),
             MariaDBSetAdapter(),
             MariaDBTimeAdapter(),
             MariaDBUUIDAdapter(),
+            MariaDBVectorAdapter(),
         ]
 
         for adapter in adapters:

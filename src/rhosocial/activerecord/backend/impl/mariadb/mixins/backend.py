@@ -18,7 +18,7 @@ from rhosocial.activerecord.backend.errors import (
 )
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, Type, TYPE_CHECKING
 from uuid import UUID
 
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
@@ -205,29 +205,41 @@ class MariaDBBackendMixin:
     def _register_mariadb_adapters(self):
         """Register MariaDB-specific type adapters."""
         from ..adapters import (
+            MariaDBBitStringAdapter,
             MariaDBBlobAdapter,
             MariaDBBooleanAdapter,
             MariaDBDateAdapter,
             MariaDBDatetimeAdapter,
             MariaDBDecimalAdapter,
             MariaDBEnumAdapter,
+            MariaDBGeometryAdapter,
             MariaDBJSONAdapter,
+            MariaDBMacAddressAdapter,
+            MariaDBRangeAdapter,
             MariaDBSetAdapter,
             MariaDBTimeAdapter,
             MariaDBUUIDAdapter,
+            MariaDBVectorAdapter,
         )
 
         mariadb_adapters = [
+            MariaDBBitStringAdapter(),
             MariaDBBlobAdapter(),
             MariaDBBooleanAdapter(),
             MariaDBDateAdapter(),
             MariaDBDatetimeAdapter(self._version if hasattr(self, '_version') else None),
             MariaDBDecimalAdapter(),
             MariaDBEnumAdapter(use_int_storage=False),
+            # Neutral adapters are keyed by their neutral Python type, so they
+            # cannot shadow the JSON/date/... adapters above.
+            MariaDBGeometryAdapter(),
             MariaDBJSONAdapter(),
+            MariaDBMacAddressAdapter(),
+            MariaDBRangeAdapter(),
             MariaDBSetAdapter(),
             MariaDBTimeAdapter(),
             MariaDBUUIDAdapter(),
+            MariaDBVectorAdapter(),
         ]
 
         for adapter in mariadb_adapters:
@@ -259,12 +271,24 @@ class MariaDBBackendMixin:
     def get_default_adapter_suggestions(self) -> Dict[Type, Tuple[SQLTypeAdapter, Type]]:
         """Provide default type adapter suggestions for MariaDB.
 
-        Returns:
-            Dict[Type, Tuple[SQLTypeAdapter, Type]]: A dictionary where keys are
-            original Python types, and values are tuples containing a
-            SQLTypeAdapter instance and the target Python type.
+        The framework defaults
+        (:meth:`TypeAdaptionMixin.get_default_adapter_suggestions`) are the
+        base; MariaDB merges its own pairs on top, including the neutral
+        families it carries as TEXT/BLOB text.
         """
-        suggestions: Dict[Type, Tuple[SQLTypeAdapter, Type]] = {}
+        from rhosocial.activerecord.backend.adapters import (
+            BitString,
+            Geometry,
+            MacAddress,
+            Multirange,
+            Range,
+            Vector,
+        )
+        from rhosocial.activerecord.backend.base.type_adaption import (
+            merge_adapter_suggestions,
+        )
+
+        base = super().get_default_adapter_suggestions()
 
         type_mappings = [
             (bool, int),
@@ -278,20 +302,37 @@ class MariaDBBackendMixin:
             (Enum, str),
             (set, str),
             (frozenset, str),
+            # Neutral families: MariaDB carries them as TEXT/BLOB text.
+            (Geometry, str),
+            (Vector, str),
+            (BitString, str),
+            (Range, str),
+            (Multirange, str),
+            (MacAddress, str),
         ]
 
+        suggestions = merge_adapter_suggestions(base, type_mappings, self.adapter_registry)
         for py_type, db_type in type_mappings:
-            adapter = self.adapter_registry.get_adapter(py_type, db_type)
-            if adapter:
-                suggestions[py_type] = (adapter, db_type)
-            else:
+            if py_type not in suggestions:
                 self.log(
                     logging.DEBUG,
                     f"No adapter found for ({py_type.__name__}, {db_type.__name__}). "
-                    "Suggestion will not be provided for this type."
+                    "Suggestion will not be provided for this type.",
                 )
-
         return suggestions
+
+    def get_type_adapters(self) -> List["SQLTypeAdapter"]:
+        """Return the adapter instances this backend provides.
+
+        This is a plain inventory: it says which adapters exist for this backend.
+        It carries no suggestion/default/priority semantics; the caller decides.
+        """
+        registered = self.adapter_registry.get_all_adapters().values()
+        unique: Dict[Tuple[str, str], SQLTypeAdapter] = {}
+        for adapter in registered:
+            adapter_cls = adapter.__class__
+            unique[(adapter_cls.__module__, adapter_cls.__qualname__)] = adapter
+        return [unique[key] for key in sorted(unique)]
 
     def _liveness_probe(self) -> Tuple[str, tuple]:
         """The statement that answers "is this connection still usable?".
