@@ -11,9 +11,14 @@ real value rather than a guess.
 
 
 def _session_reports_explicit(backend) -> bool:
-    """The session's own answer, read directly for comparison."""
+    """The server's own answer, read directly for comparison.
+
+    Read without a scope: a variable MariaDB scopes globally only refuses
+    ``@@SESSION.<name>`` (errno 1238 on 10.4), and the unscoped form is the
+    value this session runs under in either case.
+    """
     row = backend.execute(
-        "SELECT @@SESSION.explicit_defaults_for_timestamp AS v", ()
+        "SELECT @@explicit_defaults_for_timestamp AS v", ()
     ).data[0]
     return str(row["v"]).strip().upper() in ("ON", "1", "TRUE")
 

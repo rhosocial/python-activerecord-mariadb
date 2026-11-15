@@ -2,10 +2,15 @@
 """L2 backend fixtures for the MariaDB native-type tests.
 
 - ``database``: one database per directory (session scope, emptied at start);
-- ``schema``: the native family tables, plus the ``UUID`` table only when the
-  scenario's server reports the type, dropped and recreated for every test
-  (function scope), so each test starts from empty tables;
+- ``schema``: only the tables this module declares in ``TABLES``, dropped and
+  recreated for every test (function scope), so each test starts from empty
+  tables;
 - one fixture per model, each configured against this directory's database.
+
+A module declares what it needs and nothing else: the native ``UUID`` type
+only exists from 10.7, so a directory-wide "create every family" would make a
+``BIT`` test's setup fail on a server that lacks a table that test never
+touches.
 """
 
 from pathlib import Path
@@ -38,14 +43,18 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.native_
 
 DDL = ExecutionOptions(stmt_type=StatementType.DDL)
 
-DEFINITIONS = (
-    NativeBitDefinition,
-    NativeSetDefinition,
-    NativeEnumDefinition,
-    NativeYearDefinition,
-    NativeJsonDefinition,
-    NativeGeometryDefinition,
-)
+#: Table name -> (definition, capability gate, skip reason for the gate).
+#: A gate of ``None`` means the columns exist on every supported server; a
+#: gate that answers ``no`` skips the module, and its reason names the probe.
+FAMILIES = {
+    "native_bit": (NativeBitDefinition, None, None),
+    "native_set": (NativeSetDefinition, None, None),
+    "native_enum": (NativeEnumDefinition, None, None),
+    "native_year": (NativeYearDefinition, None, None),
+    "native_json": (NativeJsonDefinition, None, None),
+    "native_geometry": (NativeGeometryDefinition, None, None),
+    "native_uuid": (NativeUuidDefinition, supports_uuid, uuid_skip_reason),
+}
 
 
 def _database_name() -> str:
@@ -53,6 +62,15 @@ def _database_name() -> str:
     parts = Path(__file__).parent.parts
     start = parts.index("feature") + 1
     return "test_" + "_".join(parts[start:])
+
+
+def _declared(request) -> tuple:
+    """The families the module declares in ``TABLES``."""
+    names = tuple(getattr(request.module, "TABLES", ()))
+    unknown = [name for name in names if name not in FAMILIES]
+    if unknown:
+        raise LookupError(f"{request.module.__name__} declares unknown native families: {unknown}")
+    return names
 
 
 @pytest.fixture(scope="session")
@@ -75,11 +93,14 @@ def database(database_config):
 
 
 @pytest.fixture(scope="function", autouse=True)
-def schema(database):
-    """Drop and recreate the native tables this directory uses, before every test."""
-    fixtures = [definition(database.dialect) for definition in DEFINITIONS]
-    if supports_uuid(database.dialect):
-        fixtures.append(NativeUuidDefinition(database.dialect))
+def schema(database, request):
+    """Drop and recreate only the tables this module declares, before every test."""
+    fixtures = []
+    for name in _declared(request):
+        definition, gate, reason = FAMILIES[name]
+        if gate is not None and not gate(database.dialect):
+            pytest.skip(reason(database.dialect))
+        fixtures.append(definition(database.dialect))
     for fixture in fixtures:
         database.execute(*fixture.create_table.to_sql(), options=DDL)
     yield

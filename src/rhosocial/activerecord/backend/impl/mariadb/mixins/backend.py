@@ -37,6 +37,10 @@ MARIADB_VERSION_BOUNDARIES = {
     'WINDOW_FUNCTIONS': (10, 2, 0),
     'JSON_FUNCTIONS': (10, 2, 3),
     'JSON_ARROWS': (10, 2, 7),
+    # Declaring a ``JSON`` column installs an automatic ``CHECK (json_valid(...))``
+    # from 10.4.3: 10.2/10.3 store a bare ``LONGTEXT`` and accept 'not json',
+    # 10.4+ refuse it with errno 4025.
+    'JSON_VALID_CHECK': (10, 4, 3),
     'JSON_TABLE': (10, 6, 0),
     'CTE': (10, 2, 0),
     'INTERSECT_EXCEPT': (10, 3, 0),

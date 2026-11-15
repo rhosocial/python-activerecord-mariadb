@@ -16,6 +16,10 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.native_
     Priority,
 )
 
+#: The native tables this module uses.  ``schema`` creates only these, so
+#: a server missing another family's type does not fail this module's setup.
+TABLES = ("native_enum",)
+
 
 def test_enum_roundtrips_by_value(native_enum):
     value = Priority.HIGH

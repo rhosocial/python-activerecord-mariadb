@@ -14,6 +14,10 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.helpers
     read_raw,
 )
 
+#: The native tables this module uses.  ``schema`` creates only these, so
+#: a server missing another family's type does not fail this module's setup.
+TABLES = ("native_uuid",)
+
 UUID_TEXT = "123e4567-e89b-12d3-a456-426614174000"
 UUID_OBJ = UUID(UUID_TEXT)
 

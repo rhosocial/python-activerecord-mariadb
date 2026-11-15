@@ -33,7 +33,7 @@ from ..dialect import MariaDBDialect
 from ..expression.status import MariaDBVersionQuery
 from ..async_transaction import AsyncMariaDBTransactionManager
 from ..mixins import AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin
-from .backend import _SERVER_PARAMETERS_QUERY
+from .backend import _SERVER_PARAMETERS_QUERY, _UNSCOPED_PARAMETERS
 
 
 class AsyncMariaDBBackend(
@@ -172,7 +172,8 @@ class AsyncMariaDBBackend(
 
         Same contract as the synchronous method: the values belong to the
         session, so they are read once here rather than guessed from the
-        version.
+        version, and a variable the server scopes globally only is read
+        without a scope instead of being left to a default.
         """
         if self._dialect is None:
             return
@@ -184,9 +185,20 @@ class AsyncMariaDBBackend(
                 f"could not read the MariaDB session variables: {error}",
             )
             return
-        self._dialect.set_server_parameters(
-            {row["Variable_name"]: row["Value"] for row in rows}
-        )
+        recorded = {row["Variable_name"]: row["Value"] for row in rows}
+        for name in _UNSCOPED_PARAMETERS:
+            if name in recorded:
+                continue
+            try:
+                value = (await self.execute(f"SELECT @@{name} AS value", ())).data[0]["value"]
+            except Exception as error:  # noqa: BLE001 - reported, left unrecorded
+                self.log(
+                    logging.WARNING,
+                    f"could not read @@{name} on this server: {error}",
+                )
+                continue
+            recorded[name] = str(value)
+        self._dialect.set_server_parameters(recorded)
 
     async def connect(self):
         """Establish async connection to MariaDB database.

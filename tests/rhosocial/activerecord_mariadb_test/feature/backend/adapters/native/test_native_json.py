@@ -19,6 +19,14 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.helpers
     insert_native,
     read_raw,
 )
+from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.native_capabilities import (
+    json_type_validation_skip_reason,
+    supports_json_type_validation,
+)
+
+#: The native tables this module uses.  ``schema`` creates only these, so
+#: a server missing another family's type does not fail this module's setup.
+TABLES = ("native_json",)
 
 PAYLOAD = {
     "k": "v",
@@ -88,6 +96,9 @@ def test_foreign_json_text_is_decoded_and_rewritten(native_json):
 
 
 def test_invalid_json_is_rejected_by_the_column_constraint(native_json):
+    dialect = native_json.backend().dialect
+    if not supports_json_type_validation(dialect):
+        pytest.skip(json_type_validation_skip_reason(dialect))
     with pytest.raises(IntegrityError) as info:
         native_json.backend().execute(
             "INSERT INTO native_json (id, payload) VALUES (9002, 'not json')", ()

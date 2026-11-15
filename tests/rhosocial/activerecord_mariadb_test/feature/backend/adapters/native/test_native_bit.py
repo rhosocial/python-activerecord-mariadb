@@ -24,6 +24,10 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.helpers
     read_raw,
 )
 
+#: The native tables this module uses.  ``schema`` creates only these, so
+#: a server missing another family's type does not fail this module's setup.
+TABLES = ("native_bit",)
+
 
 def test_byte_aligned_roundtrip(native_bit):
     value = BitString.from_bits("10101010")

@@ -59,6 +59,13 @@ from ..mixins import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MariaDBConcurr
 #: own list needs no enumeration here.
 _SERVER_PARAMETERS_QUERY = "SHOW SESSION VARIABLES"
 
+#: Variables the dialect answers from that a server may scope globally only.
+#: Such a variable is absent from ``SHOW SESSION VARIABLES`` and
+#: ``@@SESSION.<name>`` is refused (MariaDB 10.4 answers errno 1238: "Variable
+#: 'explicit_defaults_for_timestamp' is a GLOBAL variable"), while the unscoped
+#: ``@@<name>`` returns the value this session runs under either way.
+_UNSCOPED_PARAMETERS = ("explicit_defaults_for_timestamp",)
+
 class MariaDBBackend(
     MariaDBBackendMixin,
     MariaDBConcurrencyMixin,
@@ -627,6 +634,10 @@ class MariaDBBackend(
         the dialect gets the server's real answer. A server that cannot report
         them leaves them unrecorded, and the log line says so rather than a
         guessed value being stored.
+
+        A variable the server scopes globally only is missing from the bulk
+        listing, so it is read without a scope (see
+        ``_UNSCOPED_PARAMETERS``) instead of being left to a default.
         """
         if self._dialect is None:
             return
@@ -638,9 +649,20 @@ class MariaDBBackend(
                 f"could not read the MariaDB session variables: {error}",
             )
             return
-        self._dialect.set_server_parameters(
-            {row["Variable_name"]: row["Value"] for row in rows}
-        )
+        recorded = {row["Variable_name"]: row["Value"] for row in rows}
+        for name in _UNSCOPED_PARAMETERS:
+            if name in recorded:
+                continue
+            try:
+                value = self.execute(f"SELECT @@{name} AS value", ()).data[0]["value"]
+            except Exception as error:  # noqa: BLE001 - reported, left unrecorded
+                self.log(
+                    logging.WARNING,
+                    f"could not read @@{name} on this server: {error}",
+                )
+                continue
+            recorded[name] = str(value)
+        self._dialect.set_server_parameters(recorded)
 
     def _create_introspector(self):
         """Create the MariaDB introspector instance."""

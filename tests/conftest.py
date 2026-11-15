@@ -87,7 +87,7 @@ def skip_the_shared_suite_when_timestamps_are_implicit(request):
         yield
         return
     pytest.skip(
-        "@@SESSION.explicit_defaults_for_timestamp is OFF on this server, so an "
+        "explicit_defaults_for_timestamp is OFF on this server, so an "
         "UPDATE rewrites the table's first TIMESTAMP column; the shared suite "
         "assumes it does not"
     )

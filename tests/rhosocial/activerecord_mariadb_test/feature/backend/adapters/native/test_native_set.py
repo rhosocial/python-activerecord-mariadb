@@ -15,6 +15,10 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.helpers
     read_raw,
 )
 
+#: The native tables this module uses.  ``schema`` creates only these, so
+#: a server missing another family's type does not fail this module's setup.
+TABLES = ("native_set",)
+
 
 def test_set_roundtrip_is_sorted(native_set):
     value = {"c", "b"}

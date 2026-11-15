@@ -41,7 +41,7 @@ def implicit_timestamp_table(mariadb_backend):
     backend = mariadb_backend
     if backend.dialect.explicit_defaults_for_timestamp():
         pytest.skip(
-            "@@SESSION.explicit_defaults_for_timestamp is ON: this server keeps "
+            "explicit_defaults_for_timestamp is ON on this server: it keeps "
             "a bare TIMESTAMP column to what was written, so there is no "
             "implicit rewrite to reproduce"
         )

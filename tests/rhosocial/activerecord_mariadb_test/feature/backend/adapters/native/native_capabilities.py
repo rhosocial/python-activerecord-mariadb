@@ -36,3 +36,16 @@ def uuid_skip_reason(dialect) -> str:
         f"environment: {type(dialect).__name__} reports no native UUID column "
         f"type (supports_data_type_mariadb_uuid() -> False)"
     )
+
+
+def supports_json_type_validation(dialect) -> bool:
+    """Whether a ``JSON`` column refuses a document that is not valid JSON."""
+    return bool(dialect.supports_json_type_validation())
+
+
+def json_type_validation_skip_reason(dialect) -> str:
+    """A skip reason that names the probe that answered ``no``."""
+    return (
+        f"environment: {type(dialect).__name__} stores JSON as an unvalidated "
+        f"LONGTEXT alias on this server (supports_json_type_validation() -> False)"
+    )
