@@ -32,6 +32,22 @@ class MariaDBGeneratedColumnMixin:
         """
         return True
 
+    def supports_database_assigned_integer_column(self) -> bool:
+        """Whether an integer column's value comes from the database.
+
+        ``True``: ``AUTO_INCREMENT`` supplies the value when the INSERT omits
+        it, and the row can return it. The capability is what a declaration
+        asks about; PostgreSQL spells the same capability ``SERIAL`` while
+        declining the ``AUTO_INCREMENT`` marker, which is why the two are
+        separate probes.
+
+        Not guaranteed as a portable behaviour: inserting an explicit value
+        larger than the current counter raises ``AUTO_INCREMENT`` to
+        ``max + 1`` here, while a sequence-backed column leaves its sequence
+        untouched.
+        """
+        return True
+
     def supports_identity_column(self) -> bool:
         """Whether ``GENERATED ... AS IDENTITY`` is accepted.
 
