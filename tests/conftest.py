@@ -18,20 +18,26 @@ def backend_scenario(request):
     return request.param
 
 
-#: Directories whose assertions an old server's implicit timestamp rewrite
-#: invalidates.
-#:
-#: A server that reports ``explicit_defaults_for_timestamp`` OFF gives the
-#: table's first TIMESTAMP column an implicit
-#: ``DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP``, so an UPDATE
-#: rewrites a column it never names. ``feature/basic/crud`` asserts the
-#: opposite. The suite does not bend for one backend, and the server's
-#: configuration is the operator's, so the directory is skipped here when the
-#: session says so. MariaDB 11.8.9 reports ON and therefore runs it.
-_IMPLICIT_TIMESTAMP_DIRECTORIES = ("feature/basic/crud",)
+#: The suite's package prefix: a bridge file imports its tests with ``*``, so the
+#: test objects keep this module and identify themselves as suite tests even
+#: though the file that re-exports them lives here.
+_SUITE_PACKAGE_PREFIX = "rhosocial.activerecord.testsuite."
 
-#: The session's answer, per scenario name, read once.
+#: Whether each scenario's sessions keep TIMESTAMP columns explicit, read once.
 _TIMESTAMP_DEFAULTS_ARE_EXPLICIT: dict = {}
+
+
+def _is_shared_suite_test(item) -> bool:
+    """Whether this item's test object comes from the shared suite."""
+    for owner in (
+        getattr(item, "cls", None),
+        getattr(item, "function", None),
+        getattr(item, "obj", None),
+    ):
+        module = getattr(owner, "__module__", "")
+        if module.startswith(_SUITE_PACKAGE_PREFIX):
+            return True
+    return False
 
 
 def _timestamp_defaults_are_explicit(scenario) -> bool:
@@ -57,13 +63,19 @@ def _timestamp_defaults_are_explicit(scenario) -> bool:
 
 
 @pytest.fixture(autouse=True)
-def skip_directories_this_server_cannot_satisfy(request):
-    """Skip the shared directories whose assertions this server breaks."""
-    path = str(getattr(request.node, "path", "")).replace("\\", "/")
-    directory = next(
-        (name for name in _IMPLICIT_TIMESTAMP_DIRECTORIES if name in path), None
-    )
-    if directory is None:
+def skip_the_shared_suite_when_timestamps_are_implicit(request):
+    """Skip the shared suite on a server that rewrites TIMESTAMP columns.
+
+    The suite assumes an UPDATE leaves a TIMESTAMP column it does not name alone.
+    A server reporting ``explicit_defaults_for_timestamp`` OFF rewrites the table's
+    first TIMESTAMP column -- the default on 10.2-10.6, where the suite's own
+    failures showed it, and reproducible on 11.8 by switching the session off: a
+    seeded ``start_at`` came back as the current instant and broke the period
+    validator. The suite does not bend for one backend, so it is skipped as a
+    whole -- bridge files included, which is why the test object's module
+    decides. MariaDB 10.11 and later report ON and run it.
+    """
+    if not _is_shared_suite_test(request.node):
         yield
         return
     callspec = getattr(request.node, "callspec", None)
@@ -75,7 +87,7 @@ def skip_directories_this_server_cannot_satisfy(request):
         yield
         return
     pytest.skip(
-        "@@SESSION.explicit_defaults_for_timestamp is OFF on this server, so it "
-        "rewrites the table's first TIMESTAMP column on UPDATE; {} asserts that "
-        "an unmodified field keeps its value".format(directory)
+        "@@SESSION.explicit_defaults_for_timestamp is OFF on this server, so an "
+        "UPDATE rewrites the table's first TIMESTAMP column; the shared suite "
+        "assumes it does not"
     )
