@@ -22,24 +22,24 @@ permissions:
 jobs:
   test:
     name: Python ${{ matrix.python-version }} / MariaDB ${{ matrix.mariadb-version }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { python-version: '3.9', mariadb-version: '10.2', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.10', mariadb-version: '10.3', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.11', mariadb-version: '10.4', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.12', mariadb-version: '10.5', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.12', mariadb-version: '10.6', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.13', mariadb-version: '10.11', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.13', mariadb-version: '11.4', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.14', mariadb-version: '11.7', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.14', mariadb-version: '11.8', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.14t', mariadb-version: '12.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.14t', mariadb-version: '12.2', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.14t', mariadb-version: '12.3', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
-          - { python-version: '3.14t', mariadb-version: '13.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword' }
+          - { python-version: '3.9', mariadb-version: '10.2', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-22.04 }
+          - { python-version: '3.10', mariadb-version: '10.3', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-24.04 }
+          - { python-version: '3.11', mariadb-version: '10.4', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-24.04 }
+          - { python-version: '3.12', mariadb-version: '10.5', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-24.04 }
+          - { python-version: '3.12', mariadb-version: '10.6', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-24.04 }
+          - { python-version: '3.13', mariadb-version: '10.11', health-cmd: 'mysqladmin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-24.04 }
+          - { python-version: '3.13', mariadb-version: '11.4', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-24.04 }
+          - { python-version: '3.14', mariadb-version: '11.7', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-26.04 }
+          - { python-version: '3.14', mariadb-version: '11.8', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-26.04 }
+          - { python-version: '3.14t', mariadb-version: '12.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-26.04 }
+          - { python-version: '3.14t', mariadb-version: '12.2', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-26.04 }
+          - { python-version: '3.14t', mariadb-version: '12.3', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-26.04 }
+          - { python-version: '3.14t', mariadb-version: '13.0', health-cmd: 'mariadb-admin ping -h 127.0.0.1 -u root -ppassword', os: ubuntu-26.04 }
 
     services:
       mariadb:
@@ -123,9 +123,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { python-version: '3.15', mariadb-version: '12.3', freethreaded: false }
-          - { python-version: '3.15', mariadb-version: '13.0', freethreaded: true }
-          - { python-version: '3.14', mariadb-version: '13.1-rc', freethreaded: false }
+          - { python-version: '3.15', mariadb-version: '12.3', freethreaded: false, os: ubuntu-26.04 }
+          - { python-version: '3.15', mariadb-version: '13.0', freethreaded: true, os: ubuntu-26.04 }
+          - { python-version: '3.14', mariadb-version: '13.1-rc', freethreaded: false, os: ubuntu-26.04 }
 
     services:
       mariadb:
