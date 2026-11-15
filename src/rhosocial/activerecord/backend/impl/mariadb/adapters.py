@@ -50,7 +50,8 @@ class MariaDBBlobAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[bytes]:
         if value is None:
             return None
@@ -91,7 +92,8 @@ class MariaDBJSONAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[Union[dict, list]]:
         if value is None:
             return None
@@ -123,7 +125,8 @@ class MariaDBUUIDAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[uuid.UUID]:
         if value is None:
             return None
@@ -155,7 +158,8 @@ class MariaDBBooleanAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[bool]:
         if value is None:
             return None
@@ -189,7 +193,8 @@ class MariaDBDecimalAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[Decimal]:
         if value is None:
             return None
@@ -219,7 +224,8 @@ class MariaDBDateAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[datetime.date]:
         if value is None:
             return None
@@ -252,7 +258,8 @@ class MariaDBTimeAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[datetime.time]:
         if value is None:
             return None
@@ -301,7 +308,8 @@ class MariaDBDatetimeAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[datetime.datetime]:
         if value is None:
             return None
@@ -376,7 +384,8 @@ class MariaDBEnumAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type[Enum],
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[Enum]:
         if value is None:
             return None
@@ -496,7 +505,8 @@ class MariaDBSetAdapter(SQLTypeAdapter):
         self,
         value: Any,
         target_type: Type,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Optional[Union[set, frozenset]]:
         if value is None:
             return None
