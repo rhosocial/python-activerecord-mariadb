@@ -27,18 +27,33 @@ import uuid
 
 import pytest
 
+from rhosocial.activerecord.backend.adapters import (
+    BitString,
+    Geometry,
+    MacAddress,
+    Multirange,
+    Range,
+    Vector,
+)
 from rhosocial.activerecord.backend.dialect.mixins import ColumnTypeMixin
 from rhosocial.activerecord.backend.expression.column_types import (
     ArrayColumn,
     BinaryColumn,
+    BitStringColumn,
     BooleanColumn,
     ColumnBase,
+    GeometryColumn,
     IntegerColumn,
+    IntervalColumn,
     JSONColumn,
+    MacAddressColumn,
+    MultirangeColumn,
     NumericColumn,
+    RangeColumn,
     StringColumn,
     TimestampColumn,
     UUIDColumn,
+    VectorColumn,
 )
 from rhosocial.activerecord.backend.impl.dummy.column_type import DUMMY_COLUMN_TYPES
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
@@ -99,7 +114,7 @@ _MARIADB_ANSWERS = [
     (datetime.date, TimestampColumn),
     (datetime.time, TimestampColumn),
     (datetime.datetime, TimestampColumn),
-    (datetime.timedelta, NumericColumn),
+    (datetime.timedelta, IntervalColumn),
     (uuid.UUID, UUIDColumn),
     (dict, JSONColumn),
     (list, JSONColumn),
@@ -107,6 +122,12 @@ _MARIADB_ANSWERS = [
     (set, JSONColumn),
     (frozenset, JSONColumn),
     (enum.Enum, StringColumn),
+    (Geometry, GeometryColumn),
+    (Vector, VectorColumn),
+    (BitString, BitStringColumn),
+    (Range, RangeColumn),
+    (Multirange, MultirangeColumn),
+    (MacAddress, MacAddressColumn),
 ]
 
 _ENTRY_IDS = [getattr(entry, "__name__", str(entry)) for entry, _ in _MARIADB_ANSWERS]
@@ -115,7 +136,7 @@ _ENTRY_IDS = [getattr(entry, "__name__", str(entry)) for entry, _ in _MARIADB_AN
 class TestCompleteness:
     """Every entry of the closed protocol list is answered."""
 
-    def test_all_eighteen_entries_are_answered(self):
+    def test_all_twenty_four_entries_are_answered(self):
         table = _dialect(RC_131).suggested_column_types()
         missing = [e for e in COMMON_TYPES if e not in table]
         assert missing == [], f"unanswered entries: {missing}"

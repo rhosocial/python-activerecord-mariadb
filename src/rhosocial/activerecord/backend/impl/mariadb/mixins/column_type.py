@@ -13,10 +13,11 @@ complex families core now models -- because an entry left out is
 indistinguishable from one nobody thought about. Where MariaDB genuinely has
 no column class for an entry the answer is ``None`` -- the last resort, and the
 one that makes a refusal distinguishable from an oversight -- which resolution
-turns into a definition-time failure naming ``UseColumnType``. That is the
-answer for all six complex families here: core has no column class for them
-yet, so naming one would be naming a class that does not exist. Their storage
-is a separate question, answered in :mod:`.data_type_suggestions`.
+turns into a definition-time failure naming ``UseColumnType``. The six complex
+families are answered, because their core classes promise only the surface
+every column has; the one remaining refusal is ``dict`` below MariaDB 10.2.
+Their storage is a separate question, answered in
+:mod:`.data_type_suggestions`.
 
 **MariaDB is not MySQL; the facts below are not translatable between them.**
 
@@ -66,14 +67,21 @@ from rhosocial.activerecord.backend.dialect.mixins.column_type import (
 )
 from rhosocial.activerecord.backend.expression.column_types import (
     BinaryColumn,
+    BitStringColumn,
     BooleanColumn,
     ColumnBase,
+    GeometryColumn,
     IntegerColumn,
+    IntervalColumn,
     JSONColumn,
+    MacAddressColumn,
+    MultirangeColumn,
     NumericColumn,
+    RangeColumn,
     StringColumn,
     TimestampColumn,
     UUIDColumn,
+    VectorColumn,
 )
 
 from .backend import MARIADB_VERSION_BOUNDARIES
@@ -107,13 +115,12 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 #:     instead."
 #:
 #: ``datetime.timedelta``
-#:     :class:`NumericColumn`. ``INTERVAL`` on MariaDB is an *expression*
+#:     :class:`IntervalColumn`. ``INTERVAL`` on MariaDB is an *expression*
 #:     keyword (``INTERVAL 1 DAY`` inside ``DATE_ADD``) and never a column
 #:     type, so a span has to be stored as a number of seconds or as its
-#:     character form. PostgreSQL and Oracle have a real interval column
-#:     type and are answered differently; there is no ``IntervalColumn``
-#:     class, so this is the same honest answer the portable baseline gives,
-#:     reached here from measurement rather than by default.
+#:     character form -- a storage choice, not the value's family. The class
+#:     promises no arithmetic, so it names the span honestly on both MariaDB
+#:     and the backends that do have a native interval type.
 #:
 #: ``uuid.UUID``
 #:     :class:`UUIDColumn` on **every** supported version, including those
@@ -134,7 +141,7 @@ MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     datetime.date: TimestampColumn,
     datetime.time: TimestampColumn,
     datetime.datetime: TimestampColumn,
-    datetime.timedelta: NumericColumn,
+    datetime.timedelta: IntervalColumn,
     uuid.UUID: UUIDColumn,
     dict: JSONColumn,
     list: JSONColumn,
@@ -143,17 +150,18 @@ MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     frozenset: JSONColumn,
     enum.Enum: StringColumn,
     # -- Complex families ------------------------------------------------
-    # core has no column class for these six families yet, so they are
-    # refused rather than answered with a class that does not exist. Their
-    # storage is answered in ``storage_type.py``, which is the half this
-    # backend does own. When core grows the family classes, these six
-    # entries are where they go.
-    Geometry: None,
-    Vector: None,
-    BitString: None,
-    Range: None,
-    Multirange: None,
-    MacAddress: None,
+    # Their core classes promise only the surface every column has -- alias,
+    # null tests, casting and collation -- because no distance, containment,
+    # overlap, bitwise or similarity operation is spelled the same way on
+    # every backend. Richer family operations belong to a
+    # MariaDB-named subclass in this backend's extra table. Storage is
+    # answered in ``data_type_suggestions.py``.
+    Geometry: GeometryColumn,
+    Vector: VectorColumn,
+    BitString: BitStringColumn,
+    Range: RangeColumn,
+    Multirange: MultirangeColumn,
+    MacAddress: MacAddressColumn,
 }
 
 
