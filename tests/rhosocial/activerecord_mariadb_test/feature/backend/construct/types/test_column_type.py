@@ -36,6 +36,9 @@ from rhosocial.activerecord.backend.adapters import (
     Vector,
 )
 from rhosocial.activerecord.backend.dialect.mixins import ColumnTypeMixin
+from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
+    MariaDBBinaryType,
+)
 from rhosocial.activerecord.backend.expression.column_types import (
     ArrayColumn,
     BinaryColumn,
@@ -328,7 +331,11 @@ class TestUuidIsNotGatedOnStorage:
         # key appears at 10.7 and the 16-byte substitute is suggested instead.
         native = version >= MARIADB_VERSION_BOUNDARIES["UUID"]
         assert ("uuid" in dialect.supports_data_types()) is native
-        assert "uuid" not in dialect.substitute_data_types()
+        # The other half of D9: below the boundary the concept is substituted,
+        # above it the renderer owns it, and it is never answered twice.
+        assert ("uuid" in dialect.substitute_data_types()) is not native
+        if not native:
+            assert dialect.substitute_data_types()["uuid"] is MariaDBBinaryType
 
 
 def test_every_gate_the_mixin_reads_exists():

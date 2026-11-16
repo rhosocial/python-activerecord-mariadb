@@ -600,19 +600,18 @@ class MariaDBDialect(
         that renders ``ENUM(...)`` perfectly well, and a name in both sets is
         one of the two being a lie.
 
-        What is left is the honest remainder — ``uuid`` used to be here and no
-        longer is, and ``real`` joins it for the reason its entry gives:
+        What is left is the honest remainder. ``real`` joins it for the reason its
+        entry gives:
 
         ``uuid``
-            **Removed.** MariaDB has had a native ``UUID`` column type since
-            **10.7**, so this concept is *rendered* rather than substituted (see
-            ``format_data_type_mariadb_uuid``, which is version-gated). The
-            entry that used to sit here claimed MariaDB had no UUID type at all
-            and pointed at a 16-byte ``BINARY`` instead — which was true before
-            10.7 and false after it, and would have quietly produced a column
-            that is not a UUID on every supported server. On a pre-10.7 server
-            a UUID is a ``MariaDBBinaryType(length=16)``, and asking for that
-            class is the honest way to say so.
+            **Version-dependent, because MariaDB's answer changed.** Native
+            ``UUID`` arrived in **10.7**, so from there the concept is
+            *rendered* (see ``format_data_type_mariadb_uuid``). Before it there
+            is no UUID type at all: a UUID is stored as a 16-byte ``BINARY``,
+            and the substitute names that class. Leaving the key out on an
+            older server would make the concept neither rendered nor
+            substituted -- D9's "silence is not an answer" -- so the entry
+            follows the server exactly the way ``xml`` does below.
 
         ``real``
             MariaDB documents ``REAL`` as one of the three words for the 8-byte
@@ -711,7 +710,7 @@ class MariaDBDialect(
             else TextType
         )
 
-        return {
+        substitutes = {
             "binary": MariaDBBinaryType,
             "varbinary": MariaDBVarBinaryType,
             "real": DoubleType,
@@ -719,6 +718,12 @@ class MariaDBDialect(
             "xml": xml_substitute,
             "interval": VarCharType,
         }
+        # Before 10.7 there is no native UUID: name the 16-byte BINARY that
+        # actually stores it. From 10.7 on the renderer owns the concept and a
+        # substitute here would be a second, contradictory answer.
+        if self.version < MARIADB_VERSION_BOUNDARIES["UUID"]:
+            substitutes["uuid"] = MariaDBBinaryType
+        return substitutes
 
     # endregion
 
