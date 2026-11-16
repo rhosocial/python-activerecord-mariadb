@@ -307,7 +307,7 @@ class TestUuidIsNotGatedOnStorage:
         # key appears at 10.7 and the 16-byte substitute is suggested instead.
         native = version >= MARIADB_VERSION_BOUNDARIES["UUID"]
         assert ("uuid" in dialect.supports_data_types()) is native
-        assert "uuid" not in dialect.suggested_data_types()
+        assert "uuid" not in dialect.substitute_data_types()
 
 
 def test_every_gate_the_mixin_reads_exists():

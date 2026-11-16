@@ -162,6 +162,7 @@ from .mixins import (
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
+    MariaDBDataTypeSuggestionsMixin,
     MariaDBTypeSupportMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
@@ -295,6 +296,7 @@ class MariaDBDialect(
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
+    MariaDBDataTypeSuggestionsMixin,
     MariaDBTypeSupportMixin,
     # The column-side type table — which column class each common Python
     # type means on this server. It derives from core's `ColumnTypeMixin`, so
@@ -589,7 +591,7 @@ class MariaDBDialect(
             )
         return ""
 
-    def suggested_data_types(self) -> Dict[str, type]:
+    def substitute_data_types(self) -> Dict[str, type]:
         """What MariaDB stores for each core concept it cannot spell.
 
         A concept MariaDB genuinely has is **rendered**, not suggested — the

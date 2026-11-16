@@ -57,6 +57,7 @@ from .modify_column import MariaDBModifyColumnMixin
 from .concurrency import MariaDBConcurrencyMixin, AsyncMariaDBConcurrencyMixin
 from .partition import MariaDBPartitionMixin
 from .types import MariaDBTypeSupportMixin
+from .data_type_suggestions import MariaDBDataTypeSuggestionsMixin
 from .ddl_rename_table import MariaDBRenameTableMixin
 from .truncate import MariaDBTruncateMixin
 from .ddl.column import MariaDBAlterColumnModifierMixin

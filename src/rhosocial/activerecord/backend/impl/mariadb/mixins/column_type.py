@@ -1,19 +1,22 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/column_type.py
 """MariaDB's answer to "which column class does this Python type mean here".
 
-This is the **column** half of the column-type protocol (the DataType half is
-:meth:`MariaDBDialect.suggested_data_types`), and it answers a different
-question from storage. A column class says what a value can *do*; how it is
-stored is the DDL layer's separate decision. That separation is why MariaDB's
-one famous divergence from MySQL does not show up in this table at all -- see
-the ``dict`` entry below.
+This is the **column** half of the column-type protocol (the DDL half is
+:mod:`.data_type_suggestions`), and it answers a different question from storage. A
+column class says what a value can *do*; how it is stored is the DDL layer's
+separate decision. That separation is why MariaDB's one famous divergence from
+MySQL does not show up in this table at all -- see the ``dict`` entry below.
 
-The table answers all 18 entries of the framework's common Python types,
-because an entry left out is indistinguishable from one nobody thought about,
-and only the first of those is actionable. Where MariaDB genuinely has no
-column class for an entry the answer is ``None`` -- the last resort, and the
+The table answers all twenty-four entries of the framework's Python types --
+the eighteen common scalars, containers and value families, plus the six
+complex families core now models -- because an entry left out is
+indistinguishable from one nobody thought about. Where MariaDB genuinely has
+no column class for an entry the answer is ``None`` -- the last resort, and the
 one that makes a refusal distinguishable from an oversight -- which resolution
-turns into a definition-time failure naming ``UseColumnType``.
+turns into a definition-time failure naming ``UseColumnType``. That is the
+answer for all six complex families here: core has no column class for them
+yet, so naming one would be naming a class that does not exist. Their storage
+is a separate question, answered in :mod:`.data_type_suggestions`.
 
 **MariaDB is not MySQL; the facts below are not translatable between them.**
 
@@ -50,6 +53,14 @@ import enum
 import uuid
 from typing import Any, Dict, Optional, Type
 
+from rhosocial.activerecord.backend.adapters import (
+    BitString,
+    Geometry,
+    MacAddress,
+    Multirange,
+    Range,
+    Vector,
+)
 from rhosocial.activerecord.backend.dialect.mixins.column_type import (
     ColumnTypeMixin,
 )
@@ -112,7 +123,7 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 #:     it) changes what the column is *stored as* and nothing about what it
 #:     can do, so gating it here would move the answer for a storage
 #:     reason. Compare MySQL, which has no UUID type on any version.
-MARIADB_COLUMN_TYPES: Dict[Any, Type[ColumnBase]] = {
+MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     bool: BooleanColumn,
     int: IntegerColumn,
     float: NumericColumn,
@@ -131,11 +142,23 @@ MARIADB_COLUMN_TYPES: Dict[Any, Type[ColumnBase]] = {
     set: JSONColumn,
     frozenset: JSONColumn,
     enum.Enum: StringColumn,
+    # -- Complex families ------------------------------------------------
+    # core has no column class for these six families yet, so they are
+    # refused rather than answered with a class that does not exist. Their
+    # storage is answered in ``storage_type.py``, which is the half this
+    # backend does own. When core grows the family classes, these six
+    # entries are where they go.
+    Geometry: None,
+    Vector: None,
+    BitString: None,
+    Range: None,
+    Multirange: None,
+    MacAddress: None,
 }
 
 
 class MariaDBColumnTypeMixin(ColumnTypeMixin):
-    """MariaDB's full 18-entry column-type table, and its narrowing.
+    """MariaDB's full twenty-four-entry column-type table, and its narrowing.
 
     Composed into :class:`~...dialect.MariaDBDialect` ahead of core's mixins,
     so its :meth:`suggested_column_types` is the one a model layer reaches.

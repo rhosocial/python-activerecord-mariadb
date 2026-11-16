@@ -9,7 +9,7 @@ system and the MariaDB backend:
   correspondence on ``MariaDBDialect``;
 - ``supports_data_types()`` merges the ``mariadb_*`` namespaced family with
   the core family;
-- ``suggested_data_types()`` values are real ``DataType`` classes and its
+- ``substitute_data_types()`` values are real ``DataType`` classes and its
   keys are disjoint from the supported keys;
 - ``MariaDBEnumType`` renders ``ENUM('a','b')`` (with charset/collation
   extensions);
@@ -164,16 +164,16 @@ class TestSupportsDataTypesMapping:
 
 
 class TestSuggestedDataTypes:
-    """suggested_data_types(): real classes, disjoint from supported keys."""
+    """substitute_data_types(): real classes, disjoint from supported keys."""
 
     def test_values_are_data_type_classes(self, dialect):
-        suggestions = dialect.suggested_data_types()
+        suggestions = dialect.substitute_data_types()
         for key, klass in suggestions.items():
             assert isinstance(klass, type), key
             assert issubclass(klass, DataType), key
 
     def test_keys_disjoint_from_supported(self, dialect):
-        suggestions = dialect.suggested_data_types()
+        suggestions = dialect.substitute_data_types()
         supported = dialect.supports_data_types()
         assert not (set(suggestions) & set(supported))
 
@@ -185,7 +185,7 @@ class TestSuggestedDataTypes:
         produced a column which is not a UUID -- stored without the byte-swap
         that makes UUIDv1 ordering index-friendly, and accepting inputs the real
         type rejects (``UUID_SHORT()``, braces)."""
-        assert "uuid" not in dialect.suggested_data_types()
+        assert "uuid" not in dialect.substitute_data_types()
         assert dialect.supports_data_types()["mariadb_uuid"] is MariaDBUUIDType
 
     def test_uuid_type_renders_in_direct_column_expression(self, dialect):
@@ -222,7 +222,7 @@ class TestSuggestedDataTypes:
         A name in both sets is one of the two being a lie, so the generic type
         is rendered and the suggestion went.
         """
-        suggestions = dialect.suggested_data_types()
+        suggestions = dialect.substitute_data_types()
         assert "enum" not in suggestions
         assert dialect.supports_data_types()["enum"] is EnumType
 
@@ -238,7 +238,7 @@ class TestSuggestedDataTypes:
         class is therefore *substituted* rather than rendered, and the advice
         text carries the vendor fact so the caller can pick the right class.
         """
-        suggestions = dialect.suggested_data_types()
+        suggestions = dialect.substitute_data_types()
         assert suggestions["real"] is DoubleType
         assert "real" not in dialect.supports_data_types()
         with pytest.raises(TypeError) as excinfo:
@@ -725,14 +725,14 @@ class TestXmlTypeSubstituteFollowsTheServer:
     def test_below_12_3_the_substitute_is_text(self):
         """Unchanged behaviour on an older server: XML is text."""
         old = MariaDBDialect(version=(12, 2, 2))
-        assert old.suggested_data_types()["xml"] is TextType
+        assert old.substitute_data_types()["xml"] is TextType
         assert old.format_data_type(TextType(old)) == ("TEXT", ())
         assert "mariadb_xml" not in old.supports_data_types()
 
     def test_from_12_3_the_substitute_is_the_native_type(self):
         """On 12.3+ the backend can store a real XML column, so TEXT is wrong."""
         new = MariaDBDialect(version=(12, 3, 0))
-        assert new.suggested_data_types()["xml"] is MariaDBXmlType
+        assert new.substitute_data_types()["xml"] is MariaDBXmlType
         assert new.supports_data_types()["mariadb_xml"] is MariaDBXmlType
         assert new.format_data_type(MariaDBXmlType(new)) == ("XMLTYPE", ())
 
@@ -741,9 +741,9 @@ class TestXmlTypeSubstituteFollowsTheServer:
         rendered key. The two sets stay disjoint on both sides of the gate."""
         for version in [(12, 2, 2), (13, 1, 1)]:
             target = MariaDBDialect(version=version)
-            assert "xml" in target.suggested_data_types()
+            assert "xml" in target.substitute_data_types()
             assert "xml" not in target.supports_data_types()
-            assert not (set(target.suggested_data_types())
+            assert not (set(target.substitute_data_types())
                         & set(target.supports_data_types()))
 
     def test_xmltype_refuses_to_render_below_12_3(self):
