@@ -41,6 +41,15 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.native_
     NativeYearRow,
 )
 
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
+
+DECLARATION = Declaration(
+    parallel=True,
+    purpose="MariaDB backend tests (native) against the directory-owned database.",
+    passes_means="the live-database contract of this directory holds on MariaDB",
+    fails_means="the directory-owned database is corrupted or a backend behavior is wrong",
+)
+
 DDL = ExecutionOptions(stmt_type=StatementType.DDL)
 
 #: Table name -> (definition, capability gate, skip reason for the gate).

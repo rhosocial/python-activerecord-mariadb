@@ -18,6 +18,14 @@ from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import As
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import SEQUENCES_SINCE
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
+
+DECLARATION = Declaration(
+    parallel=False,
+    purpose="Backend-owned MariaDB tests; pure-render scopes stay ungrouped.",
+    passes_means="backend-specific behavior matches MariaDB semantics",
+    fails_means="a backend contract is violated or a directory database is corrupted",
+)
 
 # --- Scenario Loading Logic ---
 
@@ -90,21 +98,6 @@ def get_scenario(
             raise ValueError("No scenarios registered")
     _prepare_database(name, database)
     return MariaDBBackend, support.mariadb.scenario(name).make_config(database)
-
-
-def pytest_collection_modifyitems(config, items):
-    """Pin a backend directory's tests to one worker.
-
-    These directories create and drop tables in the directory's own database,
-    so two workers must never run tests from the same directory at once.
-    """
-    for item in items:
-        parts = item.path.parts
-        if "backend" not in parts:
-            continue
-        item.add_marker(
-            pytest.mark.xdist_group("mariadb-backend::" + str(item.path.parent))
-        )
 
 
 # --- Provider Logic ---

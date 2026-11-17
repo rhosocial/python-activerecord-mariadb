@@ -63,7 +63,9 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
 )
 from rhosocial.activerecord.field import IntegerPKMixin
 from rhosocial.activerecord.model import ActiveRecord
-from rhosocial.activerecord.testsuite.fixture_types import supports_drop_if_exists
+from rhosocial.activerecord.testsuite.feature.query.fixtures.definitions import (
+    supports_drop_if_exists,
+)
 
 
 class NativeBitRow(IntegerPKMixin, ActiveRecord):

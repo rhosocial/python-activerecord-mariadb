@@ -26,6 +26,15 @@ import pytest
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
+
+DECLARATION = Declaration(
+    parallel=True,
+    purpose="MariaDB backend tests (timestamps) against the directory-owned database.",
+    passes_means="the live-database contract of this directory holds on MariaDB",
+    fails_means="the directory-owned database is corrupted or a backend behavior is wrong",
+)
+
 _DDL = ExecutionOptions(stmt_type=StatementType.DDL)
 _DML = ExecutionOptions(stmt_type=StatementType.DML)
 
