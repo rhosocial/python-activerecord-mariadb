@@ -98,7 +98,11 @@ from typing import Dict
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.exceptions import (ProtocolNotImplementedError, UnsupportedFeatureError)
+from rhosocial.activerecord.backend.dialect.exceptions import (
+    ProtocolNotImplementedError,
+    UnsupportedDataTypeError,
+    UnsupportedFeatureError,
+)
 from rhosocial.activerecord.backend.expression import graph as graph_mod
 from rhosocial.activerecord.backend.expression.advanced_functions import (
     CaseExpression,
@@ -1408,27 +1412,27 @@ LEGITIMATE_NON_RENDERS = {
     # fails on one end of the matrix. Left unpinned: each outcome is already
     # classified -- unsupported on the old servers, rendered on the new ones.
     "rhosocial.activerecord.backend.expression.types.array.ArrayType": (
-        TypeError, "does not support the generic type 'array'"
+        UnsupportedDataTypeError, "does not support the generic type 'array'"
     ),
     "rhosocial.activerecord.backend.expression.types.binary.BinaryType": (
-        TypeError, "does not support the generic type 'binary'"
+        UnsupportedDataTypeError, "does not support the generic type 'binary'"
     ),
     "rhosocial.activerecord.backend.expression.types.binary.VarBinaryType": (
-        TypeError, "does not support the generic type 'varbinary'"
+        UnsupportedDataTypeError, "does not support the generic type 'varbinary'"
     ),
     "rhosocial.activerecord.backend.expression.types.datetime_.IntervalType": (
-        TypeError, "does not support the generic type 'interval'"
+        UnsupportedDataTypeError, "does not support the generic type 'interval'"
     ),
     # REAL is a synonym for DOUBLE in the default SQL mode, and every wired
     # server reports the column back as ``double``, so the single-precision
     # concept cannot round-trip. Declare DoubleType instead, or FloatType for
     # 4-byte single precision.
     "rhosocial.activerecord.backend.expression.types.numeric.RealType": (
-        TypeError, "does not support the generic type 'real'"
+        UnsupportedDataTypeError, "does not support the generic type 'real'"
     ),
     # No SQL/XML type either, and the same naming contract as the three above.
     "rhosocial.activerecord.backend.expression.types.xml_.XmlType": (
-        TypeError, "does not support the generic type 'xml'"
+        UnsupportedDataTypeError, "does not support the generic type 'xml'"
     ),
     # The root of the type tree. Every concrete type declares its own generic
     # name, which is what dispatch reads; the root declares none, so the
@@ -1439,7 +1443,7 @@ LEGITIMATE_NON_RENDERS = {
     # generic type name" to naming the absent generic name when core started
     # reporting the dispatch's own lookup instead.
     "rhosocial.activerecord.backend.expression.types._base.DataType": (
-        TypeError, "does not support the generic type None"
+        UnsupportedDataTypeError, "does not support the generic type None"
     ),
 
     # MariaDB's trigger formatter reads ``or_replace``, ``ordering`` and

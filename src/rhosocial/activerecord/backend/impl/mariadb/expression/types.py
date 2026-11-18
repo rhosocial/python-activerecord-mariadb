@@ -576,6 +576,11 @@ class MariaDBXmlType(XmlType):
 
     name = "mariadb_xml"
 
+    # Core's XmlType declares a length (a minimum byte size) as a parameter.
+    # MariaDB's XMLTYPE rejects any LENGTH attribute, so this backend carries
+    # no parameters at all -- a length is never part of this type's identity.
+    PARAMETERS = ()
+
 
 # ---------------------------------------------------------------------------
 # ENUM
