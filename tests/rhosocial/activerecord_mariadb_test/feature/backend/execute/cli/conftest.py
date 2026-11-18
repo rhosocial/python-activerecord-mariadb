@@ -1,7 +1,7 @@
 """Re-export the introspection fixtures used by the CLI contract tests."""
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 import importlib
 
-from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 DECLARATION = Declaration(
     parallel=True,

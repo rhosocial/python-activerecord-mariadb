@@ -12,6 +12,7 @@ only exists from 10.7, so a directory-wide "create every family" would make a
 ``BIT`` test's setup fail on a server that lacks a table that test never
 touches.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 from pathlib import Path
 
@@ -41,7 +42,6 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.native_
     NativeYearRow,
 )
 
-from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 DECLARATION = Declaration(
     parallel=True,

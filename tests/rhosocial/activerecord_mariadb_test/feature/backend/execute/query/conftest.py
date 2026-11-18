@@ -1,7 +1,7 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/execute/query/conftest.py
 """No directory-specific fixtures: these tests use the backend-owned fixtures."""
-
 from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
+
 
 DECLARATION = Declaration(
     parallel=True,

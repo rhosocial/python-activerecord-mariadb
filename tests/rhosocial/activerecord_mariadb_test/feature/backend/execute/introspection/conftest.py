@@ -5,6 +5,7 @@ Pytest fixtures for MariaDB introspection tests.
 This module provides fixtures for testing database introspection
 functionality with MariaDB backends.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 import pytest
 import pytest_asyncio
@@ -13,7 +14,6 @@ from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
     SEQUENCES_SINCE,
 )
 
-from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 DECLARATION = Declaration(
     parallel=True,

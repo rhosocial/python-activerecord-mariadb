@@ -4,6 +4,7 @@ Pytest configuration for connection pool tests.
 
 This module provides fixtures for testing connection pools with MariaDB backends.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 import os
 from typing import Dict, Any, Generator
@@ -156,6 +157,14 @@ def create_async_mysql_backend_factory(config_dict: Dict[str, Any]):
 
     return factory
 
+
+
+# This directory owns a database shared by all its tests within a scenario;
+# pin them to one worker so setup/teardown never races on the same database.
+DECLARATION = Declaration(
+    parallel=True,
+    purpose="Directory-owned database shared by this test group.",
+)
 
 @pytest.fixture(scope="function")
 def mariadb_pool(database_config) -> Generator[BackendPool, None, None]:

@@ -5,6 +5,7 @@ The backend runs these against a real server. The scenario supplies the
 connection parameters; the database name is derived from the directory that
 owns the test, so two directories never share tables.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 import os
 from typing import Any, Dict, Tuple, Type
 
@@ -18,7 +19,6 @@ from rhosocial.activerecord.backend.impl.mariadb.backend.async_backend import As
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import SEQUENCES_SINCE
-from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 DECLARATION = Declaration(
     parallel=False,

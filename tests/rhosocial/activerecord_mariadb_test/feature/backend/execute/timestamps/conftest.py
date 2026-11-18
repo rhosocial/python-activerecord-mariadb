@@ -17,6 +17,7 @@ nothing to reproduce here and skips the whole directory -- the mirror image of
 the shared suite, which skips itself on the servers that do have it. That is why
 MariaDB 11.8.9 (which reports ON) skips here while 10.2-10.6 do not.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 from datetime import datetime
 from types import SimpleNamespace
@@ -26,7 +27,6 @@ import pytest
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
-from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 DECLARATION = Declaration(
     parallel=True,
