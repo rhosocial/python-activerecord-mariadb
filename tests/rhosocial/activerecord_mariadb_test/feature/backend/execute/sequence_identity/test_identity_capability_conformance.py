@@ -23,6 +23,7 @@ acceptance. The mariadb client prints nothing on success and raises on
 failure, so the sentinel is the only proof that the classifier sees the
 failure channel.
 """
+from rhosocial.activerecord.backend.expression.statements import auto_increment_parts  # noqa: E402
 
 import pytest
 
@@ -131,11 +132,11 @@ def _create_table(dialect, name, *, auto_increment=False, identity=None):
     clause path). The two never combine: they are different mechanisms.
     """
     constraints = [ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]
-    if auto_increment:
-        constraints = [
-            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
-        ]
     attributes = [IdentityAttribute(**identity)] if identity is not None else []
+    data_type = IntegerType(dialect)
+    if auto_increment:
+        data_type, suggested = auto_increment_parts(dialect, data_type)
+        attributes = suggested + attributes
     return CreateTableStatement(
         dialect,
         Table(dialect, name),
@@ -143,7 +144,7 @@ def _create_table(dialect, name, *, auto_increment=False, identity=None):
             ColumnDefinition(
                 dialect,
                 "id",
-                IntegerType(dialect),
+                data_type,
                 constraints=constraints,
                 attributes=attributes,
             )

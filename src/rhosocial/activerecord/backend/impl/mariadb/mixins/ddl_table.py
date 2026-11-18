@@ -472,16 +472,7 @@ class MariaDBTableMixin:
                 "PRIMARY KEY column constraint",
                 f"{self.name} does not support PRIMARY KEY constraints.",
             )
-        if not constraint.is_auto_increment:
-            return " PRIMARY KEY", ()
-        from rhosocial.activerecord.backend.expression.statements import (
-            AutoIncrementClause,
-        )
-
-        marker_sql, marker_params = self.format_auto_increment_clause(
-            AutoIncrementClause(self)
-        )
-        return f" PRIMARY KEY{marker_sql}", tuple(marker_params)
+        return " PRIMARY KEY", ()
 
     def format_table_foreign_key_constraint(
         self, constraint: "TableForeignKeyConstraint"

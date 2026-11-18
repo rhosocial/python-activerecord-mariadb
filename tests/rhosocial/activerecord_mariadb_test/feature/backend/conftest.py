@@ -21,6 +21,7 @@ from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import SEQUENCES_SINCE
 
 DECLARATION = Declaration(
+    uses_database=True,
     parallel=False,
     purpose="Backend-owned MariaDB tests; pure-render scopes stay ungrouped.",
     passes_means="backend-specific behavior matches MariaDB semantics",

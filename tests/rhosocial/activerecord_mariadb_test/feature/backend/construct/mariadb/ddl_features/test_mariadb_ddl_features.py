@@ -10,6 +10,7 @@ This module tests MariaDB-specific DDL features including:
 - Inline index definitions
 - ENUM type helper
 """
+from rhosocial.activerecord.backend.expression.statements import auto_increment_parts  # noqa: E402
 import pytest
 from rhosocial.activerecord.backend.expression import (
     CreateTableStatement,
@@ -256,6 +257,20 @@ class TestMySQLColumnComment:
         assert "COMMENT '用户表'" in sql
 
 
+
+def _auto_id(dialect, data_type, constraints, **kwargs):
+    """Build an integer auto-increment id column from the backend suggestion."""
+    suggested_type, attributes = auto_increment_parts(dialect, data_type)
+    return ColumnDefinition(
+        dialect, "id", suggested_type,
+        constraints=constraints + [
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))
+        ],
+        attributes=attributes,
+        **kwargs,
+    )
+
+
 class TestMySQLAutoIncrement:
     """Tests for MySQL AUTO_INCREMENT."""
 
@@ -263,9 +278,8 @@ class TestMySQLAutoIncrement:
         """Test AUTO_INCREMENT with PRIMARY KEY."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition(dialect, 'id', BigIntType(dialect), constraints=[
+            _auto_id(dialect, BigIntType(dialect), [
                 ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
             ])
         ]
         expr = CreateTableStatement(
@@ -281,9 +295,8 @@ class TestMySQLAutoIncrement:
         """Test AUTO_INCREMENT with column COMMENT."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition(dialect, 'id', BigIntType(dialect), constraints=[
+            _auto_id(dialect, BigIntType(dialect), [
                 ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
             ], comment=ColumnCommentClause(dialect, '自增主键'))
         ]
         expr = CreateTableStatement(
@@ -299,9 +312,8 @@ class TestMySQLAutoIncrement:
         """Test that AUTO_INCREMENT requires NOT NULL."""
         dialect = MariaDBDialect()
         columns = [
-            ColumnDefinition(dialect, 'id', BigIntType(dialect), constraints=[
+            _auto_id(dialect, BigIntType(dialect), [
                 ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
             ])
         ]
         expr = CreateTableStatement(
@@ -734,15 +746,10 @@ class TestMySQLCompleteTableCreation:
         status_enum = MariaDBEnumType(dialect, ['active', 'inactive', 'deleted'])
         
         columns = [
-            ColumnDefinition(dialect, 
-                'id',
+            _auto_id(dialect,
                 BigIntType(dialect),
-                constraints=[
-                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True))
-                ],
-                comment=ColumnCommentClause(dialect, 'Primary key')
-            ),
+                [ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
+                comment=ColumnCommentClause(dialect, 'Primary key')),
             ColumnDefinition(dialect, 
                 'name',
                 VarCharType(dialect, 100),

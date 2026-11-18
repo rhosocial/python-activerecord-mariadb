@@ -37,6 +37,7 @@ Mixin Organization:
 - column_type.py: the column class each common Python type means here
 """
 
+from .integer_auto_increment_column_suggestion import MariaDBIntegerAutoIncrementColumnSuggestionMixin
 from .introspection import MariaDBIntrospectionMixin
 from .status import MariaDBStatusDialectMixin
 from .transaction import MariaDBTransactionMixin
@@ -93,6 +94,7 @@ from .column_type import MariaDBColumnTypeMixin
 from .literal import MariaDBLiteralValueMixin
 
 __all__ = [
+    'MariaDBIntegerAutoIncrementColumnSuggestionMixin',
     'MARIADB_VERSION_BOUNDARIES',
     'MariaDBIntrospectionMixin',
     'MariaDBStatusDialectMixin',

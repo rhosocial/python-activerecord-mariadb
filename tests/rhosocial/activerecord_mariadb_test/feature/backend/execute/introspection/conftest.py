@@ -16,6 +16,7 @@ from rhosocial.activerecord.backend.impl.mariadb.mixins.introspection import (
 
 
 DECLARATION = Declaration(
+    uses_database=True,
     parallel=True,
     purpose="MariaDB backend tests (introspection) against the directory-owned database.",
     passes_means="the live-database contract of this directory holds on MariaDB",

@@ -129,6 +129,7 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.AutoIncrementColumnSupport,
     dialect_protocols.DatabaseAssignedColumnSupport,
     dialect_protocols.IdentityColumnSupport,
+    dialect_protocols.IntegerAutoIncrementColumnSuggestionSupport,
     dialect_protocols.ConstraintSupport,
     dialect_protocols.CreateDomainSupport,
     dialect_protocols.CreateIndexSupport,

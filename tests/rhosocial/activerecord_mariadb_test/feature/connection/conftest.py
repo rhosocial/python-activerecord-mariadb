@@ -162,6 +162,7 @@ def create_async_mysql_backend_factory(config_dict: Dict[str, Any]):
 # This directory owns a database shared by all its tests within a scenario;
 # pin them to one worker so setup/teardown never races on the same database.
 DECLARATION = Declaration(
+    uses_database=True,
     parallel=True,
     purpose="Directory-owned database shared by this test group.",
 )

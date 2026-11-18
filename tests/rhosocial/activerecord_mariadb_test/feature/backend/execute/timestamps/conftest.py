@@ -29,6 +29,7 @@ from rhosocial.activerecord.backend.schema import StatementType
 
 
 DECLARATION = Declaration(
+    uses_database=True,
     parallel=True,
     purpose="MariaDB backend tests (timestamps) against the directory-owned database.",
     passes_means="the live-database contract of this directory holds on MariaDB",

@@ -44,6 +44,8 @@ from rhosocial.activerecord_mariadb_test.feature.backend.adapters.native.native_
 
 
 DECLARATION = Declaration(
+    # This scope opens a database; the plugin enforces this declaration.
+    uses_database=True,
     parallel=True,
     purpose="MariaDB backend tests (native) against the directory-owned database.",
     passes_means="the live-database contract of this directory holds on MariaDB",

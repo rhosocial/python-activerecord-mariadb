@@ -5,6 +5,7 @@ DDL named expression functions for MariaDB migration examples.
 Each function receives a *dialect* and returns a DDL expression object.
 These are the building blocks used by NamedMigration up()/down() methods.
 """
+from rhosocial.activerecord.backend.expression.statements import auto_increment_parts  # noqa: E402
 
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableStatement,
@@ -30,12 +31,12 @@ def create_users_table(dialect):
         columns=[
             ColumnDefinition(
                 dialect,
-                "id",
-                MariaDBIntType(dialect),
+                "id"[0],
+                auto_increment_parts(dialect, MariaDBIntType(dialect))[0],
                 constraints=[
-                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
-            ),
+             attributes=auto_increment_parts(dialect, MariaDBIntType(dialect))[1]),
             ColumnDefinition(dialect, "name", MariaDBTextType(dialect)),
             ColumnDefinition(dialect, "email", MariaDBTextType(dialect)),
         ],
@@ -55,12 +56,12 @@ def create_posts_table(dialect):
         columns=[
             ColumnDefinition(
                 dialect,
-                "id",
-                MariaDBIntType(dialect),
+                "id"[0],
+                auto_increment_parts(dialect, MariaDBIntType(dialect))[0],
                 constraints=[
-                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
-            ),
+             attributes=auto_increment_parts(dialect, MariaDBIntType(dialect))[1]),
             ColumnDefinition(dialect, "title", MariaDBTextType(dialect)),
             ColumnDefinition(dialect, "user_id", MariaDBIntType(dialect)),
         ],
@@ -84,12 +85,12 @@ def create_custom_table(dialect, table_name: str = "custom_table"):
         columns=[
             ColumnDefinition(
                 dialect,
-                "id",
-                MariaDBIntType(dialect),
+                "id"[0],
+                auto_increment_parts(dialect, MariaDBIntType(dialect))[0],
                 constraints=[
-                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
-            ),
+             attributes=auto_increment_parts(dialect, MariaDBIntType(dialect))[1]),
             ColumnDefinition(dialect, "value", MariaDBTextType(dialect)),
         ],
     )

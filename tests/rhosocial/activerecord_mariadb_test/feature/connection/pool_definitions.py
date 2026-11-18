@@ -10,6 +10,7 @@ The sync and async test sets each use their own pair of tables, and the only
 difference between the two pairs is the column naming the worker
 (``thread_id`` for threads, ``task_id`` for asyncio tasks).
 """
+from rhosocial.activerecord.backend.expression.statements import auto_increment_parts  # noqa: E402
 
 from rhosocial.activerecord.backend.expression import (
     ColumnConstraint as Constraint,
@@ -57,16 +58,11 @@ class Definition:
         return Column(self.dialect, name, sql_type, constraints=constraints or [])
 
     def auto_pk(self, name="id"):
-        return self.column(
-            name,
-            Int(self.dialect),
-            [
-                Constraint(
-                    self.dialect,
-                    branch=PrimaryKey(self.dialect, is_auto_increment=True),
-                )
-            ],
-        )
+        data_type, attributes = auto_increment_parts(self.dialect, Int(self.dialect))
+        return self.column(name, data_type, [
+            Constraint(self.dialect, branch=PrimaryKey(self.dialect)),
+        ], attributes=attributes)
+
 
     def created_at(self, name="created_at"):
         return self.column(

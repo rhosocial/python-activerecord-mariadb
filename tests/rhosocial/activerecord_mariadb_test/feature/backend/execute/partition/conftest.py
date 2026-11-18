@@ -4,6 +4,7 @@ from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 
 DECLARATION = Declaration(
+    uses_database=True,
     parallel=True,
     purpose="MariaDB backend tests (partition) against the directory-owned database.",
     passes_means="the live-database contract of this directory holds on MariaDB",
