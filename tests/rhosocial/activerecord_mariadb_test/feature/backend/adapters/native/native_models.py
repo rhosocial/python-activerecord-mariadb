@@ -227,9 +227,13 @@ class Definition:
 
     def auto_pk(self, name="id"):
         data_type, attributes = auto_increment_parts(self.dialect, Int(self.dialect))
-        return self.column(name, data_type, [
-            Constraint(self.dialect, branch=PrimaryKey(self.dialect)),
-        ], attributes=attributes)
+        return Column(
+            self.dialect,
+            name,
+            data_type,
+            constraints=[Constraint(self.dialect, branch=PrimaryKey(self.dialect))],
+            attributes=attributes,
+        )
 
 
 
