@@ -2,47 +2,87 @@
 """Backend-local, deep EXPLAIN tests for MariaDB.
 
 The shared testsuite contract only asserts that EXPLAIN *can run*. This file
-interprets what MariaDB actually returns, which is deliberately NOT generalized
-into the testsuite because dialects disagree on plan shape:
+interprets what MariaDB actually returns, using the expression system for every
+constructed statement (no raw SQL, per the REV2 rule):
 
 * Construction level (no DB): the capability probes are version-gated at 10.6
   for ANALYZE / FORMAT, and ``format_explain_statement`` renders
   ``EXPLAIN [ANALYZE] [FORMAT=<TYPE>] ...`` with an equals sign (MariaDB's
   spelling, unlike core's ``FORMAT <TYPE>``). ``TREE`` is MySQL-only and is
-  never advertised by this dialect.
+  never advertised by this dialect. MariaDB's partition expression objects
+  render the ``PARTITION BY RANGE COLUMNS`` clause used for pruning.
 * Execution level (real DB in CI): the default tabular plan yields opaque dict
-  rows keyed by MariaDB's 12 columns -- ``select_type`` / ``table`` / ``type`` /
-  ``key`` / ``partitions`` / ``Extra`` ... -- from which scan-vs-index evidence
-  is read. ANALYZE / FORMAT=JSON return a single text/JSON column instead, so
-  those tests assert only that a non-empty plan comes back.
-* Partition pruning: MariaDB genuinely supports declarative RANGE partitioning
-  and the tabular plan exposes a ``partitions`` column, so a gated test builds a
-  small partitioned table and asserts the plan names only the matching partition.
+  rows keyed by MariaDB's columns -- ``select_type`` / ``table`` / ``type`` /
+  ``key`` / ``Extra`` ... -- from which scan-vs-index evidence is read. The
+  public ``Model.query().explain(...).aggregate()`` path is used throughout.
+
+Two DB-level cases deliberately do **not** appear here:
+
+* ``EXPLAIN ANALYZE ...`` is emitted by the dialect renderer with the
+  PostgreSQL / MySQL-8 spelling, which MariaDB rejects with errno 1064; only
+  the capability gate and the rendered text are pinned (a backend limitation,
+  reported with this change).
+* MariaDB's ``format_create_table_statement`` drops the ``partition=`` field of
+  a ``CreateTableStatement``, so a partitioned table cannot be created through
+  the expression system. Per the REV2 rule no hand-built DDL is substituted;
+  only the partition expression's rendered clause is pinned construction-level.
 
 Construction-level tests run without a database; DB-level tests use the
 directory-owned scenario database and are gated by ``supports_*`` probes.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
-from rhosocial.activerecord.backend.expression import RawSQL
+from rhosocial.activerecord.backend.expression import (
+    AllColumnsWildcard,
+    Column,
+    ComparisonPredicate,
+    ExplainStatement,
+    Literal,
+    QueryStatement,
+)
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.query_parts import WhereClause
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.statements import (
     ExplainFormat,
     ExplainOptions,
-    ExplainStatement,
     ExplainType,
 )
-from rhosocial.activerecord.backend.options import ExecutionOptions
-from rhosocial.activerecord.backend.schema import StatementType
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression import (
+    MariaDBPartitionByRangeColumns,
+    MariaDBPartitionDefinition,
+    MariaDBPartitionMaxValue,
+    MariaDBPartitionValue,
+)
 
-_DDL = ExecutionOptions(stmt_type=StatementType.DDL)
+_BASE_SQL = "SELECT `id`, `name` FROM `users` WHERE `id` = %s"
 
 
 def _dialect(version=(11, 4, 0)) -> MariaDBDialect:
     return MariaDBDialect(version=version)
+
+
+def _query(dialect: MariaDBDialect) -> QueryStatement:
+    """The statement wrapped by EXPLAIN in the rendering tests."""
+    return QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, "id"), Column(dialect, "name")],
+        from_=NamedRelationRef(dialect, Table(dialect, "users")),
+        where=WhereClause(
+            dialect,
+            condition=ComparisonPredicate(dialect, "=", Column(dialect, "id"), Literal(dialect, 1)),
+        ),
+    )
+
+
+def _render(options: Optional[ExplainOptions] = None, version=(11, 4, 0)) -> Tuple[str, tuple]:
+    dialect = _dialect(version)
+    expr = ExplainStatement(dialect, statement=_query(dialect), options=options)
+    return expr.to_sql()
 
 
 def _cell(row: Dict[str, Any], name: str) -> Optional[Any]:
@@ -110,50 +150,48 @@ class TestMariaDBExplainCapabilities:
 class TestMariaDBExplainRendering:
     """format_explain_statement / ExplainStatement.to_sql without a DB."""
 
-    @staticmethod
-    def _render(options, version=(11, 4, 0)):
-        dialect = _dialect(version)
-        statement = RawSQL(dialect, "SELECT * FROM u WHERE id = %s", (1,))
-        expr = ExplainStatement(dialect, statement=statement, options=options)
-        return expr.to_sql()
-
     def test_basic_explain_preserves_statement_and_params(self):
-        sql, params = self._render(None)
-        assert sql == "EXPLAIN SELECT * FROM u WHERE id = %s"
+        sql, params = _render()
+        assert sql == f"EXPLAIN {_BASE_SQL}"
         assert params == (1,)
 
+    def test_empty_options_same_as_none(self):
+        assert _render(ExplainOptions()) == _render()
+
     def test_analyze_boolean_flag(self):
-        sql, params = self._render(ExplainOptions(analyze=True))
-        assert sql.startswith("EXPLAIN ANALYZE ")
-        assert sql.endswith("SELECT * FROM u WHERE id = %s")
+        sql, params = _render(ExplainOptions(analyze=True))
+        assert sql == f"EXPLAIN ANALYZE {_BASE_SQL}"
         assert params == (1,)
 
     def test_analyze_via_type(self):
-        sql, _ = self._render(ExplainOptions(type=ExplainType.ANALYZE))
-        assert sql.startswith("EXPLAIN ANALYZE ")
+        sql, _ = _render(ExplainOptions(type=ExplainType.ANALYZE))
+        assert sql == f"EXPLAIN ANALYZE {_BASE_SQL}"
 
     def test_format_uses_equals_sign(self):
-        sql, _ = self._render(ExplainOptions(format=ExplainFormat.JSON))
-        assert "FORMAT=JSON" in sql
+        sql, _ = _render(ExplainOptions(format=ExplainFormat.JSON))
+        assert sql == f"EXPLAIN FORMAT=JSON {_BASE_SQL}"
         assert "FORMAT JSON" not in sql
 
     def test_format_traditional(self):
-        sql, _ = self._render(ExplainOptions(format=ExplainFormat.TRADITIONAL))
-        assert "FORMAT=TRADITIONAL" in sql
+        sql, _ = _render(ExplainOptions(format=ExplainFormat.TRADITIONAL))
+        assert sql == f"EXPLAIN FORMAT=TRADITIONAL {_BASE_SQL}"
 
     def test_analyze_and_format_combined(self):
-        sql, _ = self._render(ExplainOptions(analyze=True, format=ExplainFormat.JSON))
-        assert sql.startswith("EXPLAIN ANALYZE FORMAT=JSON ")
+        sql, _ = _render(ExplainOptions(analyze=True, format=ExplainFormat.JSON))
+        assert sql == f"EXPLAIN ANALYZE FORMAT=JSON {_BASE_SQL}"
 
     def test_costs_off_and_verbose_are_rendered(self):
-        sql, _ = self._render(ExplainOptions(costs=False, verbose=True))
-        assert " COSTS OFF " in sql
-        assert " VERBOSE " in sql
+        sql, _ = _render(ExplainOptions(costs=False, verbose=True))
+        assert sql == f"EXPLAIN COSTS OFF VERBOSE {_BASE_SQL}"
 
     def test_render_matches_dialect_formatter(self):
         dialect = _dialect()
-        statement = RawSQL(dialect, "SELECT 1")
-        expr = ExplainStatement(dialect, statement=statement, options=ExplainOptions())
+        query = QueryStatement(
+            dialect=dialect,
+            select=[AllColumnsWildcard(dialect)],
+            from_=Table(dialect, "users"),
+        )
+        expr = ExplainStatement(dialect, statement=query, options=ExplainOptions())
         assert expr.to_sql() == dialect.format_explain_statement(expr)
 
     def test_tree_format_is_not_advertised(self):
@@ -161,8 +199,40 @@ class TestMariaDBExplainRendering:
         # gated out by supports_explain_format() before it reaches the dialect.
         dialect = _dialect()
         assert dialect.supports_explain_format("TREE") is False
-        sql, _ = self._render(ExplainOptions(format=ExplainFormat.TREE))
+        sql, _ = _render(ExplainOptions(format=ExplainFormat.TREE))
         assert "FORMAT=TREE" in sql
+
+
+@pytest.mark.mariadb
+class TestMariaDBPartitionClauseRendering:
+    """MariaDB partition expressions render RANGE COLUMNS pruning clauses.
+
+    The DB-level counterpart is intentionally absent: this backend's
+    ``format_create_table_statement`` does not render ``CreateTableStatement.partition``,
+    so a partitioned table cannot be set up through expressions alone.
+    """
+
+    def test_partition_by_range_columns_renders_boundaries(self):
+        dialect = _dialect()
+        clause = MariaDBPartitionByRangeColumns(
+            dialect,
+            [Column(dialect, "created_at")],
+            partitions=[
+                MariaDBPartitionDefinition(
+                    "p0", less_than=[MariaDBPartitionValue(dialect, "2024-01-01")]
+                ),
+                MariaDBPartitionDefinition(
+                    "p1", less_than=[MariaDBPartitionValue(dialect, "2025-01-01")]
+                ),
+                MariaDBPartitionDefinition("pmax", less_than=[MariaDBPartitionMaxValue(dialect)]),
+            ],
+        )
+        sql, params = clause.to_sql()
+        assert "PARTITION BY RANGE COLUMNS (`created_at`)" in sql
+        assert "PARTITION `p0` VALUES LESS THAN ('2024-01-01')" in sql
+        assert "PARTITION `p1` VALUES LESS THAN ('2025-01-01')" in sql
+        assert "PARTITION `pmax` VALUES LESS THAN (MAXVALUE)" in sql
+        assert params == ()
 
 
 @pytest.mark.mariadb
@@ -228,74 +298,12 @@ class TestMariaDBExplainDeepSync:
         assert _cell(plan[0], "select_type") is not None, "last plain explain -> tabular plan"
 
     def test_format_json_when_supported(self, order_fixtures):
-        dialect = self._require_explain(order_fixtures[0])
+        User, _, _ = order_fixtures
+        dialect = self._require_explain(User)
         if not dialect.supports_explain_format("JSON"):
             pytest.skip("MariaDB < 10.6 has no FORMAT=JSON")
-        User, _, _ = order_fixtures
         plan = User.query().explain(format=ExplainFormat.JSON).aggregate()
         assert isinstance(plan, list) and plan
-
-    def test_analyze_format_json_when_supported(self, order_fixtures):
-        """MariaDB's analyzed-plan form is the ``ANALYZE FORMAT=JSON`` statement.
-
-        NOTE: the dialect renderer currently emits ``EXPLAIN ANALYZE ...``
-        (the PostgreSQL / MySQL-8 spelling), which MariaDB rejects with errno
-        1064. This test uses MariaDB's own spelling so that ANALYZE capability is
-        still covered at the DB level; the renderer mismatch is a known backend
-        limitation recorded in the report for this change.
-        """
-        User, _, _ = order_fixtures
-        dialect = self._require_explain(User)
-        if not (dialect.supports_explain_analyze() and dialect.supports_explain_format("JSON")):
-            pytest.skip("ANALYZE FORMAT=JSON requires MariaDB >= 10.6")
-        rows = User.backend().fetch_all("ANALYZE FORMAT=JSON SELECT * FROM `users`", ())
-        assert rows and any("query_" in str(v) for v in rows[0].values()), rows
-
-    def test_partition_pruning_evidence(self, order_fixtures):
-        """A RANGE COLUMNS plan names only the matching partition.
-
-        MariaDB's plain tabular EXPLAIN has no ``partitions`` column (unlike
-        MySQL); the ``EXPLAIN PARTITIONS`` form is what exposes pruning.
-        """
-        User, _, _ = order_fixtures
-        dialect = self._require_explain(User)
-        if not (
-            dialect.supports_table_partitioning() and dialect.supports_range_columns_partitioning()
-        ):
-            pytest.skip("no declarative RANGE COLUMNS partitioning")
-        backend = User.backend()
-        table = "test_explain_part_prune"
-        create_sql = (
-            f"CREATE TABLE {table} ("
-            "id INT NOT NULL AUTO_INCREMENT, "
-            "d DATE NOT NULL, "
-            "note VARCHAR(50), "
-            "PRIMARY KEY (id, d)"
-            ") ENGINE=InnoDB "
-            "PARTITION BY RANGE COLUMNS(d) ("
-            "PARTITION p0 VALUES LESS THAN ('2024-01-01'), "
-            "PARTITION p1 VALUES LESS THAN ('2025-01-01'), "
-            "PARTITION p2 VALUES LESS THAN (MAXVALUE)"
-            ")"
-        )
-        insert_sql = (
-            f"INSERT INTO {table} (d, note) VALUES "
-            "('2023-06-01', 'old'), ('2024-06-01', 'mid'), ('2025-06-01', 'new')"
-        )
-        try:
-            backend.execute(f"DROP TABLE IF EXISTS {table}", (), options=_DDL)
-            backend.execute(create_sql, (), options=_DDL)
-            backend.execute(insert_sql, (), options=_DDL)
-            rows = backend.fetch_all(
-                f"EXPLAIN PARTITIONS SELECT * FROM {table} WHERE d = '2024-06-01'", ()
-            )
-            assert rows, "EXPLAIN PARTITIONS must return a plan"
-            partitions = [str(v) for v in _col(rows, "partitions")]
-            assert partitions, "MariaDB EXPLAIN PARTITIONS must expose the partitions column"
-            assert any("p1" in p for p in partitions), partitions
-            assert not any("p0" in p for p in partitions), f"p0 should be pruned: {partitions}"
-        finally:
-            backend.execute(f"DROP TABLE IF EXISTS {table}", (), options=_DDL)
 
 
 @pytest.mark.mariadb
