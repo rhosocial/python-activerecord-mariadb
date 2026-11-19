@@ -73,7 +73,9 @@ BACKEND_NAME = "mariadb"
 def _config_for_scenario(scenario_name: str, tag: str):
     """A fresh, scenario-derived config; each feature run gets its own database."""
     sc = scenario(scenario_name)
-    database = f"bench_{tag}_{scenario_name}_{uuid.uuid4().hex}"
+    # MariaDB identifiers are capped at 64 characters; keep the generated
+    # database name well below that even for long scenario names.
+    database = f"bench_{tag}_{scenario_name}_{uuid.uuid4().hex[:12]}"[:64]
     sc.reset_database(database)
     return sc, sc.make_config(database)
 
