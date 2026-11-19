@@ -10,14 +10,14 @@ from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
-from rhosocial.activerecord.testsuite.feature.relation.fixtures.definitions import (
+from rhosocial.activerecord.testsuite.feature.query.relation.fixtures.definitions import (
     CommentDefinition,
     PostDefinition,
     UserDefinition,
 )
 
 
-from rhosocial.activerecord.testsuite.feature.relation.conftest import (  # noqa: F401
+from rhosocial.activerecord.testsuite.feature.query.relation.conftest import (  # noqa: F401
     user_post_comment_classes,
 )
 
