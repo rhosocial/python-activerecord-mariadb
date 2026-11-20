@@ -194,6 +194,7 @@ from .mixins import (
     MariaDBColumnTypeMixin,
     MariaDBLiteralValueMixin,
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
+    MariaDBPartitionSuggestionMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -231,7 +232,8 @@ if TYPE_CHECKING:
 
 
 class MariaDBDialect(
-    # Backend suggestion first: no core mixin may shadow its answer.
+    # Backend suggestions first: no core mixin may shadow their answers.
+    MariaDBPartitionSuggestionMixin,
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
     # The bases below come in bundles: a backend mixin, then the core bundle
     # it stands in for. The backend's answer has to come first -- a mixin

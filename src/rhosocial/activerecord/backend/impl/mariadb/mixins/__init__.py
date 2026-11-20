@@ -38,6 +38,7 @@ Mixin Organization:
 """
 
 from .integer_auto_increment_column_suggestion import MariaDBIntegerAutoIncrementColumnSuggestionMixin
+from .partition_suggestion import MariaDBPartitionSuggestionMixin
 from .introspection import MariaDBIntrospectionMixin
 from .status import MariaDBStatusDialectMixin
 from .transaction import MariaDBTransactionMixin
@@ -95,6 +96,7 @@ from .literal import MariaDBLiteralValueMixin
 
 __all__ = [
     'MariaDBIntegerAutoIncrementColumnSuggestionMixin',
+    'MariaDBPartitionSuggestionMixin',
     'MARIADB_VERSION_BOUNDARIES',
     'MariaDBIntrospectionMixin',
     'MariaDBStatusDialectMixin',
@@ -116,6 +118,7 @@ __all__ = [
     'MariaDBConcurrencyMixin',
     'AsyncMariaDBConcurrencyMixin',
     'MariaDBPartitionMixin',
+    'MariaDBDataTypeSuggestionsMixin',
     'MariaDBTypeSupportMixin',
     'MariaDBColumnTypeMixin',
     'MariaDBAlterColumnModifierMixin',
