@@ -14,7 +14,7 @@ layer) are deliberately left to the
 - [Storage engines](storage_engine.md) — InnoDB and alternatives
 - [Indexing](indexing.md) — index DDL and design notes
 - [Introspection](introspection.md) — three layers of server answers
-- [Partitioning](partition.md) — strategies, maintenance, subpartitioning
+- [Partitioning](partition.md) — strategies, suggestions, introspection, subpartitioning
 - [Datetime expressions](datetime_expressions.md) — `seconds_between` and fractional precision
 - [EXPLAIN](explain.md) — plans and `ANALYZE FORMAT=JSON`
 

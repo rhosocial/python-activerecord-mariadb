@@ -43,7 +43,7 @@ the generic expression layer are documented in the
      * **[Storage engines](mariadb_specific_features/storage_engine.md)**: InnoDB and other engines
      * **[Indexing](mariadb_specific_features/indexing.md)**: index design and DDL
      * **[Introspection](mariadb_specific_features/introspection.md)**: what the backend asks the server and where the answers come from
-     * **[Partitioning](mariadb_specific_features/partition.md)**: RANGE/LIST/HASH/KEY, maintenance and subpartitioning
+     * **[Partitioning](mariadb_specific_features/partition.md)**: RANGE/LIST/HASH/KEY expressions, suggestions, introspection and subpartitioning
      * **[Datetime expressions](mariadb_specific_features/datetime_expressions.md)**: `seconds_between` and fractional precision
      * **[EXPLAIN](mariadb_specific_features/explain.md)**: query plans and `ANALYZE FORMAT=JSON`
 

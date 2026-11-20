@@ -31,58 +31,40 @@ Lifecycle expressions cover `ADD`, `DROP`, `TRUNCATE`, `REORGANIZE`,
 `EXCHANGE`, `REMOVE PARTITIONING`, `COALESCE`, and the `ANALYZE` / `CHECK` /
 `OPTIMIZE` / `REBUILD` / `REPAIR` maintenance spells.
 
-## Backend-Level Maintenance
+## Suggestions and Introspection
 
-`MariaDBPartitionMaintenance` turns a caller-owned plan into the three
-operations an application needs: add missing partitions, report the partition
-tree, and drop partitions older than a cutoff.  It carries no table names,
-calendar vocabulary, or retention defaults.
+MariaDB exposes its partition capability through two backend mechanisms:
+
+1. **Backend suggestions** answer *how* each partition operation is spelled in
+   MariaDB.  The dialect implements all eight core partition lifecycle
+   suggestion protocols; each answer is a tuple of real expression nodes (or
+   an explicit `False`/`None` tri-state when the strategy is unsupported).
+2. **Introspection** answers *what* the server currently reports, via
+   `information_schema.PARTITIONS` (the `MariaDBGetPartitionsExpression`
+   statement and the `MariaDBPartitionInfo` records returned by the
+   introspector).
 
 ```python
-from rhosocial.activerecord.backend.expression import Column
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-    MariaDBPartitionDefinition, MariaDBPartitionValue,
+from rhosocial.activerecord.backend.dialect.protocols import (
+    PartitionAddSuggestionSupport,
 )
-from rhosocial.activerecord.backend.impl.mariadb.partition_maintenance import (
-    MariaDBPartitionMaintenance, MariaDBPartitionPlan,
-)
+from rhosocial.activerecord.backend.expression import partition_add_parts
+from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
-plan = MariaDBPartitionPlan(
-    "orders",
-    (
-        MariaDBPartitionDefinition("p2026_01", less_than=[MariaDBPartitionValue(dialect, "2026-02-01")]),
-        MariaDBPartitionDefinition("p2026_02", less_than=[MariaDBPartitionValue(dialect, "2026-03-01")]),
-    ),
-)
-maintenance = MariaDBPartitionMaintenance(backend)
+dialect = MariaDBDialect()
+assert isinstance(dialect, PartitionAddSuggestionSupport)
 
-report = maintenance.ensure(plan)                 # add what is missing
-report = maintenance.list("orders", plan=plan)    # tree + missing + orphans
-report = maintenance.validate(plan)               # method/boundary findings
-report = maintenance.drop_before(plan, cutoff, dry_run=True)
+# `plan` is caller-owned and opaque: the dialect reads `table`, `definitions`,
+# `keys`, `count`, `partition`, `into` and `partitions` by attribute or key.
+operations = partition_add_parts(dialect, "RANGE", plan)  # doctest: +SKIP
 ```
 
-Planning rules are reported rather than hidden:
+Planning, validation and retention policy belong to the application layer.
+The backend only supplies the MariaDB statement for each operation, so there
+is no backend-specific plan, report, executor or maintenance type to import.
 
-- a definition above the current RANGE maximum is appended with
-  `ADD PARTITION`;
-- a definition in a gap below the maximum reorganises the following partition
-  with `REORGANIZE PARTITION ... INTO (missing definitions, that partition)`;
-- a definition that must land before an existing `MAXVALUE` partition
-  reorganises that `MAXVALUE` partition the same way;
-- an existing partition the plan does not name, boundary or method drift, and
-  a subpartitioned reorganisation target are reported in `skipped` with the
-  reason the DDL is unsafe;
-- `validate` compares `PARTITION_NAME`, `PARTITION_METHOD` and
-  `PARTITION_DESCRIPTION`, filling `missing`, `orphans` and `issues`;
-- `drop_before` treats a partition whose upper bound equals the cutoff as
-  expired (`<=`) and never drops the last partition of a table;
-- `drop_before` is a dry run unless `dry_run=False` is passed.
-
-`ensure`, `validate` and `drop_before` are statement-level, not
-transaction-level: MariaDB partition DDL implicitly commits.  A report
-describes what one statement did.  `AsyncMariaDBPartitionMaintenance` offers
-the same methods with `await`.
+Like other DDL, partition statements are statement-level rather than
+transaction-level: MariaDB commits them implicitly.
 
 ## Subpartitioning
 

@@ -3,15 +3,14 @@
 
 The matrix is data, not code: each case names one MariaDB partition syntax
 family, the builders that render it, the fragments the renderer must (or must
-not) emit, and optional planning, refusal, and live hooks.  The test module is
-one set of assertions driven by this table, so adding a family means adding a
-row rather than another test function.
+not) emit, and an optional refusal builder.  The test module is one set of
+assertions driven by this table, so adding a family means adding a row rather
+than another test function.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 from typing import Any, Callable, Optional, Tuple
 
 import pytest
@@ -46,9 +45,6 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBSubpartitionStrategy,
     MariaDBTruncatePartitionExpression,
 )
-from rhosocial.activerecord.backend.impl.mariadb.partition_maintenance import (
-    MariaDBPartitionPlan,
-)
 
 #: A builder receives the dialect and returns one expression or a sequence.
 Builder = Callable[[MariaDBDialect], Any]
@@ -70,17 +66,6 @@ class PartitionSyntaxCase:
             the case cares about parameters.
         refusal_builder: Callable that must raise ``UnsupportedFeatureError``.
         refused_feature: Expected fragment of the raised feature name.
-        plan_builder: Callable returning a valid ``MariaDBPartitionPlan``.
-        existing_partitions: Existing partition names used by planning.
-        expected_additions: Names ``plan_additions`` should return.
-        expected_skipped: Names ``plan_additions`` should skip.
-        invalid_plan_builder: Callable building a plan that must be refused.
-        invalid_plan_error: Fragment of the refusal message.
-        drop_cutoff: Cutoff value passed to ``drop_before``.
-        expected_dropped: Names ``drop_before`` should drop.
-        exercise_maintenance: Run ensure/list/drop_before with a fake backend.
-        live_setup: Optional callable for a future live MariaDB scenario.
-        live_check: Optional callable validating the live setup result.
     """
 
     name: str
@@ -92,17 +77,6 @@ class PartitionSyntaxCase:
     expected_params: Optional[Tuple[Any, ...]] = None
     refusal_builder: Optional[Builder] = None
     refused_feature: str = ""
-    plan_builder: Optional[Builder] = None
-    existing_partitions: Tuple[str, ...] = ()
-    expected_additions: Tuple[str, ...] = ()
-    expected_skipped: Tuple[str, ...] = ()
-    invalid_plan_builder: Optional[Builder] = None
-    invalid_plan_error: str = ""
-    drop_cutoff: Any = None
-    expected_dropped: Tuple[str, ...] = ()
-    exercise_maintenance: bool = False
-    live_setup: Optional[Callable[[Any], Any]] = None
-    live_check: Optional[Callable[[Any], Any]] = None
 
 
 def _value(dialect: MariaDBDialect, value: Any) -> MariaDBPartitionValue:
@@ -334,67 +308,6 @@ def _build_get_partitions(dialect: MariaDBDialect):
     return MariaDBGetPartitionsExpression(dialect, "events")
 
 
-def _build_list_plan(dialect: MariaDBDialect) -> MariaDBPartitionPlan:
-    return MariaDBPartitionPlan(
-        "events",
-        (
-            MariaDBPartitionDefinition(
-                name="p_east",
-                in_values=[_value(dialect, "east")],
-            ),
-            MariaDBPartitionDefinition(
-                name="p_west",
-                in_values=[_value(dialect, "west")],
-            ),
-        ),
-    )
-
-
-def _build_mixed_plan(dialect: MariaDBDialect) -> MariaDBPartitionPlan:
-    return MariaDBPartitionPlan(
-        "events",
-        (
-            _range_definition(dialect, "p2026", "2027-01-01"),
-            MariaDBPartitionDefinition(
-                name="p_east",
-                in_values=[_value(dialect, "east")],
-            ),
-        ),
-    )
-
-
-def _build_range_maxvalue_plan(dialect: MariaDBDialect) -> MariaDBPartitionPlan:
-    return MariaDBPartitionPlan(
-        "events",
-        (
-            _range_definition(dialect, "p2026", "2027-01-01"),
-            _range_definition(dialect, "p2027", "2028-01-01"),
-            _maxvalue_definition(dialect, "pmax"),
-        ),
-    )
-
-
-def _build_invalid_maxvalue_plan(dialect: MariaDBDialect) -> MariaDBPartitionPlan:
-    return MariaDBPartitionPlan(
-        "events",
-        (
-            _maxvalue_definition(dialect, "pmax"),
-            _range_definition(dialect, "p2026", "2027-01-01"),
-        ),
-    )
-
-
-def _build_maintenance_plan(dialect: MariaDBDialect) -> MariaDBPartitionPlan:
-    return MariaDBPartitionPlan(
-        "events",
-        (
-            _range_definition(dialect, "p2026_01", "2026-02-01"),
-            _range_definition(dialect, "p2026_02", "2026-03-01"),
-            _range_definition(dialect, "p2026_03", "2026-04-01"),
-        ),
-    )
-
-
 CASES: Tuple[PartitionSyntaxCase, ...] = (
     PartitionSyntaxCase(
         name="range",
@@ -426,11 +339,6 @@ CASES: Tuple[PartitionSyntaxCase, ...] = (
             "PARTITION `p_east` VALUES IN ('east')",
         ),
         forbidden_fragments=("LIST COLUMNS", "VALUES LESS THAN"),
-        plan_builder=_build_list_plan,
-        existing_partitions=("p_east",),
-        expected_additions=("p_west",),
-        invalid_plan_builder=_build_mixed_plan,
-        invalid_plan_error="either less_than",
     ),
     PartitionSyntaxCase(
         name="list_columns",
@@ -472,16 +380,11 @@ CASES: Tuple[PartitionSyntaxCase, ...] = (
     ),
     PartitionSyntaxCase(
         name="range_maxvalue",
-        description="MAXVALUE is the last RANGE boundary and plan validation",
+        description="MAXVALUE is the last RANGE boundary",
         builders=(_build_range,),
         required_fragments=("PARTITION `pmax` VALUES LESS THAN (MAXVALUE)",),
         ordered_fragments=("PARTITION `p0`", "PARTITION `pmax`", "MAXVALUE"),
         forbidden_fragments=("VALUES IN",),
-        plan_builder=_build_range_maxvalue_plan,
-        existing_partitions=("p2026", "pmax"),
-        expected_skipped=("p2027",),
-        invalid_plan_builder=_build_invalid_maxvalue_plan,
-        invalid_plan_error="MAXVALUE partition must be the last",
     ),
     PartitionSyntaxCase(
         name="hash_subpartition",
@@ -596,16 +499,6 @@ CASES: Tuple[PartitionSyntaxCase, ...] = (
         ),
         forbidden_fragments=("PARTITION BY",),
         expected_params=("events",),
-    ),
-    PartitionSyntaxCase(
-        name="maintenance_ensure_list_drop_before",
-        description="Plan, ensure, list, and drop_before with a fake backend",
-        plan_builder=_build_maintenance_plan,
-        existing_partitions=("p2026_01",),
-        expected_additions=("p2026_02", "p2026_03"),
-        drop_cutoff=date(2026, 3, 1),
-        expected_dropped=("p2026_01", "p2026_02"),
-        exercise_maintenance=True,
     ),
 )
 

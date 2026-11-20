@@ -55,9 +55,15 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBRemovePartitioningExpression,
     MariaDBReorganizePartitionExpression,
 )
-from rhosocial.activerecord.backend.impl.mariadb.partition_maintenance import (
-    MariaDBPartitionPlan,
-)
+
+
+@dataclasses.dataclass(frozen=True)
+class _Plan:
+    """Minimal caller-owned plan; suggestions read it by attribute, not type."""
+
+    table: str
+    definitions: tuple
+
 
 #: (method suffix, protocol, suggestion dataclass, consumption helper)
 POINTS = (
@@ -120,7 +126,7 @@ def _plan(dialect, kind="RANGE"):
             MariaDBPartitionDefinition("p0", less_than=(MariaDBPartitionValue(dialect, 10),)),
             MariaDBPartitionDefinition("p1", less_than=(MariaDBPartitionValue(dialect, 20),)),
         )
-    return MariaDBPartitionPlan("events", definitions)
+    return _Plan("events", definitions)
 
 
 def _suggest(dialect, name, strategy, plan):
