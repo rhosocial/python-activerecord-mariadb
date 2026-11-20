@@ -781,13 +781,6 @@ class TestAsyncShowFunctionality:
         )
         assert _params(async_backend) == ("users",)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Source bug: AsyncMariaDBShowFunctionality.create_trigger calls self._target(), "
-            "which is defined only on the sync class (should be self._sync_impl._target())."
-        ),
-    )
     async def test_create_trigger(self, async_backend, async_show):
         async_backend.execute.return_value = _rows_result(
             [{"Trigger": "trg", "SQL Original Statement": "CREATE TRIGGER trg ..."}]
@@ -945,10 +938,6 @@ class TestAsyncEmptyResults:
         assert await getattr(async_show, method)(*args) is None
         async_backend.execute.assert_awaited_once()
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Source bug: async create_trigger references missing self._target helper.",
-    )
     async def test_create_trigger_empty_returns_none(self, async_backend, async_show):
         async_backend.execute.return_value = _rows_result([])
         assert await async_show.create_trigger("t") is None

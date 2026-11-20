@@ -888,7 +888,7 @@ class AsyncMariaDBShowFunctionality:
     ):
         """Async version of create_trigger."""
         expr = ShowCreateTriggerStatement(
-            self.dialect, self._target(Trigger, trigger_name, schema)
+            self.dialect, self._sync_impl._target(Trigger, trigger_name, schema)
         )
         sql, params = expr.to_sql()
         result = await self._backend.execute(sql, params)
