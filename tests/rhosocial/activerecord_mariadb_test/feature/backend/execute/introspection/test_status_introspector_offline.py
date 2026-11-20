@@ -4,14 +4,17 @@
 These tests never open a MariaDB connection. The pure parsing helpers are
 exercised directly, and the I/O-facing methods are driven through mocked
 ``_show_variables`` / ``_show_status`` / ``_execute_query*`` collaborators
-built with :class:`~unittest.mock.MagicMock`. No MariaDB server, driver or
-dialect is required.
+built with :class:`~unittest.mock.MagicMock` / :class:`~unittest.mock.AsyncMock`.
+No MariaDB server, driver or dialect connection is required.
 
-Only the synchronous :class:`MariaDBStatusIntrospector` is covered here; the
-async twin lives in the same module but is intentionally out of scope.
+Both the synchronous :class:`MariaDBStatusIntrospector` and its native-async
+twin :class:`AsyncMariaDBStatusIntrospector` are covered symmetrically. MariaDB
+has a real asyncio driver, so the async class is production code, not a
+pseudo-async wrapper: its ``await``-based cursor plumbing and every async
+reader are exercised here.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -21,6 +24,7 @@ from rhosocial.activerecord.backend.impl.mariadb.introspection.status_introspect
     MARIADB_CONFIG_VARIABLES,
     MARIADB_REPLICATION_VARIABLES,
     MARIADB_STATUS_VARIABLES,
+    AsyncMariaDBStatusIntrospector,
     MariaDBStatusIntrospector,
 )
 from rhosocial.activerecord.backend.impl.mariadb.introspection.status_types import (
@@ -78,6 +82,27 @@ def backend():
 def introspector(backend):
     """A synchronous introspector backed entirely by mocks."""
     return MariaDBStatusIntrospector(backend=backend)
+
+
+@pytest.fixture
+def async_introspector(backend):
+    """A native-async introspector backed entirely by mocks."""
+    return AsyncMariaDBStatusIntrospector(backend=backend)
+
+
+@pytest.fixture
+def async_cursor(backend):
+    """A cursor whose awaited DB-API calls are AsyncMocks.
+
+    ``cursor()`` itself is synchronous; ``execute`` / ``fetchall`` / ``close``
+    are awaited by the async introspector and are therefore AsyncMocks.
+    """
+    cursor = MagicMock()
+    cursor.execute = AsyncMock()
+    cursor.fetchall = AsyncMock(return_value=[])
+    cursor.close = AsyncMock()
+    backend._connection.cursor.return_value = cursor
+    return cursor
 
 
 class TestParseHelpers:
@@ -765,6 +790,452 @@ class TestGetOverview:
             item.start()
         try:
             overview = introspector.get_overview()
+        finally:
+            for item in patches:
+                item.stop()
+
+        assert isinstance(overview, MariaDBServerOverview)
+        assert overview.server_version == "11.4.0-MariaDB"
+        assert overview.server_vendor == "MariaDB"
+        assert overview.session is parts["get_session_info"]
+        assert overview.configuration == (
+            parts["list_configuration"] + parts["list_performance_metrics"]
+        )
+        assert overview.connections is parts["get_connection_info"]
+        assert overview.storage is parts["get_storage_info"]
+        assert overview.databases == parts["list_databases"]
+        assert overview.users == parts["list_users"]
+        assert overview.binary_log.log_enabled is False
+        assert overview.replication.is_replica is False
+
+
+class TestAsyncLowLevelExecution:
+    """Awaited cursor plumbing in the native-async introspector."""
+
+    @pytest.mark.asyncio
+    async def test_execute_query_returns_rows_and_closes_cursor(
+        self, async_introspector, async_cursor
+    ):
+        async_cursor.fetchall.return_value = [("11.4.0-MariaDB",)]
+
+        rows = await async_introspector._execute_query("SELECT VERSION()", ())
+
+        assert rows == [("11.4.0-MariaDB",)]
+        async_cursor.execute.assert_awaited_once_with("SELECT VERSION()", ())
+        async_cursor.close.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_execute_query_closes_cursor_on_error(self, async_introspector, async_cursor):
+        async_cursor.execute.side_effect = RuntimeError("boom")
+
+        with pytest.raises(RuntimeError):
+            await async_introspector._execute_query("SELECT 1", ())
+        async_cursor.close.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_execute_query_dict_lowercases_columns(self, async_introspector, async_cursor):
+        async_cursor.description = [("File",), ("Position",)]
+        async_cursor.fetchall.return_value = [("mysql-bin.000042", 1200)]
+
+        rows = await async_introspector._execute_query_dict("SHOW MASTER STATUS")
+
+        assert rows == [{"file": "mysql-bin.000042", "position": 1200}]
+        async_cursor.close.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_execute_query_dict_no_rows(self, async_introspector, async_cursor):
+        async_cursor.description = [("File",)]
+        async_cursor.fetchall.return_value = []
+        assert await async_introspector._execute_query_dict("SHOW MASTER STATUS") == []
+
+
+class TestAsyncShowVariablesAndStatus:
+    """Awaited SHOW helpers map rows and swallow errors just like sync."""
+
+    @pytest.mark.asyncio
+    async def test_show_variables_lowercases_keys(self, async_introspector):
+        query = AsyncMock(side_effect=[[("MAX_CONNECTIONS", "151")], [("wait_timeout", "600")]])
+        with patch.object(async_introspector, "_execute_query", new=query):
+            result = await async_introspector._show_variables(["max_connections", "wait_timeout"])
+
+        assert result == {"max_connections": "151", "wait_timeout": "600"}
+        assert query.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_show_variables_ignores_empty_and_errors(self, async_introspector):
+        query = AsyncMock(side_effect=[[("a", "1")], [], RuntimeError("server said no")])
+        with patch.object(async_introspector, "_execute_query", new=query):
+            result = await async_introspector._show_variables(["a", "b", "c"])
+        assert result == {"a": "1"}
+
+    @pytest.mark.asyncio
+    async def test_show_status_keeps_original_key_case(self, async_introspector, backend):
+        query = AsyncMock(return_value=[("Threads_connected", "42")])
+        with patch.object(async_introspector, "_execute_query", new=query):
+            result = await async_introspector._show_status(["Threads_connected"])
+
+        assert result == {"Threads_connected": "42"}
+        statement = backend.dialect.format_show_status_statement.call_args.args[0]
+        assert statement.session is False
+        assert statement.like_pattern == "Threads_connected"
+
+    @pytest.mark.asyncio
+    async def test_show_status_ignores_errors(self, async_introspector):
+        query = AsyncMock(side_effect=RuntimeError("boom"))
+        with patch.object(async_introspector, "_execute_query", new=query):
+            assert await async_introspector._show_status(["Threads_connected"]) == {}
+
+    @pytest.mark.asyncio
+    async def test_show_status_continues_after_error(self, async_introspector):
+        query = AsyncMock(side_effect=[RuntimeError("boom"), [("Questions", "9000")]])
+        with patch.object(async_introspector, "_execute_query", new=query):
+            result = await async_introspector._show_status(["Threads_connected", "Questions"])
+        assert result == {"Questions": "9000"}
+
+    @pytest.mark.asyncio
+    async def test_show_status_skips_empty_rows(self, async_introspector):
+        query = AsyncMock(side_effect=[[], [("Questions", "9000")]])
+        with patch.object(async_introspector, "_execute_query", new=query):
+            result = await async_introspector._show_status(["Threads_connected", "Questions"])
+        assert result == {"Questions": "9000"}
+
+
+class TestAsyncMockedHighLevelMethods:
+    """Every async reader is driven by mocked async collaborators."""
+
+    @pytest.mark.asyncio
+    async def test_list_configuration_all(self, async_introspector):
+        variables = {
+            "max_connections": "151",
+            "wait_timeout": "600",
+            "character_set_server": "utf8mb4",
+            "not_a_known_variable": "1",
+        }
+        with patch.object(
+            async_introspector, "_show_variables", new=AsyncMock(return_value=variables)
+        ):
+            items = await async_introspector.list_configuration()
+
+        by_name = {item.name: item for item in items}
+        assert "not_a_known_variable" not in by_name
+        assert len(items) == 3
+        assert by_name["max_connections"].value == 151
+        assert by_name["max_connections"].category is StatusCategory.CONNECTION
+        assert by_name["max_connections"].unit is None
+        assert by_name["wait_timeout"].value == 600
+        assert by_name["wait_timeout"].unit == "seconds"
+        assert by_name["character_set_server"].category is StatusCategory.CONFIGURATION
+
+    @pytest.mark.asyncio
+    async def test_list_configuration_category_filter(self, async_introspector):
+        variables = {
+            "max_connections": "151",
+            "wait_timeout": "600",
+            "datadir": "/var/lib/mysql",
+            "character_set_server": "utf8mb4",
+        }
+        with patch.object(
+            async_introspector, "_show_variables", new=AsyncMock(return_value=variables)
+        ):
+            items = await async_introspector.list_configuration(StatusCategory.CONNECTION)
+
+        assert {item.name for item in items} == {"max_connections", "wait_timeout"}
+        assert all(item.category is StatusCategory.CONNECTION for item in items)
+
+    @pytest.mark.asyncio
+    async def test_list_configuration_empty(self, async_introspector):
+        with patch.object(async_introspector, "_show_variables", new=AsyncMock(return_value={})):
+            assert await async_introspector.list_configuration() == []
+
+    @pytest.mark.asyncio
+    async def test_list_performance_metrics(self, async_introspector):
+        statuses = {
+            "Threads_connected": "10",
+            "Questions": "9000",
+            "Uptime": "3600",
+            "unknown_status": "5",
+        }
+        with patch.object(async_introspector, "_show_status", new=AsyncMock(return_value=statuses)):
+            items = await async_introspector.list_performance_metrics()
+
+        by_name = {item.name: item for item in items}
+        assert "unknown_status" not in by_name
+        assert len(items) == 3
+        assert by_name["Threads_connected"].category is StatusCategory.CONNECTION
+        assert by_name["Threads_connected"].is_readonly is True
+        assert by_name["Questions"].value == 9000
+        assert by_name["Uptime"].unit == "seconds"
+
+    @pytest.mark.asyncio
+    async def test_list_performance_metrics_category_filter(self, async_introspector):
+        statuses = {"Threads_connected": "10", "Questions": "9000", "Uptime": "3600"}
+        with patch.object(async_introspector, "_show_status", new=AsyncMock(return_value=statuses)):
+            items = await async_introspector.list_performance_metrics(StatusCategory.PERFORMANCE)
+
+        assert {item.name for item in items} == {"Questions", "Uptime"}
+        assert all(item.category is StatusCategory.PERFORMANCE for item in items)
+
+    @pytest.mark.asyncio
+    async def test_get_connection_info(self, async_introspector):
+        with patch.object(
+            async_introspector,
+            "_show_status",
+            new=AsyncMock(return_value={"Threads_connected": "42"}),
+        ), patch.object(
+            async_introspector,
+            "_show_variables",
+            new=AsyncMock(return_value={"max_connections": "151"}),
+        ):
+            info = await async_introspector.get_connection_info()
+
+        assert isinstance(info, ConnectionInfo)
+        assert info.active_count == 42
+        assert info.max_connections == 151
+
+    @pytest.mark.asyncio
+    async def test_get_connection_info_max_zero_is_none(self, async_introspector):
+        with patch.object(
+            async_introspector,
+            "_show_status",
+            new=AsyncMock(return_value={"Threads_connected": "3"}),
+        ), patch.object(
+            async_introspector,
+            "_show_variables",
+            new=AsyncMock(return_value={"max_connections": "0"}),
+        ):
+            info = await async_introspector.get_connection_info()
+        assert info.active_count == 3
+        assert info.max_connections is None
+
+    @pytest.mark.asyncio
+    async def test_get_connection_info_defaults(self, async_introspector):
+        with patch.object(
+            async_introspector, "_show_status", new=AsyncMock(return_value={})
+        ), patch.object(async_introspector, "_show_variables", new=AsyncMock(return_value={})):
+            info = await async_introspector.get_connection_info()
+        assert info.active_count == 0
+        assert info.max_connections is None
+
+    @pytest.mark.asyncio
+    async def test_get_storage_info(self, async_introspector):
+        row = {"data_bytes": "1000", "index_bytes": "250"}
+        with patch.object(
+            async_introspector, "_execute_query_dict", new=AsyncMock(return_value=[row])
+        ):
+            info = await async_introspector.get_storage_info()
+
+        assert isinstance(info, StorageInfo)
+        assert info.data_size_bytes == 1000
+        assert info.index_size_bytes == 250
+        assert info.total_size_bytes == 1250
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("outcome", [[], RuntimeError("boom")])
+    async def test_get_storage_info_fallback(self, async_introspector, outcome):
+        effect = outcome if isinstance(outcome, Exception) else None
+        query = AsyncMock(side_effect=effect, return_value=outcome)
+        with patch.object(async_introspector, "_execute_query_dict", new=query):
+            info = await async_introspector.get_storage_info()
+        assert info == StorageInfo()
+
+    @pytest.mark.asyncio
+    async def test_list_databases(self, async_introspector):
+        rows = [
+            {"schema_name": "app", "size_bytes": "1024", "table_count": "12", "view_count": "2"},
+            {"schema_name": "empty"},
+        ]
+        with patch.object(
+            async_introspector, "_execute_query_dict", new=AsyncMock(return_value=rows)
+        ):
+            dbs = await async_introspector.list_databases()
+
+        assert all(isinstance(db, DatabaseBriefInfo) for db in dbs)
+        assert dbs[0].name == "app"
+        assert dbs[0].size_bytes == 1024
+        assert dbs[0].table_count == 12
+        assert dbs[0].view_count == 2
+        assert dbs[1].name == "empty"
+        assert dbs[1].size_bytes is None
+        assert dbs[1].table_count == 0
+        assert dbs[1].view_count == 0
+
+    @pytest.mark.asyncio
+    async def test_list_databases_error(self, async_introspector):
+        query = AsyncMock(side_effect=RuntimeError("boom"))
+        with patch.object(async_introspector, "_execute_query_dict", new=query):
+            assert await async_introspector.list_databases() == []
+
+    @pytest.mark.asyncio
+    async def test_list_users(self, async_introspector):
+        rows = [
+            {"user": "root", "host": "localhost", "super_priv": "Y"},
+            {"user": "app", "host": "%", "super_priv": "N"},
+            {"user": "guest"},
+        ]
+        with patch.object(
+            async_introspector, "_execute_query_dict", new=AsyncMock(return_value=rows)
+        ):
+            users = await async_introspector.list_users()
+
+        assert all(isinstance(user, UserInfo) for user in users)
+        assert users[0].name == "root"
+        assert users[0].host == "localhost"
+        assert users[0].is_superuser is True
+        assert users[1].is_superuser is False
+        assert users[2].host is None
+        assert users[2].is_superuser is False
+
+    @pytest.mark.asyncio
+    async def test_list_users_error(self, async_introspector):
+        query = AsyncMock(side_effect=RuntimeError("boom"))
+        with patch.object(async_introspector, "_execute_query_dict", new=query):
+            assert await async_introspector.list_users() == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "have_ssl, expected", [("YES", True), ("yes", True), ("NO", False), ("", False)]
+    )
+    async def test_get_session_info_ssl(self, async_introspector, have_ssl, expected):
+        row = {
+            "cur_user": "root@localhost",
+            "cur_db": "app",
+            "host": "localhost",
+            "have_ssl": have_ssl,
+        }
+        with patch.object(
+            async_introspector, "_execute_query_dict", new=AsyncMock(return_value=[row])
+        ):
+            info = await async_introspector.get_session_info()
+
+        assert isinstance(info, SessionInfo)
+        assert info.user == "root@localhost"
+        assert info.database == "app"
+        assert info.host == "localhost"
+        assert info.ssl_enabled is expected
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("outcome", [[], RuntimeError("boom")])
+    async def test_get_session_info_fallback(self, async_introspector, outcome):
+        effect = outcome if isinstance(outcome, Exception) else None
+        query = AsyncMock(side_effect=effect, return_value=outcome)
+        with patch.object(async_introspector, "_execute_query_dict", new=query):
+            assert await async_introspector.get_session_info() == SessionInfo()
+
+    @pytest.mark.asyncio
+    async def test_get_version_string(self, async_introspector):
+        query = AsyncMock(return_value=[("11.4.0-MariaDB",)])
+        with patch.object(async_introspector, "_execute_query", new=query):
+            assert await async_introspector._get_version_string() == "11.4.0-MariaDB"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("outcome", [[], RuntimeError("boom")])
+    async def test_get_version_string_unknown(self, async_introspector, outcome):
+        effect = outcome if isinstance(outcome, Exception) else None
+        query = AsyncMock(side_effect=effect, return_value=outcome)
+        with patch.object(async_introspector, "_execute_query", new=query):
+            assert await async_introspector._get_version_string() == "Unknown"
+
+
+class TestAsyncBinaryAndReplicationWithMocks:
+    """The async row questions are skipped/asked by the same variable rules."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("log_bin", ["OFF", "0", "false", ""])
+    async def test_binary_log_off_does_not_query_master_status(self, async_introspector, log_bin):
+        variables = {"log_bin": log_bin, "binlog_format": "ROW"}
+        query = AsyncMock(return_value=[])
+        with patch.object(
+            async_introspector, "_show_variables", new=AsyncMock(return_value=variables)
+        ), patch.object(async_introspector, "_execute_query_dict", new=query):
+            info = await async_introspector.get_binary_log_info()
+
+        query.assert_not_awaited()
+        assert info.log_enabled is False
+        assert info.current_log_file is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("log_bin", ["ON", "1", "true"])
+    async def test_binary_log_on_queries_master_status(self, async_introspector, log_bin):
+        variables = {"log_bin": log_bin, "binlog_format": "ROW"}
+        with patch.object(
+            async_introspector, "_show_variables", new=AsyncMock(return_value=variables)
+        ), patch.object(
+            async_introspector,
+            "_execute_query_dict",
+            new=AsyncMock(return_value=[_SAMPLE_MASTER_ROW]),
+        ):
+            info = await async_introspector.get_binary_log_info()
+
+        assert info.log_enabled is True
+        assert info.current_log_file == "mysql-bin.000042"
+        assert info.current_log_position == 1200
+        assert info.binlog_do_db == ["app", "reporting"]
+
+    @pytest.mark.asyncio
+    async def test_replication_not_a_replica(self, async_introspector):
+        variables = {"server_id": "10", "log_slave_updates": "ON"}
+        with patch.object(
+            async_introspector, "_show_variables", new=AsyncMock(return_value=variables)
+        ), patch.object(async_introspector, "_execute_query_dict", new=AsyncMock(return_value=[])):
+            info = await async_introspector.get_replication_info()
+
+        assert info.server_id == 10
+        assert info.log_slave_updates is True
+        assert info.is_replica is False
+
+    @pytest.mark.asyncio
+    async def test_replication_row(self, async_introspector):
+        with patch.object(
+            async_introspector, "_show_variables", new=AsyncMock(return_value={"server_id": "10"})
+        ), patch.object(
+            async_introspector,
+            "_execute_query_dict",
+            new=AsyncMock(return_value=[_SAMPLE_SLAVE_ROW]),
+        ):
+            info = await async_introspector.get_replication_info()
+        assert info.is_replica is True
+        assert info.master_host == "10.0.0.5"
+        assert info.master_port == 3306
+
+    @pytest.mark.asyncio
+    async def test_replication_query_error_keeps_identity(self, async_introspector):
+        with patch.object(
+            async_introspector, "_show_variables", new=AsyncMock(return_value={"server_id": "10"})
+        ), patch.object(
+            async_introspector,
+            "_execute_query_dict",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            info = await async_introspector.get_replication_info()
+        assert info.server_id == 10
+        assert info.is_replica is None
+
+
+class TestAsyncGetOverview:
+    """The async overview composes every async reader."""
+
+    @pytest.mark.asyncio
+    async def test_get_overview_composes_all_parts(self, async_introspector):
+        parts = {
+            "_get_version_string": "11.4.0-MariaDB",
+            "get_session_info": SessionInfo(user="root"),
+            "list_configuration": [StatusItem("a", 1, StatusCategory.CONFIGURATION)],
+            "list_performance_metrics": [StatusItem("b", 2, StatusCategory.PERFORMANCE)],
+            "get_connection_info": ConnectionInfo(active_count=5),
+            "get_storage_info": StorageInfo(total_size_bytes=10),
+            "list_databases": [DatabaseBriefInfo(name="app")],
+            "list_users": [UserInfo(name="root")],
+            "get_binary_log_info": MariaDBBinaryLogInfo(log_enabled=False),
+            "get_replication_info": MariaDBReplicationInfo(server_id=1, is_replica=False),
+        }
+        patches = [
+            patch.object(async_introspector, name, new=AsyncMock(return_value=value))
+            for name, value in parts.items()
+        ]
+        for item in patches:
+            item.start()
+        try:
+            overview = await async_introspector.get_overview()
         finally:
             for item in patches:
                 item.stop()
