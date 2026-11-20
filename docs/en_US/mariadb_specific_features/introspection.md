@@ -1,4 +1,7 @@
+<!-- docs/en_US/mariadb_specific_features/introspection.md -->
 # Database Introspection
+
+> 📖 Part of [MariaDB-Specific Features](README.md) · [Documentation home](../README.md)
 
 The MariaDB backend answers three layers of questions: what the database declares (from `information_schema` and `SHOW`), what it has been doing (the operational families), and what its rows hold (three data families). `backend.introspector` is the entry point for all three, and every answer on this page is MariaDB's own: what this engine says, not the shape a cross-dialect consumer can expect.
 
@@ -52,7 +55,8 @@ Four switches beyond core's set are this backend's own: `supports_table_options_
 
 `supports_runtime_stats()` is the only probe above whose answer depends on a version: `True` from 10.5.0, the release that introduced the performance schema and `performance_schema.setup_instruments` with it. Below that floor the statement would name a relation the server does not serve, so the accessor is asked rather than a bare `True`.
 
-The three counter families — `unused-indexes`, `table-stats` and `index-stats` — are refused on every release in the matrix (10.2 through 13.x), and not because they are gated on a floor nobody reached: MariaDB's performance schema is a partial port of MySQL's. It has the instrument catalogue, which is what `runtime` reads, but it registers none of the table I/O summary tables (`table_io_waits_summary_by_table`, `table_io_waits_summary_by_index_usage`) that a per-table or per-index counter would be projected from. MariaDB's own `sys` schema installs views over those tables, but a view over a table the server does not serve cannot answer: executing one is `1146`, "table does not exist", which would turn a definition-time question into an execution error. There is no floor at which MariaDB starts answering, so the probes answer `False` rather than carrying a version.
+The three counter families — `unused-indexes`, `table-stats` and `index-stats` — are refused on every release in the matrix (10.2 through 13.x), and not because they are gated on a floor nobody reached: MariaDB's performance schema is a partial implementation of the upstream
+performance-schema design. It has the instrument catalogue, which is what `runtime` reads, but it registers none of the table I/O summary tables (`table_io_waits_summary_by_table`, `table_io_waits_summary_by_index_usage`) that a per-table or per-index counter would be projected from. MariaDB's own `sys` schema installs views over those tables, but a view over a table the server does not serve cannot answer: executing one is `1146`, "table does not exist", which would turn a definition-time question into an execution error. There is no floor at which MariaDB starts answering, so the probes answer `False` rather than carrying a version.
 
 What MariaDB does report about an index — `information_schema.STATISTICS` — is its declaration and an estimated cardinality. That is a fact about what an index is, and about the shape of its data; it is never a measure of how often the optimiser reached for it. Projecting a cardinality into a slot that promises a count of operations, or a zero into one that promises "no access was recorded", would be a number the engine never measured.
 

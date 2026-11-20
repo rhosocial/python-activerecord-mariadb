@@ -1,7 +1,10 @@
+<!-- docs/en_US/mariadb_specific_features/partition.md -->
 # MariaDB Partitioning
 
-MariaDB supports the same table-partitioning strategies as MySQL: RANGE,
-RANGE COLUMNS, LIST, LIST COLUMNS, HASH, KEY, and their LINEAR variants.
+> 📖 Part of [MariaDB-Specific Features](README.md) · [Documentation home](../README.md)
+
+MariaDB supports table partitioning: RANGE, RANGE COLUMNS, LIST, LIST COLUMNS,
+HASH, KEY, and their LINEAR variants.
 
 ## Expression Layer
 
