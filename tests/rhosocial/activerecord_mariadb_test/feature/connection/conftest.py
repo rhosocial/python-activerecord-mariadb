@@ -4,6 +4,7 @@ Pytest configuration for connection pool tests.
 
 This module provides fixtures for testing connection pools with MariaDB backends.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 import os
 from typing import Dict, Any, Generator
@@ -20,6 +21,18 @@ from rhosocial.activerecord.connection.pool import (
     BackendPool,
     AsyncBackendPool,
 )
+
+from pool_definitions import (
+    AsyncConcurrentTestPostsDefinition,
+    AsyncConcurrentTestUsersDefinition,
+    ConcurrentTestPostsDefinition,
+    ConcurrentTestUsersDefinition,
+)
+
+
+def resolve_database_name(scenario_name: str) -> str:
+    """Name the database these pool tests own on each scenario's server."""
+    return f"test_connection_{scenario_name}"
 
 
 # No event loop workaround is needed on Windows. This backend's async driver
@@ -50,11 +63,15 @@ def _load_scenarios_from_config():
     if env_config_path and os.path.exists(env_config_path):
         config_path = env_config_path
     else:
-        default_path = os.path.join(os.path.dirname(__file__), "../../../../config", "mariadb_scenarios.yaml")
+        default_path = os.path.join(
+            os.path.dirname(__file__), "../../../../config", "mariadb_scenarios.yaml"
+        )
         if os.path.exists(default_path):
             config_path = default_path
         elif env_config_path:
-            print(f"Warning: Scenario file specified in MARIADB_SCENARIOS_CONFIG_PATH not found: {env_config_path}")
+            print(
+                f"Warning: Scenario file specified in MARIADB_SCENARIOS_CONFIG_PATH not found: {env_config_path}"
+            )
             return
 
     if not config_path:
@@ -80,6 +97,10 @@ def _load_scenarios_from_config():
 
 _load_scenarios_from_config()
 
+from support.mariadb import scenario as _support_scenario
+
+_PREPARED_DATABASES = set()
+
 
 def get_scenario_config(name: str) -> Dict[str, Any]:
     if name not in SCENARIO_MAP:
@@ -89,11 +110,12 @@ def get_scenario_config(name: str) -> Dict[str, Any]:
             raise ValueError("No scenarios registered or enabled")
     scenario_config = SCENARIO_MAP[name].copy()
     # Apply the pooled database name so parallel workers never share a schema.
-    from providers.pooling import resolve_database_name
-
     pooled_db = resolve_database_name(name)
     if pooled_db:
         scenario_config["database"] = pooled_db
+        if pooled_db not in _PREPARED_DATABASES:
+            _support_scenario(name).reset_database(pooled_db)
+            _PREPARED_DATABASES.add(pooled_db)
     return scenario_config
 
 
@@ -136,11 +158,20 @@ def create_async_mysql_backend_factory(config_dict: Dict[str, Any]):
     return factory
 
 
-@pytest.fixture(scope="function", params=get_scenario_names())
-def mariadb_pool(request) -> Generator[BackendPool, None, None]:
+
+# This directory owns a database shared by all its tests within a scenario;
+# pin them to one worker so setup/teardown never races on the same database.
+DECLARATION = Declaration(
+    uses_database=True,
+    parallel=True,
+    purpose="Directory-owned database shared by this test group.",
+)
+
+@pytest.fixture(scope="function")
+def mariadb_pool(database_config) -> Generator[BackendPool, None, None]:
     """Create a BackendPool with MariaDB backends for testing."""
-    scenario_name = request.param
-    config_dict = get_scenario_config(scenario_name).copy()
+    scenario_name = database_config[0].name
+    config_dict = get_scenario_config(scenario_name)
 
     pool_config = PoolConfig(
         min_size=1,
@@ -156,11 +187,11 @@ def mariadb_pool(request) -> Generator[BackendPool, None, None]:
     pool.close(timeout=5.0, force=True)
 
 
-@pytest_asyncio.fixture(scope="function", params=get_scenario_names())
-async def async_mariadb_pool(request) -> AsyncBackendPool:
+@pytest_asyncio.fixture(scope="function")
+async def async_mariadb_pool(database_config) -> AsyncBackendPool:
     """Create an AsyncBackendPool with MariaDB backends for testing."""
-    scenario_name = request.param
-    config_dict = get_scenario_config(scenario_name).copy()
+    scenario_name = database_config[0].name
+    config_dict = get_scenario_config(scenario_name)
 
     pool_config = PoolConfig(
         min_size=1,
@@ -176,11 +207,11 @@ async def async_mariadb_pool(request) -> AsyncBackendPool:
     await pool.close(timeout=5.0, force=True)
 
 
-@pytest.fixture(scope="function", params=get_scenario_names())
-def mariadb_pool_large(request) -> Generator[BackendPool, None, None]:
+@pytest.fixture(scope="function")
+def mariadb_pool_large(database_config) -> Generator[BackendPool, None, None]:
     """Create a larger BackendPool for stress testing."""
-    scenario_name = request.param
-    config_dict = get_scenario_config(scenario_name).copy()
+    scenario_name = database_config[0].name
+    config_dict = get_scenario_config(scenario_name)
 
     pool_config = PoolConfig(
         min_size=1,
@@ -195,11 +226,11 @@ def mariadb_pool_large(request) -> Generator[BackendPool, None, None]:
     pool.close(timeout=5.0, force=True)
 
 
-@pytest_asyncio.fixture(scope="function", params=get_scenario_names())
-async def async_mariadb_pool_large(request) -> AsyncBackendPool:
+@pytest_asyncio.fixture(scope="function")
+async def async_mariadb_pool_large(database_config) -> AsyncBackendPool:
     """Create a larger AsyncBackendPool for stress testing."""
-    scenario_name = request.param
-    config_dict = get_scenario_config(scenario_name).copy()
+    scenario_name = database_config[0].name
+    config_dict = get_scenario_config(scenario_name)
 
     pool_config = PoolConfig(
         min_size=1,
@@ -220,60 +251,53 @@ async def async_mariadb_pool_large(request) -> AsyncBackendPool:
 @pytest.fixture(scope="function")
 def mariadb_pool_with_tables(mariadb_pool: BackendPool) -> Generator[BackendPool, None, None]:
     """Create a pool with test tables initialized."""
+    definitions = (
+        ConcurrentTestPostsDefinition,
+        ConcurrentTestUsersDefinition,
+    )
     with mariadb_pool.connection() as backend:
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        backend.execute("""
-            CREATE TABLE concurrent_test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                thread_id INTEGER,
-                name VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        backend.execute("""
-            CREATE TABLE concurrent_test_posts (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                thread_id INTEGER,
-                user_id INTEGER,
-                title VARCHAR(255),
-                content TEXT
-            )
-        """)
+        fixtures = [definition(backend.dialect) for definition in definitions]
+        for fixture in fixtures:
+            backend.execute(*fixture.drop_table.to_sql())
+            backend.execute(*fixture.create_table.to_sql())
 
     yield mariadb_pool
 
     with mariadb_pool.connection() as backend:
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
+        for fixture in reversed(fixtures):
+            backend.execute(*fixture.drop_table.to_sql())
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_mariadb_pool_with_tables(async_mariadb_pool: AsyncBackendPool) -> AsyncBackendPool:
     """Create an async pool with test tables initialized."""
+    definitions = (
+        AsyncConcurrentTestPostsDefinition,
+        AsyncConcurrentTestUsersDefinition,
+    )
     async with async_mariadb_pool.connection() as backend:
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        await backend.execute("""
-            CREATE TABLE concurrent_test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                task_id INTEGER,
-                name VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        await backend.execute("""
-            CREATE TABLE concurrent_test_posts (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                task_id INTEGER,
-                user_id INTEGER,
-                title VARCHAR(255),
-                content TEXT
-            )
-        """)
+        fixtures = [definition(backend.dialect) for definition in definitions]
+        for fixture in fixtures:
+            await backend.execute(*fixture.drop_table.to_sql())
+            await backend.execute(*fixture.create_table.to_sql())
 
     yield async_mariadb_pool
 
     async with async_mariadb_pool.connection() as backend:
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
+        for fixture in reversed(fixtures):
+            await backend.execute(*fixture.drop_table.to_sql())
+
+
+# --- directory contract: this directory's identity for xdist grouping ---
+@pytest.fixture(scope="session")
+def database_config(backend_scenario):
+    """The scenario, its connection configuration, and the directory name.
+
+    The pool fixtures above own their databases (``test_connection_{scenario}``)
+    and are deliberately left unchanged, so this directory does not create a
+    shared ``database`` backend.  The fixture declares which directory and
+    scenario the tests belong to, which is what keeps a directory's tests on one
+    worker per scenario.
+    """
+    name = "test_connection"
+    return backend_scenario, backend_scenario.make_config(name), name

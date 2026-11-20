@@ -1,19 +1,23 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/column_type.py
 """MariaDB's answer to "which column class does this Python type mean here".
 
-This is the **column** half of the column-type protocol (the DataType half is
-:meth:`MariaDBDialect.suggested_data_types`), and it answers a different
-question from storage. A column class says what a value can *do*; how it is
-stored is the DDL layer's separate decision. That separation is why MariaDB's
-one famous divergence from MySQL does not show up in this table at all -- see
-the ``dict`` entry below.
+This is the **column** half of the column-type protocol (the DDL half is
+:mod:`.data_type_suggestions`), and it answers a different question from storage. A
+column class says what a value can *do*; how it is stored is the DDL layer's
+separate decision. That separation is why MariaDB's one famous divergence from
+MySQL does not show up in this table at all -- see the ``dict`` entry below.
 
-The table answers all 18 entries of the framework's common Python types,
-because an entry left out is indistinguishable from one nobody thought about,
-and only the first of those is actionable. Where MariaDB genuinely has no
-column class for an entry the answer is ``None`` -- the last resort, and the
+The table answers all twenty-four entries of the framework's Python types --
+the eighteen common scalars, containers and value families, plus the six
+complex families core now models -- because an entry left out is
+indistinguishable from one nobody thought about. Where MariaDB genuinely has
+no column class for an entry the answer is ``None`` -- the last resort, and the
 one that makes a refusal distinguishable from an oversight -- which resolution
-turns into a definition-time failure naming ``UseColumnType``.
+turns into a definition-time failure naming ``UseColumnType``. The six complex
+families are answered, because their core classes promise only the surface
+every column has; the one remaining refusal is ``dict`` below MariaDB 10.2.
+Their storage is a separate question, answered in
+:mod:`.data_type_suggestions`.
 
 **MariaDB is not MySQL; the facts below are not translatable between them.**
 
@@ -50,19 +54,34 @@ import enum
 import uuid
 from typing import Any, Dict, Optional, Type
 
+from rhosocial.activerecord.backend.adapters import (
+    BitString,
+    Geometry,
+    MacAddress,
+    Multirange,
+    Range,
+    Vector,
+)
 from rhosocial.activerecord.backend.dialect.mixins.column_type import (
     ColumnTypeMixin,
 )
 from rhosocial.activerecord.backend.expression.column_types import (
     BinaryColumn,
+    BitStringColumn,
     BooleanColumn,
     ColumnBase,
+    GeometryColumn,
     IntegerColumn,
+    IntervalColumn,
     JSONColumn,
+    MacAddressColumn,
+    MultirangeColumn,
     NumericColumn,
+    RangeColumn,
     StringColumn,
     TimestampColumn,
     UUIDColumn,
+    VectorColumn,
 )
 
 from .backend import MARIADB_VERSION_BOUNDARIES
@@ -96,13 +115,12 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 #:     instead."
 #:
 #: ``datetime.timedelta``
-#:     :class:`NumericColumn`. ``INTERVAL`` on MariaDB is an *expression*
+#:     :class:`IntervalColumn`. ``INTERVAL`` on MariaDB is an *expression*
 #:     keyword (``INTERVAL 1 DAY`` inside ``DATE_ADD``) and never a column
 #:     type, so a span has to be stored as a number of seconds or as its
-#:     character form. PostgreSQL and Oracle have a real interval column
-#:     type and are answered differently; there is no ``IntervalColumn``
-#:     class, so this is the same honest answer the portable baseline gives,
-#:     reached here from measurement rather than by default.
+#:     character form -- a storage choice, not the value's family. The class
+#:     promises no arithmetic, so it names the span honestly on both MariaDB
+#:     and the backends that do have a native interval type.
 #:
 #: ``uuid.UUID``
 #:     :class:`UUIDColumn` on **every** supported version, including those
@@ -112,7 +130,7 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 #:     it) changes what the column is *stored as* and nothing about what it
 #:     can do, so gating it here would move the answer for a storage
 #:     reason. Compare MySQL, which has no UUID type on any version.
-MARIADB_COLUMN_TYPES: Dict[Any, Type[ColumnBase]] = {
+MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     bool: BooleanColumn,
     int: IntegerColumn,
     float: NumericColumn,
@@ -123,7 +141,7 @@ MARIADB_COLUMN_TYPES: Dict[Any, Type[ColumnBase]] = {
     datetime.date: TimestampColumn,
     datetime.time: TimestampColumn,
     datetime.datetime: TimestampColumn,
-    datetime.timedelta: NumericColumn,
+    datetime.timedelta: IntervalColumn,
     uuid.UUID: UUIDColumn,
     dict: JSONColumn,
     list: JSONColumn,
@@ -131,11 +149,24 @@ MARIADB_COLUMN_TYPES: Dict[Any, Type[ColumnBase]] = {
     set: JSONColumn,
     frozenset: JSONColumn,
     enum.Enum: StringColumn,
+    # -- Complex families ------------------------------------------------
+    # Their core classes promise only the surface every column has -- alias,
+    # null tests, casting and collation -- because no distance, containment,
+    # overlap, bitwise or similarity operation is spelled the same way on
+    # every backend. Richer family operations belong to a
+    # MariaDB-named subclass in this backend's extra table. Storage is
+    # answered in ``data_type_suggestions.py``.
+    Geometry: GeometryColumn,
+    Vector: VectorColumn,
+    BitString: BitStringColumn,
+    Range: RangeColumn,
+    Multirange: MultirangeColumn,
+    MacAddress: MacAddressColumn,
 }
 
 
 class MariaDBColumnTypeMixin(ColumnTypeMixin):
-    """MariaDB's full 18-entry column-type table, and its narrowing.
+    """MariaDB's full twenty-four-entry column-type table, and its narrowing.
 
     Composed into :class:`~...dialect.MariaDBDialect` ahead of core's mixins,
     so its :meth:`suggested_column_types` is the one a model layer reaches.

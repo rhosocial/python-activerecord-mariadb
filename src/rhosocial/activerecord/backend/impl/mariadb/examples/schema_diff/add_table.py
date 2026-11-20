@@ -6,6 +6,7 @@ Builds a ``SchemaSnapshot`` before and after creating a table, then uses
 
 Supported versions: MariaDB 10.2+
 """
+from rhosocial.activerecord.backend.expression.statements import auto_increment_parts  # noqa: E402
 
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
@@ -64,11 +65,11 @@ snapshot_before = builder.build()
 # Create a new table
 expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, 'users'), columns=[
-        ColumnDefinition(dialect, "id", IntegerType(dialect),
+        ColumnDefinition(dialect, "id"[0], auto_increment_parts(dialect, IntegerType(dialect))[0],
             constraints=[
                 ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, is_auto_increment=True)),
-            ]),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+            ], attributes=auto_increment_parts(dialect, IntegerType(dialect))[1]),
         ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
     ]
 )

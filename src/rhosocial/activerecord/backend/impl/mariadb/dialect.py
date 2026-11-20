@@ -57,6 +57,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
+    TransactionalDDLSupport,
     GeneratedColumnSupport,
     # One protocol per mechanism: MariaDB accepts the parameterless
     # AUTO_INCREMENT marker and refuses the parameterised standard identity
@@ -161,6 +162,7 @@ from .mixins import (
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
+    MariaDBDataTypeSuggestionsMixin,
     MariaDBTypeSupportMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
@@ -191,6 +193,7 @@ from .mixins import (
     MariaDBNamespaceMixin,
     MariaDBColumnTypeMixin,
     MariaDBLiteralValueMixin,
+    MariaDBIntegerAutoIncrementColumnSuggestionMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -228,6 +231,8 @@ if TYPE_CHECKING:
 
 
 class MariaDBDialect(
+    # Backend suggestion first: no core mixin may shadow its answer.
+    MariaDBIntegerAutoIncrementColumnSuggestionMixin,
     # The bases below come in bundles: a backend mixin, then the core bundle
     # it stands in for. The backend's answer has to come first -- a mixin
     # placed after the class it overrides never wins -- so a new mixin goes
@@ -294,6 +299,7 @@ class MariaDBDialect(
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
+    MariaDBDataTypeSuggestionsMixin,
     MariaDBTypeSupportMixin,
     # The column-side type table — which column class each common Python
     # type means on this server. It derives from core's `ColumnTypeMixin`, so
@@ -402,6 +408,7 @@ class MariaDBDialect(
     ConstraintSupport,
     IntrospectionSupport,
     TransactionControlSupport,
+    TransactionalDDLSupport,
     GeneratedColumnSupport,
     # One protocol per mechanism: MariaDB accepts the parameterless
     # AUTO_INCREMENT marker and refuses the parameterised standard identity
@@ -498,6 +505,38 @@ class MariaDBDialect(
         """Return the MariaDB version this dialect is configured for."""
         return self.version
 
+    def supports_transactional_ddl(self) -> bool:
+        """MariaDB commits each DDL statement implicitly."""
+        return False
+
+    #: Server and session parameters recorded during adaptation.
+    #:
+    #: They are not capabilities: an operator can change them, so no version
+    #: decides them. ``introspect_and_adapt`` reads them from the live session
+    #: (``SHOW SESSION VARIABLES``) and records the answers here.
+    _server_parameters: Dict[str, str] = {}
+
+    def set_server_parameters(self, values: Dict[str, str]) -> None:
+        """Record what the live server reported about itself."""
+        self._server_parameters = dict(values)
+
+    def server_parameters(self) -> dict:
+        """Every recorded value, keyed by its MariaDB variable name."""
+        return dict(self._server_parameters)
+
+    def explicit_defaults_for_timestamp(self) -> bool:
+        """Whether TIMESTAMP columns hold only what a statement wrote.
+
+        The session's recorded value wins (MariaDB reports ``ON`` / ``OFF``).
+        With no record, this answers ``False``: the measured server (11.8.9)
+        reports ``ON``, earlier versions were not measured, and a capability
+        nobody confirmed is not claimed.
+        """
+        recorded = self._server_parameters.get("explicit_defaults_for_timestamp")
+        if recorded is not None:
+            return str(recorded).strip().upper() in ("ON", "1", "TRUE")
+        return False
+
     def create_schema_differ(self):
         """Return the MariaDB schema differ (ordinal-position aware)."""
         from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (
@@ -555,7 +594,7 @@ class MariaDBDialect(
             )
         return ""
 
-    def suggested_data_types(self) -> Dict[str, type]:
+    def substitute_data_types(self) -> Dict[str, type]:
         """What MariaDB stores for each core concept it cannot spell.
 
         A concept MariaDB genuinely has is **rendered**, not suggested — the
@@ -564,19 +603,18 @@ class MariaDBDialect(
         that renders ``ENUM(...)`` perfectly well, and a name in both sets is
         one of the two being a lie.
 
-        What is left is the honest remainder — ``uuid`` used to be here and no
-        longer is, and ``real`` joins it for the reason its entry gives:
+        What is left is the honest remainder. ``real`` joins it for the reason its
+        entry gives:
 
         ``uuid``
-            **Removed.** MariaDB has had a native ``UUID`` column type since
-            **10.7**, so this concept is *rendered* rather than substituted (see
-            ``format_data_type_mariadb_uuid``, which is version-gated). The
-            entry that used to sit here claimed MariaDB had no UUID type at all
-            and pointed at a 16-byte ``BINARY`` instead — which was true before
-            10.7 and false after it, and would have quietly produced a column
-            that is not a UUID on every supported server. On a pre-10.7 server
-            a UUID is a ``MariaDBBinaryType(length=16)``, and asking for that
-            class is the honest way to say so.
+            **Version-dependent, because MariaDB's answer changed.** Native
+            ``UUID`` arrived in **10.7**, so from there the concept is
+            *rendered* (see ``format_data_type_mariadb_uuid``). Before it there
+            is no UUID type at all: a UUID is stored as a 16-byte ``BINARY``,
+            and the substitute names that class. Leaving the key out on an
+            older server would make the concept neither rendered nor
+            substituted -- D9's "silence is not an answer" -- so the entry
+            follows the server exactly the way ``xml`` does below.
 
         ``real``
             MariaDB documents ``REAL`` as one of the three words for the 8-byte
@@ -675,7 +713,7 @@ class MariaDBDialect(
             else TextType
         )
 
-        return {
+        substitutes = {
             "binary": MariaDBBinaryType,
             "varbinary": MariaDBVarBinaryType,
             "real": DoubleType,
@@ -683,6 +721,12 @@ class MariaDBDialect(
             "xml": xml_substitute,
             "interval": VarCharType,
         }
+        # Before 10.7 there is no native UUID: name the 16-byte BINARY that
+        # actually stores it. From 10.7 on the renderer owns the concept and a
+        # substitute here would be a second, contradictory answer.
+        if self.version < MARIADB_VERSION_BOUNDARIES["UUID"]:
+            substitutes["uuid"] = MariaDBBinaryType
+        return substitutes
 
     # endregion
 

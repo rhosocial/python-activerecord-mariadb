@@ -56,6 +56,15 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
+    def supports_json_type_validation(self) -> bool:
+        """Whether a ``JSON`` column refuses a document that is not valid JSON.
+
+        ``JSON`` is the ``LONGTEXT`` alias; the server adds an automatic
+        ``CHECK (json_valid(...))`` to the column from MariaDB 10.4.3 onward,
+        so older servers store whatever text is written.
+        """
+        ...
+
     def supports_json_path(self) -> bool:
         """Whether a JSON path can be read on this server (MariaDB 10.2.3+).
 

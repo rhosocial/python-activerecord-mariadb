@@ -51,6 +51,21 @@ from ..expression.status import MariaDBVersionQuery
 from ..transaction import MariaDBTransactionManager
 from ..mixins import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MariaDBConcurrencyMixin
 
+#: The session variables the dialect answers from.
+#:
+#: ``SHOW SESSION VARIABLES`` returns the whole set in one round trip -- 703
+#: rows on 11.8.9 -- so a variable that matters can be read without a bespoke
+#: query, one this code has never heard of is still recorded, and a version's
+#: own list needs no enumeration here.
+_SERVER_PARAMETERS_QUERY = "SHOW SESSION VARIABLES"
+
+#: Variables the dialect answers from that a server may scope globally only.
+#: Such a variable is absent from ``SHOW SESSION VARIABLES`` and
+#: ``@@SESSION.<name>`` is refused (MariaDB 10.4 answers errno 1238: "Variable
+#: 'explicit_defaults_for_timestamp' is a GLOBAL variable"), while the unscoped
+#: ``@@<name>`` returns the value this session runs under either way.
+_UNSCOPED_PARAMETERS = ("explicit_defaults_for_timestamp",)
+
 class MariaDBBackend(
     MariaDBBackendMixin,
     MariaDBConcurrencyMixin,
@@ -131,29 +146,41 @@ class MariaDBBackend(
     def _register_mariadb_adapters(self):
         """Register MariaDB-specific type adapters."""
         from ..adapters import (
+            MariaDBBitStringAdapter,
             MariaDBBlobAdapter,
             MariaDBBooleanAdapter,
             MariaDBDateAdapter,
             MariaDBDatetimeAdapter,
             MariaDBDecimalAdapter,
             MariaDBEnumAdapter,
+            MariaDBGeometryAdapter,
             MariaDBJSONAdapter,
+            MariaDBMacAddressAdapter,
+            MariaDBRangeAdapter,
             MariaDBSetAdapter,
             MariaDBTimeAdapter,
             MariaDBUUIDAdapter,
+            MariaDBVectorAdapter,
         )
 
         adapters = [
+            MariaDBBitStringAdapter(),
             MariaDBBlobAdapter(),
             MariaDBBooleanAdapter(),
             MariaDBDateAdapter(),
             MariaDBDatetimeAdapter(self._version),
             MariaDBDecimalAdapter(),
             MariaDBEnumAdapter(use_int_storage=False),
+            # Neutral adapters are keyed by their neutral Python type, so they
+            # cannot shadow the JSON/date/... adapters above.
+            MariaDBGeometryAdapter(),
             MariaDBJSONAdapter(),
+            MariaDBMacAddressAdapter(),
+            MariaDBRangeAdapter(),
             MariaDBSetAdapter(),
             MariaDBTimeAdapter(),
             MariaDBUUIDAdapter(),
+            MariaDBVectorAdapter(),
         ]
 
         for adapter in adapters:
@@ -597,6 +624,45 @@ class MariaDBBackend(
         self._dialect = MariaDBDialect(version)
         self._register_mariadb_adapters()
         self.log(logging.INFO, f"Adapted dialect version to MariaDB {version[0]}.{version[1]}.{version[2]}")
+        self._record_server_parameters()
+
+    def _record_server_parameters(self) -> None:
+        """Record the session variables the dialect answers from.
+
+        These belong to the session, not to the version: an operator may have
+        changed them. Read once here, now that a connection exists, so asking
+        the dialect gets the server's real answer. A server that cannot report
+        them leaves them unrecorded, and the log line says so rather than a
+        guessed value being stored.
+
+        A variable the server scopes globally only is missing from the bulk
+        listing, so it is read without a scope (see
+        ``_UNSCOPED_PARAMETERS``) instead of being left to a default.
+        """
+        if self._dialect is None:
+            return
+        try:
+            rows = self.execute(_SERVER_PARAMETERS_QUERY, ()).data
+        except Exception as error:  # noqa: BLE001 - reported, then left unrecorded
+            self.log(
+                logging.WARNING,
+                f"could not read the MariaDB session variables: {error}",
+            )
+            return
+        recorded = {row["Variable_name"]: row["Value"] for row in rows}
+        for name in _UNSCOPED_PARAMETERS:
+            if name in recorded:
+                continue
+            try:
+                value = self.execute(f"SELECT @@{name} AS value", ()).data[0]["value"]
+            except Exception as error:  # noqa: BLE001 - reported, left unrecorded
+                self.log(
+                    logging.WARNING,
+                    f"could not read @@{name} on this server: {error}",
+                )
+                continue
+            recorded[name] = str(value)
+        self._dialect.set_server_parameters(recorded)
 
     def _create_introspector(self):
         """Create the MariaDB introspector instance."""

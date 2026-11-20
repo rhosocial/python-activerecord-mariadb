@@ -48,6 +48,7 @@ from rhosocial.activerecord.backend.expression.types import (
     DataType,
     EnumType,
     IntegerType,
+    LENGTH_PARAMETERS,
     SmallIntType,
     TextType,
     TinyIntType,
@@ -454,7 +455,8 @@ class MariaDBBinaryType(BinaryType):
     # ``BINARY(n)``'s width is the type: a BINARY(16) column cannot hold what a
     #     BINARY(8) column can, so it is part of identity.
 
-    PARAMETERS = ("length",)
+    #: The shared object, not a copy: ``identity()`` compares the tuple.
+    PARAMETERS = LENGTH_PARAMETERS
 
     name = "mariadb_binary"
 
@@ -509,7 +511,8 @@ class MariaDBVarBinaryType(VarBinaryType):
     ``__init__``, ``length`` and the (previously duplicated) ``PARAMETERS``.
     """
 
-    PARAMETERS = ("length",)
+    #: The shared object, not a copy: ``identity()`` compares the tuple.
+    PARAMETERS = LENGTH_PARAMETERS
 
     name = "mariadb_varbinary"
 
@@ -572,6 +575,11 @@ class MariaDBXmlType(XmlType):
     """
 
     name = "mariadb_xml"
+
+    # Core's XmlType declares a length (a minimum byte size) as a parameter.
+    # MariaDB's XMLTYPE rejects any LENGTH attribute, so this backend carries
+    # no parameters at all -- a length is never part of this type's identity.
+    PARAMETERS = ()
 
 
 # ---------------------------------------------------------------------------

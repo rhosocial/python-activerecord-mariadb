@@ -1,0 +1,1691 @@
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/construct/cli/test_cli.py
+"""
+Tests for MariaDB backend CLI (cli/ subpackage).
+
+Tests argument parsing, help output, and basic CLI functionality.
+"""
+
+import pytest
+import sys
+from unittest.mock import patch
+
+from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+    INTROSPECT_TYPES,
+    _TYPE_CAPABILITIES,
+)
+
+
+class TestCLIParseArgs:
+    """Tests for CLI argument parsing."""
+
+    def test_parse_args_default_values(self):
+        """Test default argument values for info subcommand."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'info']):
+            args = parse_args()
+
+            assert args.command == 'info'
+            assert args.host == 'localhost'
+            assert args.port == 3306
+            assert args.user == 'root'
+            assert args.password == ''
+            assert args.charset == 'utf8mb4'
+            assert args.output == 'table'
+            assert args.is_async is False
+            assert args.verbose == 0
+
+    def test_parse_args_custom_values(self):
+        """Test custom argument values for query subcommand."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', [
+            'mysql', 'query',
+            '--host', 'db.example.com',
+            '--port', '3307',
+            '--user', 'admin',
+            '--password', 'secret',
+            '--database', 'testdb',
+            '--charset', 'latin1',
+            '--output', 'json',
+            '--log-level', 'DEBUG',
+            'SELECT 1',
+        ]):
+            args = parse_args()
+
+            assert args.command == 'query'
+            assert args.host == 'db.example.com'
+            assert args.port == 3307
+            assert args.user == 'admin'
+            assert args.password == 'secret'
+            assert args.database == 'testdb'
+            assert args.charset == 'latin1'
+            assert args.output == 'json'
+            assert args.log_level == 'DEBUG'
+
+    def test_parse_args_query_subcommand(self):
+        """Test query subcommand parsing."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'query', 'SELECT 1']):
+            args = parse_args()
+
+            assert args.command == 'query'
+            assert args.sql == 'SELECT 1'
+
+    def test_parse_args_query_with_file(self):
+        """Test query subcommand with file option."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'query', '-f', 'test.sql']):
+            args = parse_args()
+
+            assert args.command == 'query'
+            assert args.file == 'test.sql'
+            assert args.sql is None
+
+    def test_parse_args_introspect_subcommand(self):
+        """Test introspect subcommand parsing."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'tables']):
+            args = parse_args()
+
+            assert args.command == 'introspect'
+            assert args.type == 'tables'
+
+    def test_parse_args_introspect_with_name(self):
+        """Test introspect subcommand with an object name."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'columns', 'users']):
+            args = parse_args()
+
+            assert args.command == 'introspect'
+            assert args.type == 'columns'
+            assert args.name == 'users'
+
+    def test_parse_args_introspect_valid_types(self):
+        """Test all valid introspect types."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import INTROSPECT_TYPES
+
+        for introspect_type in INTROSPECT_TYPES:
+            with patch.object(sys, 'argv', ['mysql', 'introspect', introspect_type]):
+                args = parse_args()
+                assert args.type == introspect_type
+
+    def test_parse_args_async(self):
+        """Test --async flag in query subcommand."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'query', '--async', 'SELECT 1']):
+            args = parse_args()
+
+            assert args.command == 'query'
+            assert args.is_async is True
+
+    def test_parse_args_verbose(self):
+        """Test verbose flags with subcommand."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'info', '-v']):
+            args = parse_args()
+            assert args.verbose == 1
+
+        with patch.object(sys, 'argv', ['mysql', 'info', '-vv']):
+            args = parse_args()
+            assert args.verbose == 2
+
+    def test_parse_args_info_command(self):
+        """Test info subcommand."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'info']):
+            args = parse_args()
+
+            assert args.command == 'info'
+
+    def test_parse_args_version(self):
+        """Test --version option in info subcommand."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'info', '--version', '5.7.0']):
+            args = parse_args()
+
+            assert args.command == 'info'
+            assert args.version == '5.7.0'
+
+
+class TestCLISerialization:
+    """Tests for CLI output serialization."""
+
+    def test_serialize_none(self):
+        """Test serializing None."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        assert _serialize_for_output(None) is None
+
+    def test_serialize_string(self):
+        """Test serializing string."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        assert _serialize_for_output("test") == "test"
+
+    def test_serialize_int(self):
+        """Test serializing integer."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        assert _serialize_for_output(42) == 42
+
+    def test_serialize_float(self):
+        """Test serializing float."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        assert _serialize_for_output(3.14) == 3.14
+
+    def test_serialize_bool(self):
+        """Test serializing boolean."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        assert _serialize_for_output(True) is True
+        assert _serialize_for_output(False) is False
+
+    def test_serialize_list(self):
+        """Test serializing list."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        result = _serialize_for_output([1, "two", None])
+        assert result == [1, "two", None]
+
+    def test_serialize_dict(self):
+        """Test serializing dict."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        result = _serialize_for_output({"key": "value", "num": 42})
+        assert result == {"key": "value", "num": 42}
+
+    def test_serialize_nested(self):
+        """Test serializing nested structures."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        result = _serialize_for_output({
+            "list": [1, 2, 3],
+            "nested": {"a": "b"}
+        })
+        assert result == {"list": [1, 2, 3], "nested": {"a": "b"}}
+
+    def test_serialize_enum(self):
+        """Test serializing Enum."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+        from enum import Enum
+
+        class Color(Enum):
+            RED = "red"
+            BLUE = "blue"
+
+        assert _serialize_for_output(Color.RED) == "red"
+        assert _serialize_for_output(Color.BLUE) == "blue"
+
+    def test_serialize_fallback(self):
+        """Test fallback serialization for unknown types."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        class CustomObject:
+            def __str__(self):
+                return "custom"
+
+        result = _serialize_for_output(CustomObject())
+        assert result == "custom"
+
+
+class TestCLIHelp:
+    """Tests for CLI help output."""
+
+    def test_main_help(self, capsys):
+        """Test main help output doesn't crash."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', '--help']):
+            with pytest.raises(SystemExit):
+                parse_args()
+
+        captured = capsys.readouterr()
+        assert 'Execute SQL queries' in captured.out or 'usage:' in captured.out.lower()
+
+    def test_query_help(self, capsys):
+        """Test query subcommand help."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'query', '--help']):
+            with pytest.raises(SystemExit):
+                parse_args()
+
+        captured = capsys.readouterr()
+        assert 'query' in captured.out.lower() or 'sql' in captured.out.lower()
+
+    def test_introspect_help(self, capsys):
+        """Test introspect subcommand help."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'introspect', '--help']):
+            with pytest.raises(SystemExit):
+                parse_args()
+
+        captured = capsys.readouterr()
+        assert 'introspect' in captured.out.lower() or 'type' in captured.out.lower()
+
+
+class TestCLIUtilityFunctions:
+    """Tests for CLI utility functions."""
+
+    def test_parse_version(self):
+        """Test parse_version function."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import parse_version
+
+        assert parse_version('8.0.0') == (8, 0, 0)
+        assert parse_version('5.7.8') == (5, 7, 8)
+        assert parse_version('9') == (9, 0, 0)
+        assert parse_version('8.0') == (8, 0, 0)
+
+    def test_get_status_style(self):
+        """Test _get_status_style function."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _get_status_style
+
+        # 100% coverage
+        color, symbol = _get_status_style(100)
+        assert color == 'green'
+        assert '[OK]' in symbol
+
+        # 75% coverage
+        color, symbol = _get_status_style(75)
+        assert color == 'yellow'
+        assert '[~]' in symbol
+
+        # 50% coverage
+        color, symbol = _get_status_style(50)
+        assert color == 'yellow'
+        assert '[~]' in symbol
+
+        # 25% coverage
+        color, symbol = _get_status_style(25)
+        assert color == 'red'
+        assert '[~]' in symbol
+
+        # 0% coverage
+        color, symbol = _get_status_style(0)
+        assert color == 'red'
+        assert '[X]' in symbol
+
+    def test_format_method_display(self):
+        """Test _format_method_display function."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _format_method_display
+
+        assert _format_method_display('supports_window_function') == 'window function'
+        assert _format_method_display('is_cte_available') == 'is cte available'
+        assert _format_method_display('supports_explain_format') == 'explain format'
+
+    def test_calculate_protocol_stats(self):
+        """Test _calculate_protocol_stats function."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _calculate_protocol_stats
+
+        # All boolean True
+        stats = {'method1': True, 'method2': True}
+        supported, total = _calculate_protocol_stats(stats)
+        assert supported == 2
+        assert total == 2
+
+        # Mixed boolean
+        stats = {'method1': True, 'method2': False}
+        supported, total = _calculate_protocol_stats(stats)
+        assert supported == 1
+        assert total == 2
+
+        # With dict values (parameterized methods)
+        stats = {
+            'method1': True,
+            'method2': {'supported': 3, 'total': 5, 'args': {}}
+        }
+        supported, total = _calculate_protocol_stats(stats)
+        assert supported == 4
+        assert total == 6
+
+    def test_get_protocol_support_methods(self):
+        """Test get_protocol_support_methods function."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import get_protocol_support_methods
+        from rhosocial.activerecord.backend.dialect.protocols import WindowFunctionSupport
+
+        methods = get_protocol_support_methods(WindowFunctionSupport)
+        assert 'supports_window_functions' in methods
+        assert 'supports_window_frame_clause' in methods
+
+    def test_serialize_pydantic_model(self):
+        """Test serializing Pydantic model."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+        from pydantic import BaseModel
+
+        class TestModel(BaseModel):
+            name: str
+            value: int
+
+        result = _serialize_for_output(TestModel(name="test", value=42))
+        assert result == {'name': 'test', 'value': 42}
+
+    def test_serialize_dataclass(self):
+        """Test serializing dataclass."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+        from dataclasses import dataclass
+
+        @dataclass
+        class TestData:
+            name: str
+            value: int
+
+        result = _serialize_for_output(TestData(name="test", value=42))
+        assert result == {'name': 'test', 'value': 42}
+
+    def test_serialize_tuple(self):
+        """Test serializing tuple."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import _serialize_for_output
+
+        result = _serialize_for_output((1, 2, 3))
+        assert result == [1, 2, 3]
+
+
+class TestCLIProviderFactory:
+    """Tests for CLI output provider factory."""
+
+    def test_get_provider_json(self):
+        """Test create_provider returns JsonOutputProvider for json output."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        provider = create_provider('json')
+        assert provider.__class__.__name__ == 'JsonOutputProvider'
+
+    def test_get_provider_csv(self):
+        """Test create_provider returns CsvOutputProvider for csv output."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        provider = create_provider('csv')
+        assert provider.__class__.__name__ == 'CsvOutputProvider'
+
+    def test_get_provider_tsv(self):
+        """Test create_provider returns TsvOutputProvider for tsv output."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        provider = create_provider('tsv')
+        assert provider.__class__.__name__ == 'TsvOutputProvider'
+
+
+class TestCLICheckProtocolSupport:
+    """Tests for check_protocol_support function."""
+
+    def test_check_protocol_support_basic(self):
+        """Test check_protocol_support with basic protocol."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import check_protocol_support
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+        from rhosocial.activerecord.backend.dialect.protocols import WindowFunctionSupport
+
+        dialect = MariaDBDialect(version=(10, 11, 0))
+
+        results = check_protocol_support(dialect, WindowFunctionSupport)
+        assert 'supports_window_functions' in results
+        assert results['supports_window_functions'] is True
+        assert 'supports_window_frame_clause' in results
+
+    def test_check_protocol_support_with_params(self):
+        """Test check_protocol_support with parameterized methods."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import check_protocol_support
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+        from rhosocial.activerecord.backend.dialect.protocols import ExplainSupport
+
+        dialect = MariaDBDialect(version=(10, 11, 0))
+
+        results = check_protocol_support(dialect, ExplainSupport)
+        assert 'supports_explain_format' in results
+        # Should return dict with args for parameterized methods
+        if isinstance(results['supports_explain_format'], dict):
+            assert 'supported' in results['supports_explain_format']
+            assert 'total' in results['supports_explain_format']
+            assert 'args' in results['supports_explain_format']
+
+
+class TestCLIBuildProtocolInfo:
+    """Tests for _build_protocol_info function."""
+
+    def test_build_protocol_info_verbose_0(self):
+        """Test _build_protocol_info with verbose=0."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import (
+            _build_protocol_info, PROTOCOL_FAMILY_GROUPS
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+
+        dialect = MariaDBDialect(version=(10, 11, 0))
+        group_name = "Query Features"
+        protocols = PROTOCOL_FAMILY_GROUPS[group_name]
+
+        result = _build_protocol_info(dialect, group_name, protocols, verbose=0)
+
+        assert isinstance(result, dict)
+        for _protocol_name, stats in result.items():
+            assert 'supported' in stats
+            assert 'total' in stats
+            assert 'percentage' in stats
+            assert 'methods' not in stats  # verbose < 2
+
+    def test_build_protocol_info_verbose_2(self):
+        """Test _build_protocol_info with verbose=2."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import (
+            _build_protocol_info, PROTOCOL_FAMILY_GROUPS
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+
+        dialect = MariaDBDialect(version=(10, 11, 0))
+        group_name = "Query Features"
+        protocols = PROTOCOL_FAMILY_GROUPS[group_name]
+
+        result = _build_protocol_info(dialect, group_name, protocols, verbose=2)
+
+        assert isinstance(result, dict)
+        for _protocol_name, stats in result.items():
+            assert 'supported' in stats
+            assert 'total' in stats
+            assert 'percentage' in stats
+            assert 'methods' in stats  # verbose >= 2
+
+
+class TestCLIHandleInfo:
+    """Tests for handle_info function."""
+
+    def test_handle_info_json_output(self, capsys):
+        """Test handle_info with JSON output (no database required)."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import handle
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+        from unittest.mock import MagicMock
+
+        args = MagicMock()
+        args.output = 'json'
+        args.database = None
+        args.host = 'localhost'
+        args.port = 3306
+        args.user = 'root'
+        args.password = ''
+        args.charset = 'utf8mb4'
+        args.version = '8.0.0'
+        args.verbose = 0
+        args.named_connection = None
+
+        # Create a JSON provider
+        args.rich_ascii = False
+        create_provider(args.output, ascii_borders=args.rich_ascii)
+
+        handle(args)
+
+        captured = capsys.readouterr()
+        # Should output JSON
+        import json
+        output = json.loads(captured.out)
+        assert 'database' in output
+        assert 'features' in output
+        assert 'protocols' in output
+        assert output['database']['type'] == 'mariadb'
+
+
+class TestCLIDisplayFunctions:
+    """Tests for CLI display helper functions."""
+
+    def test_display_method_details_bool(self):
+        """Test _display_method_details with boolean value."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _display_method_details
+
+        # Mock console
+        class MockConsole:
+            def print(self, msg):
+                self.output = getattr(self, 'output', '') + msg + '\n'
+
+        console = MockConsole()
+        _display_method_details(console, 'supports_test', True)
+
+        # Should contain OK marker
+        assert '[OK]' in console.output or 'test' in console.output.lower()
+
+    def test_display_method_details_dict(self):
+        """Test _display_method_details with dict value (parameterized method)."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _display_method_details
+
+        class MockConsole:
+            def print(self, msg):
+                self.output = getattr(self, 'output', '') + msg + '\n'
+
+        console = MockConsole()
+        value = {'args': {'JSON': True, 'XML': False}}
+        _display_method_details(console, 'supports_format', value)
+
+        # Should contain the args
+        assert 'JSON' in console.output or 'XML' in console.output
+
+    def test_display_protocol_item_verbose_0(self):
+        """Test _display_protocol_item with verbose=0."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _display_protocol_item
+
+        class MockConsole:
+            def print(self, msg):
+                self.output = getattr(self, 'output', '') + msg + '\n'
+
+        console = MockConsole()
+        stats = {'supported': 5, 'total': 10, 'percentage': 50.0}
+
+        _display_protocol_item(console, 'TestProtocol', stats, verbose=0)
+
+        # Should show 50%
+        assert '50%' in console.output or '5/10' in console.output
+
+    def test_display_protocol_item_verbose_2(self):
+        """Test _display_protocol_item with verbose=2 and methods."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _display_protocol_item
+
+        class MockConsole:
+            def print(self, msg):
+                self.output = getattr(self, 'output', '') + msg + '\n'
+
+        console = MockConsole()
+        stats = {
+            'supported': 1,
+            'total': 1,
+            'percentage': 100.0,
+            'methods': {'supports_test': True}
+        }
+
+        _display_protocol_item(console, 'TestProtocol', stats, verbose=2)
+
+        # Should show 100% and method details
+        assert '100%' in console.output
+
+    def test_display_protocol_group(self):
+        """Test _display_protocol_group."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _display_protocol_group
+
+        class MockConsole:
+            def print(self, msg):
+                self.output = getattr(self, 'output', '') + msg + '\n'
+
+        console = MockConsole()
+        protocols = {
+            'TestProtocol': {'supported': 5, 'total': 10, 'percentage': 50.0}
+        }
+
+        _display_protocol_group(console, 'Test Group', protocols, verbose=0)
+
+        # Should contain group name
+        assert 'Test Group' in console.output
+
+    def test_display_protocol_group_dialect_specific(self):
+        """Test _display_protocol_group with dialect-specific group."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import (
+            _display_protocol_group, DIALECT_SPECIFIC_GROUPS
+        )
+
+        class MockConsole:
+            def print(self, msg):
+                self.output = getattr(self, 'output', '') + msg + '\n'
+
+        console = MockConsole()
+        protocols = {
+            'TestProtocol': {'supported': 5, 'total': 10, 'percentage': 50.0}
+        }
+
+        # Use a dialect-specific group name
+        group_name = list(DIALECT_SPECIFIC_GROUPS)[0] if DIALECT_SPECIFIC_GROUPS else "MariaDB-specific"
+        _display_protocol_group(console, group_name, protocols, verbose=0)
+
+        # Should contain dialect-specific marker
+        assert group_name in console.output
+
+
+class TestCLIHandleInfoVerbose:
+    """Tests for handle_info with different verbosity levels."""
+
+    def test_handle_info_verbose_1(self, capsys):
+        """Test handle_info with verbose=1."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import handle
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+        from unittest.mock import MagicMock
+
+        args = MagicMock()
+        args.output = 'json'
+        args.database = None
+        args.version = '8.0.0'
+        args.verbose = 1
+        args.rich_ascii = False
+        args.named_connection = None
+
+        create_provider(args.output, ascii_borders=args.rich_ascii)
+        handle(args)
+
+        captured = capsys.readouterr()
+        import json
+        output = json.loads(captured.out)
+        assert 'protocols' in output
+
+    def test_handle_info_verbose_2(self, capsys):
+        """Test handle_info with verbose=2."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import handle
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+        from unittest.mock import MagicMock
+
+        args = MagicMock()
+        args.output = 'json'
+        args.database = None
+        args.version = '8.0.0'
+        args.verbose = 2
+        args.rich_ascii = False
+        args.named_connection = None
+
+        create_provider(args.output, ascii_borders=args.rich_ascii)
+        handle(args)
+
+        captured = capsys.readouterr()
+        import json
+        output = json.loads(captured.out)
+        assert 'protocols' in output
+
+        # With verbose >= 2, methods should be included
+        for _group_name, protocols in output['protocols'].items():
+            for _protocol_name, stats in protocols.items():
+                assert 'methods' in stats
+
+    def test_handle_info_with_version(self, capsys):
+        """Test handle_info with custom version."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import handle
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+        from unittest.mock import MagicMock
+
+        args = MagicMock()
+        args.output = 'json'
+        args.database = None
+        args.version = '5.7.0'
+        args.verbose = 0
+        args.rich_ascii = False
+        args.named_connection = None
+
+        create_provider(args.output, ascii_borders=args.rich_ascii)
+        handle(args)
+
+        captured = capsys.readouterr()
+        import json
+        output = json.loads(captured.out)
+        assert output['database']['version'] == '5.7.0'
+        assert output['database']['version_tuple'] == [5, 7, 0]
+
+
+class TestCLIIntrospectArgParsing:
+    """Tests for introspect argument parsing edge cases."""
+
+    def test_introspect_has_no_namespace_flag(self):
+        """MariaDB has one namespace level and calls it a database.
+
+        ``--schema`` named the same level under a word MariaDB does not
+        use, so it is gone: the run connects to a database with
+        ``--database`` and asks about that database. It must not return as
+        an alias, because an alias lets a caller believe it named a level
+        that does not exist here.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(
+            sys, 'argv', ['mysql', 'introspect', 'tables', '--schema', 'mydb']
+        ), pytest.raises(SystemExit):
+            parse_args()
+
+    def test_introspect_with_include_system(self):
+        """Test introspect with --include-system flag."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'tables', '--include-system']):
+            args = parse_args()
+
+            assert args.command == 'introspect'
+            assert args.include_system is True
+
+    def test_introspect_all_types_with_name(self):
+        """Test introspect types that require name parameter."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+
+        # columns type with name
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'columns', 'orders']):
+            args = parse_args()
+            assert args.type == 'columns'
+            assert args.name == 'orders'
+
+        # indexes type with name
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'indexes', 'products']):
+            args = parse_args()
+            assert args.type == 'indexes'
+            assert args.name == 'products'
+
+        # foreign-keys type with name
+        with patch.object(sys, 'argv', ['mysql', 'introspect', 'foreign-keys', 'items']):
+            args = parse_args()
+            assert args.type == 'foreign-keys'
+            assert args.name == 'items'
+
+
+class TestCLIQueryArgParsing:
+    """Tests for query argument parsing edge cases."""
+
+    def test_query_with_all_connection_options(self):
+        """Test query with all connection options."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', [
+            'mysql', 'query',
+            '--host', 'db.example.com',
+            '--port', '3307',
+            '--user', 'admin',
+            '--password', 'secret',
+            '--database', 'testdb',
+            '--charset', 'utf8mb4',
+            '--output', 'json',
+            '--log-level', 'DEBUG',
+            '--async',
+            '--rich-ascii',
+            'SELECT 1'
+        ]):
+            args = parse_args()
+
+            assert args.command == 'query'
+            assert args.host == 'db.example.com'
+            assert args.port == 3307
+            assert args.user == 'admin'
+            assert args.password == 'secret'
+            assert args.database == 'testdb'
+            assert args.charset == 'utf8mb4'
+            assert args.output == 'json'
+            assert args.log_level == 'DEBUG'
+            assert args.is_async is True
+            assert args.rich_ascii is True
+            assert args.sql == 'SELECT 1'
+
+    def test_query_output_formats(self):
+        """Test query with different output formats."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        for output_format in ['table', 'json', 'csv', 'tsv']:
+            with patch.object(sys, 'argv', ['mysql', 'query', '-o', output_format, 'SELECT 1']):
+                args = parse_args()
+                assert args.output == output_format
+
+
+class TestCLINamedExpressionArgs:
+    """Tests for named-expression subcommand argument parsing."""
+
+    def test_parse_args_named_expression_basic(self):
+        """Test basic named-expression parsing."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.users.active_users']):
+            args = parse_args()
+
+            assert args.command == 'named-expression'
+            assert args.qualified_name == 'myapp.queries.users.active_users'
+
+    def test_parse_args_named_expression_with_params(self):
+        """Test named-expression with parameters."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', [
+            'mysql', 'named-expression', 'myapp.queries.users.active_users',
+            '--param', 'limit=50',
+            '--param', 'status=active',
+        ]):
+            args = parse_args()
+
+            assert args.command == 'named-expression'
+            assert args.params == ['limit=50', 'status=active']
+
+    def test_parse_args_named_expression_dry_run(self):
+        """Test named-expression with --dry-run."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.test', '--dry-run']):
+            args = parse_args()
+
+            assert args.command == 'named-expression'
+            assert args.dry_run is True
+
+    def test_parse_args_named_expression_describe(self):
+        """Test named-expression with --describe."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.test', '--describe']):
+            args = parse_args()
+
+            assert args.command == 'named-expression'
+            assert args.describe is True
+
+    def test_parse_args_named_expression_list(self):
+        """Test named-expression with --list."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries', '--list']):
+            args = parse_args()
+
+            assert args.command == 'named-expression'
+            assert args.list_queries is True
+
+    def test_parse_args_named_expression_async(self):
+        """Test named-expression with --async."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-expression', 'myapp.queries.test', '--async']):
+            args = parse_args()
+
+            assert args.command == 'named-expression'
+            assert args.is_async is True
+
+
+class TestCLINamedProcedureArgs:
+    """Tests for named-procedure subcommand argument parsing."""
+
+    def test_parse_args_named_procedure_basic(self):
+        """Test basic named-procedure parsing."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures.monthly_cleanup']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.qualified_name == 'myapp.procedures.monthly_cleanup'
+
+    def test_parse_args_named_procedure_with_params(self):
+        """Test named-procedure with parameters."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', [
+            'mysql', 'named-procedure', 'myapp.procedures.monthly_cleanup',
+            '--param', 'month=2026-03',
+        ]):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.params == ['month=2026-03']
+
+    def test_parse_args_named_procedure_transaction_auto(self):
+        """Test named-procedure with --transaction auto."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures.test', '--transaction', 'auto']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.transaction == 'auto'
+
+    def test_parse_args_named_procedure_transaction_step(self):
+        """Test named-procedure with --transaction step."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures.test', '--transaction', 'step']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.transaction == 'step'
+
+    def test_parse_args_named_procedure_transaction_none(self):
+        """Test named-procedure with --transaction none."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures.test', '--transaction', 'none']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.transaction == 'none'
+
+    def test_parse_args_named_procedure_dry_run(self):
+        """Test named-procedure with --dry-run."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures.test', '--dry-run']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.dry_run is True
+
+    def test_parse_args_named_procedure_describe(self):
+        """Test named-procedure with --describe."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures.test', '--describe']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.describe is True
+
+    def test_parse_args_named_procedure_list(self):
+        """Test named-procedure with --list."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures', '--list']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.list_procedures is True
+
+    def test_parse_args_named_procedure_async(self):
+        """Test named-procedure with --async."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with patch.object(sys, 'argv', ['mysql', 'named-procedure', 'myapp.procedures.test', '--async']):
+            args = parse_args()
+
+            assert args.command == 'named-procedure'
+            assert args.is_async is True
+
+
+# ---------------------------------------------------------------------------
+# Offline doubles for the introspect handler
+#
+# The dispatch has two mirrored halves (sync and async) over one introspector
+# interface, and which half a type lands in is worth testing without a server.
+# These doubles answer the same names the real introspector does and record
+# which one was asked, so a family that reaches no branch is visible as an
+# empty call list rather than as silent nothing.
+# ---------------------------------------------------------------------------
+
+class _FakeDialect:
+    """Capability probes that answer True unless named *unsupported*."""
+
+    name = "mariadb"
+
+    def __init__(self, unsupported=()):
+        self.unsupported = set(unsupported)
+
+    def __getattr__(self, name):
+        if name.startswith("supports_"):
+            return lambda: name not in self.unsupported
+        raise AttributeError(name)
+
+
+class _FakeIntrospector:
+    """One representative answer per family, plus a log of what was asked."""
+
+    def __init__(self):
+        self.calls = []
+        self.view = {
+            "name": "user_summary",
+            "schema": "app",
+            "definition": "SELECT id, name FROM users",
+            "check_option": "NONE",
+            "is_updatable": True,
+        }
+
+    def list_tables(self, schema=None, include_system=False):
+        self.calls.append("list_tables")
+        return [{"name": "users"}]
+
+    def list_views(self, schema=None):
+        self.calls.append("list_views")
+        return [self.view]
+
+    def get_view_info(self, view_name, schema=None):
+        self.calls.append("get_view_info")
+        return self.view if view_name == self.view["name"] else None
+
+    def list_columns(self, table_name, schema=None):
+        self.calls.append("list_columns")
+        return [{"name": "id"}]
+
+    def list_indexes(self, table_name, schema=None):
+        self.calls.append("list_indexes")
+        return [{"name": "PRIMARY"}]
+
+    def list_foreign_keys(self, table_name, schema=None):
+        self.calls.append("list_foreign_keys")
+        return []
+
+    def list_triggers(self, table_name=None, schema=None):
+        self.calls.append("list_triggers")
+        return []
+
+    def list_sequences(self, schema=None):
+        self.calls.append("list_sequences")
+        return [{"name": "intro_seq"}]
+
+    def get_sequence_info(self, sequence_name, schema=None):
+        self.calls.append("get_sequence_info")
+        return {"name": sequence_name}
+
+    def list_table_options(self, schema=None):
+        self.calls.append("list_table_options")
+        return [{"name": "users"}]
+
+    def get_table_options(self, table_name, schema=None):
+        self.calls.append("get_table_options")
+        return {"name": table_name}
+
+    def list_partitions(self, table_name, schema=None):
+        self.calls.append("list_partitions")
+        return [{"table_name": table_name, "partition_name": "p0"}]
+
+    def list_routines(self, schema=None):
+        self.calls.append("list_routines")
+        return [{
+            "schema": "app",
+            "name": "app_cleanup",
+            "kind": "PROCEDURE",
+            "parameters": [],
+        }]
+
+    def get_routine_info(self, name, kind=None, schema=None):
+        self.calls.append("get_routine_info")
+        return {
+            "schema": "app",
+            "name": name,
+            "kind": "PROCEDURE",
+            "parameters": [],
+        }
+
+    def list_constraints(self, table_name, schema=None):
+        self.calls.append("list_constraints")
+        return [{
+            "schema": "app",
+            "table_name": table_name,
+            "name": "ck_orders_total",
+            "constraint_type": "CHECK",
+            "check_clause": "`total` >= 0",
+        }]
+
+    # ---- the nine families shared with the MySQL and PostgreSQL CLIs ----
+    # MariaDB answers six of them and refuses three through a probe (runtime
+    # answers from 10.5, the performance schema's release), so these are the
+    # answers a *server that can* would hand back. A branch that named the
+    # wrong method, or dropped an argument, shows up here as a wrong recorded
+    # call rather than as a plausible listing.
+
+    def list_unused_indexes(self, schema=None):
+        self.calls.append("list_unused_indexes")
+        return []
+
+    def list_table_usage_stats(self, schema=None):
+        self.calls.append("list_table_usage_stats")
+        return []
+
+    def list_runtime_metrics(self, schema=None):
+        self.calls.append("list_runtime_metrics")
+        return []
+
+    def list_index_usage_stats(self, schema=None):
+        self.calls.append("list_index_usage_stats")
+        return []
+
+    def list_object_dependencies(self, object_name=None, schema=None):
+        self.calls.append("list_object_dependencies")
+        return []
+
+    def get_ddl_statement(self, object_name, schema=None):
+        self.calls.append("get_ddl_statement")
+        return {
+            "schema": "app",
+            "object_type": "TABLE",
+            "object_name": object_name,
+            "ddl": "CREATE TABLE `users` (`id` int)",
+            "native": True,
+        }
+
+    def list_column_data_profiles(self, table_name, schema=None):
+        self.calls.append("list_column_data_profiles")
+        return [{
+            "table_name": table_name,
+            "column_name": "email",
+            "distinct_count": 3,
+            "row_count": 4,
+            "source": "aggregate",
+        }]
+
+    def sample_column_values(self, table_name, column_name, limit=100, schema=None):
+        self.calls.append("sample_column_values")
+        return [{"value": "a@example.test", "count": 2}]
+
+    def estimate_join_coverage(self, left_table, left_column, right_table,
+                              right_column, schema=None):
+        self.calls.append("estimate_join_coverage")
+        return {
+            "left_table": left_table,
+            "left_column": left_column,
+            "right_table": right_table,
+            "right_column": right_column,
+            "left_coverage": 1.0,
+            "right_coverage": 0.5,
+        }
+
+    def get_database_info(self):
+        self.calls.append("get_database_info")
+        return {"name": "app"}
+
+
+class _FakeAsyncIntrospector(_FakeIntrospector):
+    """The same answers, awaited: the async half calls the same names."""
+
+    _FAMILIES = (
+        "list_tables",
+        "list_views",
+        "get_view_info",
+        "list_columns",
+        "list_indexes",
+        "list_foreign_keys",
+        "list_triggers",
+        "list_sequences",
+        "get_sequence_info",
+        "list_table_options",
+        "get_table_options",
+        "list_partitions",
+        "list_routines",
+        "get_routine_info",
+        "list_constraints",
+        "get_database_info",
+        "list_unused_indexes",
+        "list_table_usage_stats",
+        "list_runtime_metrics",
+        "list_index_usage_stats",
+        "list_object_dependencies",
+        "get_ddl_statement",
+        "list_column_data_profiles",
+        "sample_column_values",
+        "estimate_join_coverage",
+    )
+
+    def __init__(self):
+        super().__init__()
+        # Bound per instance: `__getattr__` would not see the inherited
+        # synchronous methods, and shadowing them is what makes each call
+        # awaitable without a second copy of every answer.
+        for name in self._FAMILIES:
+            setattr(self, name, self._awaited(name))
+
+    def _awaited(self, name):
+        sync_method = getattr(_FakeIntrospector, name)
+
+        async def answer(*args, **kwargs):
+            return sync_method(self, *args, **kwargs)
+
+        return answer
+
+
+class _FakeBackend:
+    """Just enough backend for the handler: connect, a dialect, an introspector."""
+
+    def __init__(self, unsupported=()):
+        self.dialect = _FakeDialect(unsupported)
+        self.introspector = _FakeIntrospector()
+        self._connection = object()
+        self.connected = False
+
+    def connect(self):
+        self.connected = True
+
+    def introspect_and_adapt(self):
+        """The step the real backend runs after connecting.
+
+        The fake dialect already answers for every family -- ``connected`` is
+        set because that is what the handler's callers read afterwards, and
+        ``disconnect`` still has to clear it.
+        """
+        self.connected = True
+
+    def disconnect(self):
+        self.connected = False
+
+
+class _FakeAsyncBackend(_FakeBackend):
+    def __init__(self, unsupported=()):
+        super().__init__(unsupported)
+        self.introspector = _FakeAsyncIntrospector()
+
+    async def connect(self):
+        self.connected = True
+
+    async def introspect_and_adapt(self):
+        self.connected = True
+
+    async def disconnect(self):
+        self.connected = False
+
+
+def _introspect_args(**overrides):
+    """An argparse namespace shaped like the parser's, point by point."""
+    from argparse import Namespace
+
+    values = dict(
+        type="tables",
+        name=None,
+        include_system=False,
+        database="app",
+        named_connection=None,
+        is_async=False,
+        output="json",
+        rich_ascii=False,
+    )
+    values.update(overrides)
+    return Namespace(**values)
+
+
+#: The name each family needs, if any: the three table-scoped list types are
+#: the only ones where a name is required.
+_INTROSPECT_NAMES = {
+    "columns": "users",
+    "indexes": "users",
+    "foreign-keys": "users",
+    "partitions": "orders",
+    "constraints": "orders",
+    "dependencies": "orders",
+    "ddl": "users",
+    "column-profiles": "users",
+    "value-samples": "users",
+}
+
+#: The flags the four-name families need alongside NAME. Everything else is
+#: answered with the parser's own defaults.
+_INTROSPECT_OPTIONS = {
+    "value-samples": {"column": "email"},
+    "join-coverage": {
+        "left_table": "orders",
+        "left_column": "customer_id",
+        "right_table": "customers",
+        "right_column": "id",
+    },
+}
+
+#: What each family asks the introspector for, so a family that reaches the
+#: handler but no branch is visible as an empty call list.
+_INTROSPECT_CALLS = {
+    "tables": "list_tables",
+    "views": "list_views",
+    "columns": "list_columns",
+    "indexes": "list_indexes",
+    "foreign-keys": "list_foreign_keys",
+    "triggers": "list_triggers",
+    "database": "get_database_info",
+    "sequences": "list_sequences",
+    "table-options": "list_table_options",
+    "partitions": "list_partitions",
+    "routines": "list_routines",
+    "constraints": "list_constraints",
+    # The nine families shared with the MySQL and PostgreSQL CLIs. Four of
+    # them are answered by a probe that says MariaDB cannot, so the rows
+    # below are what the branch *would* ask: the capability gate is what
+    # stops a real run before that, and this dispatch test proves the branch
+    # exists rather than proving the engine answers.
+    "unused-indexes": "list_unused_indexes",
+    "table-stats": "list_table_usage_stats",
+    "runtime": "list_runtime_metrics",
+    "index-stats": "list_index_usage_stats",
+    "dependencies": "list_object_dependencies",
+    "ddl": "get_ddl_statement",
+    "column-profiles": "list_column_data_profiles",
+    "value-samples": "sample_column_values",
+    "join-coverage": "estimate_join_coverage",
+}
+
+
+def _introspect_family_args(family):
+    """The invocation one family is dispatched with, name and flags included."""
+    return _introspect_args(
+        type=family,
+        name=_INTROSPECT_NAMES.get(family),
+        **_INTROSPECT_OPTIONS.get(family, {}),
+    )
+
+
+class TestCLIIntrospectViews:
+    """`views NAME` answers one view, and a family that takes no name says so."""
+
+    def test_views_name_answers_one_view(self, capsys):
+        """One view, with the definition the library parses for it."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="views", name="user_summary"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert payload[0]["definition"]
+        assert backend.introspector.calls == ["get_view_info"]
+        assert backend.connected is False  # the run closed its own connection
+
+    def test_views_without_a_name_lists_them(self, capsys):
+        """A bare `views` still lists every view."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="views"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert backend.introspector.calls == ["list_views"]
+
+    def test_unknown_view_exits_one(self, capsys):
+        """The view is valid here; it is absent from this server -- exit 1."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_introspect_sync(
+                _introspect_args(type="views", name="no_such_view"),
+                _FakeBackend(),
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 1
+        assert "not found" in capsys.readouterr().err
+
+    async def test_async_views_name_answers_one_view(self, capsys):
+        """The async half asks the same question the same way."""
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend()
+        await _handle_introspect_async(
+            _introspect_args(type="views", name="user_summary"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["user_summary"]
+        assert payload[0]["definition"]
+        assert backend.introspector.calls == ["get_view_info"]
+
+    @pytest.mark.parametrize("introspect_type", ["tables", "database"])
+    def test_a_whole_database_family_refuses_a_name(self, introspect_type, capsys):
+        """`tables NAME` / `database NAME` cannot narrow the answer.
+
+        `tables` would become the aggregate of several families that `table`
+        used to be, and `database` has no sub-objects to name at all, so the
+        name is refused with exit 2 rather than silently ignored: a caller who
+        wrote it believes it selected something.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import handle
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle(_introspect_args(type=introspect_type, name="users"))
+
+        assert excinfo.value.code == 2
+        err = capsys.readouterr().err
+        assert introspect_type in err
+        assert "takes no name" in err
+
+
+class TestCLIIntrospectRoutinesAndNewFamilies:
+    """The named path of the new families, and the names they cannot omit."""
+
+    def test_routines_name_answers_one_routine(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="routines", name="app_cleanup"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["app_cleanup"]
+        assert backend.introspector.calls == ["get_routine_info"]
+
+    async def test_async_routines_name_answers_one_routine(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend()
+        await _handle_introspect_async(
+            _introspect_args(type="routines", name="app_cleanup"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["app_cleanup"]
+        assert backend.introspector.calls == ["get_routine_info"]
+
+    def test_unknown_routine_exits_one(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        backend.introspector.get_routine_info = lambda name, kind=None, schema=None: None
+
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_introspect_sync(
+                _introspect_args(type="routines", name="missing"),
+                backend,
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 1
+        assert "not found" in capsys.readouterr().err
+
+    def test_partitions_name_is_required(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import handle
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle(_introspect_args(type="partitions"))
+
+        assert excinfo.value.code == 1
+        assert "Table name is required" in capsys.readouterr().err
+
+    def test_constraints_name_is_required(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import handle
+
+        with pytest.raises(SystemExit) as excinfo:
+            handle(_introspect_args(type="constraints"))
+
+        assert excinfo.value.code == 1
+        assert "Table name is required" in capsys.readouterr().err
+
+    def test_partitions_answer_is_table_scoped(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="partitions", name="orders"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload[0]["partition_name"] == "p0"
+        assert backend.introspector.calls == ["list_partitions"]
+
+    def test_constraints_answer_is_table_scoped(self, capsys):
+        import json
+
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_args(type="constraints", name="orders"),
+            backend,
+            create_provider("json"),
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload[0]["check_clause"] == "`total` >= 0"
+        assert backend.introspector.calls == ["list_constraints"]
+
+
+class TestCLIIntrospectTypeList:
+    """The parser, the handler and the capability table declare one type list."""
+
+    def test_the_capability_table_and_the_type_list_agree(self):
+        """One table is the source: the list is derived from it, in order."""
+        assert list(_TYPE_CAPABILITIES) == INTROSPECT_TYPES
+
+    def test_the_removed_table_aggregate_is_not_a_type(self):
+        """`table` was deleted; it must not come back as a type."""
+        assert "table" not in INTROSPECT_TYPES
+
+    def test_every_declared_type_is_in_the_help(self, capsys):
+        """`--help` names every family the handler can answer."""
+        from rhosocial.activerecord.backend.impl.mariadb.__main__ import parse_args
+
+        with pytest.raises(SystemExit):
+            parse_args(["introspect", "--help"])
+
+        out = capsys.readouterr().out
+        for family in INTROSPECT_TYPES:
+            assert family in out
+
+    def test_every_capability_named_in_the_table_exists_on_the_dialect(self):
+        """The table names real probes, callable and answering a bool."""
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+
+        dialect = MariaDBDialect(version=(10, 11, 0))
+        for family, capability in _TYPE_CAPABILITIES.items():
+            probe = getattr(dialect, capability)
+            assert callable(probe), family
+            assert isinstance(probe(), bool), family
+
+
+class TestCLIIntrospectDispatch:
+    """Every declared family reaches a branch, in both halves of the handler."""
+
+    @pytest.mark.parametrize("family", INTROSPECT_TYPES)
+    def test_every_declared_type_reaches_a_branch(self, family, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend()
+        _handle_introspect_sync(
+            _introspect_family_args(family),
+            backend,
+            create_provider("json"),
+        )
+
+        assert backend.introspector.calls == [_INTROSPECT_CALLS[family]]
+        assert backend.connected is False
+
+    @pytest.mark.parametrize("family", INTROSPECT_TYPES)
+    async def test_every_declared_type_reaches_a_branch_async(self, family, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend()
+        await _handle_introspect_async(
+            _introspect_family_args(family),
+            backend,
+            create_provider("json"),
+        )
+
+        assert backend.introspector.calls == [_INTROSPECT_CALLS[family]]
+        assert backend.connected is False
+
+
+class TestCLIIntrospectCapabilityGate:
+    """A family this server cannot answer is refused with exit 2, and named."""
+
+    UNSUPPORTED = "supports_sequence_introspection"
+
+    def test_a_family_the_server_cannot_answer_exits_two(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend(unsupported={self.UNSUPPORTED})
+        with pytest.raises(SystemExit) as excinfo:
+            _handle_introspect_sync(
+                _introspect_args(type="sequences"),
+                backend,
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 2
+        assert capsys.readouterr().err.strip() == (
+            "Error: sequences introspection is not supported by this server"
+        )
+        assert backend.introspector.calls == []
+        assert backend.connected is False
+
+    async def test_async_a_family_the_server_cannot_answer_exits_two(self, capsys):
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_async,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeAsyncBackend(unsupported={self.UNSUPPORTED})
+        with pytest.raises(SystemExit) as excinfo:
+            await _handle_introspect_async(
+                _introspect_args(type="sequences"),
+                backend,
+                create_provider("json"),
+            )
+
+        assert excinfo.value.code == 2
+        assert capsys.readouterr().err.strip() == (
+            "Error: sequences introspection is not supported by this server"
+        )
+        assert backend.introspector.calls == []
+
+    def test_a_capability_that_answers_true_is_not_refused(self, capsys):
+        """The gate asks per family; a supported one is answered, not refused."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            _handle_introspect_sync,
+        )
+        from rhosocial.activerecord.backend.impl.mariadb.cli.output import create_provider
+
+        backend = _FakeBackend(unsupported={"supports_table_introspection"})
+        _handle_introspect_sync(
+            _introspect_args(type="sequences"),
+            backend,
+            create_provider("json"),
+        )
+
+        assert backend.introspector.calls == ["list_sequences"]
+

@@ -74,6 +74,17 @@ class MariaDBJSONMixin:
         """
         return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS'])
 
+    def supports_json_type_validation(self) -> bool:
+        """Whether a ``JSON`` column refuses a document that is not valid JSON.
+
+        ``JSON`` is an alias for ``LONGTEXT`` here, so validity is enforced by
+        an automatic ``CHECK (json_valid(...))`` the server adds to the column
+        from **10.4.3** onward (``MARIADB_VERSION_BOUNDARIES
+        ['JSON_VALID_CHECK']``). Measured across the wired servers: 10.2.44 and
+        10.3.39 accept ``'not json'`` into a ``JSON`` column, 10.4.34 and later
+        refuse it with ``4025 (23000)``.
+        """
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_VALID_CHECK'])
 
     def supports_json_path(self) -> bool:
         """Whether a JSON path can be read on this server.

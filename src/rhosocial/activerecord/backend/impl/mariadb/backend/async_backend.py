@@ -33,6 +33,7 @@ from ..dialect import MariaDBDialect
 from ..expression.status import MariaDBVersionQuery
 from ..async_transaction import AsyncMariaDBTransactionManager
 from ..mixins import AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin
+from .backend import _SERVER_PARAMETERS_QUERY, _UNSCOPED_PARAMETERS
 
 
 class AsyncMariaDBBackend(
@@ -164,6 +165,40 @@ class AsyncMariaDBBackend(
             self._dialect = MariaDBDialect(actual_version)
             self._register_mariadb_adapters()
             self.log(logging.INFO, f"Adapted to MariaDB server version {actual_version}")
+        await self._record_server_parameters()
+
+    async def _record_server_parameters(self) -> None:
+        """Record the session variables the dialect answers from.
+
+        Same contract as the synchronous method: the values belong to the
+        session, so they are read once here rather than guessed from the
+        version, and a variable the server scopes globally only is read
+        without a scope instead of being left to a default.
+        """
+        if self._dialect is None:
+            return
+        try:
+            rows = (await self.execute(_SERVER_PARAMETERS_QUERY, ())).data
+        except Exception as error:  # noqa: BLE001 - reported, then left unrecorded
+            self.log(
+                logging.WARNING,
+                f"could not read the MariaDB session variables: {error}",
+            )
+            return
+        recorded = {row["Variable_name"]: row["Value"] for row in rows}
+        for name in _UNSCOPED_PARAMETERS:
+            if name in recorded:
+                continue
+            try:
+                value = (await self.execute(f"SELECT @@{name} AS value", ())).data[0]["value"]
+            except Exception as error:  # noqa: BLE001 - reported, left unrecorded
+                self.log(
+                    logging.WARNING,
+                    f"could not read @@{name} on this server: {error}",
+                )
+                continue
+            recorded[name] = str(value)
+        self._dialect.set_server_parameters(recorded)
 
     async def connect(self):
         """Establish async connection to MariaDB database.
