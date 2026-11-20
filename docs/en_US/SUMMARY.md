@@ -35,6 +35,10 @@
 
 * [Overview](ddl/README.md)
 
+## Migrations
+
+* [Migrations on MariaDB](migration/README.md)
+
 ## Transaction Support
 
 * [Overview](transaction_support/README.md)

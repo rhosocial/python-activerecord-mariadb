@@ -7,6 +7,7 @@ This directory contains documentation for the MariaDB backend implementation of
 ## Documentation Structure
 
 - [English documentation](en_US/README.md)
+- [中文文档](zh_CN/README.md)
 - [Example scripts](examples/README.md)
 
 ## Overview
