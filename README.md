@@ -50,7 +50,11 @@ from rhosocial.activerecord.field import DefaultTimestampMixin, IntegerPKMixin
 from rhosocial.activerecord.model import ActiveRecord
 
 
-class User(IntegerPKMixin, DefaultTimestampMixin, ActiveRecord):
+class User(
+    IntegerPKMixin,         # auto-increment integer primary key (`id`)
+    DefaultTimestampMixin,  # injects `created_at` / `updated_at` timestamps
+    ActiveRecord,           # persistence, query builder, relations
+):
     name: Annotated[str, UseSqlType(VarCharType(length=100))]
     email: Annotated[str, UseSqlType(VarCharType(length=255))]
     age: int = 0
@@ -123,7 +127,7 @@ There is no upper bound: the backend does not reject a version it has not seen. 
 
 > **⚠️ Development Stage:** This project is under active development. APIs may change, and some features are not yet production-ready.
 
-## Contributing, License, Links
+## Documentation
 
 ### Contributing
 
