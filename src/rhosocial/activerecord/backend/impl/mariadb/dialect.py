@@ -162,7 +162,6 @@ from .mixins import (
     MariaDBSetTypeMixin,
     MariaDBModifyColumnMixin,
     MariaDBPartitionMixin,
-    MariaDBDataTypeSuggestionsMixin,
     MariaDBTypeSupportMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
@@ -193,6 +192,11 @@ from .mixins import (
     MariaDBNamespaceMixin,
     MariaDBColumnTypeMixin,
     MariaDBLiteralValueMixin,
+)
+# Import MariaDB-specific backend suggestions (separate namespace: no core
+# mixin may shadow these answers; their base positions are unchanged).
+from .suggestion import (
+    MariaDBDataTypeSuggestionsMixin,
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
     MariaDBPartitionSuggestionMixin,
 )

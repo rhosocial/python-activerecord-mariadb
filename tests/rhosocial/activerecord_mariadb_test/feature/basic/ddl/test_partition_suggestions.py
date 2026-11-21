@@ -22,6 +22,8 @@ from rhosocial.activerecord.backend.expression import (
     BaseExpression,
     Column,
     DropTableStatement,
+)
+from rhosocial.activerecord.backend.suggestion import (
     PartitionAddSuggestion,
     PartitionBuildSuggestion,
     PartitionDropSuggestion,
@@ -30,14 +32,7 @@ from rhosocial.activerecord.backend.expression import (
     PartitionSplitSuggestion,
     PartitionTableAlterSuggestion,
     PartitionTableDropSuggestion,
-    partition_add_parts,
-    partition_build_parts,
-    partition_drop_parts,
-    partition_merge_parts,
-    partition_retention_parts,
-    partition_split_parts,
-    partition_table_alter_parts,
-    partition_table_drop_parts,
+    PartitionSuggestionRenderer,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
@@ -65,30 +60,30 @@ class _Plan:
     definitions: tuple
 
 
-#: (method suffix, protocol, suggestion dataclass, consumption helper)
+#: (method suffix, protocol, suggestion dataclass, renderer intent)
 POINTS = (
-    ("build", PartitionBuildSuggestionSupport, PartitionBuildSuggestion, partition_build_parts),
+    ("build", PartitionBuildSuggestionSupport, PartitionBuildSuggestion, "build"),
     (
         "table_drop",
         PartitionTableDropSuggestionSupport,
         PartitionTableDropSuggestion,
-        partition_table_drop_parts,
+        "table_drop",
     ),
     (
         "table_alter",
         PartitionTableAlterSuggestionSupport,
         PartitionTableAlterSuggestion,
-        partition_table_alter_parts,
+        "table_alter",
     ),
-    ("add", PartitionAddSuggestionSupport, PartitionAddSuggestion, partition_add_parts),
-    ("drop", PartitionDropSuggestionSupport, PartitionDropSuggestion, partition_drop_parts),
-    ("split", PartitionSplitSuggestionSupport, PartitionSplitSuggestion, partition_split_parts),
-    ("merge", PartitionMergeSuggestionSupport, PartitionMergeSuggestion, partition_merge_parts),
+    ("add", PartitionAddSuggestionSupport, PartitionAddSuggestion, "add"),
+    ("drop", PartitionDropSuggestionSupport, PartitionDropSuggestion, "drop"),
+    ("split", PartitionSplitSuggestionSupport, PartitionSplitSuggestion, "split"),
+    ("merge", PartitionMergeSuggestionSupport, PartitionMergeSuggestion, "merge"),
     (
         "retention",
         PartitionRetentionSuggestionSupport,
         PartitionRetentionSuggestion,
-        partition_retention_parts,
+        "retention",
     ),
 )
 
@@ -251,11 +246,12 @@ def test_false_states_are_explicit_for_unsupported_strategies():
         assert _suggest(dialect, name, "WRONG", _plan(dialect)).operations is False
 
 
-def test_consumption_helpers_collect_the_real_expressions():
+def test_renderer_parts_collect_the_real_expressions():
     dialect = _dialect()
     plan = _plan(dialect)
-    for name, _, _, helper in POINTS:
-        result = helper(dialect, "RANGE", plan)
+    renderer = PartitionSuggestionRenderer()
+    for name, _, _, intent in POINTS:
+        result = renderer.parts(dialect, intent, "RANGE", plan)
         if name == "merge":
             assert result is None
             continue

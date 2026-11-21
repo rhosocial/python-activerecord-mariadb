@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/mixins/partition_suggestion.py
+# src/rhosocial/activerecord/backend/impl/mariadb/suggestion/partition.py
 """MariaDB partition lifecycle suggestion mixin.
 
 This is the backend's own answer to "how is each partition operation done
@@ -23,9 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, TYPE_CHECKING
 
-from ....expression import (
-    Column,
-    DropTableStatement,
+from rhosocial.activerecord.backend.suggestion import (
     PartitionAddSuggestion,
     PartitionBuildSuggestion,
     PartitionDropSuggestion,
@@ -35,6 +33,8 @@ from ....expression import (
     PartitionTableAlterSuggestion,
     PartitionTableDropSuggestion,
 )
+
+from ....expression import Column, DropTableStatement
 from ....expression.objects import Table
 from ..expression.partition import (
     MariaDBAddPartitionExpression,

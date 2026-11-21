@@ -2,7 +2,7 @@
 """MariaDB's answer to "which column class does this Python type mean here".
 
 This is the **column** half of the column-type protocol (the DDL half is
-:mod:`.data_type_suggestions`), and it answers a different question from storage. A
+:mod:`..suggestion.data_types`), and it answers a different question from storage. A
 column class says what a value can *do*; how it is stored is the DDL layer's
 separate decision. That separation is why MariaDB's one famous divergence from
 MySQL does not show up in this table at all -- see the ``dict`` entry below.
@@ -17,7 +17,7 @@ turns into a definition-time failure naming ``UseColumnType``. The six complex
 families are answered, because their core classes promise only the surface
 every column has; the one remaining refusal is ``dict`` below MariaDB 10.2.
 Their storage is a separate question, answered in
-:mod:`.data_type_suggestions`.
+:mod:`..suggestion.data_types`.
 
 **MariaDB is not MySQL; the facts below are not translatable between them.**
 
@@ -155,7 +155,7 @@ MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     # overlap, bitwise or similarity operation is spelled the same way on
     # every backend. Richer family operations belong to a
     # MariaDB-named subclass in this backend's extra table. Storage is
-    # answered in ``data_type_suggestions.py``.
+    # answered in ``suggestion/data_types.py``.
     Geometry: GeometryColumn,
     Vector: VectorColumn,
     BitString: BitStringColumn,

@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/mixins/data_type_suggestions.py
+# src/rhosocial/activerecord/backend/impl/mariadb/suggestion/data_types.py
 """MariaDB's **suggested data types**: what a bare field is declared as here.
 
 The DDL half of the type answer; :mod:`.column_type` is the operation half.
@@ -23,6 +23,7 @@ it with ``UseSqlType``. No key answers ``None``.
 Each call returns a fresh dict whose values are read-only templates; the
 derivation binds a dialect on a copy of the single entry it uses.
 """
+
 from __future__ import annotations
 
 import datetime
