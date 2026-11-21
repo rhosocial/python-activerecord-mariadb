@@ -10,6 +10,10 @@ import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Column
 from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.statements import (
+    PartitionDefinitionExpression,
+    SubpartitionDefinitionExpression,
+)
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBAddPartitionExpression,
@@ -22,7 +26,6 @@ from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBPartitionByList,
     MariaDBPartitionByRange,
     MariaDBPartitionByRangeColumns,
-    MariaDBPartitionDefinition,
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
     MariaDBRebuildPartitionExpression,
@@ -31,7 +34,6 @@ from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBTruncatePartitionExpression,
     MariaDBRemovePartitioningExpression,
     MariaDBSubpartitionClause,
-    MariaDBSubpartitionDefinition,
     MariaDBSubpartitionStrategy,
 )
 
@@ -47,8 +49,12 @@ def _value(dialect, value):
 
 def _definition(dialect, name, upper_bound):
     if upper_bound is None:
-        return MariaDBPartitionDefinition(name=name, less_than=[MariaDBPartitionMaxValue(dialect)])
-    return MariaDBPartitionDefinition(name=name, less_than=[_value(dialect, upper_bound)])
+        return PartitionDefinitionExpression(
+            dialect, name=name, less_than=[MariaDBPartitionMaxValue(dialect)]
+        )
+    return PartitionDefinitionExpression(
+        dialect, name=name, less_than=[_value(dialect, upper_bound)]
+    )
 
 
 # --- subpartition capability limits ----------------------------------------
@@ -107,18 +113,20 @@ def test_explicit_per_partition_subpartition_definitions(dialect):
         dialect,
         [Column(dialect, "created_at")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 "p2026",
                 less_than=[_value(dialect, "2027-01-01")],
-                subpartition_definitions=[
-                    MariaDBSubpartitionDefinition("p2026_s0"),
-                    MariaDBSubpartitionDefinition("p2026_s1"),
+                subpartitions=[
+                    SubpartitionDefinitionExpression(dialect, "p2026_s0"),
+                    SubpartitionDefinitionExpression(dialect, "p2026_s1"),
                 ],
             ),
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 "p2027",
                 less_than=[_value(dialect, "2028-01-01")],
-                subpartition_definitions=[MariaDBSubpartitionDefinition("p2027_s0")],
+                subpartitions=[SubpartitionDefinitionExpression(dialect, "p2027_s0")],
             ),
         ],
         subpartition_by=MariaDBSubpartitionClause(
@@ -156,7 +164,9 @@ def test_subpartition_by_range_columns_and_list(dialect):
     list_expression = MariaDBPartitionByList(
         dialect,
         [Column(dialect, "region")],
-        partitions=[MariaDBPartitionDefinition("p_east", in_values=[_value(dialect, "east")])],
+        partitions=[
+            PartitionDefinitionExpression(dialect, "p_east", in_values=[_value(dialect, "east")])
+        ],
         subpartition_by=MariaDBSubpartitionClause(
             dialect,
             strategy=MariaDBSubpartitionStrategy.HASH,

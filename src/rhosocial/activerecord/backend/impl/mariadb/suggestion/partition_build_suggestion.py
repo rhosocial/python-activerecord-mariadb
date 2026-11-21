@@ -23,14 +23,14 @@ from ._common import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 
 class MariaDBPartitionBuildSuggestionMixin(_MariaDBPartitionSuggestionBase):
     """Suggest the inline ``CREATE TABLE`` partition clause."""
 
     def suggest_partition_build(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionBuildSuggestion:
         """Suggest the inline ``CREATE TABLE`` partition clause for ``strategy``."""
         word = _word(strategy)

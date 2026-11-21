@@ -17,6 +17,11 @@ import pytest
 
 from rhosocial.activerecord.backend.expression import Column
 from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.statements import (
+    PartitionDefinitionExpression,
+    PartitionOptionsExpression,
+    SubpartitionDefinitionExpression,
+)
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBAddPartitionExpression,
@@ -32,16 +37,13 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBPartitionByListColumns,
     MariaDBPartitionByRange,
     MariaDBPartitionByRangeColumns,
-    MariaDBPartitionDefinition,
     MariaDBPartitionMaxValue,
-    MariaDBPartitionOptions,
     MariaDBPartitionValue,
     MariaDBRebuildPartitionExpression,
     MariaDBReorganizePartitionExpression,
     MariaDBRemovePartitioningExpression,
     MariaDBRepairPartitionExpression,
     MariaDBSubpartitionClause,
-    MariaDBSubpartitionDefinition,
     MariaDBSubpartitionStrategy,
     MariaDBTruncatePartitionExpression,
 )
@@ -88,9 +90,10 @@ def _range_definition(
     dialect: MariaDBDialect,
     name: str,
     upper_bound: Any,
-) -> MariaDBPartitionDefinition:
+) -> PartitionDefinitionExpression:
     """Build a RANGE definition with one ``less_than`` bound."""
-    return MariaDBPartitionDefinition(
+    return PartitionDefinitionExpression(
+        dialect,
         name=name,
         less_than=[_value(dialect, upper_bound)],
     )
@@ -99,9 +102,10 @@ def _range_definition(
 def _maxvalue_definition(
     dialect: MariaDBDialect,
     name: str,
-) -> MariaDBPartitionDefinition:
+) -> PartitionDefinitionExpression:
     """Build a RANGE definition terminated by ``MAXVALUE``."""
-    return MariaDBPartitionDefinition(
+    return PartitionDefinitionExpression(
+        dialect,
         name=name,
         less_than=[MariaDBPartitionMaxValue(dialect)],
     )
@@ -131,7 +135,8 @@ def _build_list(dialect: MariaDBDialect):
         dialect,
         [Column(dialect, "region")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 name="p_east",
                 in_values=[_value(dialect, "east")],
             )
@@ -144,7 +149,8 @@ def _build_list_columns(dialect: MariaDBDialect):
         dialect,
         [Column(dialect, "a"), Column(dialect, "b")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 name="p0",
                 in_values=[
                     [_value(dialect, "a"), _value(dialect, "x")],
@@ -190,12 +196,13 @@ def _build_hash_subpartition(dialect: MariaDBDialect):
         dialect,
         [Column(dialect, "created_at")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 name="p2026",
                 less_than=[_value(dialect, "2027-01-01")],
-                subpartition_definitions=[
-                    MariaDBSubpartitionDefinition(name="p2026_s0"),
-                    MariaDBSubpartitionDefinition(name="p2026_s1"),
+                subpartitions=[
+                    SubpartitionDefinitionExpression(dialect, name="p2026_s0"),
+                    SubpartitionDefinitionExpression(dialect, name="p2026_s1"),
                 ],
             )
         ],
@@ -235,14 +242,18 @@ def _build_partition_options(dialect: MariaDBDialect):
         dialect,
         [Column(dialect, "a")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 name="p0",
                 less_than=[_value(dialect, 1)],
-                partition_options=MariaDBPartitionOptions(
-                    engine="InnoDB",
-                    comment="first",
-                    max_rows=1000,
-                    tablespace="ts_hot",
+                options=PartitionOptionsExpression(
+                    dialect,
+                    {
+                        "engine": "InnoDB",
+                        "comment": "first",
+                        "max_rows": 1000,
+                        "tablespace": "ts_hot",
+                    },
                 ),
             )
         ],

@@ -21,14 +21,14 @@ from ._common import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 
 class MariaDBPartitionSplitSuggestionMixin(_MariaDBPartitionSuggestionBase):
     """Suggest the ``REORGANIZE PARTITION ... INTO`` statement."""
 
     def suggest_partition_split(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionSplitSuggestion:
         """Suggest the ``ALTER TABLE ... REORGANIZE PARTITION ... INTO`` statement."""
         word = _word(strategy)

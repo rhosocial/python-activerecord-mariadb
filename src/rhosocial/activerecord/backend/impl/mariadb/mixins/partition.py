@@ -9,11 +9,10 @@ from typing import Any, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
-
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements import PartitionClause
-    from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-        MariaDBPartitionOptions,
+    from rhosocial.activerecord.backend.expression.statements import (
+        PartitionClause,
+        PartitionOptionsExpression,
     )
 
 
@@ -107,7 +106,7 @@ class MariaDBPartitionMixin:
         last measured rejection and 11.4.13 the first acceptance, so the
         boundary is 11.4.0.
         """
-        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION'])
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["EXCHANGE_PARTITION_VALIDATION"])
 
     def supports_exchange_partition_without_validation(self) -> bool:
         """Whether ``EXCHANGE PARTITION ... WITHOUT VALIDATION`` parses.
@@ -118,7 +117,7 @@ class MariaDBPartitionMixin:
         exchanged successfully under ``WITHOUT VALIDATION``, while the bare
         form and ``WITH VALIDATION`` fail with errno 1737.
         """
-        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['EXCHANGE_PARTITION_VALIDATION'])
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES["EXCHANGE_PARTITION_VALIDATION"])
 
     def supports_analyze_partition(self) -> bool:
         return True
@@ -225,17 +224,13 @@ class MariaDBPartitionMixin:
         )
 
         subpartition_by = (
-            expr.subpartition_by
-            if isinstance(expr, MariaDBPartitionByRangeColumns)
-            else None
+            expr.subpartition_by if isinstance(expr, MariaDBPartitionByRangeColumns) else None
         )
         if subpartition_by is not None:
             sub_sql, sub_params = self.format_subpartition_clause(subpartition_by)
             sql = f"{sql}{sub_sql}"
             params.extend(sub_params)
-        partitions = (
-            expr.partitions if isinstance(expr, MariaDBPartitionByRangeColumns) else ()
-        )
+        partitions = expr.partitions if isinstance(expr, MariaDBPartitionByRangeColumns) else ()
         return self._append_partition_definitions(sql, list(params), partitions)
 
     def format_partition_by_list(self, expr: Any) -> Tuple[str, tuple]:
@@ -253,9 +248,7 @@ class MariaDBPartitionMixin:
             MariaDBPartitionByList,
         )
 
-        subpartition_by = (
-            expr.subpartition_by if isinstance(expr, MariaDBPartitionByList) else None
-        )
+        subpartition_by = expr.subpartition_by if isinstance(expr, MariaDBPartitionByList) else None
         if subpartition_by is not None:
             sub_sql, sub_params = self.format_subpartition_clause(subpartition_by)
             sql = f"{sql}{sub_sql}"
@@ -279,17 +272,13 @@ class MariaDBPartitionMixin:
         )
 
         subpartition_by = (
-            expr.subpartition_by
-            if isinstance(expr, MariaDBPartitionByListColumns)
-            else None
+            expr.subpartition_by if isinstance(expr, MariaDBPartitionByListColumns) else None
         )
         if subpartition_by is not None:
             sub_sql, sub_params = self.format_subpartition_clause(subpartition_by)
             sql = f"{sql}{sub_sql}"
             params.extend(sub_params)
-        partitions = (
-            expr.partitions if isinstance(expr, MariaDBPartitionByListColumns) else ()
-        )
+        partitions = expr.partitions if isinstance(expr, MariaDBPartitionByListColumns) else ()
         return self._append_partition_definitions(sql, list(params), partitions)
 
     def format_partition_by_hash(self, expr: Any) -> Tuple[str, tuple]:
@@ -354,7 +343,7 @@ class MariaDBPartitionMixin:
 
         params: list = []
         parts = ["PARTITION", self.format_identifier(definition.name)]
-        partition_options = definition.partition_options
+        partition_options = getattr(definition, "options", None)
         if partition_options is not None and not self.supports_partition_definition_options():
             raise UnsupportedFeatureError(self.name, "partition definition options")
 
@@ -393,7 +382,7 @@ class MariaDBPartitionMixin:
                 parts.append(options_sql)
             params.extend(options_params)
 
-        subpartition_defs = getattr(definition, "subpartition_definitions", None)
+        subpartition_defs = getattr(definition, "subpartitions", None)
         if subpartition_defs:
             if not self.supports_subpartitioning():
                 raise UnsupportedFeatureError(self.name, "subpartition definitions")
@@ -406,21 +395,19 @@ class MariaDBPartitionMixin:
         return " ".join(parts), tuple(params)
 
     def format_partition_definition_options(
-        self, options: Optional["MariaDBPartitionOptions"]
+        self, options: Optional["PartitionOptionsExpression"]
     ) -> Tuple[str, tuple]:
-        """Format MariaDB partition definition options from typed options."""
+        """Format MariaDB partition definition options from an expression node."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-            MariaDBPartitionOptions,
-        )
+        from rhosocial.activerecord.backend.expression.statements import PartitionOptionsExpression
 
         if not self.supports_partition_definition_options():
             raise UnsupportedFeatureError(self.name, "partition definition options")
         if options is None:
             return "", ()
-        if not isinstance(options, MariaDBPartitionOptions):
+        if not isinstance(options, PartitionOptionsExpression):
             raise TypeError(
-                "partition_options must be a MariaDBPartitionOptions value, "
+                "partition_options must be a PartitionOptionsExpression value, "
                 f"got {type(options).__name__}"
             )
 
@@ -435,7 +422,7 @@ class MariaDBPartitionMixin:
             "tablespace": "TABLESPACE",
         }
         for name, keyword in allowed_options.items():
-            value = getattr(options, name)
+            value = options.options.get(name)
             if value is None:
                 continue
             if name in {"engine", "tablespace"}:
@@ -494,7 +481,7 @@ class MariaDBPartitionMixin:
             raise ValueError("subpartition name must not be empty")
         parts = ["SUBPARTITION", self.format_identifier(definition.name)]
         params: list = []
-        partition_options = definition.partition_options
+        partition_options = getattr(definition, "options", None)
         if partition_options is not None:
             options_sql, options_params = self.format_partition_definition_options(
                 partition_options
@@ -563,10 +550,7 @@ class MariaDBPartitionMixin:
             definition_sql, definition_params = self.format_partition_definition(partition)
             definition_sql_parts.append(definition_sql)
             params.extend(definition_params)
-        sql = (
-            f"ALTER TABLE {table_sql} ADD PARTITION "
-            f"({', '.join(definition_sql_parts)})"
-        )
+        sql = f"ALTER TABLE {table_sql} ADD PARTITION " f"({', '.join(definition_sql_parts)})"
         return sql, tuple(params)
 
     def format_drop_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
@@ -699,33 +683,23 @@ class MariaDBPartitionMixin:
 
     def format_analyze_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... ANALYZE PARTITION``."""
-        return self._format_partition_action(
-            expr, "ANALYZE", self.supports_analyze_partition()
-        )
+        return self._format_partition_action(expr, "ANALYZE", self.supports_analyze_partition())
 
     def format_check_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... CHECK PARTITION``."""
-        return self._format_partition_action(
-            expr, "CHECK", self.supports_check_partition()
-        )
+        return self._format_partition_action(expr, "CHECK", self.supports_check_partition())
 
     def format_optimize_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... OPTIMIZE PARTITION``."""
-        return self._format_partition_action(
-            expr, "OPTIMIZE", self.supports_optimize_partition()
-        )
+        return self._format_partition_action(expr, "OPTIMIZE", self.supports_optimize_partition())
 
     def format_rebuild_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... REBUILD PARTITION``."""
-        return self._format_partition_action(
-            expr, "REBUILD", self.supports_rebuild_partition()
-        )
+        return self._format_partition_action(expr, "REBUILD", self.supports_rebuild_partition())
 
     def format_repair_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... REPAIR PARTITION``."""
-        return self._format_partition_action(
-            expr, "REPAIR", self.supports_repair_partition()
-        )
+        return self._format_partition_action(expr, "REPAIR", self.supports_repair_partition())
 
     def _format_partition_action(
         self, expr: Any, action: str, supported: bool
@@ -759,9 +733,7 @@ class MariaDBPartitionMixin:
         # makes ``information_schema`.`PARTITIONS`` render from the shared
         # object path rather than from a hardcoded prefix. `from_` takes the
         # object itself, so no row-source adapter is needed.
-        partitions = Table(
-            expr.dialect, "PARTITIONS", catalog_name="information_schema"
-        )
+        partitions = Table(expr.dialect, "PARTITIONS", catalog_name="information_schema")
         query = QueryStatement(
             expr.dialect,
             select=[

@@ -10,10 +10,10 @@ HASH, KEY, and their LINEAR variants.
 
 ```python
 from rhosocial.activerecord.backend.expression import Column
+from rhosocial.activerecord.backend.expression.statements import PartitionDefinitionExpression
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBAddPartitionExpression,
     MariaDBPartitionByRange,
-    MariaDBPartitionDefinition,
     MariaDBPartitionValue,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
@@ -22,7 +22,9 @@ expression = MariaDBPartitionByRange(
     dialect,
     [Column(dialect, "created_at")],
     partitions=[
-        MariaDBPartitionDefinition("p2026", less_than=[MariaDBPartitionValue(dialect, "2027-01-01")]),
+        PartitionDefinitionExpression(
+            dialect, "p2026", less_than=[MariaDBPartitionValue(dialect, "2027-01-01")]
+        ),
     ],
 )
 ```
@@ -48,15 +50,18 @@ MariaDB exposes its partition capability through two backend mechanisms:
 from rhosocial.activerecord.backend.dialect.protocols import (
     PartitionAddSuggestionSupport,
 )
+from rhosocial.activerecord.backend.expression import Column
+from rhosocial.activerecord.backend.expression.statements import PartitionByRangeClause
 from rhosocial.activerecord.backend.suggestion import PartitionSuggestionRenderer
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
 dialect = MariaDBDialect()
 assert isinstance(dialect, PartitionAddSuggestionSupport)
+strategy = PartitionByRangeClause(dialect, [Column(dialect, "id")])
 
 # `plan` is caller-owned and opaque: the dialect reads `table`, `definitions`,
 # `keys`, `count`, `partition`, `into` and `partitions` by attribute or key.
-operations = PartitionSuggestionRenderer().add(dialect, "RANGE", plan)  # doctest: +SKIP
+operations = PartitionSuggestionRenderer().add(dialect, strategy, plan)  # doctest: +SKIP
 ```
 
 Planning, validation and retention policy belong to the application layer.
@@ -85,5 +90,7 @@ subpartition_by = MariaDBSubpartitionClause(
 )
 ```
 
-A partition definition may carry explicit `subpartition_definitions`; those
-names override the template for that parent partition.
+A partition definition may carry explicit `subpartitions`
+(`SubpartitionDefinitionExpression` nodes); those names override the template
+for that parent partition. Storage options travel in the definition's `options`
+(`PartitionOptionsExpression`) field.

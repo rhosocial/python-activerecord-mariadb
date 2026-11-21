@@ -22,14 +22,14 @@ from ._common import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 
 class MariaDBPartitionTableAlterSuggestionMixin(_MariaDBPartitionSuggestionBase):
     """Suggest COALESCE for HASH/KEY, REMOVE PARTITIONING for RANGE/LIST."""
 
     def suggest_partition_table_alter(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionTableAlterSuggestion:
         """Suggest COALESCE for HASH/KEY, REMOVE PARTITIONING for RANGE/LIST."""
         word = _word(strategy)

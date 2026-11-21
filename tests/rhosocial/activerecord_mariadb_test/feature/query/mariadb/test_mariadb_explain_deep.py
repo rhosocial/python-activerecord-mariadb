@@ -49,12 +49,12 @@ from rhosocial.activerecord.backend.expression.statements import (
     ExplainFormat,
     ExplainOptions,
     ExplainType,
+    PartitionDefinitionExpression,
 )
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBPartitionByRangeColumns,
-    MariaDBPartitionDefinition,
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
 )
@@ -218,13 +218,15 @@ class TestMariaDBPartitionClauseRendering:
             dialect,
             [Column(dialect, "created_at")],
             partitions=[
-                MariaDBPartitionDefinition(
-                    "p0", less_than=[MariaDBPartitionValue(dialect, "2024-01-01")]
+                PartitionDefinitionExpression(
+                    dialect, "p0", less_than=[MariaDBPartitionValue(dialect, "2024-01-01")]
                 ),
-                MariaDBPartitionDefinition(
-                    "p1", less_than=[MariaDBPartitionValue(dialect, "2025-01-01")]
+                PartitionDefinitionExpression(
+                    dialect, "p1", less_than=[MariaDBPartitionValue(dialect, "2025-01-01")]
                 ),
-                MariaDBPartitionDefinition("pmax", less_than=[MariaDBPartitionMaxValue(dialect)]),
+                PartitionDefinitionExpression(
+                    dialect, "pmax", less_than=[MariaDBPartitionMaxValue(dialect)]
+                ),
             ],
         )
         sql, params = clause.to_sql()

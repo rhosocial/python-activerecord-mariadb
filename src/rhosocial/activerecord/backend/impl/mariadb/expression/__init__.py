@@ -74,14 +74,10 @@ from .maintenance import (
     TableMaintenanceOperation,
 )
 from .partition import (
-    MariaDBPartitionStrategy,
     MariaDBSubpartitionStrategy,
-    MariaDBPartitionOptions,
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
-    MariaDBSubpartitionDefinition,
     MariaDBSubpartitionClause,
-    MariaDBPartitionDefinition,
     MariaDBPartitionClause,
     MariaDBPartitionByRange,
     MariaDBPartitionByRangeColumns,
@@ -165,14 +161,10 @@ __all__ = [
     "MariaDBColumnStorage",
     "MariaDBColumnDefinition",
     "MariaDBColumnOptions",
-    "MariaDBPartitionStrategy",
     "MariaDBSubpartitionStrategy",
-    "MariaDBPartitionOptions",
     "MariaDBPartitionMaxValue",
     "MariaDBPartitionValue",
-    "MariaDBSubpartitionDefinition",
     "MariaDBSubpartitionClause",
-    "MariaDBPartitionDefinition",
     "MariaDBPartitionClause",
     "MariaDBPartitionByRange",
     "MariaDBPartitionByRangeColumns",
@@ -261,7 +253,9 @@ import pkgutil as _pkgutil
 
 from rhosocial.activerecord.backend.expression.core import BaseExpression as _BaseExpression
 
-for _module_info in _pkgutil.walk_packages(__path__, prefix=__name__ + ".", onerror=lambda _error: None):
+for _module_info in _pkgutil.walk_packages(
+    __path__, prefix=__name__ + ".", onerror=lambda _error: None
+):
     _module = _importlib.import_module(_module_info.name)
     for _value in vars(_module).values():
         if (

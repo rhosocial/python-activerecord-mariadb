@@ -14,14 +14,14 @@ from ..expression.partition import MariaDBRemovePartitioningExpression
 from ._common import _MariaDBPartitionSuggestionBase, _table
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 
 class MariaDBPartitionTableDropSuggestionMixin(_MariaDBPartitionSuggestionBase):
     """Suggest dropping the whole table; unpartition first where possible."""
 
     def suggest_partition_table_drop(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionTableDropSuggestion:
         """Suggest dropping the whole table; unpartition first where possible."""
         table = _table(self, plan)

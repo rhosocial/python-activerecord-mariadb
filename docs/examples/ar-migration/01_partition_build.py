@@ -8,15 +8,33 @@ its build suggestion, and print the SQL rendered by each expression's ``to_sql()
 MariaDB is one of the few backends with eight distinct ``PARTITION BY`` spellings;
 this script walks all eight plus the explicit "unsupported strategy" path.  The
 plan contract is intentionally small: ``keys`` is a sequence of column names,
-``definitions`` is a sequence of ``MariaDBPartitionDefinition`` nodes, and
-``count`` drives the HASH/KEY variants.
+``definitions`` is a sequence of ``PartitionDefinitionExpression`` nodes, and
+``count`` drives the HASH/KEY variants. The strategy argument is a core
+``PartitionByClause`` expression node (the COLUMNS/LINEAR spellings still
+travel as words, which the suggestions accept for compatibility).
 """
 
-from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-    MariaDBPartitionDefinition,
-    MariaDBPartitionValue,
+from rhosocial.activerecord.backend.expression import Column
+from rhosocial.activerecord.backend.expression.statements import (
+    PartitionByHashClause,
+    PartitionByListClause,
+    PartitionByRangeClause,
+    PartitionDefinitionExpression,
 )
+from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.impl.mariadb.expression.partition import MariaDBPartitionValue
+
+
+def _strategy(dialect, word):
+    """Build the strategy clause node for a partition-by word."""
+    keys = (Column(dialect, "id"),)
+    if word == "RANGE":
+        return PartitionByRangeClause(dialect, keys)
+    if word == "LIST":
+        return PartitionByListClause(dialect, keys)
+    if word == "HASH":
+        return PartitionByHashClause(dialect, keys)
+    return word
 
 
 def render(label, suggestion):
@@ -42,33 +60,46 @@ def main():
 
     # RANGE / RANGE COLUMNS: less_than boundaries on one (or more) keys.
     range_defs = (
-        MariaDBPartitionDefinition("p0", less_than=(MariaDBPartitionValue(dialect, 10),)),
-        MariaDBPartitionDefinition("p1", less_than=(MariaDBPartitionValue(dialect, 20),)),
+        PartitionDefinitionExpression(
+            dialect, "p0", less_than=(MariaDBPartitionValue(dialect, 10),)
+        ),
+        PartitionDefinitionExpression(
+            dialect, "p1", less_than=(MariaDBPartitionValue(dialect, 20),)
+        ),
     )
     render(
         "build / RANGE",
-        dialect.suggest_partition_build("RANGE", {"keys": ["id"], "definitions": range_defs}),
+        dialect.suggest_partition_build(
+            _strategy(dialect, "RANGE"), {"keys": ["id"], "definitions": range_defs}
+        ),
     )
     render(
         "build / RANGE COLUMNS",
         dialect.suggest_partition_build(
-            "RANGE COLUMNS", {"keys": ["created_at"], "definitions": range_defs}
+            _strategy(dialect, "RANGE COLUMNS"),
+            {"keys": ["created_at"], "definitions": range_defs},
         ),
     )
 
     # LIST / LIST COLUMNS: in_values boundaries instead of less_than.
     list_defs = (
-        MariaDBPartitionDefinition("p_east", in_values=(MariaDBPartitionValue(dialect, "east"),)),
-        MariaDBPartitionDefinition("p_west", in_values=(MariaDBPartitionValue(dialect, "west"),)),
+        PartitionDefinitionExpression(
+            dialect, "p_east", in_values=(MariaDBPartitionValue(dialect, "east"),)
+        ),
+        PartitionDefinitionExpression(
+            dialect, "p_west", in_values=(MariaDBPartitionValue(dialect, "west"),)
+        ),
     )
     render(
         "build / LIST",
-        dialect.suggest_partition_build("LIST", {"keys": ["region"], "definitions": list_defs}),
+        dialect.suggest_partition_build(
+            _strategy(dialect, "LIST"), {"keys": ["region"], "definitions": list_defs}
+        ),
     )
     render(
         "build / LIST COLUMNS",
         dialect.suggest_partition_build(
-            "LIST COLUMNS", {"keys": ["region"], "definitions": list_defs}
+            _strategy(dialect, "LIST COLUMNS"), {"keys": ["region"], "definitions": list_defs}
         ),
     )
 
@@ -76,11 +107,16 @@ def main():
     for strategy in ("HASH", "LINEAR HASH", "KEY", "LINEAR KEY"):
         render(
             f"build / {strategy}",
-            dialect.suggest_partition_build(strategy, {"keys": ["id"], "count": 4}),
+            dialect.suggest_partition_build(
+                _strategy(dialect, strategy), {"keys": ["id"], "count": 4}
+            ),
         )
 
     # Unknown strategy: explicit unsupported tri-state, no expression and no SQL.
-    render("build / unknown strategy", dialect.suggest_partition_build("NOT A STRATEGY", None))
+    render(
+        "build / unknown strategy",
+        dialect.suggest_partition_build(_strategy(dialect, "NOT A STRATEGY"), None),
+    )
 
 
 if __name__ == "__main__":

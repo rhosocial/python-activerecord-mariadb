@@ -54,8 +54,17 @@ _DEFAULT_KEY_NAME = "id"
 
 
 def _word(strategy: object) -> Optional[str]:
-    """Return the normalised ``PARTITION BY`` word for a strategy value."""
-    value = getattr(strategy, "value", strategy)
+    """Return the normalised ``PARTITION BY`` word for a strategy value.
+
+    A strategy is now an expression node (``PartitionByClause``), which carries
+    its word in ``.word``/``.method``. A legacy string enum carries it in
+    ``.value`` and a bare word is itself; all three spell the same word.
+    """
+    value = getattr(strategy, "word", None)
+    if not isinstance(value, str):
+        value = getattr(strategy, "method", None)
+    if not isinstance(value, str):
+        value = getattr(strategy, "value", strategy)
     if not isinstance(value, str):
         return None
     word = " ".join(value.strip().upper().split())

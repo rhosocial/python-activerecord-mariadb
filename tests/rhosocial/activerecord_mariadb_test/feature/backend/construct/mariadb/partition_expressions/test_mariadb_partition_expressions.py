@@ -1,10 +1,14 @@
-# tests/rhosocial/activerecord_mariadb_test/feature/backend/construct/mariadb/partition_expressions/test_mariadb_partition_expressions.py
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/construct/mariadb/partition_expressions/test_mariadb_partition_expressions.py  # noqa: E501
 """Tests for MariaDB-owned partition DDL expressions and their formatting."""
 
 import pytest
 
-from rhosocial.activerecord.backend.expression import Column, PartitionDefinition
-from rhosocial.activerecord.backend.expression.statements import SubpartitionDefinition
+from rhosocial.activerecord.backend.expression import Column
+from rhosocial.activerecord.backend.expression.statements import (
+    PartitionDefinitionExpression,
+    PartitionOptionsExpression,
+    SubpartitionDefinitionExpression,
+)
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
@@ -12,11 +16,8 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBPartitionByListColumns,
     MariaDBPartitionByRange,
     MariaDBPartitionByRangeColumns,
-    MariaDBPartitionDefinition,
     MariaDBPartitionMaxValue,
-    MariaDBPartitionOptions,
     MariaDBPartitionValue,
-    MariaDBSubpartitionDefinition,
 )
 
 
@@ -32,27 +33,32 @@ def _value(dialect, value):
 
 
 # ---------------------------------------------------------------------------
-# Definitions derive from the generic declarations
+# Definitions are core expression nodes
 # ---------------------------------------------------------------------------
 
 
-def test_partition_definition_derives_generic():
-    definition = MariaDBPartitionDefinition(name="p0", less_than=[object()])
-    assert isinstance(definition, PartitionDefinition)
+def test_partition_definition_is_expression_node(dialect):
+    definition = PartitionDefinitionExpression(dialect, name="p0", less_than=[object()])
+    assert isinstance(definition, PartitionDefinitionExpression)
 
 
-def test_subpartition_definition_derives_generic():
-    assert isinstance(MariaDBSubpartitionDefinition(name="sp0"), SubpartitionDefinition)
+def test_subpartition_definition_is_expression_node(dialect):
+    assert isinstance(
+        SubpartitionDefinitionExpression(dialect, name="sp0"), SubpartitionDefinitionExpression
+    )
 
 
-def test_partition_definition_requires_boundary():
+def test_partition_definition_requires_boundary(dialect):
+    definition = PartitionDefinitionExpression(dialect, "p0")
     with pytest.raises(ValueError, match="less_than or in_values"):
-        MariaDBPartitionDefinition(name="p0")
+        dialect.format_partition_definition(definition)
 
 
-def test_partition_definition_rejects_both_boundaries():
+def test_partition_definition_rejects_both_boundaries(dialect):
     with pytest.raises(ValueError, match="mutually exclusive"):
-        MariaDBPartitionDefinition(name="p0", less_than=[object()], in_values=[object()])
+        PartitionDefinitionExpression(
+            dialect, name="p0", less_than=[object()], in_values=[object()]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -65,8 +71,10 @@ def test_partition_by_range_with_definitions(dialect):
         dialect,
         [Column(dialect, "created_at")],
         partitions=[
-            MariaDBPartitionDefinition("p0", less_than=[_value(dialect, "2024-01-01")]),
-            MariaDBPartitionDefinition("pmax", less_than=[MariaDBPartitionMaxValue(dialect)]),
+            PartitionDefinitionExpression(dialect, "p0", less_than=[_value(dialect, "2024-01-01")]),
+            PartitionDefinitionExpression(
+                dialect, "pmax", less_than=[MariaDBPartitionMaxValue(dialect)]
+            ),
         ],
     )
     sql, _ = expr.to_sql()
@@ -87,7 +95,8 @@ def test_partition_by_list_columns_multi_column(dialect):
         dialect,
         [Column(dialect, "a"), Column(dialect, "b")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 "p0",
                 in_values=[
                     [_value(dialect, "a"), _value(dialect, "x")],
@@ -108,7 +117,7 @@ def test_partition_by_list_single_column(dialect):
         dialect,
         [Column(dialect, "region")],
         partitions=[
-            MariaDBPartitionDefinition("p0", in_values=[_value(dialect, "east")])
+            PartitionDefinitionExpression(dialect, "p0", in_values=[_value(dialect, "east")])
         ],
     )
     sql, _ = expr.to_sql()
@@ -159,10 +168,11 @@ def test_partition_definition_options(dialect):
         dialect,
         [Column(dialect, "a")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 "p0",
                 less_than=[_value(dialect, 1)],
-                partition_options=MariaDBPartitionOptions(comment="first"),
+                options=PartitionOptionsExpression(dialect, {"comment": "first"}),
             )
         ],
     )
@@ -171,14 +181,18 @@ def test_partition_definition_options(dialect):
 
 
 def test_partition_definition_options_are_formatted(dialect):
-    definition = MariaDBPartitionDefinition(
+    definition = PartitionDefinitionExpression(
+        dialect,
         "p0",
         less_than=[_value(dialect, 1)],
-        partition_options=MariaDBPartitionOptions(
-            engine="InnoDB",
-            comment="tenant's partition",
-            max_rows=1000,
-            tablespace="ts_hot",
+        options=PartitionOptionsExpression(
+            dialect,
+            {
+                "engine": "InnoDB",
+                "comment": "tenant's partition",
+                "max_rows": 1000,
+                "tablespace": "ts_hot",
+            },
         ),
     )
     sql, params = dialect.format_partition_definition(definition)
@@ -191,18 +205,18 @@ def test_partition_definition_options_are_formatted(dialect):
 
 def test_partition_definition_options_reject_invalid_options(dialect):
     with pytest.raises(TypeError, match="engine option must be a non-empty string"):
-        dialect.format_partition_definition_options(MariaDBPartitionOptions(engine=""))
+        dialect.format_partition_definition_options(
+            PartitionOptionsExpression(dialect, {"engine": ""})
+        )
     with pytest.raises(TypeError, match="max_rows option"):
-        dialect.format_partition_definition_options(MariaDBPartitionOptions(max_rows=-1))
+        dialect.format_partition_definition_options(
+            PartitionOptionsExpression(dialect, {"max_rows": -1})
+        )
 
 
 def test_partition_definition_rejects_invalid_partition_options(dialect):
-    with pytest.raises(TypeError, match="partition_options must be a MariaDBPartitionOptions"):
-        MariaDBPartitionDefinition(
-            "p0",
-            less_than=[_value(dialect, 1)],
-            partition_options="invalid",  # type: ignore[arg-type]
-        )
+    with pytest.raises(TypeError, match="partition_options must be a PartitionOptionsExpression"):
+        dialect.format_partition_definition_options("invalid")
 
 
 def test_partition_definition_with_subpartitions(dialect):
@@ -210,10 +224,11 @@ def test_partition_definition_with_subpartitions(dialect):
         dialect,
         [Column(dialect, "a")],
         partitions=[
-            MariaDBPartitionDefinition(
+            PartitionDefinitionExpression(
+                dialect,
                 "p0",
                 less_than=[_value(dialect, 1)],
-                subpartition_definitions=[MariaDBSubpartitionDefinition(name="s0")],
+                subpartitions=[SubpartitionDefinitionExpression(dialect, name="s0")],
             )
         ],
     )
@@ -221,9 +236,9 @@ def test_partition_definition_with_subpartitions(dialect):
     assert sql.endswith("(PARTITION `p0` VALUES LESS THAN (1) (SUBPARTITION `s0`))")
 
 
-def test_subpartition_definition_empty_name():
+def test_subpartition_definition_empty_name(dialect):
     with pytest.raises(ValueError, match="non-empty string"):
-        MariaDBSubpartitionDefinition(name="")
+        SubpartitionDefinitionExpression(dialect, name="")
 
 
 # ---------------------------------------------------------------------------

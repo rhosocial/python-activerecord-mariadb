@@ -20,14 +20,14 @@ from ._common import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 
 class MariaDBPartitionDropSuggestionMixin(_MariaDBPartitionSuggestionBase):
     """Suggest the ``ALTER TABLE ... DROP PARTITION`` statement."""
 
     def suggest_partition_drop(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionDropSuggestion:
         """Suggest the ``ALTER TABLE ... DROP PARTITION`` statement."""
         word = _word(strategy)

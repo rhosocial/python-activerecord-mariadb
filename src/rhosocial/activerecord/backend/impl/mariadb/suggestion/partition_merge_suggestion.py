@@ -14,14 +14,14 @@ from ....suggestion import PartitionMergeSuggestion
 from ._common import _MariaDBPartitionSuggestionBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 
 class MariaDBPartitionMergeSuggestionMixin(_MariaDBPartitionSuggestionBase):
     """Answer MariaDB's lack of ``MERGE PARTITION`` DDL explicitly."""
 
     def suggest_partition_merge(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionMergeSuggestion:
         """MariaDB has no ``MERGE PARTITION`` DDL; answer explicit unsupported.
 

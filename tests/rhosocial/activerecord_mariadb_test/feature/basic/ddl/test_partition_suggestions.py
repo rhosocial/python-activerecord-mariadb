@@ -23,6 +23,12 @@ from rhosocial.activerecord.backend.expression import (
     Column,
     DropTableStatement,
 )
+from rhosocial.activerecord.backend.expression.statements import (
+    PartitionByHashClause,
+    PartitionByListClause,
+    PartitionByRangeClause,
+    PartitionDefinitionExpression,
+)
 from rhosocial.activerecord.backend.suggestion import (
     PartitionAddSuggestion,
     PartitionBuildSuggestion,
@@ -45,7 +51,6 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBPartitionByListColumns,
     MariaDBPartitionByRange,
     MariaDBPartitionByRangeColumns,
-    MariaDBPartitionDefinition,
     MariaDBPartitionValue,
     MariaDBRemovePartitioningExpression,
     MariaDBReorganizePartitionExpression,
@@ -109,29 +114,59 @@ def _plan(dialect, kind="RANGE"):
     """Build a small real RANGE plan; LIST/HASH share its definitions/tail."""
     if kind.startswith("LIST"):
         definitions = (
-            MariaDBPartitionDefinition(
-                "p_east", in_values=(MariaDBPartitionValue(dialect, "east"),)
+            PartitionDefinitionExpression(
+                dialect, "p_east", in_values=(MariaDBPartitionValue(dialect, "east"),)
             ),
-            MariaDBPartitionDefinition(
-                "p_west", in_values=(MariaDBPartitionValue(dialect, "west"),)
+            PartitionDefinitionExpression(
+                dialect, "p_west", in_values=(MariaDBPartitionValue(dialect, "west"),)
             ),
         )
     else:
         definitions = (
-            MariaDBPartitionDefinition("p0", less_than=(MariaDBPartitionValue(dialect, 10),)),
-            MariaDBPartitionDefinition("p1", less_than=(MariaDBPartitionValue(dialect, 20),)),
+            PartitionDefinitionExpression(
+                dialect, "p0", less_than=(MariaDBPartitionValue(dialect, 10),)
+            ),
+            PartitionDefinitionExpression(
+                dialect, "p1", less_than=(MariaDBPartitionValue(dialect, 20),)
+            ),
         )
     return _Plan("events", definitions)
 
 
+def _strategy(dialect, word):
+    """Build the strategy clause node for ``word``.
+
+    RANGE/LIST/HASH have dedicated core clause nodes. MariaDB's other five
+    spellings (the COLUMNS and LINEAR variants) still travel as words, which
+    the suggestion helper accepts for backward compatibility.
+    """
+    keys = (Column(dialect, "id"),)
+    if word == "RANGE":
+        return PartitionByRangeClause(dialect, keys)
+    if word == "LIST":
+        return PartitionByListClause(dialect, keys)
+    if word == "HASH":
+        return PartitionByHashClause(dialect, keys)
+    return word
+
+
 def _suggest(dialect, name, strategy, plan):
-    return getattr(dialect, f"suggest_partition_{name}")(strategy, plan)
+    node = _strategy(dialect, strategy) if isinstance(strategy, str) else strategy
+    return getattr(dialect, f"suggest_partition_{name}")(node, plan)
 
 
 def test_dialect_satisfies_all_eight_protocols():
     dialect = _dialect()
     for _, protocol, _, _ in POINTS:
         assert isinstance(dialect, protocol)
+
+
+def test_suggestions_accept_a_strategy_clause_node():
+    dialect = _dialect()
+    strategy = PartitionByRangeClause(dialect, [Column(dialect, "id")])
+    plan = _plan(dialect)
+    for name, _, suggestion_type, _ in POINTS:
+        assert isinstance(_suggest(dialect, name, strategy, plan), suggestion_type)
 
 
 def test_suggestion_values_are_frozen_tri_state():
@@ -251,7 +286,7 @@ def test_renderer_parts_collect_the_real_expressions():
     plan = _plan(dialect)
     renderer = PartitionSuggestionRenderer()
     for name, _, _, intent in POINTS:
-        result = renderer.parts(dialect, intent, "RANGE", plan)
+        result = renderer.parts(dialect, intent, _strategy(dialect, "RANGE"), plan)
         if name == "merge":
             assert result is None
             continue

@@ -19,14 +19,14 @@ from ._common import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 
 class MariaDBPartitionRetentionSuggestionMixin(_MariaDBPartitionSuggestionBase):
     """Suggest one DROP PARTITION per expired RANGE definition."""
 
     def suggest_partition_retention(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionRetentionSuggestion:
         """Suggest one DROP PARTITION per RANGE definition carrying ``less_than``."""
         word = _word(strategy)
