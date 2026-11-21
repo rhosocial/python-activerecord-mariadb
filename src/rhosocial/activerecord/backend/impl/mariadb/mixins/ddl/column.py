@@ -22,13 +22,13 @@ class MariaDBAlterColumnModifierMixin:
         """``DROP COLUMN IF EXISTS`` is supported since MariaDB 10.0.2."""
         return True
 
-    def format_add_column_action(self, action) -> Tuple[str, tuple]:
-        column_sql, column_params = self.format_column_definition(action.column)
-        if getattr(action, "if_not_exists", None) is True:
+    def format_add_column_action(self, expr) -> Tuple[str, tuple]:
+        column_sql, column_params = self.format_column_definition(expr.column)
+        if getattr(expr, "if_not_exists", None) is True:
             return f"ADD COLUMN IF NOT EXISTS {column_sql}", column_params
         return f"ADD COLUMN {column_sql}", column_params
 
-    def format_drop_column_action(self, action) -> Tuple[str, tuple]:
-        if getattr(action, "if_exists", None) is True:
-            return f"DROP COLUMN IF EXISTS {self.format_identifier(action.column_name)}", ()
-        return f"DROP COLUMN {self.format_identifier(action.column_name)}", ()
+    def format_drop_column_action(self, expr) -> Tuple[str, tuple]:
+        if getattr(expr, "if_exists", None) is True:
+            return f"DROP COLUMN IF EXISTS {self.format_identifier(expr.column_name)}", ()
+        return f"DROP COLUMN {self.format_identifier(expr.column_name)}", ()

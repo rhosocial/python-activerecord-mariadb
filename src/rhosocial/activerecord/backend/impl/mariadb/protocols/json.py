@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/json.py
 """MariaDB JSON function protocol."""
 
-from typing import Any, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, List, Protocol, Tuple, runtime_checkable
 
 from rhosocial.activerecord.backend.dialect.protocols import JSONSupport
 
@@ -133,7 +133,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_unquote(self, json_val: str) -> Tuple[str, tuple]:
+    def format_json_unquote(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_UNQUOTE function call.
 
         Args:
@@ -183,45 +183,9 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_set(
-        self,
-        json_doc: str,
-        path: str,
-        value: Any,
-        path_value_pairs: Optional[List[Tuple[str, Any]]] = None
-    ) -> Tuple[str, tuple]:
-        """Format JSON_SET function call.
 
-        Args:
-            json_doc: JSON document or column
-            path: JSON path expression
-            value: Value to set at the path
-            path_value_pairs: Additional (path, value) pairs
 
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_json_remove(
-        self,
-        json_doc: str,
-        path: str,
-        paths: Optional[List[str]] = None
-    ) -> Tuple[str, tuple]:
-        """Format JSON_REMOVE function call.
-
-        Args:
-            json_doc: JSON document or column
-            path: JSON path to remove
-            paths: Additional paths to remove
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_json_type(self, json_val: str) -> Tuple[str, tuple]:
+    def format_json_type(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_TYPE function call.
 
         Args:
@@ -232,7 +196,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_valid(self, json_val: str) -> Tuple[str, tuple]:
+    def format_json_valid(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_VALID function call.
 
         Args:
@@ -243,93 +207,10 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_search(
-        self,
-        json_doc: str,
-        search_str: str,
-        path: Optional[str] = None,
-        all: bool = False
-    ) -> Tuple[str, tuple]:
-        """Format JSON_SEARCH function call.
 
-        Args:
-            json_doc: JSON document or column to search in
-            search_str: Search string (supports % and _ wildcards)
-            path: Optional path to search within
-            all: If True, return all matches; if False, return first match
 
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
 
-    def format_json_arrow(
-        self,
-        json_doc: str,
-        path: str,
-        unquote: bool = False
-    ) -> Tuple[str, tuple]:
-        """Format JSON arrow operator (-> or ->>).
 
-        Args:
-            json_doc: JSON document or column name
-            path: JSON path expression
-            unquote: If True, use ->> (unquoted result)
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_json_query(
-        self,
-        json_doc: str,
-        path: str
-    ) -> Tuple[str, tuple]:
-        """Format JSON_QUERY function call (MariaDB 10.2.3+).
-
-        Args:
-            json_doc: JSON document or column
-            path: JSON path expression
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_json_value(
-        self,
-        json_doc: str,
-        path: str,
-        returning_type: Optional[str] = None
-    ) -> Tuple[str, tuple]:
-        """Format JSON_VALUE function call (MariaDB 10.2.3+).
-
-        Args:
-            json_doc: JSON document or column
-            path: JSON path expression
-            returning_type: Optional RETURNING data type
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_json_exists(
-        self,
-        json_doc: str,
-        path: str
-    ) -> Tuple[str, tuple]:
-        """Format JSON_EXISTS function call (MariaDB 10.2.3+).
-
-        Args:
-            json_doc: JSON document or column
-            path: JSON path expression
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
 
     def get_json_access_operator(self) -> str:
         """Get the JSON access operator for MariaDB.
@@ -358,7 +239,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         ...
 
     def format_mariadb_json_table_column(
-        self, column: Any
+        self, expr: Any
     ) -> Tuple[str, tuple]:
         """Render one entry of a MariaDB ``JSON_TABLE`` column list.
 
@@ -374,25 +255,10 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_keys(
-        self,
-        json_doc: str,
-        path: Optional[str] = None
-    ) -> Tuple[str, tuple]:
-        """Format JSON_KEYS function call.
-
-        Args:
-            json_doc: JSON document or column
-            path: Optional path within the document
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
 
     def format_json_merge(
         self,
-        json_docs: List[str]
+        expr: List[str]
     ) -> Tuple[str, tuple]:
         """Format JSON_MERGE function call.
 
@@ -406,7 +272,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
 
     def format_json_merge_patch(
         self,
-        json_docs: List[str]
+        expr: List[str]
     ) -> Tuple[str, tuple]:
         """Format JSON_MERGE_PATCH function call.
 

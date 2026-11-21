@@ -51,7 +51,7 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         """Whether FOR UPDATE SKIP LOCKED is supported (MariaDB 10.3+)."""
         ...
 
-    def format_for_update_clause(self, clause: Any) -> Tuple[str, tuple]:
+    def format_for_update_clause(self, expr: Any) -> Tuple[str, tuple]:
         """Format MariaDB-specific FOR UPDATE clause.
 
         Args:
@@ -69,7 +69,7 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         """
         ...
 
-    def format_lock_in_share_mode(self, clause: Any) -> Tuple[str, tuple]:
+    def format_lock_in_share_mode(self, expr: Any) -> Tuple[str, tuple]:
         """Format LOCK IN SHARE MODE clause (legacy MariaDB syntax).
 
         Args:

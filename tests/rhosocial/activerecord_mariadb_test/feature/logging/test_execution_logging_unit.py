@@ -621,7 +621,7 @@ class TestTransactionGuards:
         """The mixin module exposes the helpers the managers rely on."""
         assert hasattr(
             mixins_transaction.MariaDBTransactionMixin,
-            "format_set_isolation_level",
+            "_format_set_isolation_level",
         )
         backend = MariaDBBackend(database="logging_unit_db")
         manager = MariaDBTransactionManager(backend, backend.logger)

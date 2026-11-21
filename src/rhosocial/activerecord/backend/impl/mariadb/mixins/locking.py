@@ -118,7 +118,7 @@ class MariaDBLockingMixin:
 
     def format_for_update_clause(
         self,
-        clause: "ForUpdateClause"
+        expr: "ForUpdateClause"
     ) -> Tuple[str, tuple]:
         """Format FOR UPDATE clause for MariaDB.
 
@@ -150,7 +150,7 @@ class MariaDBLockingMixin:
 
         parts = []
 
-        strength = clause.strength
+        strength = expr.strength
         # The clause text is the enum's ``phrase``, never a copy kept here:
         # core writes each strength's SQL exactly once (``_LOCK_PHRASES``),
         # so a hand-maintained duplicate in this override would drift the
@@ -189,7 +189,7 @@ class MariaDBLockingMixin:
             )
         parts.append(strength.phrase)
 
-        if clause.of_columns:
+        if expr.of_columns:
             # MariaDB has no OF tbl_name on any lock clause: the scoping
             # suffix MySQL and PostgreSQL accept is a parse error here (errno
             # 1064 on every measured version, 10.2.44 through 13.1.1, under
@@ -217,7 +217,7 @@ class MariaDBLockingMixin:
                 "of_columns.",
             )
 
-        if clause.skip_locked:
+        if expr.skip_locked:
             if not self.supports_for_update_skip_locked():
                 raise UnsupportedFeatureError(
                     self.name,
@@ -225,7 +225,7 @@ class MariaDBLockingMixin:
                     "SKIP LOCKED requires MariaDB 10.6 or later."
                 )
             parts.append("SKIP LOCKED")
-        elif clause.nowait:
+        elif expr.nowait:
             if not self.supports_for_update_nowait():
                 raise UnsupportedFeatureError(
                     self.name,
@@ -236,7 +236,7 @@ class MariaDBLockingMixin:
 
         return " ".join(parts), ()
 
-    def format_lock_in_share_mode(self, clause: "ForUpdateClause" = None) -> Tuple[str, tuple]:
+    def format_lock_in_share_mode(self, expr: "ForUpdateClause" = None) -> Tuple[str, tuple]:
         """Format LOCK IN SHARE MODE clause.
 
         This is MariaDB's spelling of the shared lock -- the only one it

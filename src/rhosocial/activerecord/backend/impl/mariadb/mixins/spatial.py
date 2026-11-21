@@ -85,21 +85,6 @@ class MariaDBSpatialMixin:
         """Whether GEOMETRYCOLLECTION is supported."""
         return True
 
-    def format_spatial_literal(
-        self,
-        wkt: str,
-        srid: Optional[int] = None
-    ) -> Tuple[str, tuple]:
-        """Format spatial literal from WKT (Well-Known Text).
-
-        Args:
-            wkt: Well-Known Text representation.
-            srid: Optional Spatial Reference System Identifier.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-        """
-        return self._format_spatial_literal_parts(wkt, srid)
 
     def _format_spatial_literal_parts(
         self, wkt: str, srid: Optional[int] = None
@@ -116,7 +101,7 @@ class MariaDBSpatialMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, params
 
-    def format_st_geom_from_wkb(
+    def _format_st_geom_from_wkb_parts(
         self,
         wkb: bytes,
         srid: Optional[int] = None
@@ -134,7 +119,7 @@ class MariaDBSpatialMixin:
             return f"ST_GeomFromWKB({self.p()}, {self.p()})", (wkb, srid)
         return f"ST_GeomFromWKB({self.p()})", (wkb,)
 
-    def format_st_as_text(self, geom: str) -> Tuple[str, tuple]:
+    def format_st_as_text(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsText function.
 
         Args:
@@ -143,9 +128,9 @@ class MariaDBSpatialMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        return f"ST_AsText({geom})", ()
+        return f"ST_AsText({expr})", ()
 
-    def format_st_as_geojson(self, geom: str) -> Tuple[str, tuple]:
+    def format_st_as_geojson(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsGeoJSON function.
 
         MariaDB 10.2.3+ supports ST_AsGeoJSON.
@@ -166,7 +151,7 @@ class MariaDBSpatialMixin:
                 "GeoJSON functions",
                 "GeoJSON functions require MariaDB 10.2.3 or later."
             )
-        return f"ST_AsGeoJSON({geom})", ()
+        return f"ST_AsGeoJSON({expr})", ()
 
     def format_st_distance_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBSTDistanceExpression` node."""
@@ -175,7 +160,7 @@ class MariaDBSpatialMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_st_distance_sphere(
+    def _format_st_distance_sphere_parts(
         self,
         geom1: str,
         geom2: str
@@ -207,7 +192,7 @@ class MariaDBSpatialMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_st_intersects(
+    def _format_st_intersects_parts(
         self,
         geom1: str,
         geom2: str
@@ -223,7 +208,7 @@ class MariaDBSpatialMixin:
         """
         return f"ST_Intersects({geom1}, {geom2})", ()
 
-    def format_create_spatial_index(
+    def _format_create_spatial_index_parts(
         self,
         index_name: Union[Index, str],
         table_name: Union[Table, str],

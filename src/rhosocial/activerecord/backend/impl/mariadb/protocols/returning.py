@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/returning.py
 """MariaDB RETURNING clause protocol."""
 
-from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -36,20 +36,3 @@ class MariaDBReturningSupport(Protocol):
         """
         ...
 
-    def format_returning_clause(
-        self,
-        columns: Optional[List[str]] = None,
-        expressions: Optional[List[Dict[str, Any]]] = None,
-        aliases: Optional[Dict[str, str]] = None
-    ) -> Tuple[str, tuple]:
-        """Format RETURNING clause for MariaDB.
-
-        Args:
-            columns: Column names to return
-            expressions: Expressions with optional aliases
-            aliases: Column/expression to alias mappings
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...

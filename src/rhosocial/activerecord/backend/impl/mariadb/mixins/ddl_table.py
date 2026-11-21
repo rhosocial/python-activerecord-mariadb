@@ -217,7 +217,7 @@ class MariaDBTableMixin:
 
     def format_column_definition(
         self,
-        col_def: "ColumnDefinition",
+        expr: "ColumnDefinition",
     ) -> Tuple[str, tuple]:
         """Format a single column definition with MariaDB-specific syntax.
 
@@ -241,12 +241,12 @@ class MariaDBTableMixin:
             MariaDBColumnDefinition,
         )
 
-        type_sql, type_params = col_def.data_type.to_sql()
-        parts = [self.format_identifier(col_def.name), type_sql]
+        type_sql, type_params = expr.data_type.to_sql()
+        parts = [self.format_identifier(expr.name), type_sql]
         params: List[Any] = list(type_params)
 
         constraint_parts = []
-        for constraint in col_def.constraints:
+        for constraint in expr.constraints:
             clause_sql, clause_params = self.format_column_constraint(constraint)
             if clause_sql:
                 constraint_parts.append(clause_sql.strip())
@@ -255,27 +255,27 @@ class MariaDBTableMixin:
         if constraint_parts:
             parts.append(' '.join(constraint_parts))
 
-        attr_sql, attr_params = self.format_column_attributes(col_def)
+        attr_sql, attr_params = self.format_column_attributes(expr)
         if attr_sql:
             parts.append(attr_sql.strip())
         params.extend(attr_params)
 
-        if isinstance(col_def, MariaDBColumnDefinition):
-            if col_def.character_set:
-                parts.append(f"CHARACTER SET {self.format_identifier(col_def.character_set)}")
-            if col_def.column_format is not None:
-                parts.append(f"COLUMN_FORMAT {col_def.column_format.value}")
-            if col_def.storage is not None:
-                parts.append(f"STORAGE {col_def.storage.value}")
-            if col_def.invisible:
+        if isinstance(expr, MariaDBColumnDefinition):
+            if expr.character_set:
+                parts.append(f"CHARACTER SET {self.format_identifier(expr.character_set)}")
+            if expr.column_format is not None:
+                parts.append(f"COLUMN_FORMAT {expr.column_format.value}")
+            if expr.storage is not None:
+                parts.append(f"STORAGE {expr.storage.value}")
+            if expr.invisible:
                 parts.append("INVISIBLE")
 
-        if col_def.comment is not None:
-            comment_sql, _ = self.format_column_comment_clause(col_def.comment)
+        if expr.comment is not None:
+            comment_sql, _ = self.format_column_comment_clause(expr.comment)
             parts.append(comment_sql.strip())
 
-        if col_def.generated_expression is not None:
-            gen_sql, gen_params = col_def.generated_expression.to_sql()
+        if expr.generated_expression is not None:
+            gen_sql, gen_params = expr.generated_expression.to_sql()
             parts.append(gen_sql.lstrip())
             params.extend(gen_params)
 
@@ -283,7 +283,7 @@ class MariaDBTableMixin:
 
     def format_table_constraint(
         self,
-        t_const: "TableConstraint",
+        expr: "TableConstraint",
     ) -> Tuple[str, tuple]:
         """Format a table-level constraint clause, narrowing what MariaDB lacks.
 
@@ -293,8 +293,8 @@ class MariaDBTableMixin:
         MariaDB's: the kinds this server cannot state at all, refused by name
         rather than rendered into SQL its parser rejects.
         """
-        self._require_table_constraint(t_const)
-        return super().format_table_constraint(t_const)
+        self._require_table_constraint(expr)
+        return super().format_table_constraint(expr)
 
     def _require_table_constraint(self, t_const: "TableConstraint") -> None:
         """Refuse what MariaDB's table-constraint grammar has no slot for.
@@ -375,7 +375,7 @@ class MariaDBTableMixin:
                 f"{self.name} does not support CHECK constraints.",
             )
 
-    def format_column_constraint(self, constraint) -> Tuple[str, tuple]:
+    def format_column_constraint(self, expr) -> Tuple[str, tuple]:
         """Format a column-level constraint clause, refusing what has no slot for it.
 
         Two narrowings live here, both of them facts about MariaDB's column
@@ -428,7 +428,7 @@ class MariaDBTableMixin:
         )
         from rhosocial.activerecord.backend.expression import ColumnForeignKeyConstraint
 
-        if constraint.name and not isinstance(constraint.branch, ColumnForeignKeyConstraint):
+        if expr.name and not isinstance(expr.branch, ColumnForeignKeyConstraint):
             raise UnsupportedFeatureError(
                 self.name,
                 "CONSTRAINT name on a column constraint",
@@ -436,17 +436,17 @@ class MariaDBTableMixin:
                 f"only before REFERENCES.",
             )
 
-        if (constraint.enforced or constraint.not_enforced) and not self.supports_constraint_enforced():
-            feature = "CONSTRAINT ENFORCED" if constraint.enforced else "CONSTRAINT NOT ENFORCED"
+        if (expr.enforced or expr.not_enforced) and not self.supports_constraint_enforced():
+            feature = "CONSTRAINT ENFORCED" if expr.enforced else "CONSTRAINT NOT ENFORCED"
             raise UnsupportedFeatureError(
                 self.name,
                 feature,
                 f"{self.name} does not support {feature}.",
             )
 
-        return super().format_column_constraint(constraint)
+        return super().format_column_constraint(expr)
 
-    def format_column_primary_key_constraint(self, constraint) -> Tuple[str, tuple]:
+    def format_column_primary_key_constraint(self, expr) -> Tuple[str, tuple]:
         """Format the column-level ``PRIMARY KEY`` branch, with MariaDB's ``AUTO_INCREMENT``.
 
         S3 put the flag where the grammar puts it -- on
@@ -475,7 +475,7 @@ class MariaDBTableMixin:
         return " PRIMARY KEY", ()
 
     def format_table_foreign_key_constraint(
-        self, constraint: "TableForeignKeyConstraint"
+        self, expr: "TableForeignKeyConstraint"
     ) -> Tuple[str, tuple]:
         """Format a table-level ``FOREIGN KEY`` with MariaDB's spaced column list.
 
@@ -506,25 +506,25 @@ class MariaDBTableMixin:
             ReferencesClause,
         )
 
-        if not constraint.columns:
+        if not expr.columns:
             raise ValueError(
                 "FOREIGN KEY constraint must have at least one local column specified."
             )
-        referenced_table, referenced_columns = constraint.references
+        referenced_table, referenced_columns = expr.references
         if not referenced_columns:
             raise ValueError(
                 "FOREIGN KEY constraint must have at least one foreign key column specified."
             )
         if not referenced_table:
             raise ValueError("FOREIGN KEY constraint must have a foreign key table specified.")
-        cols_str = ", ".join(self.format_identifier(c) for c in constraint.columns)
+        cols_str = ", ".join(self.format_identifier(c) for c in expr.columns)
         references = ReferencesClause(
             self,
             referenced_table,
             list(referenced_columns),
-            on_delete=constraint.on_delete,
-            on_update=constraint.on_update,
-            match_type=constraint.match_type,
+            on_delete=expr.on_delete,
+            on_update=expr.on_update,
+            match_type=expr.match_type,
         )
         ref_sql, ref_params = self.format_references_clause(references)
         # The shared clause renders "REFERENCES <table>(<cols>)..."; MariaDB
@@ -532,21 +532,21 @@ class MariaDBTableMixin:
         head, rest = ref_sql.split("(", 1)
         return f"FOREIGN KEY ({cols_str}) {head} ({rest}", tuple(ref_params)
 
-    def format_index_definition(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
+    def format_index_definition(self, expr: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline index definition (MariaDB-specific)."""
         parts = []
 
-        if idx_def.unique:
+        if expr.unique:
             parts.append("UNIQUE")
 
         parts.append("INDEX")
-        parts.append(self.format_identifier(idx_def.name))
+        parts.append(self.format_identifier(expr.name))
 
-        cols_str = ', '.join(self.format_identifier(c) for c in idx_def.columns)
+        cols_str = ', '.join(self.format_identifier(c) for c in expr.columns)
         parts.append(f"({cols_str})")
 
-        if idx_def.type:
-            parts.append(f"USING {idx_def.type}")
+        if expr.type:
+            parts.append(f"USING {expr.type}")
 
         return ' '.join(parts), ()
 

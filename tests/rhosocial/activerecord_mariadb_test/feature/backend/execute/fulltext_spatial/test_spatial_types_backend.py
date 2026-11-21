@@ -94,7 +94,7 @@ class TestSpatialTypes:
         """)
 
         dialect = mariadb_backend.dialect
-        sql, params = dialect.format_spatial_literal('POINT(5 5)')
+        sql, params = dialect._format_spatial_literal_parts('POINT(5 5)')
 
         mariadb_backend.execute(
             f"INSERT INTO test_spatial_literal (location) VALUES ({sql})",
@@ -119,7 +119,7 @@ class TestSpatialTypes:
         """)
 
         dialect = mariadb_backend.dialect
-        sql, params = dialect.format_spatial_literal('POINT(10 20)', 4326)
+        sql, params = dialect._format_spatial_literal_parts('POINT(10 20)', 4326)
 
         mariadb_backend.execute(
             f"INSERT INTO test_spatial_srid (location) VALUES ({sql})",
@@ -281,13 +281,13 @@ class TestSpatialTypes:
         """)
 
         dialect = mariadb_backend.dialect
-        index_sql, params = dialect.format_create_spatial_index(
+        index_sql, params = dialect._format_create_spatial_index_parts(
             'idx_location', 'test_spatial_idx', 'location'
         )
 
         mariadb_backend.execute(index_sql)
 
-        insert_sql, insert_params = dialect.format_spatial_literal('POINT(1 1)')
+        insert_sql, insert_params = dialect._format_spatial_literal_parts('POINT(1 1)')
         mariadb_backend.execute(
             f"INSERT INTO test_spatial_idx (name, location) VALUES ('test', {insert_sql})",
             insert_params
@@ -327,7 +327,7 @@ class TestAsyncSpatialTypes:
         """)
 
         dialect = async_mariadb_backend.dialect
-        sql, params = dialect.format_spatial_literal('POINT(5 5)')
+        sql, params = dialect._format_spatial_literal_parts('POINT(5 5)')
 
         await async_mariadb_backend.execute(
             f"INSERT INTO test_async_spatial (location) VALUES ({sql})",
@@ -436,13 +436,13 @@ class TestAsyncSpatialTypes:
         """)
 
         dialect = async_mariadb_backend.dialect
-        index_sql, _ = dialect.format_create_spatial_index(
+        index_sql, _ = dialect._format_create_spatial_index_parts(
             'idx_loc', 'test_async_idx', 'location'
         )
 
         await async_mariadb_backend.execute(index_sql)
 
-        insert_sql, insert_params = dialect.format_spatial_literal('POINT(1 1)')
+        insert_sql, insert_params = dialect._format_spatial_literal_parts('POINT(1 1)')
         await async_mariadb_backend.execute(
             f"INSERT INTO test_async_idx (location) VALUES ({insert_sql})",
             insert_params

@@ -165,7 +165,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_SET with single path-value pair."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_set('data', '$.name', 'John')
+        sql, params = dialect._format_json_set_parts('data', '$.name', 'John')
 
         assert sql == 'JSON_SET(data, %s, %s)'
         assert params == ('$.name', 'John')
@@ -174,7 +174,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_SET with multiple path-value pairs."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_set(
+        sql, params = dialect._format_json_set_parts(
             'data', '$.name', 'John',
             path_value_pairs=[('$.age', 30), ('$.city', 'NYC')]
         )
@@ -186,7 +186,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_REMOVE with single path."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_remove('data', '$.temp')
+        sql, params = dialect._format_json_remove_parts('data', '$.temp')
 
         assert sql == 'JSON_REMOVE(data, %s)'
         assert params == ('$.temp',)
@@ -195,7 +195,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_REMOVE with multiple paths."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_remove('data', '$.temp', paths=['$.cache', '$.old'])
+        sql, params = dialect._format_json_remove_parts('data', '$.temp', paths=['$.cache', '$.old'])
 
         assert sql == 'JSON_REMOVE(data, %s, %s, %s)'
         assert params == ('$.temp', '$.cache', '$.old')
@@ -222,7 +222,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_SEARCH with 'one' mode."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_search('data', 'John', all_=False)
+        sql, params = dialect._format_json_search_parts('data', 'John', all_=False)
 
         assert "JSON_SEARCH(data, 'one', %s)" in sql
         assert params == ('John',)
@@ -231,7 +231,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_SEARCH with 'all' mode."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_search('data', 'John', all_=True)
+        sql, params = dialect._format_json_search_parts('data', 'John', all_=True)
 
         assert "JSON_SEARCH(data, 'all', %s)" in sql
         assert params == ('John',)
@@ -240,7 +240,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_SEARCH with path."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_search('data', 'John', path='$.users', all_=True)
+        sql, params = dialect._format_json_search_parts('data', 'John', path='$.users', all_=True)
 
         assert "JSON_SEARCH(data, 'all', %s, NULL, %s)" in sql
         assert params == ('John', '$.users')
@@ -303,7 +303,7 @@ class TestAsyncJSONFunctionProtocol:
         """Test async version of JSON_SET formatting."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_set('data', '$.key', 'value')
+        sql, params = dialect._format_json_set_parts('data', '$.key', 'value')
 
         assert 'JSON_SET' in sql
         assert '$.key' in params

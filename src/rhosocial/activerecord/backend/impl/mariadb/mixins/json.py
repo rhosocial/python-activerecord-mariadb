@@ -196,7 +196,7 @@ class MariaDBJSONMixin:
         return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_TABLE'])
 
     def format_mariadb_json_table_column(
-        self, column: "MariaDBJSONTableColumn"
+        self, expr: "MariaDBJSONTableColumn"
     ) -> Tuple[str, tuple]:
         """Render one entry of a MariaDB ``JSON_TABLE`` column list.
 
@@ -211,20 +211,20 @@ class MariaDBJSONMixin:
         """
         from rhosocial.activerecord.backend.expression.types import DataType
 
-        name_sql = self.format_identifier(column.name)
-        if column.ordinality:
+        name_sql = self.format_identifier(expr.name)
+        if expr.ordinality:
             # FOR ORDINALITY takes no type and no path.
             return f"{name_sql} FOR ORDINALITY", ()
 
-        if column.type is None:
+        if expr.type is None:
             # No type was declared; MariaDB's default.
             type_sql = "VARCHAR(255)"
             params: tuple = ()
         else:
-            type_sql, params = DataType.as_type(self, column.type).to_sql()
-        path_sql = self.escape_sql_string(column.path) if column.path else None
+            type_sql, params = DataType.as_type(self, expr.type).to_sql()
+        path_sql = self.escape_sql_string(expr.path) if expr.path else None
 
-        if column.exists and path_sql is not None:
+        if expr.exists and path_sql is not None:
             # EXISTS is spelled between the type and PATH.
             head = f"{name_sql} {type_sql} EXISTS PATH '{path_sql}'"
         elif path_sql is not None:
@@ -232,10 +232,10 @@ class MariaDBJSONMixin:
         else:
             head = f"{name_sql} {type_sql}"
 
-        if column.error_handling:
-            token = str(column.error_handling).strip().upper()
+        if expr.error_handling:
+            token = str(expr.error_handling).strip().upper()
             if token == "DEFAULT":
-                default = column.default_value
+                default = expr.default_value
                 literal = (
                     f"'{self.escape_sql_string(str(default))}'"
                     if default is not None else "NULL"
@@ -252,7 +252,7 @@ class MariaDBJSONMixin:
                 raise UnsupportedFeatureError(
                     self.name,
                     "JSON_TABLE error handling",
-                    f"Unsupported JSON_TABLE error handling {column.error_handling!r}; "
+                    f"Unsupported JSON_TABLE error handling {expr.error_handling!r}; "
                     "expected NULL, TRUE, FALSE or DEFAULT.",
                 )
         return head, params
@@ -395,7 +395,7 @@ class MariaDBJSONMixin:
         path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_EXTRACT({json_doc}, {path_placeholders})", tuple(all_paths)
 
-    def format_json_unquote(self, json_val: str) -> Tuple[str, tuple]:
+    def format_json_unquote(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_UNQUOTE function.
 
         Args:
@@ -404,7 +404,7 @@ class MariaDBJSONMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        return f"JSON_UNQUOTE({json_val})", ()
+        return f"JSON_UNQUOTE({expr})", ()
 
     def format_json_object_expression(self, expr) -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONObjectExpression` node."""
@@ -462,7 +462,7 @@ class MariaDBJSONMixin:
             return f"JSON_CONTAINS({target}, {self.p()}, {self.p()})", (candidate, path)
         return f"JSON_CONTAINS({target}, {self.p()})", (candidate,)
 
-    def format_json_set(
+    def _format_json_set_parts(
         self,
         json_doc: str,
         path: str,
@@ -495,7 +495,7 @@ class MariaDBJSONMixin:
 
         return f"JSON_SET({json_doc}, {', '.join(parts)})", tuple(params)
 
-    def format_json_remove(
+    def _format_json_remove_parts(
         self,
         json_doc: str,
         path: str,
@@ -518,7 +518,7 @@ class MariaDBJSONMixin:
         path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_REMOVE({json_doc}, {path_placeholders})", tuple(all_paths)
 
-    def format_json_type(self, json_val: str) -> Tuple[str, tuple]:
+    def format_json_type(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_TYPE function.
 
         Args:
@@ -527,9 +527,9 @@ class MariaDBJSONMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        return f"JSON_TYPE({json_val})", ()
+        return f"JSON_TYPE({expr})", ()
 
-    def format_json_valid(self, json_val: str) -> Tuple[str, tuple]:
+    def format_json_valid(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_VALID function.
 
         Args:
@@ -538,9 +538,9 @@ class MariaDBJSONMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        return f"JSON_VALID({json_val})", ()
+        return f"JSON_VALID({expr})", ()
 
-    def format_json_keys(
+    def _format_json_keys_parts(
         self,
         json_doc: str,
         path: Optional[str] = None
@@ -558,7 +558,7 @@ class MariaDBJSONMixin:
             return f"JSON_KEYS({json_doc}, {self.p()})", (path,)
         return f"JSON_KEYS({json_doc})", ()
 
-    def format_json_search(
+    def _format_json_search_parts(
         self,
         json_doc: str,
         search_str: str,
@@ -581,7 +581,7 @@ class MariaDBJSONMixin:
             return f"JSON_SEARCH({json_doc}, {one_or_all}, {self.p()}, NULL, {self.p()})", (search_str, path)
         return f"JSON_SEARCH({json_doc}, {one_or_all}, {self.p()})", (search_str,)
 
-    def format_json_arrow(
+    def _format_json_arrow_parts(
         self,
         json_doc: str,
         path: str,
@@ -607,7 +607,7 @@ class MariaDBJSONMixin:
 
     def format_json_merge(
         self,
-        json_docs: List[str]
+        expr: List[str]
     ) -> Tuple[str, tuple]:
         """Format JSON_MERGE function.
 
@@ -617,13 +617,13 @@ class MariaDBJSONMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        if len(json_docs) < 2:
+        if len(expr) < 2:
             raise ValueError("JSON_MERGE requires at least 2 JSON documents")
-        return f"JSON_MERGE({', '.join(json_docs)})", ()
+        return f"JSON_MERGE({', '.join(expr)})", ()
 
     def format_json_merge_patch(
         self,
-        json_docs: List[str]
+        expr: List[str]
     ) -> Tuple[str, tuple]:
         """Format JSON_MERGE_PATCH function.
 
@@ -633,11 +633,11 @@ class MariaDBJSONMixin:
         Returns:
             Tuple of (SQL string, parameters tuple).
         """
-        if len(json_docs) < 2:
+        if len(expr) < 2:
             raise ValueError("JSON_MERGE_PATCH requires at least 2 JSON documents")
-        return f"JSON_MERGE_PATCH({', '.join(json_docs)})", ()
+        return f"JSON_MERGE_PATCH({', '.join(expr)})", ()
 
-    def format_json_query(
+    def _format_json_query_parts(
         self,
         json_doc: str,
         path: str
@@ -653,7 +653,7 @@ class MariaDBJSONMixin:
         """
         return f"JSON_QUERY({json_doc}, '{path}')", ()
 
-    def format_json_value(
+    def _format_json_value_parts(
         self,
         json_doc: str,
         path: str,
@@ -676,7 +676,7 @@ class MariaDBJSONMixin:
             return f"JSON_VALUE({json_doc}, '{path}' RETURNING {returning_sql})", ()
         return f"JSON_VALUE({json_doc}, '{path}')", ()
 
-    def format_json_exists(
+    def _format_json_exists_parts(
         self,
         json_doc: str,
         path: str

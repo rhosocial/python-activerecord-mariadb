@@ -33,7 +33,7 @@ class MariaDBSystemVersioningSupport(Protocol):
 
     def format_for_system_time_as_of(
         self,
-        timestamp: Any
+        expr: Any
     ) -> Tuple[str, tuple]:
         """Format FOR SYSTEM_TIME AS OF clause.
 
@@ -54,21 +54,3 @@ class MariaDBSystemVersioningSupport(Protocol):
         """
         ...
 
-    def format_for_system_time_between(
-        self,
-        start: Any,
-        end: Any
-    ) -> Tuple[str, tuple]:
-        """Format FOR SYSTEM_TIME BETWEEN clause.
-
-        Named to match the mixin, for the reason given on
-        :meth:`format_for_system_time_as_of`.
-
-        Args:
-            start: Start timestamp
-            end: End timestamp
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...

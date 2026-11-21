@@ -1,9 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/spatial.py
 """MariaDB spatial data type protocol."""
 
-from typing import Any, Optional, Protocol, Tuple, Union, runtime_checkable
+from typing import Any, Protocol, Tuple, runtime_checkable
 
-from rhosocial.activerecord.backend.expression.objects import Index, Table
 
 
 @runtime_checkable
@@ -65,21 +64,6 @@ class MariaDBSpatialSupport(Protocol):
         """Whether GEOMETRYCOLLECTION is supported."""
         ...
 
-    def format_spatial_literal(
-        self,
-        wkt: str,
-        srid: Optional[int] = None
-    ) -> Tuple[str, tuple]:
-        """Format spatial literal from WKT.
-
-        Args:
-            wkt: Well-Known Text representation
-            srid: Optional Spatial Reference System Identifier
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
 
     def format_st_geom_from_text_expression(
         self,
@@ -95,23 +79,8 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_st_geom_from_wkb(
-        self,
-        wkb: bytes,
-        srid: Optional[int] = None
-    ) -> Tuple[str, tuple]:
-        """Format ST_GeomFromWKB function call.
 
-        Args:
-            wkb: Well-Known Binary representation
-            srid: Optional Spatial Reference System Identifier
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_st_as_text(self, geom: str) -> Tuple[str, tuple]:
+    def format_st_as_text(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsText function call.
 
         Args:
@@ -122,7 +91,7 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_st_as_geojson(self, geom: str) -> Tuple[str, tuple]:
+    def format_st_as_geojson(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsGeoJSON function call.
 
         Args:
@@ -175,52 +144,5 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_create_spatial_index(
-        self,
-        index_name: Union[Index, str],
-        table_name: Union[Table, str],
-        column: str
-    ) -> Tuple[str, tuple]:
-        """Format CREATE SPATIAL INDEX statement.
 
-        Args:
-            index_name: Index name
-            table_name: Table name
-            column: Column name
 
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_st_distance_sphere(
-        self,
-        geom1: str,
-        geom2: str
-    ) -> Tuple[str, tuple]:
-        """Format ST_Distance_Sphere function call.
-
-        Args:
-            geom1: First geometry (point)
-            geom2: Second geometry (point)
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...
-
-    def format_st_intersects(
-        self,
-        geom1: str,
-        geom2: str
-    ) -> Tuple[str, tuple]:
-        """Format ST_Intersects function call.
-
-        Args:
-            geom1: First geometry
-            geom2: Second geometry
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...

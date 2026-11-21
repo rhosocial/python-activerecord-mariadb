@@ -63,7 +63,7 @@ class MariaDBTransactionMixin:
 
         self._isolation_level = level
 
-    def format_set_isolation_level(self, level: IsolationLevel) -> str:
+    def _format_set_isolation_level(self, expr: IsolationLevel) -> str:
         """Format SET TRANSACTION ISOLATION LEVEL statement.
 
         Args:
@@ -72,12 +72,12 @@ class MariaDBTransactionMixin:
         Returns:
             SQL statement string.
         """
-        level_name = self._ISOLATION_LEVELS.get(level)
+        level_name = self._ISOLATION_LEVELS.get(expr)
         if not level_name:
-            raise TransactionError(f"Unsupported isolation level: {level}")
+            raise TransactionError(f"Unsupported isolation level: {expr}")
         return f"SET TRANSACTION ISOLATION LEVEL {level_name}"
 
-    def format_start_transaction(
+    def _format_start_transaction_parts(
         self,
         read_only: bool = False,
         isolation_level: Optional[IsolationLevel] = None

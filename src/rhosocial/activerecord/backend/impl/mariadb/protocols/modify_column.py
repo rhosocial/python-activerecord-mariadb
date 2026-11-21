@@ -31,7 +31,7 @@ class MariaDBModifyColumnSupport(Protocol):
         """Whether CHANGE COLUMN is supported."""
         ...
 
-    def format_modify_column_action(self, action) -> Tuple[str, tuple]:
+    def format_modify_column_action(self, expr) -> Tuple[str, tuple]:
         """Format MODIFY COLUMN action for ALTER TABLE.
 
         Args:
@@ -42,7 +42,7 @@ class MariaDBModifyColumnSupport(Protocol):
         """
         ...
 
-    def format_change_column_action(self, action) -> Tuple[str, tuple]:
+    def format_change_column_action(self, expr) -> Tuple[str, tuple]:
         """Format CHANGE COLUMN action for ALTER TABLE.
 
         Args:
