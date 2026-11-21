@@ -48,7 +48,7 @@ MariaDB exposes its partition capability through two backend mechanisms:
 from rhosocial.activerecord.backend.dialect.protocols import (
     PartitionAddSuggestionSupport,
 )
-from rhosocial.activerecord.backend.expression import partition_add_parts
+from rhosocial.activerecord.backend.suggestion import PartitionSuggestionRenderer
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
 dialect = MariaDBDialect()
@@ -56,7 +56,7 @@ assert isinstance(dialect, PartitionAddSuggestionSupport)
 
 # `plan` is caller-owned and opaque: the dialect reads `table`, `definitions`,
 # `keys`, `count`, `partition`, `into` and `partitions` by attribute or key.
-operations = partition_add_parts(dialect, "RANGE", plan)  # doctest: +SKIP
+operations = PartitionSuggestionRenderer().add(dialect, "RANGE", plan)  # doctest: +SKIP
 ```
 
 Planning, validation and retention policy belong to the application layer.
