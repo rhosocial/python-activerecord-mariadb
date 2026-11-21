@@ -10,7 +10,7 @@ This module tests MariaDB-specific DDL features including:
 - Inline index definitions
 - ENUM type helper
 """
-from rhosocial.activerecord.backend.expression.statements import auto_increment_parts  # noqa: E402
+from rhosocial.activerecord.backend.suggestion import IntegerAutoIncrementSuggestionRenderer  # noqa: E402
 import pytest
 from rhosocial.activerecord.backend.expression import (
     CreateTableStatement,
@@ -260,7 +260,7 @@ class TestMySQLColumnComment:
 
 def _auto_id(dialect, data_type, constraints, **kwargs):
     """Build an integer auto-increment id column from the backend suggestion."""
-    suggested_type, attributes = auto_increment_parts(dialect, data_type)
+    suggested_type, attributes = IntegerAutoIncrementSuggestionRenderer().parts(dialect, data_type)
     return ColumnDefinition(
         dialect, "id", suggested_type,
         constraints=constraints + [
