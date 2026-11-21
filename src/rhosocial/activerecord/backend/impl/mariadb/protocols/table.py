@@ -101,7 +101,7 @@ class MariaDBTableSupport(TableObjectSupport, Protocol):
         """Format CREATE TABLE ... LIKE statement."""
         ...
 
-    def format_column_definition(self, col_def) -> Tuple[str, tuple]:
+    def format_column_definition(self, expr) -> Tuple[str, tuple]:
         """Format a column definition (name, type, constraints, comment)."""
         ...
 
@@ -109,27 +109,27 @@ class MariaDBTableSupport(TableObjectSupport, Protocol):
         """Whether an inline column COMMENT is supported (MariaDB: yes)."""
         ...
 
-    def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
+    def format_table_constraint(self, expr) -> Tuple[str, tuple]:
         """Format a table-level constraint (PRIMARY KEY / UNIQUE / FOREIGN KEY)."""
         ...
 
-    def format_column_constraint(self, constraint: "ColumnConstraint") -> Tuple[str, tuple]:
+    def format_column_constraint(self, expr: "ColumnConstraint") -> Tuple[str, tuple]:
         """Format a column-level constraint, refusing the name and the
         enforcement trait on every branch but the column-level foreign key."""
         ...
 
     def format_column_primary_key_constraint(
-        self, constraint: "ColumnPrimaryKeyConstraint"
+        self, expr: "ColumnPrimaryKeyConstraint"
     ) -> Tuple[str, tuple]:
         """Format the column-level ``PRIMARY KEY`` branch with MariaDB's ``AUTO_INCREMENT``."""
         ...
 
     def format_table_foreign_key_constraint(
-        self, constraint: "TableForeignKeyConstraint"
+        self, expr: "TableForeignKeyConstraint"
     ) -> Tuple[str, tuple]:
         """Format a table-level ``FOREIGN KEY`` with MariaDB's spaced column list."""
         ...
 
-    def format_index_definition(self, idx_def: Any) -> Tuple[str, tuple]:
+    def format_index_definition(self, expr: Any) -> Tuple[str, tuple]:
         """Format an inline index definition inside CREATE TABLE."""
         ...

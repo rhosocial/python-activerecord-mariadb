@@ -89,15 +89,15 @@ class MariaDBAlterConstraintModifierMixin:
         """
         return True
 
-    def format_drop_table_constraint_action(self, action) -> Tuple[str, tuple]:
-        name = action.constraint_name
+    def format_drop_table_constraint_action(self, expr) -> Tuple[str, tuple]:
+        name = expr.constraint_name
         # MariaDB PRIMARY KEY goes through DROP PRIMARY KEY (no IF EXISTS).
         if name.upper() == "PRIMARY":
             return "DROP PRIMARY KEY", ()
-        if getattr(action, "if_exists", None) is True:
+        if getattr(expr, "if_exists", None) is True:
             result = f"DROP CONSTRAINT IF EXISTS {self.format_identifier(name)}"
         else:
             result = f"DROP CONSTRAINT {self.format_identifier(name)}"
-        if getattr(action, "cascade", None):
+        if getattr(expr, "cascade", None):
             result += " CASCADE"
         return result, ()

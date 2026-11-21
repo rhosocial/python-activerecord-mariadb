@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/protocols/fulltext_search.py
 """MariaDB full-text search protocol."""
 
-from typing import Any, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Protocol, Tuple, runtime_checkable
 
 
 @runtime_checkable
@@ -56,22 +56,3 @@ class MariaDBFullTextSearchSupport(Protocol):
         """
         ...
 
-    def format_fulltext_index_options(
-        self,
-        index_name: str,
-        columns: List[str],
-        index_type: Optional[str] = None,
-        parser_name: Optional[str] = None
-    ) -> Tuple[str, tuple]:
-        """Format FULLTEXT index options.
-
-        Args:
-            index_name: Index name (usually 'FULLTEXT')
-            columns: Indexed columns
-            index_type: Index type (BTREE, HASH - ignored for FULLTEXT)
-            parser_name: Parser name for full-text search
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        ...

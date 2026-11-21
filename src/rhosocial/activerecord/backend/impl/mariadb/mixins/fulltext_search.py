@@ -32,7 +32,7 @@ class MariaDBFullTextSearchMixin:
         """MariaDB supports QUERY EXPANSION."""
         return True
 
-    def format_fulltext_index_options(
+    def _format_fulltext_index_options_parts(
         self,
         index_name: str,
         columns: List[str],

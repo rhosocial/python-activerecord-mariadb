@@ -64,7 +64,7 @@ class MariaDBSystemVersioningMixin:
 
     def format_for_system_time_as_of(
         self,
-        timestamp: Any
+        expr: Any
     ) -> Tuple[str, tuple]:
         """Format FOR SYSTEM_TIME AS OF clause.
 
@@ -91,16 +91,16 @@ class MariaDBSystemVersioningMixin:
                 "System-versioned tables require MariaDB 10.3 or later."
             )
 
-        if hasattr(timestamp, 'to_sql'):
-            ts_sql, ts_params = timestamp.to_sql()
+        if hasattr(expr, 'to_sql'):
+            ts_sql, ts_params = expr.to_sql()
             return f"FOR SYSTEM_TIME AS OF {ts_sql}", ts_params
 
-        if hasattr(timestamp, 'isoformat'):
-            timestamp = timestamp.isoformat()
+        if hasattr(expr, 'isoformat'):
+            expr = expr.isoformat()
 
-        return f"FOR SYSTEM_TIME AS OF '{timestamp}'", ()
+        return f"FOR SYSTEM_TIME AS OF '{expr}'", ()
 
-    def format_for_system_time_between(
+    def _format_for_system_time_between_parts(
         self,
         start: Any,
         end: Any
@@ -126,21 +126,21 @@ class MariaDBSystemVersioningMixin:
 
         all_params = []
 
-        def format_ts(ts):
-            if hasattr(ts, 'to_sql'):
-                ts_sql, ts_params = ts.to_sql()
+        def _render_ts(expr):
+            if hasattr(expr, 'to_sql'):
+                ts_sql, ts_params = expr.to_sql()
                 all_params.extend(ts_params)
                 return ts_sql
-            if hasattr(ts, 'isoformat'):
-                ts = ts.isoformat()
-            return f"'{ts}'"
+            if hasattr(expr, 'isoformat'):
+                expr = expr.isoformat()
+            return f"'{expr}'"
 
-        start_sql = format_ts(start)
-        end_sql = format_ts(end)
+        start_sql = _render_ts(start)
+        end_sql = _render_ts(end)
 
         return f"FOR SYSTEM_TIME BETWEEN {start_sql} AND {end_sql}", tuple(all_params)
 
-    def format_for_system_time_from_to(
+    def _format_for_system_time_from_to_parts(
         self,
         start: Any,
         end: Any
@@ -167,17 +167,17 @@ class MariaDBSystemVersioningMixin:
 
         all_params = []
 
-        def format_ts(ts):
-            if hasattr(ts, 'to_sql'):
-                ts_sql, ts_params = ts.to_sql()
+        def _render_ts(expr):
+            if hasattr(expr, 'to_sql'):
+                ts_sql, ts_params = expr.to_sql()
                 all_params.extend(ts_params)
                 return ts_sql
-            if hasattr(ts, 'isoformat'):
-                ts = ts.isoformat()
-            return f"'{ts}'"
+            if hasattr(expr, 'isoformat'):
+                expr = expr.isoformat()
+            return f"'{expr}'"
 
-        start_sql = format_ts(start)
-        end_sql = format_ts(end)
+        start_sql = _render_ts(start)
+        end_sql = _render_ts(end)
 
         return f"FOR SYSTEM_TIME FROM {start_sql} TO {end_sql}", tuple(all_params)
 

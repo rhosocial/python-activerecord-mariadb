@@ -4,7 +4,7 @@
 MariaDB 10.5+ supports RETURNING clause for INSERT, DELETE, and REPLACE statements.
 This is a MariaDB-specific feature not available in MySQL.
 """
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
 
@@ -122,64 +122,15 @@ class MariaDBReturningMixin:
         """
         return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE'])
 
-    def format_returning_clause(
-        self,
-        columns: Optional[List[str]] = None,
-        expressions: Optional[List[Dict[str, Any]]] = None,
-        aliases: Optional[Dict[str, str]] = None
-    ) -> Tuple[str, tuple]:
-        """Format RETURNING clause for MariaDB.
-
-        Args:
-            columns: Column names to return.
-            expressions: Expressions with optional aliases.
-                        Each dict should have 'expression' and optionally 'alias'.
-            aliases: Column/expression to alias mappings.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-
-        Example:
-            >>> dialect.format_returning_clause(columns=['id', 'name'])
-            ('RETURNING `id`, `name`', ())
-            >>> dialect.format_returning_clause()
-            ('RETURNING *', ())
-        """
-        if not self.supports_returning():
-            return "", ()
-
-        items = []
-
-        if columns:
-            for col in columns:
-                alias = aliases.get(col) if aliases else None
-                if alias:
-                    items.append(f"{self.format_identifier(col)} AS {self.format_identifier(alias)}")
-                else:
-                    items.append(self.format_identifier(col))
-
-        if expressions:
-            for expr in expressions:
-                expr_text = expr.get("expression", "")
-                expr_alias = expr.get("alias")
-                if expr_alias:
-                    items.append(f"{expr_text} AS {self.format_identifier(expr_alias)}")
-                else:
-                    items.append(expr_text)
-
-        if not items:
-            return "RETURNING *", ()
-
-        return f"RETURNING {', '.join(items)}", ()
 
     def format_returning_clause_from_obj(
         self,
-        clause: "ReturningClause"
+        expr: "ReturningClause"
     ) -> Tuple[str, tuple]:
         """Format RETURNING clause from ReturningClause object.
 
         Args:
-            clause: ReturningClause instance with expressions.
+            expr: ReturningClause instance with expressions.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -196,15 +147,15 @@ class MariaDBReturningMixin:
         all_params = []
         expr_parts = []
 
-        for expr in clause.expressions:
-            expr_sql, expr_params = expr.to_sql()
+        for item in expr.expressions:
+            expr_sql, expr_params = item.to_sql()
             expr_parts.append(expr_sql)
             all_params.extend(expr_params)
 
         returning_sql = f"RETURNING {', '.join(expr_parts)}"
 
-        if clause.alias:
-            returning_sql += f" AS {self.format_identifier(clause.alias)}"
+        if expr.alias:
+            returning_sql += f" AS {self.format_identifier(expr.alias)}"
 
         return returning_sql, tuple(all_params)
 

@@ -181,7 +181,7 @@ class MariaDBSequenceMixin:
         """
         return False
 
-    def format_nextval(self, sequence_name: str) -> Tuple[str, tuple]:
+    def format_nextval(self, expr: str) -> Tuple[str, tuple]:
         """Format NEXTVAL expression.
 
         Args:
@@ -194,9 +194,9 @@ class MariaDBSequenceMixin:
             >>> dialect.format_nextval('user_seq')
             ('NEXT VALUE FOR `user_seq`', ())
         """
-        return f"NEXT VALUE FOR {self.format_identifier(sequence_name)}", ()
+        return f"NEXT VALUE FOR {self.format_identifier(expr)}", ()
 
-    def format_currval(self, sequence_name: str) -> Tuple[str, tuple]:
+    def format_currval(self, expr: str) -> Tuple[str, tuple]:
         """Format CURRVAL expression.
 
         Note: CURRVAL returns the most recent value obtained by NEXTVAL
@@ -212,9 +212,9 @@ class MariaDBSequenceMixin:
             >>> dialect.format_currval('user_seq')
             ('CURRENT VALUE FOR `user_seq`', ())
         """
-        return f"CURRENT VALUE FOR {self.format_identifier(sequence_name)}", ()
+        return f"CURRENT VALUE FOR {self.format_identifier(expr)}", ()
 
-    def format_setval(
+    def _format_setval_parts(
         self,
         sequence_name: str,
         value: int,
@@ -234,9 +234,9 @@ class MariaDBSequenceMixin:
             Tuple of (SQL string, parameters tuple).
 
         Example:
-            >>> dialect.format_setval('user_seq', 100)
+            >>> dialect._format_setval_parts('user_seq', 100)
             ('SET `user_seq` = 100', ())
-            >>> dialect.format_setval('user_seq', 100, is_called=False)
+            >>> dialect._format_setval_parts('user_seq', 100, is_called=False)
             ('SET `user_seq` = 100, 0', ())
         """
         sql = f"SET {self.format_identifier(sequence_name)} = {value}"

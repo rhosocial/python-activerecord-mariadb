@@ -753,12 +753,12 @@ class MariaDBDialect(
     # endregion
 
     # region Custom implementations
-    def format_returning_clause(self, clause: "ReturningClause") -> Tuple[str, tuple]:
+    def format_returning_clause(self, expr: "ReturningClause") -> Tuple[str, tuple]:
         """Format RETURNING clause for MariaDB."""
         all_params = []
         expr_parts = []
-        for expr in clause.expressions:
-            expr_sql, expr_params = expr.to_sql()
+        for item in expr.expressions:
+            expr_sql, expr_params = item.to_sql()
             expr_parts.append(expr_sql)
             all_params.extend(expr_params)
 

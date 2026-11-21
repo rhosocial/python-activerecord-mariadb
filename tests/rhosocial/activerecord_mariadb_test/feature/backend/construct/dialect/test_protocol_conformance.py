@@ -559,6 +559,12 @@ class TestProtocolMethodSignatureConformance:
         # OrderedSetAggregationSupport: format_ordered_set_aggregation uses a
         # different param name (_aggregation)
         ('OrderedSetAggregationSupport', 'format_ordered_set_aggregation'),
+        # Formatter-signature conformance renames the single expression
+        # parameter of every format_* method to `expr`; the generic protocols
+        # still spell these three legacy parameter names.
+        ('LockingSupport', 'format_for_update_clause'),
+        ('PartitionSupport', 'format_partition_definition'),
+        ('ReturningSupport', 'format_returning_clause'),
     }
 
     @pytest.mark.parametrize("protocol", MYSQL_PROTOCOLS)

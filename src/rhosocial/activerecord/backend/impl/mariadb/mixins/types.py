@@ -263,7 +263,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             sql = f"{sql} ZEROFILL"
         return sql, ()
 
-    def format_data_type_mariadb_tinyint(self, data_type: MariaDBTinyIntType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_tinyint(self, expr: MariaDBTinyIntType) -> Tuple[str, tuple]:
         """``TINYINT`` — 1 byte, ``-128``..``127`` signed / ``0``..``255``
         unsigned, with MariaDB's own two attributes.
 
@@ -272,13 +272,13 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``tinyint(4)`` (verified), so echoing the synonym back would make an
         introspected column differ from its own declaration.
         """
-        return self._format_mariadb_integer("TINYINT", data_type)
+        return self._format_mariadb_integer("TINYINT", expr)
 
-    def format_data_type_mariadb_smallint(self, data_type: MariaDBSmallIntType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_smallint(self, expr: MariaDBSmallIntType) -> Tuple[str, tuple]:
         """``SMALLINT`` — 2 bytes, ``-32768``..``32767`` / ``0``..``65535``."""
-        return self._format_mariadb_integer("SMALLINT", data_type)
+        return self._format_mariadb_integer("SMALLINT", expr)
 
-    def format_data_type_mariadb_mediumint(self, data_type: MariaDBMediumIntType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_mediumint(self, expr: MariaDBMediumIntType) -> Tuple[str, tuple]:
         """``MEDIUMINT`` — 3 bytes, ``-8388608``..``8388607`` / ``0``..``16777215``.
 
         MariaDB spells this width with two words, ``MEDIUMINT`` and its
@@ -286,57 +286,57 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         rendered — the form the server itself writes into ``COLUMN_TYPE``, which
         is what makes ``parse_type`` able to read this backend's own output back.
         """
-        self.check_spelling(data_type, MariaDBMediumIntType)
-        return self._format_mariadb_integer("MEDIUMINT", data_type)
+        self.check_spelling(expr, MariaDBMediumIntType)
+        return self._format_mariadb_integer("MEDIUMINT", expr)
 
-    def format_data_type_mariadb_int(self, data_type: MariaDBIntType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_int(self, expr: MariaDBIntType) -> Tuple[str, tuple]:
         """``INT`` — 4 bytes, ``-2147483648``..``2147483647`` / ``0``..``4294967295``."""
-        return self._format_mariadb_integer("INT", data_type)
+        return self._format_mariadb_integer("INT", expr)
 
-    def format_data_type_mariadb_bigint(self, data_type: MariaDBBigIntType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_bigint(self, expr: MariaDBBigIntType) -> Tuple[str, tuple]:
         """``BIGINT`` — 8 bytes, the full signed and unsigned 64-bit ranges."""
-        return self._format_mariadb_integer("BIGINT", data_type)
+        return self._format_mariadb_integer("BIGINT", expr)
 
-    def format_data_type_mariadb_tinyblob(self, data_type: MariaDBTinyBlobType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_tinyblob(self, expr: MariaDBTinyBlobType) -> Tuple[str, tuple]:
         return "TINYBLOB", ()
 
-    def format_data_type_mariadb_blob(self, data_type: MariaDBBlobType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_blob(self, expr: MariaDBBlobType) -> Tuple[str, tuple]:
         return "BLOB", ()
 
-    def format_data_type_mariadb_mediumblob(self, data_type: MariaDBMediumBlobType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_mediumblob(self, expr: MariaDBMediumBlobType) -> Tuple[str, tuple]:
         return "MEDIUMBLOB", ()
 
-    def format_data_type_mariadb_longblob(self, data_type: MariaDBLongBlobType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_longblob(self, expr: MariaDBLongBlobType) -> Tuple[str, tuple]:
         return "LONGBLOB", ()
 
-    def format_data_type_mariadb_tinytext(self, data_type: MariaDBTinyTextType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_tinytext(self, expr: MariaDBTinyTextType) -> Tuple[str, tuple]:
         return "TINYTEXT", ()
 
-    def format_data_type_mariadb_text(self, data_type: MariaDBTextType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_text(self, expr: MariaDBTextType) -> Tuple[str, tuple]:
         return "TEXT", ()
 
-    def format_data_type_mariadb_mediumtext(self, data_type: MariaDBMediumTextType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_mediumtext(self, expr: MariaDBMediumTextType) -> Tuple[str, tuple]:
         return "MEDIUMTEXT", ()
 
-    def format_data_type_mariadb_longtext(self, data_type: MariaDBLongTextType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_longtext(self, expr: MariaDBLongTextType) -> Tuple[str, tuple]:
         return "LONGTEXT", ()
 
-    def format_data_type_mariadb_bit(self, data_type: MariaDBBitType) -> Tuple[str, tuple]:
-        if data_type.n is not None:
-            return f"BIT({data_type.n})", ()
+    def format_data_type_mariadb_bit(self, expr: MariaDBBitType) -> Tuple[str, tuple]:
+        if expr.n is not None:
+            return f"BIT({expr.n})", ()
         return "BIT", ()
 
-    def format_data_type_mariadb_year(self, data_type: MariaDBYearType) -> Tuple[str, tuple]:
-        if data_type.display_width is not None:
-            return f"YEAR({data_type.display_width})", ()
+    def format_data_type_mariadb_year(self, expr: MariaDBYearType) -> Tuple[str, tuple]:
+        if expr.display_width is not None:
+            return f"YEAR({expr.display_width})", ()
         return "YEAR", ()
 
-    def format_data_type_mariadb_binary(self, data_type: MariaDBBinaryType) -> Tuple[str, tuple]:
-        if data_type.length is not None:
-            return f"BINARY({data_type.length})", ()
+    def format_data_type_mariadb_binary(self, expr: MariaDBBinaryType) -> Tuple[str, tuple]:
+        if expr.length is not None:
+            return f"BINARY({expr.length})", ()
         return "BINARY", ()
 
-    def format_data_type_mariadb_uuid(self, data_type: MariaDBUUIDType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_uuid(self, expr: MariaDBUUIDType) -> Tuple[str, tuple]:
         """``UUID`` — MariaDB's native type, available from 10.7.
 
         Not ``BINARY(16)``: the native type stores values byte-swapped so UUIDv1
@@ -363,7 +363,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             )
         return "UUID", ()
 
-    def format_data_type_mariadb_xml(self, data_type: MariaDBXmlType) -> Tuple[str, tuple]:
+    def format_data_type_mariadb_xml(self, expr: MariaDBXmlType) -> Tuple[str, tuple]:
         """``XMLTYPE`` — MariaDB's native XML column type, available from 12.3.
 
         Not ``TEXT``, which is what this backend substituted before 12.3 and
@@ -399,37 +399,37 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             )
         return "XMLTYPE", ()
 
-    def format_data_type_mariadb_varbinary(self, data_type: MariaDBVarBinaryType) -> Tuple[str, tuple]:
-        if data_type.length is not None:
-            return f"VARBINARY({data_type.length})", ()
+    def format_data_type_mariadb_varbinary(self, expr: MariaDBVarBinaryType) -> Tuple[str, tuple]:
+        if expr.length is not None:
+            return f"VARBINARY({expr.length})", ()
         return "VARBINARY", ()
 
-    def format_data_type_enum(self, data_type: EnumType) -> Tuple[str, tuple]:
+    def format_data_type_enum(self, expr: EnumType) -> Tuple[str, tuple]:
         """Render the core ``EnumType``.
 
         MariaDB has a native ENUM, so the generic type is renderable here
         rather than something to substitute. ``MariaDBEnumType`` stays for the
         cases that need the charset and collation this form does not carry.
         """
-        values_str = ",".join(self.format_literal(value) for value in data_type.values)
+        values_str = ",".join(self.format_literal(value) for value in expr.values)
         return f"ENUM({values_str})", ()
 
-    def format_data_type_mariadb_enum(self, data_type: MariaDBEnumType) -> Tuple[str, tuple]:
-        values_str = ",".join(self.format_literal(v) for v in data_type.values)
+    def format_data_type_mariadb_enum(self, expr: MariaDBEnumType) -> Tuple[str, tuple]:
+        values_str = ",".join(self.format_literal(v) for v in expr.values)
         result = f"ENUM({values_str})"
-        if data_type.charset:
-            result += f" CHARACTER SET {data_type.charset}"
-        if data_type.collation:
-            result += f" COLLATE {data_type.collation}"
+        if expr.charset:
+            result += f" CHARACTER SET {expr.charset}"
+        if expr.collation:
+            result += f" COLLATE {expr.collation}"
         return result, ()
 
-    def format_data_type_mariadb_set(self, data_type: MariaDBSetType) -> Tuple[str, tuple]:
-        values_str = ",".join(self.format_literal(v) for v in data_type.values)
+    def format_data_type_mariadb_set(self, expr: MariaDBSetType) -> Tuple[str, tuple]:
+        values_str = ",".join(self.format_literal(v) for v in expr.values)
         result = f"SET({values_str})"
-        if data_type.charset:
-            result += f" CHARACTER SET {data_type.charset}"
-        if data_type.collation:
-            result += f" COLLATE {data_type.collation}"
+        if expr.charset:
+            result += f" CHARACTER SET {expr.charset}"
+        if expr.collation:
+            result += f" COLLATE {expr.collation}"
         return result, ()
 
     def _format_mariadb_spatial(self, sql: str, data_type: MariaDBGeometryType) -> Tuple[str, tuple]:
@@ -462,35 +462,35 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             return f"{sql} REF_SYSTEM_ID={data_type.srid}", ()
         return sql, ()
 
-    def format_data_type_mariadb_geometry(self, data_type: MariaDBGeometryType) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("GEOMETRY", data_type)
+    def format_data_type_mariadb_geometry(self, expr: MariaDBGeometryType) -> Tuple[str, tuple]:
+        return self._format_mariadb_spatial("GEOMETRY", expr)
 
-    def format_data_type_mariadb_point(self, data_type: MariaDBPointType) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("POINT", data_type)
+    def format_data_type_mariadb_point(self, expr: MariaDBPointType) -> Tuple[str, tuple]:
+        return self._format_mariadb_spatial("POINT", expr)
 
-    def format_data_type_mariadb_linestring(self, data_type: MariaDBLineStringType) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("LINESTRING", data_type)
+    def format_data_type_mariadb_linestring(self, expr: MariaDBLineStringType) -> Tuple[str, tuple]:
+        return self._format_mariadb_spatial("LINESTRING", expr)
 
-    def format_data_type_mariadb_polygon(self, data_type: MariaDBPolygonType) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("POLYGON", data_type)
+    def format_data_type_mariadb_polygon(self, expr: MariaDBPolygonType) -> Tuple[str, tuple]:
+        return self._format_mariadb_spatial("POLYGON", expr)
 
-    def format_data_type_mariadb_multipoint(self, data_type: MariaDBMultiPointType) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("MULTIPOINT", data_type)
+    def format_data_type_mariadb_multipoint(self, expr: MariaDBMultiPointType) -> Tuple[str, tuple]:
+        return self._format_mariadb_spatial("MULTIPOINT", expr)
 
-    def format_data_type_mariadb_multilinestring(self, data_type: MariaDBMultiLineStringType) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("MULTILINESTRING", data_type)
+    def format_data_type_mariadb_multilinestring(self, expr: MariaDBMultiLineStringType) -> Tuple[str, tuple]:
+        return self._format_mariadb_spatial("MULTILINESTRING", expr)
 
-    def format_data_type_mariadb_multipolygon(self, data_type: MariaDBMultiPolygonType) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("MULTIPOLYGON", data_type)
+    def format_data_type_mariadb_multipolygon(self, expr: MariaDBMultiPolygonType) -> Tuple[str, tuple]:
+        return self._format_mariadb_spatial("MULTIPOLYGON", expr)
 
     def format_data_type_mariadb_geometrycollection(
-        self, data_type: MariaDBGeometryCollectionType
+        self, expr: MariaDBGeometryCollectionType
     ) -> Tuple[str, tuple]:
-        return self._format_mariadb_spatial("GEOMETRYCOLLECTION", data_type)
+        return self._format_mariadb_spatial("GEOMETRYCOLLECTION", expr)
 
     # --- Core types (pure names) rendered to real MariaDB SQL ---
 
-    def format_data_type_integer(self, data_type: IntegerType) -> Tuple[str, tuple]:
+    def format_data_type_integer(self, expr: IntegerType) -> Tuple[str, tuple]:
         """``INT`` / ``INTEGER`` — the 4-byte signed integer.
 
         Both spellings are accepted because MariaDB accepts both, and its own
@@ -511,10 +511,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(data_type, IntegerType)
-        return self._format_mariadb_integer("INT", data_type)
+        self.check_spelling(expr, IntegerType)
+        return self._format_mariadb_integer("INT", expr)
 
-    def format_data_type_bigint(self, data_type: BigIntType) -> Tuple[str, tuple]:
+    def format_data_type_bigint(self, expr: BigIntType) -> Tuple[str, tuple]:
         """``BIGINT`` / ``INT8`` — both accepted, ``BIGINT`` rendered.
 
         MariaDB's ``BIGINT`` page states plainly that "``INT8`` is a synonym for
@@ -533,10 +533,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(data_type, BigIntType)
-        return self._format_mariadb_integer("BIGINT", data_type)
+        self.check_spelling(expr, BigIntType)
+        return self._format_mariadb_integer("BIGINT", expr)
 
-    def format_data_type_smallint(self, data_type: SmallIntType) -> Tuple[str, tuple]:
+    def format_data_type_smallint(self, expr: SmallIntType) -> Tuple[str, tuple]:
         """``SMALLINT`` / ``INT2`` — both accepted, ``SMALLINT`` rendered.
 
         MariaDB's ``SMALLINT`` page states that "``INT2`` is a synonym for
@@ -554,10 +554,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(data_type, SmallIntType)
-        return self._format_mariadb_integer("SMALLINT", data_type)
+        self.check_spelling(expr, SmallIntType)
+        return self._format_mariadb_integer("SMALLINT", expr)
 
-    def format_data_type_tinyint(self, data_type: TinyIntType) -> Tuple[str, tuple]:
+    def format_data_type_tinyint(self, expr: TinyIntType) -> Tuple[str, tuple]:
         """``TINYINT`` / ``INT1`` — both accepted, ``TINYINT`` rendered.
 
         MariaDB's ``TINYINT`` page lists "``INT1``, ``BOOL``, and ``BOOLEAN``"
@@ -579,10 +579,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(data_type, TinyIntType)
-        return self._format_mariadb_integer("TINYINT", data_type)
+        self.check_spelling(expr, TinyIntType)
+        return self._format_mariadb_integer("TINYINT", expr)
 
-    def format_data_type_varchar(self, data_type: VarCharType) -> Tuple[str, tuple]:
+    def format_data_type_varchar(self, expr: VarCharType) -> Tuple[str, tuple]:
         """``VARCHAR`` / ``CHARACTER VARYING`` — both accepted, ``VARCHAR``
         rendered.
 
@@ -593,10 +593,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         also what makes ``parse_type`` able to read its own output back as
         ``varchar``.
         """
-        self.check_spelling(data_type, VarCharType)
-        return (f"VARCHAR({data_type.length})" if data_type.length is not None else "VARCHAR"), ()
+        self.check_spelling(expr, VarCharType)
+        return (f"VARCHAR({expr.length})" if expr.length is not None else "VARCHAR"), ()
 
-    def format_data_type_char(self, data_type: CharType) -> Tuple[str, tuple]:
+    def format_data_type_char(self, expr: CharType) -> Tuple[str, tuple]:
         """``CHAR`` / ``CHARACTER`` — both accepted, ``CHAR`` rendered.
 
         MariaDB has a ``CHARACTER`` page that says "This is a synonym for
@@ -605,19 +605,19 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         *set* clause (``CHARACTER SET utf8``), which is a different thing and
         not a reason to refuse the type spelling.
         """
-        self.check_spelling(data_type, CharType)
-        return (f"CHAR({data_type.length})" if data_type.length is not None else "CHAR"), ()
+        self.check_spelling(expr, CharType)
+        return (f"CHAR({expr.length})" if expr.length is not None else "CHAR"), ()
 
-    def format_data_type_text(self, data_type: TextType) -> Tuple[str, tuple]:
+    def format_data_type_text(self, expr: TextType) -> Tuple[str, tuple]:
         """``TEXT`` only. MariaDB has no ``CLOB`` type — an unbounded string is a
         ``TEXT``, and the four sized ``*TEXT`` variants are this backend's own
         ``mariadb_tinytext``/``mariadb_mediumtext``/``mariadb_longtext`` classes
         rather than spellings of this one, because the maximum length is part of
         what the column can hold."""
-        self.check_spelling(data_type, ("text",))
+        self.check_spelling(expr, ("text",))
         return "TEXT", ()
 
-    def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
+    def format_data_type_boolean(self, expr: BooleanType) -> Tuple[str, tuple]:
         """MariaDB has no native boolean type: both ``BOOLEAN`` and ``BOOL`` are
         documented synonyms of ``TINYINT``, and the framework writes the
         conventional ``TINYINT(1)`` so that the column's storage width is visible
@@ -627,33 +627,33 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         bare ``TINYINT``, which is why :meth:`format_data_type_tinyint` renders
         the latter without one.
         """
-        self.check_spelling(data_type, BooleanType)
+        self.check_spelling(expr, BooleanType)
         return "TINYINT(1)", ()
 
-    def format_data_type_date(self, data_type: DateType) -> Tuple[str, tuple]:
+    def format_data_type_date(self, expr: DateType) -> Tuple[str, tuple]:
         return "DATE", ()
 
-    def format_data_type_datetime(self, data_type: DateTimeType) -> Tuple[str, tuple]:
-        self._validate_fsp("DATETIME", data_type.precision)
-        return (f"DATETIME({data_type.precision})" if data_type.precision is not None else "DATETIME"), ()
+    def format_data_type_datetime(self, expr: DateTimeType) -> Tuple[str, tuple]:
+        self._validate_fsp("DATETIME", expr.precision)
+        return (f"DATETIME({expr.precision})" if expr.precision is not None else "DATETIME"), ()
 
-    def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
-        self._validate_fsp("TIME", data_type.precision)
-        return (f"TIME({data_type.precision})" if data_type.precision is not None else "TIME"), ()
+    def format_data_type_time(self, expr: TimeType) -> Tuple[str, tuple]:
+        self._validate_fsp("TIME", expr.precision)
+        return (f"TIME({expr.precision})" if expr.precision is not None else "TIME"), ()
 
-    def format_data_type_timetz(self, data_type: TimeTzType) -> Tuple[str, tuple]:
-        self._validate_fsp("TIME", data_type.precision)
-        return (f"TIME({data_type.precision})" if data_type.precision is not None else "TIME"), ()
+    def format_data_type_timetz(self, expr: TimeTzType) -> Tuple[str, tuple]:
+        self._validate_fsp("TIME", expr.precision)
+        return (f"TIME({expr.precision})" if expr.precision is not None else "TIME"), ()
 
-    def format_data_type_timestamp(self, data_type: TimestampType) -> Tuple[str, tuple]:
-        self._validate_fsp("TIMESTAMP", data_type.precision)
-        return (f"TIMESTAMP({data_type.precision})" if data_type.precision is not None else "TIMESTAMP"), ()
+    def format_data_type_timestamp(self, expr: TimestampType) -> Tuple[str, tuple]:
+        self._validate_fsp("TIMESTAMP", expr.precision)
+        return (f"TIMESTAMP({expr.precision})" if expr.precision is not None else "TIMESTAMP"), ()
 
-    def format_data_type_timestamptz(self, data_type: TimestampTzType) -> Tuple[str, tuple]:
-        self._validate_fsp("TIMESTAMP", data_type.precision)
-        return (f"TIMESTAMP({data_type.precision})" if data_type.precision is not None else "TIMESTAMP"), ()
+    def format_data_type_timestamptz(self, expr: TimestampTzType) -> Tuple[str, tuple]:
+        self._validate_fsp("TIMESTAMP", expr.precision)
+        return (f"TIMESTAMP({expr.precision})" if expr.precision is not None else "TIMESTAMP"), ()
 
-    def format_data_type_float(self, data_type: FloatType) -> Tuple[str, tuple]:
+    def format_data_type_float(self, expr: FloatType) -> Tuple[str, tuple]:
         """``FLOAT`` only; ``unsigned`` honoured in MariaDB's documented slot.
 
         The FLOAT page gives the declaration as ``FLOAT[(M,D)] [SIGNED |
@@ -700,18 +700,18 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         :raises ValueError: if ``precision`` is set — see above for the two
             ranges and the class to declare for each.
         """
-        if data_type.precision is not None:
+        if expr.precision is not None:
             raise ValueError(
                 "MariaDB cannot round-trip FLOAT(p): the catalog records FLOAT "
                 "without p, and p chooses the storage class. p 0..24 creates "
                 "single-precision FLOAT storage — declare FloatType(dialect) "
                 "with no precision; p 25..53 creates double-precision DOUBLE "
                 f"storage — declare DoubleType(dialect). "
-                f"Got precision={data_type.precision}."
+                f"Got precision={expr.precision}."
             )
-        return self._format_mariadb_integer("FLOAT", data_type)
+        return self._format_mariadb_integer("FLOAT", expr)
 
-    def format_data_type_double(self, data_type: DoubleType) -> Tuple[str, tuple]:
+    def format_data_type_double(self, expr: DoubleType) -> Tuple[str, tuple]:
         """``DOUBLE`` — both core spellings accepted, ``unsigned`` honoured
         through :meth:`_format_mariadb_integer`.
 
@@ -740,10 +740,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         rejects ``-1`` with 1264.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/double
         """
-        self.check_spelling(data_type, DoubleType)
-        return self._format_mariadb_integer("DOUBLE", data_type)
+        self.check_spelling(expr, DoubleType)
+        return self._format_mariadb_integer("DOUBLE", expr)
 
-    def format_data_type_decimal(self, data_type: DecimalType) -> Tuple[str, tuple]:
+    def format_data_type_decimal(self, expr: DecimalType) -> Tuple[str, tuple]:
         """``DECIMAL`` — MariaDB's manual states that ``NUMERIC`` and ``DEC`` are
         synonyms of ``DECIMAL``, so all three spellings are accepted and the
         canonical short form is what gets written.
@@ -777,38 +777,38 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         whole attribute slot and explains why one method serves the integers and
         these four numerics alike.
         """
-        self.check_spelling(data_type, DecimalType)
-        if data_type.precision is not None and not 1 <= data_type.precision <= 65:
+        self.check_spelling(expr, DecimalType)
+        if expr.precision is not None and not 1 <= expr.precision <= 65:
             raise ValueError(
                 f"MariaDB DECIMAL precision must be between 1 and 65, "
-                f"got {data_type.precision}."
+                f"got {expr.precision}."
             )
-        if data_type.scale is not None and not 0 <= data_type.scale <= 30:
+        if expr.scale is not None and not 0 <= expr.scale <= 30:
             raise ValueError(
                 f"MariaDB DECIMAL scale must be between 0 and 30, "
-                f"got {data_type.scale}."
+                f"got {expr.scale}."
             )
-        if (data_type.precision is not None and data_type.scale is not None
-                and data_type.scale > data_type.precision):
+        if (expr.precision is not None and expr.scale is not None
+                and expr.scale > expr.precision):
             raise ValueError(
-                f"MariaDB DECIMAL scale ({data_type.scale}) cannot exceed "
-                f"precision ({data_type.precision})."
+                f"MariaDB DECIMAL scale ({expr.scale}) cannot exceed "
+                f"precision ({expr.precision})."
             )
-        if data_type.precision is not None and data_type.scale is not None:
-            base = f"DECIMAL({data_type.precision}, {data_type.scale})"
-        elif data_type.precision is not None:
-            base = f"DECIMAL({data_type.precision})"
+        if expr.precision is not None and expr.scale is not None:
+            base = f"DECIMAL({expr.precision}, {expr.scale})"
+        elif expr.precision is not None:
+            base = f"DECIMAL({expr.precision})"
         else:
             base = "DECIMAL"
-        return self._format_mariadb_integer(base, data_type)
+        return self._format_mariadb_integer(base, expr)
 
-    def format_data_type_json(self, data_type: JsonType) -> Tuple[str, tuple]:
+    def format_data_type_json(self, expr: JsonType) -> Tuple[str, tuple]:
         return "JSON", ()
 
-    def format_data_type_jsonb(self, data_type: JsonBType) -> Tuple[str, tuple]:
+    def format_data_type_jsonb(self, expr: JsonBType) -> Tuple[str, tuple]:
         return "JSON", ()
 
-    def format_data_type_blob(self, data_type: BlobType) -> Tuple[str, tuple]:
+    def format_data_type_blob(self, expr: BlobType) -> Tuple[str, tuple]:
         """``BLOB`` only. ``BYTEA`` is PostgreSQL's name for the same unbounded
         byte storage; MariaDB writes ``BLOB`` and the four sized ``*BLOB``
         variants are this backend's own classes rather than spellings, because
@@ -819,11 +819,11 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``VARBINARY(n)`` is not, so the substitution would be a different
         storage, not a different name for the same one.
         """
-        self.check_spelling(data_type, ("blob",))
+        self.check_spelling(expr, ("blob",))
         return "BLOB", ()
 
-    def format_data_type_custom(self, data_type: CustomType) -> Tuple[str, tuple]:
-        return data_type.raw, ()
+    def format_data_type_custom(self, expr: CustomType) -> Tuple[str, tuple]:
+        return expr.raw, ()
 
     # ------------------------------------------------------------------
     # DataTypeSupport — per-type support declarations
@@ -911,10 +911,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return self.version_at_least(MARIADB_VERSION_BOUNDARIES["UUID"])
 
-    def format_data_type_uuid(self, data_type: UUIDType) -> Tuple[str, tuple]:
+    def format_data_type_uuid(self, expr: UUIDType) -> Tuple[str, tuple]:
         """``UUID`` — see :meth:`format_data_type_mariadb_uuid` for the gate and
         for why this is not the pre-10.7 ``BINARY(16)`` emulation."""
-        return self.format_data_type_mariadb_uuid(data_type)
+        return self.format_data_type_mariadb_uuid(expr)
 
     def supports_data_type_mariadb_xml(self) -> bool:
         """Whether this server has the native ``XMLTYPE`` column type (12.3+).

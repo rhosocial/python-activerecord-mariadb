@@ -137,14 +137,14 @@ class TestSpatialLiteralFormatting:
     def test_format_spatial_literal(self):
         """Test spatial literal formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_spatial_literal("POINT(1 1)")
+        sql, params = dialect._format_spatial_literal_parts("POINT(1 1)")
         assert "ST_GeomFromText" in sql
         assert params == ("POINT(1 1)",)
 
     def test_format_spatial_literal_with_srid(self):
         """Test spatial literal formatting with SRID."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_spatial_literal("POINT(1 1)", srid=4326)
+        sql, params = dialect._format_spatial_literal_parts("POINT(1 1)", srid=4326)
         assert "ST_GeomFromText" in sql
         assert 4326 in params
 
@@ -198,13 +198,13 @@ class TestSpatialFunctionFormatting:
     def test_format_st_distance_sphere(self):
         """Test ST_Distance_Sphere formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_distance_sphere("geom1", "geom2")
+        sql, params = dialect._format_st_distance_sphere_parts("geom1", "geom2")
         assert "ST_Distance_Sphere" in sql
 
     def test_format_st_intersects(self):
         """Test ST_Intersects formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_intersects("geom1", "geom2")
+        sql, params = dialect._format_st_intersects_parts("geom1", "geom2")
         assert "ST_Intersects" in sql
 
 
@@ -214,7 +214,7 @@ class TestSpatialIndexFormatting:
     def test_format_create_spatial_index(self):
         """Test CREATE SPATIAL INDEX formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_create_spatial_index("idx_spatial", "test_table", "geom_col")
+        sql, params = dialect._format_create_spatial_index_parts("idx_spatial", "test_table", "geom_col")
         assert "SPATIAL INDEX" in sql
         assert "idx_spatial" in sql
         assert "test_table" in sql
@@ -224,5 +224,5 @@ class TestSpatialIndexFormatting:
         """Test CREATE SPATIAL INDEX raises error for unsupported version."""
         # MariaDB always supports spatial index, so this should not raise
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_create_spatial_index("idx_spatial", "test_table", "geom_col")
+        sql, params = dialect._format_create_spatial_index_parts("idx_spatial", "test_table", "geom_col")
         assert "SPATIAL INDEX" in sql
