@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/suggestion/data_types.py
+# src/rhosocial/activerecord/backend/impl/mariadb/suggestion/data_type_suggestions.py
 """MariaDB's **suggested data types**: what a bare field is declared as here.
 
 The DDL half of the type answer; :mod:`.column_type` is the operation half.
@@ -47,10 +47,11 @@ from rhosocial.activerecord.backend.expression.types import (
     DoubleType,
     JsonType,
     TextType,
-    TimeType,
     TimestampType,
+    TimeType,
     VarCharType,
 )
+
 from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
     MariaDBBlobType,
     MariaDBGeometryType,

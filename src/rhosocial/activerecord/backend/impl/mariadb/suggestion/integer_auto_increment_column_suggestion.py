@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/suggestion/integer_auto_increment.py
+# src/rhosocial/activerecord/backend/impl/mariadb/suggestion/integer_auto_increment_column_suggestion.py
 """MariaDBIntegerAutoIncrementColumnSuggestionMixin -- mariadb's integer auto-increment column suggestion.
 
 The answer is the backend's own spelling, assembled from its capability

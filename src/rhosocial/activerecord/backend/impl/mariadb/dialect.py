@@ -198,7 +198,14 @@ from .mixins import (
 from .suggestion import (
     MariaDBDataTypeSuggestionsMixin,
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
-    MariaDBPartitionSuggestionMixin,
+    MariaDBPartitionAddSuggestionMixin,
+    MariaDBPartitionBuildSuggestionMixin,
+    MariaDBPartitionDropSuggestionMixin,
+    MariaDBPartitionMergeSuggestionMixin,
+    MariaDBPartitionRetentionSuggestionMixin,
+    MariaDBPartitionSplitSuggestionMixin,
+    MariaDBPartitionTableAlterSuggestionMixin,
+    MariaDBPartitionTableDropSuggestionMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -236,8 +243,17 @@ if TYPE_CHECKING:
 
 
 class MariaDBDialect(
-    # Backend suggestions first: no core mixin may shadow their answers.
-    MariaDBPartitionSuggestionMixin,
+    # Backend suggestions first: no core mixin may shadow their answers. Each
+    # partition suggestion point is its own mixin; they all share one base,
+    # listed last among them so C3 linearisation stays unambiguous.
+    MariaDBPartitionBuildSuggestionMixin,
+    MariaDBPartitionAddSuggestionMixin,
+    MariaDBPartitionDropSuggestionMixin,
+    MariaDBPartitionRetentionSuggestionMixin,
+    MariaDBPartitionTableDropSuggestionMixin,
+    MariaDBPartitionTableAlterSuggestionMixin,
+    MariaDBPartitionSplitSuggestionMixin,
+    MariaDBPartitionMergeSuggestionMixin,
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
     # The bases below come in bundles: a backend mixin, then the core bundle
     # it stands in for. The backend's answer has to come first -- a mixin
