@@ -761,7 +761,7 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
     try:
         await backend.connect()
         # Same reason as the sync half: the dialect must know the server
-        # before a capability switch -- or a formatter -- can answer.
+        # before a support switch -- or a formatter -- can answer.
         await backend.introspect_and_adapt()
         _require_capability(args, backend)
 

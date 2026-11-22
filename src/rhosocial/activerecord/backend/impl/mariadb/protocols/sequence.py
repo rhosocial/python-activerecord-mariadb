@@ -2,7 +2,7 @@
 """MariaDB SEQUENCE protocol.
 
 MariaDB 10.3+ supports SEQUENCE objects. This protocol restates every
-capability switch core declares for sequences, so the dialect's answers are
+support switch core declares for sequences, so the dialect's answers are
 declared in one place:
 
 - ``START WITH`` / ``INCREMENT BY`` / ``MINVALUE`` / ``MAXVALUE`` / ``CACHE`` /

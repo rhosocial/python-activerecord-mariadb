@@ -131,7 +131,7 @@ class MariaDBJSONTableExpression(BaseExpression):
                 raise TypeError(f"nested_paths must contain NestedPath, got {type(nested)}")
 
     def to_sql(self):
-        """Generate SQL by delegating to dialect's format method.
+        """Generate SQL by delegating to dialect's format function.
 
         Returns:
             Tuple of (SQL string, parameters tuple)

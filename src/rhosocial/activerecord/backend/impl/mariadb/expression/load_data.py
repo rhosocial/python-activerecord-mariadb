@@ -111,7 +111,7 @@ class MariaDBLoadDataStatement(BaseExpression):
             raise ValueError("Cannot use both REPLACE and IGNORE in LOAD DATA")
 
     def to_sql(self):
-        """Generate SQL by delegating to dialect's format method.
+        """Generate SQL by delegating to dialect's format function.
 
         Returns:
             Tuple of (SQL string, parameters tuple)
