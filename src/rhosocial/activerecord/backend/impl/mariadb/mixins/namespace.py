@@ -22,8 +22,8 @@ MariaDB now names them: it lists a database and nothing else, and joining a
 schema onto the name is left to ``validate_namespace`` to refuse.
 
 The rendering half used to be unreachable from here. Every object kind carries
-its own ``format_<kind>_object`` -- supplied by core's ``TableNameMixin``,
-``IndexNameMixin`` and the rest -- and those ask this mixin for the levels.
+its own ``format_<kind>_object`` -- supplied by core's ``TableObjectMixin``,
+``IndexObjectMixin`` and the rest -- and those ask this mixin for the levels.
 
 The inner one is absent on purpose. ``supports_schema_qualification`` is left
 at core's ``False``, and ``format_qualified_name`` below never reads

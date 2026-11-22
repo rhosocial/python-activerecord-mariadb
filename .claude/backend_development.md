@@ -312,12 +312,12 @@ declares is the contract a third-party dialect must satisfy.
 | `IntrospectionSupport` | `IntrospectionMixin` | Catalogue queries |
 | `PivotSupport` | `PivotMixin` | PIVOT / UNPIVOT |
 | `GeneratedColumnSupport` | `GeneratedColumnMixin` | Generated columns |
-| `AutoIncrementColumnSupport` | `AutoIncrementMixin` | Parameterless `AUTO_INCREMENT` marker |
+| `AutoIncrementColumnSupport` | `AutoIncrementColumnMixin` | Parameterless `AUTO_INCREMENT` marker |
 | `IdentityColumnSupport` | `IdentityColumnMixin` | Standard `GENERATED ... AS IDENTITY` clause |
 | `ColumnAttributeSupport` | `DDLColumnMixin` | Per-column attributes |
 | `ConstraintSupport` | `ConstraintMixin` | Table and column constraints |
 | `PartitionSupport` | `PartitionMixin` | Table partitioning |
-| `CommentSupport` | `CommentOnMixin` | COMMENT ON |
+| `CommentSupport` | `CommentMixin` | COMMENT ON |
 | `DateTimeSupport` | `DateTimeMixin` | Temporal expressions |
 | `DqlOrderSupport` | `DQLMixin` | ORDER BY / LIMIT / OFFSET |
 
@@ -366,16 +366,16 @@ what lets a statement hold a `Table` as an ordinary child:
 
 | Protocol | Mixin | Description |
 |----------|-------|-------------|
-| `TableObjectSupport` | `TableNameMixin` | How a table is named |
-| `ViewObjectSupport` | `ViewNameMixin` | How a view is named |
-| `MaterializedViewObjectSupport` | `MaterializedViewNameMixin` | How a materialized view is named |
-| `ForeignTableObjectSupport` | `ForeignTableNameMixin` | How a foreign table is named |
-| `IndexObjectSupport` | `IndexNameMixin` | How an index is named |
-| `SequenceObjectSupport` | `SequenceNameMixin` | How a sequence is named |
-| `TriggerObjectSupport` | `TriggerNameMixin` | How a trigger is named |
-| `RoutineObjectSupport` | `FunctionNameMixin` / `ProcedureNameMixin` | How a routine is named |
-| `TypeObjectSupport` | `TypeNameMixin` / `DomainNameMixin` | How a type or domain is named |
-| `SynonymObjectSupport` | `SynonymNameMixin` | How a synonym is named |
+| `TableObjectSupport` | `TableObjectMixin` | How a table is named |
+| `ViewObjectSupport` | `ViewObjectMixin` | How a view is named |
+| `MaterializedViewObjectSupport` | `MaterializedViewObjectMixin` | How a materialized view is named |
+| `ForeignTableObjectSupport` | `ForeignTableObjectMixin` | How a foreign table is named |
+| `IndexObjectSupport` | `IndexObjectMixin` | How an index is named |
+| `SequenceObjectSupport` | `SequenceObjectMixin` | How a sequence is named |
+| `TriggerObjectSupport` | `TriggerObjectMixin` | How a trigger is named |
+| `RoutineObjectSupport` | `RoutineObjectMixin` / `RoutineObjectMixin` | How a routine is named |
+| `TypeObjectSupport` | `TypeObjectMixin` / `TypeObjectMixin` | How a type or domain is named |
+| `SynonymObjectSupport` | `SynonymObjectMixin` | How a synonym is named |
 | `NamespaceSupport` | `NamespaceMixin` | Which levels a name may carry, and how they are spelled |
 
 `NamespaceSupport` is where a dialect says it has one namespace level and not

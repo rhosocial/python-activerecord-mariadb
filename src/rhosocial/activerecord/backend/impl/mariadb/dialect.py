@@ -98,7 +98,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     # The formatters for the two identity mechanisms; MariaDB's own answers
     # for their probes live on MariaDBGeneratedColumnMixin, which precedes
     # these in the MRO.
-    AutoIncrementMixin,
+    AutoIncrementColumnMixin,
     IdentityColumnMixin,
     ViewMixin,
     FunctionMixin,
@@ -126,18 +126,16 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     # object, placed ahead of NamespaceMixin so that C3 keeps the per-kind
     # formatter in front of the shared namespace prefix. MariaDB's spelling
     # differs from none of them, so none of them is overridden here.
-    TableNameMixin,
-    ViewNameMixin,
-    MaterializedViewNameMixin,
-    ForeignTableNameMixin,
-    IndexNameMixin,
-    SequenceNameMixin,
-    TriggerNameMixin,
-    FunctionNameMixin,
-    ProcedureNameMixin,
-    TypeNameMixin,
-    DomainNameMixin,
-    SynonymNameMixin,
+    TableObjectMixin,
+    ViewObjectMixin,
+    MaterializedViewObjectMixin,
+    ForeignTableObjectMixin,
+    IndexObjectMixin,
+    SequenceObjectMixin,
+    TriggerObjectMixin,
+    RoutineObjectMixin,
+    TypeObjectMixin,
+    SynonymObjectMixin,
     SchemaNameMixin,
     DatabaseNameMixin,
     PropertyGraphNameMixin,
@@ -283,18 +281,16 @@ class MariaDBDialect(
     # by core's `SchemaMixin`: MariaDB's `CREATE SCHEMA` is a synonym for
     # `CREATE DATABASE` rather than a second namespace layer, so the DDL
     # switch answers False too.
-    TableNameMixin,
-    ViewNameMixin,
-    MaterializedViewNameMixin,
-    ForeignTableNameMixin,
-    IndexNameMixin,
-    SequenceNameMixin,
-    TriggerNameMixin,
-    FunctionNameMixin,
-    ProcedureNameMixin,
-    TypeNameMixin,
-    DomainNameMixin,
-    SynonymNameMixin,
+    TableObjectMixin,
+    ViewObjectMixin,
+    MaterializedViewObjectMixin,
+    ForeignTableObjectMixin,
+    IndexObjectMixin,
+    SequenceObjectMixin,
+    TriggerObjectMixin,
+    RoutineObjectMixin,
+    TypeObjectMixin,
+    SynonymObjectMixin,
     SchemaNameMixin,
     DatabaseNameMixin,
     PropertyGraphNameMixin,
@@ -381,7 +377,7 @@ class MariaDBDialect(
     # The formatters for the two identity mechanisms; MariaDB's own answers
     # for their probes live on MariaDBGeneratedColumnMixin, which precedes
     # these in the MRO.
-    AutoIncrementMixin,
+    AutoIncrementColumnMixin,
     IdentityColumnMixin,
     ViewMixin,
     FunctionMixin,
