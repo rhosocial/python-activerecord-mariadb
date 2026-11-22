@@ -58,16 +58,28 @@ def get_own_protocol_methods(proto: type) -> set:
     Used for forward coverage: only checks methods the protocol itself declares,
     since parent protocol methods are typically implemented by generic mixins.
     """
+    # Python 3.8-3.11 copy inherited Protocol members into the subclass's own
+    # ``__dict__`` / ``__annotations__``. Subtract everything any base declares
+    # so the "declared directly" member set matches 3.12+'s
+    # ``get_protocol_members`` -- otherwise a base-level member such as
+    # ``NamespaceSupport.separator`` is mistaken for one this protocol
+    # introduced, and its mixin is blamed for not implementing it.
+    inherited = set()
+    for base in getattr(proto, "__mro__", ())[1:]:
+        inherited.update(
+            k for k in getattr(base, "__annotations__", {})
+            if not k.startswith("_")
+        )
     members = set()
     for name in proto.__dict__:
-        if name.startswith("_"):
+        if name.startswith("_") or name in inherited:
             continue
         val = proto.__dict__[name]
         if callable(val) or isinstance(val, (property, classmethod, staticmethod)):
             members.add(name)
     members.update(
         k for k in getattr(proto, "__annotations__", {})
-        if not k.startswith("_")
+        if not k.startswith("_") and k not in inherited
     )
     return members
 
