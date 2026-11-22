@@ -20,6 +20,11 @@ MariaDB version-specific features:
 
 from typing import Dict, Optional, Tuple, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.suggestion.definitions import (
+    SubstituteAdviceSuggestion,
+    SubstituteTypeSuggestion,
+)
+
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
     # Named-object protocols: how each kind of catalogue entry is spelled.
@@ -110,6 +115,10 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    # The two members ColumnAttributeSupport gained in core no longer come
+    # from DDLColumnMixin; compose core's standalone mixin so the dialect keeps
+    # satisfying the protocol it claims.
+    ColumnAttributeMixin,
     UserDefinedTypeMixin,
     DomainMixin,
     TransactionControlMixin,
@@ -320,10 +329,11 @@ class MariaDBDialect(
     MariaDBDataTypeSuggestionsMixin,
     MariaDBTypeSupportMixin,
     # The column-side type table — which column class each common Python
-    # type means on this server. It derives from core's `ColumnTypeMixin`, so
-    # it belongs with the MariaDB mixins that own an answer rather than in the
-    # group of core mixins that only supply a fallback: core's copy must never
-    # sit in the MRO ahead of this one.
+    # type means on this server. It is standalone (core deleted ColumnTypeMixin
+    # in favour of the suggest_column_types protocol), so it belongs with the
+    # MariaDB mixins that own an answer rather than in the group of core mixins
+    # that only supply a fallback: core's copy must never sit in the MRO ahead
+    # of this one.
     MariaDBColumnTypeMixin,
     MariaDBAlterColumnModifierMixin,
     MariaDBAlterConstraintModifierMixin,
@@ -388,6 +398,10 @@ class MariaDBDialect(
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    # The two members ColumnAttributeSupport gained in core no longer come
+    # from DDLColumnMixin; compose core's standalone mixin so the dialect keeps
+    # satisfying the protocol it claims.
+    ColumnAttributeMixin,
     UserDefinedTypeMixin,
     DomainMixin,
     TransactionControlMixin,
@@ -588,7 +602,7 @@ class MariaDBDialect(
 
     # region Type protocol
 
-    def substitute_advice(self, name: str) -> str:
+    def suggest_substitute_advice(self, name: str) -> SubstituteAdviceSuggestion:
         """State what a MariaDB substitution gives up, in the caller's error.
 
         ``real`` is the one entry with something to add: MariaDB's ``REAL`` is
@@ -599,7 +613,7 @@ class MariaDBDialect(
         really have.
         """
         if name == "real":
-            return (
+            return SubstituteAdviceSuggestion(advice=(
                 "MariaDB's ``REAL`` is a synonym for ``DOUBLE`` in the default "
                 "SQL mode (the DOUBLE page groups ``DOUBLE``, ``DOUBLE "
                 "PRECISION`` and ``REAL`` together); only under the "
@@ -609,10 +623,10 @@ class MariaDBDialect(
                 "``information_schema``, so the single-precision concept cannot "
                 "round-trip. Declare ``DoubleType``, or ``FloatType`` for "
                 "4-byte single precision."
-            )
-        return ""
+            ))
+        return SubstituteAdviceSuggestion(advice="")
 
-    def substitute_data_types(self) -> Dict[str, type]:
+    def suggest_substitute_types(self) -> SubstituteTypeSuggestion:
         """What MariaDB stores for each core concept it cannot spell.
 
         A concept MariaDB genuinely has is **rendered**, not suggested — the
@@ -649,7 +663,7 @@ class MariaDBDialect(
             ``DoubleType`` on a default server and as a ``FloatType`` under the
             mode. The substitute is ``DoubleType`` — the storage the default
             server builds — and ``FloatType`` is what to declare when 4-byte
-            single precision is what was meant. :meth:`substitute_advice`
+            single precision is what was meant. :meth:`suggest_substitute_advice`
             carries that sentence into the caller's error.
 
         ``binary`` / ``varbinary``
@@ -744,7 +758,7 @@ class MariaDBDialect(
         # substitute here would be a second, contradictory answer.
         if self.version < MARIADB_VERSION_BOUNDARIES["UUID"]:
             substitutes["uuid"] = MariaDBBinaryType
-        return substitutes
+        return SubstituteTypeSuggestion(mapping=substitutes)
 
     # endregion
 

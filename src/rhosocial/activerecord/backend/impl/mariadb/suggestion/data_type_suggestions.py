@@ -32,6 +32,11 @@ import enum
 import uuid
 from typing import Any, Dict, Optional
 
+from rhosocial.activerecord.backend.suggestion.definitions import (
+    DataTypeSuggestion,
+    ExtraDataTypeSuggestion,
+)
+
 from rhosocial.activerecord.backend.adapters import (
     BitString,
     Geometry,
@@ -98,14 +103,18 @@ MARIADB_DATA_TYPE_SUGGESTIONS: Dict[Any, Optional[Any]] = {
 class MariaDBDataTypeSuggestionsMixin:
     """MariaDB's answer to "what declaration does a bare field get here"."""
 
-    def suggested_data_types(self) -> Dict[Any, Optional[Any]]:
+    def suggest_data_types(self) -> DataTypeSuggestion:
         table = dict(MARIADB_DATA_TYPE_SUGGESTIONS)
         version = getattr(self, "_version", None)
         if version is not None and tuple(version) < (10, 7):
             # The server has no UUID type before 10.7; its text form is the
             # storage every version accepts.
             table[uuid.UUID] = VarCharType(length=36)
-        return table
+        return DataTypeSuggestion(table=table)
+
+    def suggest_extra_data_types(self) -> ExtraDataTypeSuggestion:
+        """No backend-owned value types beyond the framework's own list."""
+        return ExtraDataTypeSuggestion(table={})
 
 
 __all__ = ["MARIADB_DATA_TYPE_SUGGESTIONS", "MariaDBDataTypeSuggestionsMixin"]

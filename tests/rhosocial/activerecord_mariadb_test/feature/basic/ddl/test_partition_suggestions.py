@@ -8,7 +8,7 @@ expressions must be MariaDB-owned nodes that render through the dialect.
 
 import dataclasses
 
-from rhosocial.activerecord.backend.dialect.protocols import (
+from rhosocial.activerecord.backend.suggestion.protocols import (
     PartitionAddSuggestionSupport,
     PartitionBuildSuggestionSupport,
     PartitionDropSuggestionSupport,
@@ -38,8 +38,8 @@ from rhosocial.activerecord.backend.suggestion import (
     PartitionSplitSuggestion,
     PartitionTableAlterSuggestion,
     PartitionTableDropSuggestion,
-    PartitionSuggestionRenderer,
 )
+from rhosocial.activerecord.base.derivation import partition_suggestion_operations
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBAddPartitionExpression,
@@ -284,9 +284,10 @@ def test_false_states_are_explicit_for_unsupported_strategies():
 def test_renderer_parts_collect_the_real_expressions():
     dialect = _dialect()
     plan = _plan(dialect)
-    renderer = PartitionSuggestionRenderer()
     for name, _, _, intent in POINTS:
-        result = renderer.parts(dialect, intent, _strategy(dialect, "RANGE"), plan)
+        result = partition_suggestion_operations(
+            dialect, intent, _strategy(dialect, "RANGE"), plan
+        )
         if name == "merge":
             assert result is None
             continue

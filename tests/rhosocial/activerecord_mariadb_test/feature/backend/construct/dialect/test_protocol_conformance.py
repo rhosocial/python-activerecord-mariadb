@@ -18,6 +18,7 @@ elif sys.version_info >= (3, 12):
 
 import pytest
 from rhosocial.activerecord.backend.dialect import protocols as dialect_protocols
+from rhosocial.activerecord.backend.suggestion import protocols as suggestion_protocols
 from rhosocial.activerecord.backend.impl.mariadb import dialect as mariadb_dialect
 from rhosocial.activerecord.backend.impl.mariadb import mixins as mysql_mixins
 from rhosocial.activerecord.backend.impl.mariadb import protocols as mariadb_protocols
@@ -90,7 +91,7 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.CTESupport,
     dialect_protocols.CollationSupport,
     dialect_protocols.ColumnAttributeSupport,
-    dialect_protocols.ColumnTypeSupport,
+    suggestion_protocols.ColumnTypeSuggestionSupport,
     dialect_protocols.DataTypeSupport,
     dialect_protocols.TimestampSupport,
     dialect_protocols.DqlOrderSupport,
@@ -129,17 +130,17 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.AutoIncrementColumnSupport,
     dialect_protocols.DatabaseAssignedColumnSupport,
     dialect_protocols.IdentityColumnSupport,
-    dialect_protocols.IntegerAutoIncrementColumnSuggestionSupport,
+    suggestion_protocols.IntegerAutoIncrementColumnSuggestionSupport,
     # The eight partition lifecycle suggestions are answered by
     # backend.impl.mariadb.suggestion; the dialect satisfies every one.
-    dialect_protocols.PartitionBuildSuggestionSupport,
-    dialect_protocols.PartitionAddSuggestionSupport,
-    dialect_protocols.PartitionDropSuggestionSupport,
-    dialect_protocols.PartitionRetentionSuggestionSupport,
-    dialect_protocols.PartitionTableDropSuggestionSupport,
-    dialect_protocols.PartitionTableAlterSuggestionSupport,
-    dialect_protocols.PartitionSplitSuggestionSupport,
-    dialect_protocols.PartitionMergeSuggestionSupport,
+    suggestion_protocols.PartitionBuildSuggestionSupport,
+    suggestion_protocols.PartitionAddSuggestionSupport,
+    suggestion_protocols.PartitionDropSuggestionSupport,
+    suggestion_protocols.PartitionRetentionSuggestionSupport,
+    suggestion_protocols.PartitionTableDropSuggestionSupport,
+    suggestion_protocols.PartitionTableAlterSuggestionSupport,
+    suggestion_protocols.PartitionSplitSuggestionSupport,
+    suggestion_protocols.PartitionMergeSuggestionSupport,
     dialect_protocols.ConstraintSupport,
     dialect_protocols.CreateDomainSupport,
     dialect_protocols.CreateIndexSupport,
@@ -195,6 +196,25 @@ MYSQL_PROTOCOLS = [
     # MariaDB's own data-type attributes. This one was declared and never
     # composed, which made all nine of its capability members unreachable.
     mysql_protocols.MariaDBTypeSupport,
+    # Core split several capability protocols into their own modules. MariaDB
+    # composes the mixins that implement all of them; classify them explicitly
+    # so the partition test stays complete as core's protocol set grows.
+    dialect_protocols.AsyncIntrospectionSupport,
+    dialect_protocols.DDLColumnSupport,
+    dialect_protocols.DMLSupport,
+    dialect_protocols.DQLSupport,
+    dialect_protocols.DatabaseNameSupport,
+    dialect_protocols.DateTimeSupport,
+    dialect_protocols.ExpressionSupport,
+    dialect_protocols.FunctionCallSupport,
+    dialect_protocols.LpadSupport,
+    dialect_protocols.PredicateSupport,
+    dialect_protocols.PropertyGraphNameSupport,
+    dialect_protocols.RelationSourceSupport,
+    dialect_protocols.RepeatSupport,
+    dialect_protocols.RpadSupport,
+    dialect_protocols.SchemaNameSupport,
+    dialect_protocols.TrimSupport,
 ]
 
 
@@ -399,6 +419,17 @@ class TestProtocolNonOverlap:
             ('MariaDBRoutineSupport', 'CreateRoutineSupport'),
             ('DropRoutineSupport', 'MariaDBRoutineSupport'),
             ('MariaDBRoutineSupport', 'DropRoutineSupport'),
+            # Async introspection extends the sync surface by inheritance.
+            ('IntrospectionSupport', 'AsyncIntrospectionSupport'),
+            ('AsyncIntrospectionSupport', 'IntrospectionSupport'),
+            # MariaDB's own DML/column/table protocols restate the per-concept
+            # surfaces core now groups under DMLSupport / DDLColumnSupport.
+            ('MariaDBDMLOperationSupport', 'DMLSupport'),
+            ('DMLSupport', 'MariaDBDMLOperationSupport'),
+            ('MariaDBModifyColumnSupport', 'DDLColumnSupport'),
+            ('DDLColumnSupport', 'MariaDBModifyColumnSupport'),
+            ('MariaDBTableSupport', 'DDLColumnSupport'),
+            ('DDLColumnSupport', 'MariaDBTableSupport'),
         }
 
         namespace_members = get_all_protocol_methods(dialect_protocols.NamespaceSupport)

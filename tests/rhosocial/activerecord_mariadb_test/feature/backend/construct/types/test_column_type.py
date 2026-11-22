@@ -35,7 +35,6 @@ from rhosocial.activerecord.backend.adapters import (
     Range,
     Vector,
 )
-from rhosocial.activerecord.backend.dialect.mixins import ColumnTypeMixin
 from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
     MariaDBBinaryType,
 )
@@ -140,7 +139,7 @@ class TestCompleteness:
     """Every entry of the closed protocol list is answered."""
 
     def test_all_twenty_four_entries_are_answered(self):
-        table = _dialect(RC_131).suggested_column_types()
+        table = _dialect(RC_131).suggest_column_types().table
         missing = [e for e in COMMON_TYPES if e not in table]
         assert missing == [], f"unanswered entries: {missing}"
 
@@ -148,11 +147,11 @@ class TestCompleteness:
         """Asserted so an extension added later is a deliberate act.
 
         MariaDB has no Python type of its own to offer through
-        ``suggested_extra_column_types()``, so the two lists coincide.
+        ``suggest_extra_column_types()``, so the two lists coincide.
         """
-        table = _dialect(RC_131).suggested_column_types()
+        table = _dialect(RC_131).suggest_column_types().table
         assert set(table) == set(COMMON_TYPES)
-        assert _dialect(RC_131).suggested_extra_column_types() == {}
+        assert _dialect(RC_131).suggest_extra_column_types().table == {}
 
     def test_no_entry_is_none_on_a_modern_server(self):
         """``None`` is the last resort, and MariaDB is past arriving at one.
@@ -160,7 +159,7 @@ class TestCompleteness:
         Every measurement below found a working pairing, so answering ``None``
         on 13.1 would read as "not filled in yet" rather than as a decision.
         """
-        table = _dialect(RC_131).suggested_column_types()
+        table = _dialect(RC_131).suggest_column_types().table
         for entry in COMMON_TYPES:
             assert table[entry] is not None, entry
 
@@ -171,7 +170,7 @@ class TestCompleteness:
         malformed table that whichever consumer meets it first would read as a
         column class, so it fails here instead.
         """
-        table = _dialect(PRE_JSON).suggested_column_types()
+        table = _dialect(PRE_JSON).suggest_column_types().table
         for entry in COMMON_TYPES:
             answer = table[entry]
             assert answer is None or issubclass(answer, ColumnBase), entry
@@ -183,11 +182,11 @@ class TestCompleteness:
         ``dict`` (the entry the JSON gate refuses) and it must be reachable
         only on the below-10.2 side of that gate.
         """
-        old = _dialect(PRE_JSON).suggested_column_types()
+        old = _dialect(PRE_JSON).suggest_column_types().table
         refused = {e for e, answer in old.items() if answer is None}
         assert refused == {dict}, f"unexpected refusals: {refused}"
 
-        new = _dialect(RC_131).suggested_column_types()
+        new = _dialect(RC_131).suggest_column_types().table
         assert not [e for e, answer in new.items() if answer is None]
 
     def test_list_is_not_an_array_column(self):
@@ -214,9 +213,9 @@ class TestCompleteness:
     def test_the_returned_table_is_a_copy(self):
         """A per-version answer must not leak into the next dialect built."""
         dialect = _dialect(PRE_JSON)
-        first = dialect.suggested_column_types()
+        first = dialect.suggest_column_types().table
         first[dict] = StringColumn
-        assert _dialect(RC_131).suggested_column_types()[dict] is JSONColumn
+        assert _dialect(RC_131).suggest_column_types().table[dict] is JSONColumn
 
     @pytest.mark.parametrize("annotation, expected", _MARIADB_ANSWERS, ids=_ENTRY_IDS)
     def test_each_entry_answers_capability(self, annotation, expected):
@@ -224,21 +223,21 @@ class TestCompleteness:
 
 
 class TestDialectComposition:
-    """The dialect really composes the new mixin, and ahead of core's copy."""
+    """The dialect really composes MariaDB's standalone column-type mixin."""
 
     def test_the_dialect_is_the_mixin(self):
         assert isinstance(_dialect(RC_131), MariaDBColumnTypeMixin)
 
-    def test_mixin_precedes_core_copy(self):
-        """C3 puts a subclass first, but only because the dialect composes it.
+    def test_mixin_is_composed_directly(self):
+        """Core deleted the old column-type mixin; the backend one stands alone.
 
-        Core's ``ColumnTypeMixin`` answers nothing -- it raises -- so if the
-        ordering were reversed the dialect would refuse every field instead of
-        answering MariaDB's table. The assertion pins the composition rather
-        than the inheritance the two classes already have.
+        Pin the composition so a future reorder cannot drop MariaDB's answer:
+        the mixin must occur exactly once in the dialect's MRO and no removed
+        core mixin may be present.
         """
         mro = MariaDBDialect.__mro__
-        assert mro.index(MariaDBColumnTypeMixin) < mro.index(ColumnTypeMixin)
+        assert mro.count(MariaDBColumnTypeMixin) == 1
+        assert not any(cls.__name__ == "ColumnTypeMixin" for cls in mro)
 
     def test_the_answer_the_dialect_gives_is_the_backends_own(self):
         """Not core's ``NotImplementedError``, and not the dummy's table."""
@@ -252,19 +251,19 @@ class TestDictVersionGate:
     """``dict`` is refused below MariaDB 10.2, where no JSON function exists."""
 
     def test_dict_is_refused_below_the_json_gate(self):
-        table = _dialect(PRE_JSON).suggested_column_types()
+        table = _dialect(PRE_JSON).suggest_column_types().table
         assert table[dict] is None
 
     def test_dict_is_json_column_from_the_gate_up(self):
         for version in (JSON_NO_TABLE, JSON_WITH_TABLE, LTS_114, RC_131):
-            table = _dialect(version).suggested_column_types()
+            table = _dialect(version).suggest_column_types().table
             assert table[dict] is JSONColumn, version
 
     def test_the_gate_is_the_boundary_the_json_mixin_uses(self):
         """Not a number written twice: the gate and the JSON mixin share one table."""
-        assert _dialect((10, 2, 2)).suggested_column_types()[dict] is None
+        assert _dialect((10, 2, 2)).suggest_column_types().table[dict] is None
         assert _dialect(MARIADB_VERSION_BOUNDARIES["JSON_FUNCTIONS"]) \
-            .suggested_column_types()[dict] is JSONColumn
+            .suggest_column_types().table[dict] is JSONColumn
 
     def test_the_gate_agrees_with_supports_json_type(self):
         """Two gates for one fact must not disagree.
@@ -275,7 +274,7 @@ class TestDictVersionGate:
         """
         for version in (PRE_JSON, JSON_WITH_TABLE, LTS_114, RC_131):
             dialect = _dialect(version)
-            assert (dialect.suggested_column_types()[dict] is None) is (
+            assert (dialect.suggest_column_types().table[dict] is None) is (
                 not dialect.supports_json_type()
             ), version
 
@@ -292,7 +291,7 @@ class TestDictVersionGate:
         function family, so refusing five entries on the strength of one
         entry's measurement would be a wider refusal than the servers support.
         """
-        table = _dialect(PRE_JSON).suggested_column_types()
+        table = _dialect(PRE_JSON).suggest_column_types().table
         for annotation in (list, tuple, set, frozenset):
             assert table[annotation] is JSONColumn, annotation
 
@@ -330,12 +329,13 @@ class TestUuidIsNotGatedOnStorage:
         # ...while the storage side does follow the server: the native `uuid`
         # key appears at 10.7 and the 16-byte substitute is suggested instead.
         native = version >= MARIADB_VERSION_BOUNDARIES["UUID"]
-        assert ("uuid" in dialect.supports_data_types()) is native
+        assert dialect.supports_data_type_uuid() is native
         # The other half of D9: below the boundary the concept is substituted,
         # above it the renderer owns it, and it is never answered twice.
-        assert ("uuid" in dialect.substitute_data_types()) is not native
+        substitutes = dialect.suggest_substitute_types().mapping
+        assert ("uuid" in substitutes) is not native
         if not native:
-            assert dialect.substitute_data_types()["uuid"] is MariaDBBinaryType
+            assert substitutes["uuid"] is MariaDBBinaryType
 
 
 def test_every_gate_the_mixin_reads_exists():
@@ -344,6 +344,6 @@ def test_every_gate_the_mixin_reads_exists():
     The JSON gate is read from ``MARIADB_VERSION_BOUNDARIES`` rather than written
     inline, which is what lets this assert rather than assume: the key is named
     here, so a renamed boundary fails here instead of at the first
-    ``suggested_column_types()`` call on an old server.
+    ``suggest_column_types()`` call on an old server.
     """
     assert "JSON_FUNCTIONS" in MARIADB_VERSION_BOUNDARIES

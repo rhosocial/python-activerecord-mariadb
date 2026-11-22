@@ -8,6 +8,7 @@ for retrieving column metadata.
 
 import pytest
 
+from rhosocial.activerecord.backend.impl.mariadb.introspection.type_parser import MariaDBTypeParser
 from rhosocial.activerecord.backend.introspection.types import (
     IntrospectionColumnInfo,
     ColumnNullable,
@@ -246,7 +247,7 @@ class TestParsedDataType:
             assert col.parsed_data_type is not None, col.name
             # Same reader, same input: re-parsing the catalog string must give
             # the same object, or the field is not derived from the catalog.
-            reparsed = backend_with_tables.dialect.parse_type(col.data_type_full)
+            reparsed = MariaDBTypeParser(backend_with_tables.dialect).parse(col.data_type_full)
             assert col.parsed_data_type == reparsed, col.name
 
     def test_parameters_survive_into_the_parsed_type(self, backend_with_tables):
@@ -281,7 +282,7 @@ class TestParsedDataType:
             return IntrospectionColumnInfo(
                 name="c", table_name="t", ordinal_position=1,
                 data_type="varchar", data_type_full=text,
-                parsed_data_type=backend_with_tables.dialect.parse_type(text),
+                parsed_data_type=MariaDBTypeParser(backend_with_tables.dialect).parse(text),
             )
 
         assert differ._columns_equivalent(column(100), column(100)) is True
@@ -292,7 +293,7 @@ class TestParsedDataType:
     ):
         """A single bad ``COLUMN_TYPE`` degrades that column, not the table.
 
-        ``parse_type`` ends in ``CustomType``, whose constructor validates the
+        ``the introspection parser`` ends in ``CustomType``, whose constructor validates the
         raw name as a SQL type name and raises for anything that is not
         identifier-shaped. The catalog is not under the backend's control, so the
         introspector catches that, leaves ``parsed_data_type`` unset for that one
@@ -332,7 +333,7 @@ class TestParsedDataType:
             # per-column rather than per-table.
             if " " in raw:
                 raise InvalidTypeNameError(raw)
-            return backend_with_tables.dialect.parse_type(raw)
+            return MariaDBTypeParser(backend_with_tables.dialect).parse(raw)
 
         original = DataType.parse_data_type_str
         try:
@@ -405,7 +406,7 @@ class TestSpatialSRIDSurvivesIntrospection:
         columns = self._columns(backend_with_tables)
         for col in columns:
             assert col.parsed_data_type is not None, col.name
-            assert col.parsed_data_type == backend_with_tables.dialect.parse_type(
+            assert col.parsed_data_type == MariaDBTypeParser(backend_with_tables.dialect).parse(
                 col.data_type_full
             ), col.name
 

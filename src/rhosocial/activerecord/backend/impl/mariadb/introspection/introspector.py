@@ -68,6 +68,7 @@ from .status_introspector import (
     MariaDBStatusIntrospector,
     AsyncMariaDBStatusIntrospector,
 )
+from .type_parser import MariaDBTypeParser
 from .types import (
     SequenceInfo,
     TableOptionsInfo,
@@ -201,16 +202,19 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         ``SchemaDiffer._columns_equivalent`` reads the field twice: when both
         sides carry a type it compares the objects with ``!=``, and only when
         one side is ``None`` does it fall back to comparing the ``data_type``
-        string. Every other backend populates it here, via
-        ``DataType.parse_data_type_str(dialect, raw)``; MariaDB was the only
-        one that left it at its ``None`` default, so on this backend the whole
+        string. Core's ``DataType.parse_data_type_str`` is now a fallback that
+        only builds a ``CustomType``; real parsing is this backend's
+        introspection parser (``type_parser.MariaDBTypeParser``). MariaDB was
+        the only backend that left the field at its ``None`` default, so on this
+        backend the whole
         type-identity model was inert and the differ compared the base word
         alone -- blind to ``VARCHAR(100)`` vs ``VARCHAR(200)``, to an ``ENUM``'s
         labels, to ``INT`` vs ``INT UNSIGNED``.
 
-        The reason one bad column must not take the table down: ``parse_type``
-        ends in ``CustomType``, whose constructor *validates* the raw name as a
-        SQL type name and raises ``InvalidTypeNameError`` for anything that is
+        The reason one bad column must not take the table down: the backend's
+        introspection parser ends in ``CustomType``, whose constructor
+        *validates* the raw name as a SQL type name and raises
+        ``InvalidTypeNameError`` for anything that is
         not identifier-shaped, and other branches raise ``ValueError`` on
         parameters the server can report that this dialect will not accept. The
         catalog is not under this backend's control -- a MariaDB release can
@@ -230,11 +234,11 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
             differ already treats as "fall back to the string".
         """
         try:
-            return DataType.parse_data_type_str(self._backend.dialect, col_type)
+            return MariaDBTypeParser(self._backend.dialect).parse(col_type)
         except Exception as exc:  # noqa: BLE001 -- see the docstring
             warnings.warn(
                 f"MariaDB reported column type {col_type!r}, which this "
-                f"backend's parse_type could not read ({type(exc).__name__}: "
+                f"backend's introspection parser could not read ({type(exc).__name__}: "
                 f"{exc}). That column's parsed_data_type is left unset, so the "
                 f"schema differ will compare its data_type string rather than "
                 f"the type object. The rest of the table is unaffected.",

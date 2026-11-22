@@ -29,7 +29,7 @@ Their storage is a separate question, answered in
   ``secondary-gaps-investigation.md`` §2 R5 and §5 item 5. The *column* answer
   is still :class:`JSONColumn`, because a column class is about operations and
   MariaDB's JSON function family is real; which storage word carries it is
-  :meth:`MariaDBDialect.suggested_data_types`'s business, and a table here
+  :meth:`MariaDBDialect.suggest_data_types`'s business, and a table here
   naming ``LONGTEXT`` instead would be answering a question nobody asked.
 * ``UUID`` **is** native from 10.7 (MySQL has no UUID type at all and
   substitutes ``BINARY(16)``). That difference lives entirely on the storage
@@ -62,8 +62,9 @@ from rhosocial.activerecord.backend.adapters import (
     Range,
     Vector,
 )
-from rhosocial.activerecord.backend.dialect.mixins.column_type import (
-    ColumnTypeMixin,
+from rhosocial.activerecord.backend.suggestion.definitions import (
+    ColumnTypeSuggestion,
+    ExtraColumnTypeSuggestion,
 )
 from rhosocial.activerecord.backend.expression.column_types import (
     BinaryColumn,
@@ -165,20 +166,20 @@ MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
 }
 
 
-class MariaDBColumnTypeMixin(ColumnTypeMixin):
+class MariaDBColumnTypeMixin:
     """MariaDB's full twenty-four-entry column-type table, and its narrowing.
 
     Composed into :class:`~...dialect.MariaDBDialect` ahead of core's mixins,
-    so its :meth:`suggested_column_types` is the one a model layer reaches.
+    so its :meth:`suggest_column_types` is the one a model layer reaches.
 
     The table is a class attribute because it does not vary by version, with
-    the one exception (:meth:`suggested_column_types` below) handled by
+    the one exception (:meth:`suggest_column_types` below) handled by
     building a copy rather than mutating the shared dict -- that method returns
     a copy precisely so a per-version answer cannot leak into the next dialect
     built at a different version.
     """
 
-    def suggested_column_types(self) -> Dict[Any, Optional[Type[ColumnBase]]]:
+    def suggest_column_types(self) -> ColumnTypeSuggestion:
         """The table above, with ``dict`` refused below MariaDB 10.2.
 
         The one version-dependent entry, and it is a refusal rather than a
@@ -236,7 +237,11 @@ class MariaDBColumnTypeMixin(ColumnTypeMixin):
             # last-resort `None`, not a class that silently degrades.
             table[dict] = None
 
-        return table
+        return ColumnTypeSuggestion(table=table)
+
+    def suggest_extra_column_types(self) -> ExtraColumnTypeSuggestion:
+        """No backend-owned extra column types."""
+        return ExtraColumnTypeSuggestion(table={})
 
 
 __all__ = ["MARIADB_COLUMN_TYPES", "MariaDBColumnTypeMixin"]

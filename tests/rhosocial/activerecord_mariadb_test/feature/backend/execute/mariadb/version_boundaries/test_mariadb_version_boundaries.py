@@ -14,6 +14,7 @@ threshold that drifts from reality fails here rather than in production.
 """
 import pytest
 
+from rhosocial.activerecord.backend.impl.mariadb.introspection.type_parser import MariaDBTypeParser
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.errors import DatabaseError
 from rhosocial.activerecord.backend.expression import LockStrength
@@ -349,7 +350,7 @@ class TestYearDisplayWidth:
     def test_server_reported_year_2_degrades_with_a_warning(self):
         dialect = _dialect((10, 6, 0))
         with pytest.warns(DeprecationWarning, match="YEAR"):
-            data_type = dialect.parse_type("YEAR(2)")
+            data_type = MariaDBTypeParser(dialect).parse("YEAR(2)")
         assert data_type.display_width is None
 
     def test_year_4_round_trips_without_warning(self):
@@ -358,7 +359,7 @@ class TestYearDisplayWidth:
         dialect = _dialect((10, 6, 0))
         with warnings.catch_warnings():
             warnings.simplefilter("error", DeprecationWarning)
-            data_type = dialect.parse_type("YEAR(4)")
+            data_type = MariaDBTypeParser(dialect).parse("YEAR(4)")
         assert data_type.display_width == 4
 
 
@@ -858,7 +859,7 @@ class TestGatesMatchLiveServer:
         ``CREATE TABLE t (c XMLTYPE)`` is the probe: it either parses or it does
         not, and the gate must say which. The catalog read-back then pins the
         second half of the contract -- that a column of this type introspects as
-        ``xmltype`` and comes back through ``parse_type`` as
+        ``xmltype`` and comes back through ``the introspection parser`` as
         :class:`MariaDBXmlType`, not as a ``TEXT``.
         """
         gate = mariadb_backend.dialect.supports_data_type_mariadb_xml()
@@ -878,7 +879,7 @@ class TestGatesMatchLiveServer:
                 "AND COLUMN_NAME = 'x'"
             )["t"]
             assert reported == "xmltype"
-            parsed = mariadb_backend.dialect.parse_type(reported)
+            parsed = MariaDBTypeParser(mariadb_backend.dialect).parse(reported)
             assert type(parsed).__name__ == "MariaDBXmlType"
             assert mariadb_backend.dialect.format_data_type(parsed) == (
                 "XMLTYPE", (),
@@ -891,7 +892,7 @@ class TestGatesMatchLiveServer:
 
         The whole point of ``mariadb_mediumint`` is that a MEDIUMINT column is
         distinguishable from an INT one, so this creates both and checks that
-        the catalog reports two different things and that ``parse_type`` keeps
+        the catalog reports two different things and that ``the introspection parser`` keeps
         them apart.
         """
         from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
@@ -915,7 +916,7 @@ class TestGatesMatchLiveServer:
             assert by_name["i"].startswith("int")
             assert by_name["m"] != by_name["i"]
 
-            parsed = mariadb_backend.dialect.parse_type(by_name["m"])
+            parsed = MariaDBTypeParser(mariadb_backend.dialect).parse(by_name["m"])
             assert type(parsed) is MariaDBMediumIntType
             dialect = mariadb_backend.dialect
             assert parsed != MariaDBIntType(dialect)
@@ -928,7 +929,7 @@ class TestGatesMatchLiveServer:
 
         MariaDB's own overview says ``ZEROFILL`` sets the column to ``UNSIGNED``,
         and this is the observation that makes it matter: a column declared
-        ``INT ZEROFILL`` is *stored* as unsigned. Since ``parse_type`` derives
+        ``INT ZEROFILL`` is *stored* as unsigned. Since ``the introspection parser`` derives
         ``unsigned`` from the presence of the word, a formatter that wrote
         ``ZEROFILL`` alone for a *signed* declaration produced DDL that described
         a column the server built differently -- and parsed its own output back as
@@ -959,7 +960,7 @@ class TestGatesMatchLiveServer:
             # formatter emits, so the declared value object survives the trip.
             assert reported.lower().endswith("unsigned zerofill"), reported
             dialect = mariadb_backend.dialect
-            parsed = dialect.parse_type(reported)
+            parsed = MariaDBTypeParser(dialect).parse(reported)
             assert parsed == MariaDBIntType(dialect, unsigned=True, zerofill=True)
 
             # The declaration a caller actually writes, rendered by this
@@ -968,7 +969,7 @@ class TestGatesMatchLiveServer:
             assert declared.unsigned is True
             rendered = dialect.format_data_type(declared)[0]
             assert rendered == "INT UNSIGNED ZEROFILL"
-            assert dialect.parse_type(reported.lower()) == declared
+            assert MariaDBTypeParser(dialect).parse(reported.lower()) == declared
         finally:
             mariadb_backend.execute("DROP TABLE IF EXISTS t_gate_zerofill")
 

@@ -5,7 +5,7 @@ Nothing here connects to a server: the backend registers its adapters in
 ``__init__``, so the inventory is complete before any I/O. What is pinned is
 that the backend satisfies :class:`TypeAdapterCatalogProtocol`, that the list
 has one entry per adapter class, and that the order is deterministic without
-``get_default_adapter_suggestions`` losing its meaning.
+``suggest_data_adapters`` losing its meaning.
 """
 
 import pytest
@@ -50,8 +50,7 @@ class TestGetTypeAdapters:
         second = backend.get_type_adapters()
         assert first is not second
 
-    def test_default_adapter_suggestions_are_still_provided(self, backend):
-        suggestions = backend.get_default_adapter_suggestions()
-        assert isinstance(suggestions, dict)
+    def test_data_adapter_suggestions_are_still_provided(self, backend):
+        suggestions = backend.suggest_data_adapters().table
         assert suggestions
         assert all(isinstance(value, tuple) and len(value) == 2 for value in suggestions.values())

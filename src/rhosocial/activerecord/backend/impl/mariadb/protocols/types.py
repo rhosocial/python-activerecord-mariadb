@@ -87,7 +87,7 @@ class MariaDBTypeSupport(Protocol):
         simply ``ZEROFILL``, but [is] still accepted by the parser" is about
         *spelling*, not about storage — which is why this backend always emits
         the explicit form: it says what the server will store, and it is what
-        ``parse_type`` reads back.
+        the backend's introspection parser reads back.
 
         Official Documentation:
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview

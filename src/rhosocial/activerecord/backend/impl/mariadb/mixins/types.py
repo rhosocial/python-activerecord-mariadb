@@ -1,5 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/types.py
-"""MariaDB DataType formatting and parsing mixin."""
+"""MariaDB DataType formatting mixin (parsing is introspection-only)."""
 
 from __future__ import annotations
 
@@ -74,8 +74,8 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     """MariaDB DataType formatting and parsing.
 
     Implements ``DataTypeSupport`` so the dialect can render ``DataType``
-    expressions to SQL strings and parse raw SQL type strings back into
-    ``DataType`` instances.
+    expressions to SQL strings. Reading raw type strings back is a separate,
+    introspection-only concern handled by ``introspection.type_parser``.
 
     Formatting dispatches by the type instance's ``name`` through the
     naming-convention ``format_data_type_<name>`` methods (see
@@ -87,11 +87,11 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     * **Spelling.** A core concept that has several spellings declares them as
       a closed ``SPELLINGS`` list, and this mixin says which of them MariaDB
       renders. A spelling MariaDB does not write is refused by
-      ``check_spelling`` with a message naming it; one it does write is
+      ``_check_spelling`` with a message naming it; one it does write is
       normalised to MariaDB's own word. See the note above
       :meth:`_validate_fsp`.
     * **Correspondence.** Every core concept is declared — rendered here, or
-      named in ``MariaDBDialect.suggested_data_types()`` as what MariaDB stores
+      named in ``MariaDBDialect.suggest_data_types()`` as what MariaDB stores
       instead. Silence would leave a caller told only "unsupported", which is
       indistinguishable from the concept never having been considered.
     """
@@ -208,12 +208,12 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         **This is MariaDB normalising the column, not the caller changing their
         mind.** A formatter that emitted ``X ZEROFILL`` here would write DDL
         whose stored range contradicts the declaration and whose text does not
-        contain the word ``parse_type`` reads ``unsigned`` from, handing back a
-        different value object than the caller declared and making the differ
-        report a change nobody made. Emitting what will actually be stored is
-        the honest output, and it is what makes
-        ``parse_type(format_data_type(t)[0]) == t`` hold for every combination
-        of width, signedness and zerofill.
+        contain the word the backend's introspection parser reads ``unsigned``
+        from, handing back a different value object than the caller declared and
+        making the differ report a change nobody made. Emitting what will
+        actually be stored is the honest output, and it is what keeps the
+        parser's round-trip ``parse(format_data_type(t)[0]) == t`` true for every
+        combination of width, signedness and zerofill.
 
         ``unsigned`` alone is honoured because it is a real, storable range
         change: ``INT`` and ``INT UNSIGNED`` are two different columns
@@ -284,9 +284,9 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         MariaDB spells this width with two words, ``MEDIUMINT`` and its
         documented synonym ``INT3``, so both are accepted and ``MEDIUMINT`` is
         rendered — the form the server itself writes into ``COLUMN_TYPE``, which
-        is what makes ``parse_type`` able to read this backend's own output back.
+        is what lets the backend's introspection parser read its own output back.
         """
-        self.check_spelling(expr, MariaDBMediumIntType)
+        self._check_spelling(expr, MariaDBMediumIntType)
         return self._format_mariadb_integer("MEDIUMINT", expr)
 
     def format_data_type_mariadb_int(self, expr: MariaDBIntType) -> Tuple[str, tuple]:
@@ -383,7 +383,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             UnsupportedFeatureError: below 12.3 there is no ``XMLTYPE`` at all.
                 Answering with ``TEXT`` instead would silently produce a
                 different column, so the caller is told the version and pointed
-                at ``TextType`` — the substitute ``suggested_data_types()``
+                at ``TextType`` — the substitute ``suggest_data_types()``
                 reports for an older server.
         """
         if self.version < MARIADB_VERSION_BOUNDARIES["XMLTYPE"]:
@@ -511,7 +511,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(expr, IntegerType)
+        self._check_spelling(expr, IntegerType)
         return self._format_mariadb_integer("INT", expr)
 
     def format_data_type_bigint(self, expr: BigIntType) -> Tuple[str, tuple]:
@@ -533,7 +533,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(expr, BigIntType)
+        self._check_spelling(expr, BigIntType)
         return self._format_mariadb_integer("BIGINT", expr)
 
     def format_data_type_smallint(self, expr: SmallIntType) -> Tuple[str, tuple]:
@@ -554,7 +554,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(expr, SmallIntType)
+        self._check_spelling(expr, SmallIntType)
         return self._format_mariadb_integer("SMALLINT", expr)
 
     def format_data_type_tinyint(self, expr: TinyIntType) -> Tuple[str, tuple]:
@@ -564,7 +564,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         as synonyms, so all of those words are ones the server accepts.
 
         Note the deliberate asymmetry with :meth:`format_data_type_boolean`:
-        MariaDB stores a boolean as ``TINYINT(1)``, so ``parse_type`` reads
+        MariaDB stores a boolean as ``TINYINT(1)``, so the introspection parser reads
         ``TINYINT(1)`` back as a :class:`BooleanType`. A bare ``TINYINT`` — no
         display width — is a small integer and stays one.
 
@@ -579,7 +579,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         attribute, not part of the concept.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
         """
-        self.check_spelling(expr, TinyIntType)
+        self._check_spelling(expr, TinyIntType)
         return self._format_mariadb_integer("TINYINT", expr)
 
     def format_data_type_varchar(self, expr: VarCharType) -> Tuple[str, tuple]:
@@ -590,10 +590,10 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``CHARACTER VARYING``" and lists ``CHARACTER VARYING`` among the
         synonyms, so both are accepted. The long form is normalised to
         ``VARCHAR`` because that is what MariaDB stores and reports — which is
-        also what makes ``parse_type`` able to read its own output back as
+        also what lets the introspection parser read its own output back as
         ``varchar``.
         """
-        self.check_spelling(expr, VarCharType)
+        self._check_spelling(expr, VarCharType)
         return (f"VARCHAR({expr.length})" if expr.length is not None else "VARCHAR"), ()
 
     def format_data_type_char(self, expr: CharType) -> Tuple[str, tuple]:
@@ -605,7 +605,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         *set* clause (``CHARACTER SET utf8``), which is a different thing and
         not a reason to refuse the type spelling.
         """
-        self.check_spelling(expr, CharType)
+        self._check_spelling(expr, CharType)
         return (f"CHAR({expr.length})" if expr.length is not None else "CHAR"), ()
 
     def format_data_type_text(self, expr: TextType) -> Tuple[str, tuple]:
@@ -614,7 +614,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``mariadb_tinytext``/``mariadb_mediumtext``/``mariadb_longtext`` classes
         rather than spellings of this one, because the maximum length is part of
         what the column can hold."""
-        self.check_spelling(expr, ("text",))
+        self._check_spelling(expr, ("text",))
         return "TEXT", ()
 
     def format_data_type_boolean(self, expr: BooleanType) -> Tuple[str, tuple]:
@@ -627,7 +627,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         bare ``TINYINT``, which is why :meth:`format_data_type_tinyint` renders
         the latter without one.
         """
-        self.check_spelling(expr, BooleanType)
+        self._check_spelling(expr, BooleanType)
         return "TINYINT(1)", ()
 
     def format_data_type_date(self, expr: DateType) -> Tuple[str, tuple]:
@@ -732,7 +732,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         10.2.44 through 13.1.1: a ``REAL`` column reports ``'double'``, or
         ``'float'`` under the mode). A ``RealType`` therefore cannot round-trip,
         so this dialect substitutes it; see
-        ``MariaDBDialect.substitute_advice``.
+        ``MariaDBDialect.suggest_substitute_advice``.
 
         ``unsigned`` is honoured through :meth:`_format_mariadb_integer`, in the
         slot that grammar gives it — measured on all fifteen wired servers:
@@ -740,7 +740,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         rejects ``-1`` with 1264.
         https://mariadb.com/docs/server/reference/data-types/numeric-data-types/double
         """
-        self.check_spelling(expr, DoubleType)
+        self._check_spelling(expr, DoubleType)
         return self._format_mariadb_integer("DOUBLE", expr)
 
     def format_data_type_decimal(self, expr: DecimalType) -> Tuple[str, tuple]:
@@ -777,7 +777,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         whole attribute slot and explains why one method serves the integers and
         these four numerics alike.
         """
-        self.check_spelling(expr, DecimalType)
+        self._check_spelling(expr, DecimalType)
         if expr.precision is not None and not 1 <= expr.precision <= 65:
             raise ValueError(
                 f"MariaDB DECIMAL precision must be between 1 and 65, "
@@ -819,7 +819,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``VARBINARY(n)`` is not, so the substitution would be a different
         storage, not a different name for the same one.
         """
-        self.check_spelling(expr, ("blob",))
+        self._check_spelling(expr, ("blob",))
         return "BLOB", ()
 
     def format_data_type_custom(self, expr: CustomType) -> Tuple[str, tuple]:
@@ -832,7 +832,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     # above (1:1 correspondence contract): every type this mixin renders
     # is genuinely storable in MariaDB, so support is honest True for
     # each, and honestly absent for everything else (e.g. uuid, interval
-    # — see MariaDBDialect.suggested_data_types()).
+    # — see MariaDBDialect.suggest_data_types()).
     # ------------------------------------------------------------------
 
     def supports_data_type_mariadb_tinyint(self) -> bool:
@@ -921,7 +921,7 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
 
         Below 12.3 MariaDB has no XML type of any kind, so the honest answer
         there is no, and the ``xml`` concept is *substituted* — see
-        ``MariaDBDialect.suggested_data_types()``, which reports ``TextType`` on
+        ``MariaDBDialect.suggest_data_types()``, which reports ``TextType`` on
         an older server and this class on a 12.3+ one. Answering yes below 12.3
         would get the caller a DDL the server rejects; answering yes and emitting
         ``TEXT`` would get them a different column than they asked for.
@@ -1248,522 +1248,3 @@ class MariaDBTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         https://mariadb.com/docs/server/reference/data-types/string-data-types/blob
         """
         return True
-
-    # ------------------------------------------------------------------
-    # DataTypeSupport — parsing
-    #
-    # ``parse_type`` is the inverse of the formatters above, and it is held to
-    # the same rule the plan's decision D8 states: **one concept in, one class
-    # out**. Every spelling of a concept that MariaDB itself accepts — the ones
-    # ``format_data_type_<name>`` lists as ``accepted`` — is recognised here, and
-    # every one of them yields the *same* class with the *same* parameters.
-    #
-    # That last part is why the returned instances carry the **default**
-    # ``spelling`` even when the server's word was the long one. This dialect
-    # normalises every spelling it accepts to MariaDB's own word (see the note
-    # above the formatters), so recording ``spelling="numeric"`` on the way in
-    # would make a ``NUMERIC(10,2)`` column compare unequal to the identical
-    # ``DECIMAL(10,2)`` column it renders as — and equality is what the schema
-    # differ reads. PostgreSQL, which echoes its spellings back, records them;
-    # MariaDB has no reason to.
-    #
-    # A type MariaDB does not write (``BYTEA``, ``CLOB``, ``CHARACTER VARYING``)
-    # is not parsed: it cannot come back from a server, and guessing would be
-    # worse than the honest :class:`CustomType` the fallback returns.
-    # ------------------------------------------------------------------
-
-    # Every word MariaDB's own "Numeric Data Type Overview" lists as an integer
-    # synonym is recognised here, and each maps to **the class its canonical word
-    # maps to** — that is the whole of D8 here. The manual's list is short and
-    # exact, so there is nothing to guess:
-    #
-    #   BOOLEAN / BOOL  - Synonym for TINYINT(1)   -> BooleanType (below)
-    #   INT1            - Synonym for TINYINT       -> MariaDBTinyIntType
-    #   INT2            - Synonym for SMALLINT      -> MariaDBSmallIntType
-    #   INT3            - Synonym for MEDIUMINT     -> MariaDBMediumIntType
-    #   INT4            - Synonym for INT           -> MariaDBIntType
-    #   INT8            - Synonym for BIGINT        -> MariaDBBigIntType
-    #
-    # https://mariadb.com/docs/server/reference/data-types/numeric-data-types/numeric-data-type-overview
-    #
-    # The per-width pages say the same thing in their own words -- "INT1 is a
-    # synonym for TINYINT" on the TINYINT page and again on INT1's own page at
-    # .../numeric-data-types/int1, "INT2 is a synonym for SMALLINT", "INT3 is a
-    # synonym for MEDIUMINT", "INT4 is a synonym for INT", "INT8 is a synonym
-    # for BIGINT" -- and "INTEGER is a synonym for INT" on the INT page. The
-    # overview is the one place all six appear together, which is why it is
-    # cited above the per-width pages.
-    #
-    # Why ``INT1``/``INT2``/``INT8`` had to be added at all: each is a member of
-    # the corresponding core concept's ``SPELLINGS`` (``TinyIntType``,
-    # ``SmallIntType``, ``BigIntType``), so ``format_data_type_tinyint`` &
-    # friends *accept* them and render the canonical word. A word the formatter
-    # accepts and ``parse_type`` cannot read is the asymmetry D8 forbids: the
-    # dialect will write a column whose declared spelling it cannot name back.
-    # They came back as ``CustomType``, whose ``raw`` is then a type name the
-    # caller never wrote.
-    #
-    # ``INT4`` is here for a different reason and is *not* one of those three.
-    # Core's ``IntegerType.SPELLINGS`` is ``("integer", "int")`` -- it does not
-    # carry ``int4`` -- so ``format_data_type_integer`` **refuses** it with a
-    # ``TypeError`` naming the spelling, and this dialect therefore never writes
-    # the word. It is still parsed, because ``parse_type`` is also the reader for
-    # text that did not come from this dialect's formatters -- a MariaDB dump, a
-    # hand-written migration, ``SHOW CREATE TABLE`` output pasted from elsewhere
-    # -- and ``INT4`` is on the server's own synonym list. Refusing to *read* a
-    # word the server writes is the guess in the other direction. It widens the
-    # reader and never narrows it: ``INT4`` and ``INTEGER`` land on the same
-    # class with the same ``spelling``, so D8's one-concept-one-class is intact.
-    #
-    # ``INT3`` was already here, for the same reason as ``INT4``: the catalog
-    # only ever reports ``mediumint(...)`` because the server rewrites its own
-    # synonym, but the dialect renders the word and a caller may hand it back.
-    #
-    # Order matters only for ``INT``'s own prefix: ``INT1``..``INT8`` are tried
-    # before ``INT`` so the narrower word wins. Every alternative ends in ``\b``,
-    # so a longer word that merely starts with one of these -- ``INT11`` -- does
-    # not match at all, and the trailing attributes are left to the branches.
-    _MARIA_INTEGER_TYPES = re.compile(
-        r"^(?:TINYINT|SMALLINT|MEDIUMINT|"
-        r"INT1|INT2|INT3|INT4|INT8|"
-        r"INT|INTEGER|BIGINT)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_BOOLEAN_TYPES = re.compile(
-        r"^(?:BOOL|BOOLEAN)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_FLOAT_TYPES = re.compile(
-        r"^(?:FLOAT|REAL|DOUBLE)\b",
-        re.IGNORECASE,
-    )
-    # DECIMAL before DEC so the longer word wins the alternation; the trailing
-    # \b would reject "DEC" against "DECIMAL" anyway, but order states the
-    # intent rather than relying on it.
-    _MARIA_DECIMAL_TYPES = re.compile(
-        r"^(?:DECIMAL|NUMERIC|DEC|FIXED)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_STRING_TYPES = re.compile(
-        r"^(?:CHAR|VARCHAR|TEXT|TINYTEXT|MEDIUMTEXT|LONGTEXT|"
-        r"ENUM|SET|BINARY|VARBINARY)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_BLOB_TYPES = re.compile(
-        r"^(?:BLOB|TINYBLOB|MEDIUMBLOB|LONGBLOB)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_DATE_TYPES = re.compile(
-        r"^(?:DATE|DATETIME|TIMESTAMP|TIME|YEAR)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_JSON_TYPES = re.compile(
-        r"^(?:JSON)\b",
-        re.IGNORECASE,
-    )
-    # MariaDB 12.3's native XML type. Kept out of ``_MARIA_STRING_TYPES`` on
-    # purpose, even though MariaDB documents it under string data types: that
-    # branch ends in a catch-all that returns ``CharType`` for any prefix it
-    # does not recognise, so folding ``XMLTYPE`` in would hand back a character
-    # string. It has its own regex and its own branch below.
-    _MARIA_XML_TYPES = re.compile(
-        r"^(?:XMLTYPE)\b",
-        re.IGNORECASE,
-    )
-    # MariaDB 10.7's native UUID column type, the same shape of arrival as
-    # XMLTYPE and gated the same way below.
-    _MARIA_UUID_TYPES = re.compile(
-        r"^(?:UUID)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_SPATIAL_TYPES = re.compile(
-        r"^(?:GEOMETRY|POINT|LINESTRING|POLYGON|"
-        r"MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|GEOMETRYCOLLECTION)\b",
-        re.IGNORECASE,
-    )
-    _MARIA_BIT_TYPES = re.compile(
-        r"^(?:BIT)\b",
-        re.IGNORECASE,
-    )
-
-    def parse_type(self, raw: str) -> DataType:
-        """Turn one MariaDB type string into one ``DataType``.
-
-        D8 in one sentence: the words MariaDB writes for one concept must all
-        arrive here as one class. ``INT`` and ``INTEGER``, ``NUMERIC``/``DEC``/
-        ``DECIMAL``, ``BOOL``/``BOOLEAN`` and ``DOUBLE``/``DOUBLE PRECISION``
-        are each one concept with several spellings, and each is parsed to the
-        same canonical instance shape. A word MariaDB does not write falls
-        through to :class:`CustomType`, which is honest ignorance rather than a
-        guess.
-        """
-        stripped = raw.strip()
-        upper = stripped.upper()
-
-        if self._MARIA_BIT_TYPES.match(upper):
-            nums = re.findall(r"\d+", stripped)
-            n = int(nums[0]) if nums else None
-            from ..expression.types import MariaDBBitType
-            return MariaDBBitType(self, n)
-
-        # BOOL / BOOLEAN are documented synonyms of TINYINT on MariaDB, so this
-        # branch has to run before anything that would otherwise claim the
-        # prefix. It yields the same BooleanType that TINYINT(1) yields below,
-        # which is what keeps ``parse_type`` round-tripping through
-        # ``format_data_type_boolean`` -> ``TINYINT(1)`` -> ``BooleanType``.
-        if self._MARIA_BOOLEAN_TYPES.match(upper):
-            return BooleanType(self)
-
-        if self._MARIA_INTEGER_TYPES.match(upper):
-            unsigned = "UNSIGNED" in upper
-            zerofill = "ZEROFILL" in upper
-            # Each branch below is one *width*, and every word that width accepts
-            # -- canonical or documented synonym -- arrives here and becomes the
-            # same class with the same ``unsigned`` / ``zerofill``. That is the
-            # whole of D8 for this branch: there is exactly one class per width,
-            # so there is no synonym that can come back as a different concept.
-            if upper.startswith("TINYINT") or upper.startswith("INT1"):
-                # ``INT1`` is MariaDB's own synonym for the 1-byte width. It has
-                # to be checked here rather than falling through to the boolean
-                # branch, and the two are genuinely different: the server stores
-                # ``BOOL`` / ``BOOLEAN`` as ``tinyint(1)`` but ``INT1`` as
-                # ``tinyint(4)``, so ``INT1`` is a small integer and stays one.
-                # The display width is the number **inside the parentheses**,
-                # never any digit in the type word. That distinction is what
-                # keeps ``INT1`` out of the boolean branch: a bare ``INT1`` has a
-                # ``1`` in its *name*, not a display width of 1, and reading it
-                # as one would make ``parse_type("int1")`` a ``BooleanType`` --
-                # the exact asymmetry this branch's synonym was added to remove.
-                # ``TINYINT(1)`` is a different declaration (and is what the
-                # catalog reports for a ``BOOL`` column); a bare ``TINYINT`` --
-                # no display width at all -- is a small integer and stays one.
-                width_match = re.search(r"\(\s*(\d+)\s*\)", stripped)
-                display_width = int(width_match.group(1)) if width_match else None
-                from ..expression.types import MariaDBTinyIntType
-                t = MariaDBTinyIntType(self, unsigned=unsigned, zerofill=zerofill)
-                if display_width == 1 and not unsigned and not zerofill:
-                    return BooleanType(self)
-                return t
-            if upper.startswith("SMALLINT") or upper.startswith("INT2"):
-                from ..expression.types import MariaDBSmallIntType
-                t = MariaDBSmallIntType(self, unsigned=unsigned, zerofill=zerofill)
-                return t
-            if upper.startswith("MEDIUMINT") or upper.startswith("INT3"):
-                # MEDIUMINT is 3 bytes — a width of its own, with its own class
-                # and its own dispatch key. Reading it as the 4-byte
-                # MariaDBIntType (as this branch used to) made a 3-byte column
-                # compare equal to a 4-byte one, which is a false identity
-                # claim the differ would then act on. ``INT3`` is MariaDB's own
-                # documented synonym for the same width and lands here too; the
-                # server normalises it to ``mediumint(...)`` in the catalog, and
-                # like every other accepted spelling in this dialect it is
-                # normalised to MariaDB's own word rather than recorded.
-                return MariaDBMediumIntType(
-                    self, unsigned=unsigned, zerofill=zerofill,
-                )
-            if upper.startswith("BIGINT") or upper.startswith("INT8"):
-                from ..expression.types import MariaDBBigIntType
-                t = MariaDBBigIntType(self, unsigned=unsigned, zerofill=zerofill)
-                return t
-            # INT, INTEGER and INT4 all land here: one concept, three words MariaDB
-            # accepts, and the canonical `mariadb_int` class for all of them (D8).
-            from ..expression.types import MariaDBIntType
-            t = MariaDBIntType(self, unsigned=unsigned, zerofill=zerofill)
-            return t
-
-        if self._MARIA_FLOAT_TYPES.match(upper):
-            # DOUBLE, DOUBLE PRECISION and REAL are the three words MariaDB's
-            # DOUBLE page groups as one 8-byte type, and the first two arrive as
-            # DoubleType with the default spelling; see the note at the head of
-            # this section for why the spelling is not recorded.  REAL is the
-            # mode-dependent word -- DOUBLE by default, FLOAT under
-            # REAL_AS_FLOAT -- and the catalog never writes it back, so it
-            # canonicalises to the storage it actually is, DoubleType (a live
-            # column made under REAL_AS_FLOAT reports ``float`` and reaches the
-            # FloatType branch below).  The dialect tells a caller who asks for
-            # the RealType concept which class to declare instead; see
-            # ``MariaDBDialect.suggested_data_types`` and ``substitute_advice``.
-            #
-            # ``unsigned`` is read here for the same reason the integer branch
-            # reads it: MariaDB writes the attribute into ``COLUMN_TYPE`` in this
-            # position for these three words exactly as it does for the integer
-            # widths -- measured on all fifteen wired servers, 10.2.44 through
-            # 13.1.1: ``double(10,2) unsigned``, ``float(10,2) unsigned``,
-            # ``double unsigned`` -- and a parser that could not read its own
-            # dialect's output back would make the differ report a change on
-            # every unsigned float that was never touched.
-            #
-            # ``ZEROFILL`` is deliberately **not** read: it is a MariaDB display
-            # attribute with no field on any of these concepts, so there is
-            # nowhere to put it.  It is also unrepresentable on this backend --
-            # ``FLOAT``'s and ``DECIMAL``'s concepts carry no ``zerofill``, so a
-            # ``float(10,2) unsigned zerofill`` column introspects here as the
-            # unsigned ``FloatType`` the declaration asked for, which is the same
-            # column with the padding dropped.  That is not a signedness loss and
-            # it is not this branch's to invent a field for.
-            unsigned = "UNSIGNED" in upper
-            if upper.startswith("DOUBLE"):
-                return DoubleType(self, unsigned=unsigned)
-            if upper.startswith("REAL"):
-                return DoubleType(self, unsigned=unsigned)
-            # FLOAT. A single argument is the bit-precision p: 0..24 selects
-            # 4-byte FLOAT storage and 25..53 selects 8-byte DOUBLE storage --
-            # measured on all fifteen wired servers: ``FLOAT(24)`` reports
-            # ``float``, ``FLOAT(25)`` and ``FLOAT(53)`` report ``double``.
-            # The class follows the storage, and p itself is dropped because
-            # the catalog does not record it.
-            #
-            # The deprecated two-argument ``FLOAT(M,D)`` is a different
-            # declaration: its first number is M (total *decimal* digits), not
-            # p (bits).  Measured on the wired servers, ``FLOAT(25,17)`` and
-            # ``FLOAT(53,17)`` both store single-precision values
-            # (1.2345678806304932, against ``DOUBLE``'s 1.2345678901234567) and
-            # both report ``NUMERIC_PRECISION = M``, while one-argument
-            # ``FLOAT(25)`` resolves to ``double``.  So it is read as the
-            # 4-byte concept with the (M,D) display spec dropped -- FloatType
-            # carries no scale, and this dialect now refuses a precision it
-            # cannot round-trip.
-            nums = re.findall(r"\d+", stripped)
-            if len(nums) >= 2:
-                return FloatType(self, unsigned=unsigned)
-            precision = int(nums[0]) if nums else None
-            if precision is not None and precision >= 25:
-                return DoubleType(self, unsigned=unsigned)
-            return FloatType(self, unsigned=unsigned)
-
-        # DECIMAL / NUMERIC / DEC / FIXED are one concept with four accepted
-        # words (MariaDB's own manual says DECIMAL is synonymous with NUMERIC
-        # and DEC; FIXED is the MySQL-era synonym). All four become the same
-        # DecimalType carrying the default spelling, so the differ does not see
-        # a change where the server sees none.
-        #
-        # ``unsigned`` is read for the reason given in the float branch above,
-        # and the position is the same one the DECIMAL page documents:
-        # ``DECIMAL[(M[,D])] [SIGNED | UNSIGNED | ZEROFILL]``, with the catalog
-        # reporting ``decimal(10,2) unsigned`` on every wired server.
-        if self._MARIA_DECIMAL_TYPES.match(upper):
-            unsigned = "UNSIGNED" in upper
-            nums = re.findall(r"\d+", stripped)
-            if len(nums) >= 2:
-                return DecimalType(self, int(nums[0]), int(nums[1]),
-                                   unsigned=unsigned)
-            if len(nums) == 1:
-                return DecimalType(self, int(nums[0]), unsigned=unsigned)
-            return DecimalType(self, unsigned=unsigned)
-
-        if self._MARIA_STRING_TYPES.match(upper):
-            if upper.startswith("TINYTEXT"):
-                from ..expression.types import MariaDBTinyTextType
-                return MariaDBTinyTextType(dialect=self)
-            if upper.startswith("MEDIUMTEXT"):
-                from ..expression.types import MariaDBMediumTextType
-                return MariaDBMediumTextType(dialect=self)
-            if upper.startswith("LONGTEXT"):
-                from ..expression.types import MariaDBLongTextType
-                return MariaDBLongTextType(self)
-            if upper.startswith("TEXT"):
-                from ..expression.types import MariaDBTextType
-                return MariaDBTextType(self)
-            if upper.startswith("ENUM"):
-                from ..expression.types import MariaDBEnumType
-                values = re.findall(r"'([^']*)'", stripped)
-                charset = None
-                collation = None
-                cs_match = re.search(r"CHARACTER\s+SET\s+(\w+)", upper)
-                if cs_match:
-                    charset = cs_match.group(1)
-                col_match = re.search(r"COLLATE\s+(\w+)", upper)
-                if col_match:
-                    collation = col_match.group(1)
-                return MariaDBEnumType(self, values, charset=charset, collation=collation)
-            if upper.startswith("SET"):
-                from ..expression.types import MariaDBSetType
-                values = re.findall(r"'([^']*)'", stripped)
-                charset = None
-                collation = None
-                cs_match = re.search(r"CHARACTER\s+SET\s+(\w+)", upper)
-                if cs_match:
-                    charset = cs_match.group(1)
-                col_match = re.search(r"COLLATE\s+(\w+)", upper)
-                if col_match:
-                    collation = col_match.group(1)
-                return MariaDBSetType(self, values, charset=charset, collation=collation)
-            if upper.startswith("BINARY"):
-                nums = re.findall(r"\d+", stripped)
-                length = int(nums[0]) if nums else None
-                from ..expression.types import MariaDBBinaryType
-                return MariaDBBinaryType(self, length)
-            if upper.startswith("VARBINARY"):
-                nums = re.findall(r"\d+", stripped)
-                length = int(nums[0]) if nums else None
-                from ..expression.types import MariaDBVarBinaryType
-                return MariaDBVarBinaryType(self, length)
-            length_match = re.search(r"\((\d+)\)", stripped)
-            length = int(length_match.group(1)) if length_match else None
-            if upper.startswith("VARCHAR"):
-                return VarCharType(self, length)
-            return CharType(self, length)
-
-        if self._MARIA_BLOB_TYPES.match(upper):
-            if upper.startswith("TINYBLOB"):
-                from ..expression.types import MariaDBTinyBlobType
-                return MariaDBTinyBlobType(dialect=self)
-            if upper.startswith("MEDIUMBLOB"):
-                from ..expression.types import MariaDBMediumBlobType
-                return MariaDBMediumBlobType(dialect=self)
-            if upper.startswith("LONGBLOB"):
-                from ..expression.types import MariaDBLongBlobType
-                return MariaDBLongBlobType(dialect=self)
-            from ..expression.types import MariaDBBlobType
-            return MariaDBBlobType(dialect=self)
-
-        if self._MARIA_DATE_TYPES.match(upper):
-            if upper.startswith("YEAR"):
-                nums = re.findall(r"\d+", stripped)
-                display_width = int(nums[0]) if nums else None
-                from ..expression.types import MariaDBYearType
-                if display_width not in MariaDBYearType.ALLOWED_DISPLAY_WIDTHS:
-                    # A pre-13.0 server can still report YEAR(2). We cannot
-                    # round-trip it (MariaDBYearType rejects it, and
-                    # MariaDB 13.0+ would refuse the DDL), so degrade to bare
-                    # YEAR -- which is the 4-byte storage YEAR always used --
-                    # and say so rather than failing introspection or
-                    # silently rewriting the schema.
-                    warnings.warn(
-                        f"Server reported YEAR({display_width}); MariaDB 13.0+ rejects "
-                        "YEAR(2). Reading it as YEAR. Use old_mode=2_DIGIT_YEAR (itself "
-                        "deprecated) only if the 2-digit truncation is intentional.",
-                        DeprecationWarning,
-                        stacklevel=2,
-                    )
-                    display_width = None
-                return MariaDBYearType(self, display_width)
-            # ``DATETIME`` before ``DATE``, and the fractional-seconds precision
-            # read off it. ``DATETIME`` *begins with* ``DATE``, so the order of
-            # these two branches is load-bearing: with ``DATE`` first, every
-            # ``DATETIME`` -- and every ``DATETIME(6)`` -- took the ``DATE``
-            # branch's early return and came back as a bare ``DateTimeType``
-            # with its precision dropped. Verified live on all fifteen wired
-            # servers, where ``CREATE TABLE t (c DATETIME(6))`` reports
-            # ``datetime(6)`` in ``COLUMN_TYPE`` and was read as
-            # ``DateTimeType(precision=None)`` -- indistinguishable from a
-            # ``DATETIME``. The fsp is stored: it is the number of fractional
-            # digits the column keeps, so a ``DATETIME`` and a ``DATETIME(6)``
-            # are different columns and the differ has to see it, exactly as it
-            # already does for ``TIMESTAMP`` and ``TIME`` below.
-            #
-            # https://mariadb.com/docs/server/reference/data-types/date-and-time-data-types/datetime
-            if upper.startswith("DATETIME"):
-                nums = re.findall(r"\d+", stripped)
-                precision = int(nums[0]) if nums else None
-                return DateTimeType(self, precision)
-            if upper.startswith("DATE"):
-                return DateType(self)
-            if upper.startswith("TIMESTAMP"):
-                nums = re.findall(r"\d+", stripped)
-                precision = int(nums[0]) if nums else None
-                if "WITH TIME ZONE" in upper:
-                    return TimestampTzType(self, precision)
-                return TimestampType(self, precision)
-            if upper.startswith("TIME"):
-                nums = re.findall(r"\d+", stripped)
-                precision = int(nums[0]) if nums else None
-                if "WITH TIME ZONE" in upper:
-                    return TimeTzType(self, precision)
-                return TimeType(self, precision)
-
-        if self._MARIA_JSON_TYPES.match(upper):
-            return JsonType(self)
-
-        if self._MARIA_XML_TYPES.match(upper):
-            # ``XMLTYPE`` only exists from MariaDB 12.3. On an older server the
-            # word cannot come out of the catalog, so the honest reading there is
-            # the fallback's — ``CustomType``, "this dialect does not model
-            # that" — rather than handing back a class whose formatter would
-            # raise UnsupportedFeatureError on the very dialect that produced
-            # it. Gated for the same reason ``supports_data_type_mariadb_xml``
-            # is: parse_type must never yield a type this dialect cannot render.
-            if not self.supports_data_type_mariadb_xml():
-                return CustomType(dialect=self, raw=stripped)
-            return MariaDBXmlType(self)
-
-        if self._MARIA_UUID_TYPES.match(upper):
-            # ``UUID`` arrived in MariaDB 10.7 and is gated for the same reason
-            # ``XMLTYPE`` is: below 10.7 the word cannot come out of that
-            # server's catalog (``CREATE TABLE t (c UUID)`` fails), and handing
-            # back a class whose formatter raises ``UnsupportedFeatureError``
-            # would be worse than admitting ignorance. ``parse_type`` must
-            # never yield a type this dialect cannot render.
-            #
-            # The gap this fills was measured, not assumed: ``uuid`` is written
-            # by both ``format_data_type_uuid`` (the core concept) and
-            # ``format_data_type_mariadb_uuid``, and before this branch
-            # ``parse_type("uuid")`` fell through to ``CustomType('uuid')`` --
-            # verified on all fifteen wired servers, ten of which (10.7 and up)
-            # store a real ``uuid`` column. So a ``UUIDType`` column did not
-            # survive a round trip through this dialect's own vocabulary, and
-            # introspection reported it as a type the backend does not model.
-            #
-            # https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type
-            if not self.supports_data_type_uuid():
-                return CustomType(dialect=self, raw=stripped)
-            from ..expression.types import MariaDBUUIDType
-            return MariaDBUUIDType(self)
-
-        if self._MARIA_SPATIAL_TYPES.match(upper):
-            srid = None
-            # ``REF_SYSTEM_ID=<n>`` is the spelling MariaDB accepts for a
-            # spatial column's reference system; the spaces the server tolerates
-            # around ``=`` are tolerated here too. ``SRID <n>`` is deliberately
-            # **not** recognised: it is MySQL's attribute, and every server
-            # measured rejects it with errno 1064 (10.2.44 and 13.1.1 live for
-            # this change; 10.6.28, 11.4.13, 11.8.9, 12.1.2 and 12.3.3 in the
-            # typed-columns investigation), so it can never come out of a
-            # MariaDB catalog and is not one of the spellings this dialect
-            # reads back (D8).
-            srid_match = re.search(r"REF_SYSTEM_ID\s*=\s*(\d+)", upper)
-            if srid_match:
-                srid = int(srid_match.group(1))
-            from ..expression.types import (
-                MariaDBGeometryCollectionType,
-                MariaDBGeometryType,
-                MariaDBLineStringType,
-                MariaDBMultiLineStringType,
-                MariaDBMultiPointType,
-                MariaDBMultiPolygonType,
-                MariaDBPointType,
-                MariaDBPolygonType,
-            )
-            spatial_map = {
-                "GEOMETRY": MariaDBGeometryType,
-                "POINT": MariaDBPointType,
-                "LINESTRING": MariaDBLineStringType,
-                "POLYGON": MariaDBPolygonType,
-                "MULTIPOINT": MariaDBMultiPointType,
-                "MULTILINESTRING": MariaDBMultiLineStringType,
-                "MULTIPOLYGON": MariaDBMultiPolygonType,
-                "GEOMETRYCOLLECTION": MariaDBGeometryCollectionType,
-            }
-            # Dispatch on the leading **word**, not on a prefix scanned in
-            # declaration order. ``GEOMETRYCOLLECTION`` begins with
-            # ``GEOMETRY``, so a ``startswith`` loop that reached ``GEOMETRY``
-            # first read a collection column as the generic geometry type --
-            # verified live on all fifteen wired servers, where
-            # ``CREATE TABLE t (c GEOMETRYCOLLECTION)`` introspected as
-            # ``MariaDBGeometryType``. That is a false identity claim in the
-            # worst direction: it made the differ report *no* change between a
-            # ``GEOMETRYCOLLECTION`` column and a ``GEOMETRY`` one, a
-            # difference MariaDB can certainly make. Every one of the eight
-            # words is a single identifier, so the leading word is the whole
-            # name and the map needs no ordering discipline to stay correct.
-            head = re.match(r"[A-Z]+", upper)
-            name = head.group(0) if head else upper
-            return spatial_map.get(name, MariaDBGeometryType)(self, srid)
-
-        # The module-level ``CustomType`` import does the job; the local re-import
-        # that used to sit here made ``CustomType`` a function-local name for the
-        # whole of ``parse_type``, so any *earlier* branch returning
-        # ``CustomType`` hit an ``UnboundLocalError`` on a path that had never
-        # executed it. ``raw`` is keyword-only since the core made the fallback's
-        # single payload a named parameter, so it is passed as one.
-        return CustomType(dialect=self, raw=stripped)

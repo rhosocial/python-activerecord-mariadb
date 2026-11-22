@@ -9,6 +9,7 @@ This module tests MariaDB-specific spatial data type functionality including:
 - SPATIAL index creation
 """
 import pytest
+from rhosocial.activerecord.backend.impl.mariadb.introspection.type_parser import MariaDBTypeParser
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     types as maria_types,
@@ -104,7 +105,7 @@ class TestSpatialSRIDColumnAttribute:
     @pytest.mark.parametrize("word,cls_name", SPATIAL)
     def test_parse_reads_ref_system_id(self, dialect, word, cls_name):
         # The spaces around '=' are tolerated by the server and by the reader.
-        parsed = dialect.parse_type(f"{word.lower()} ref_system_id = 4326")
+        parsed = MariaDBTypeParser(dialect).parse(f"{word.lower()} ref_system_id = 4326")
         assert type(parsed).__name__ == cls_name
         assert parsed.srid == 4326
 
@@ -113,7 +114,7 @@ class TestSpatialSRIDColumnAttribute:
         cls = getattr(maria_types, cls_name)
         declared = cls(dialect, 4326)
         rendered, _ = dialect.format_data_type(declared)
-        assert dialect.parse_type(rendered) == declared
+        assert MariaDBTypeParser(dialect).parse(rendered) == declared
 
     def test_no_srid_renders_the_bare_word(self, dialect):
         for word, cls_name in self.SPATIAL:
@@ -125,10 +126,10 @@ class TestSpatialSRIDColumnAttribute:
 
         Every measured server rejects it (errno 1064), so it cannot come out of
         a MariaDB catalog, and it is deliberately not one of the spellings
-        ``parse_type`` reads: the type parses as the bare spatial word with no
+        ``the introspection parser`` reads: the type parses as the bare spatial word with no
         declared reference system rather than acquiring one from invalid DDL.
         """
-        assert dialect.parse_type("point srid 4326").srid is None
+        assert MariaDBTypeParser(dialect).parse("point srid 4326").srid is None
 
 
 class TestSpatialLiteralFormatting:

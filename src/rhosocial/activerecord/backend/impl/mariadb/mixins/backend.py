@@ -21,6 +21,10 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple, Type, TYPE_CHECKING
 from uuid import UUID
 
+from rhosocial.activerecord.backend.suggestion.definitions import (
+    DataAdapterSuggestion,
+    ExtraDataAdapterSuggestion,
+)
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
 from rhosocial.activerecord.backend.result import QueryResult
 
@@ -272,13 +276,13 @@ class MariaDBBackendMixin:
         """Check if manual commit is required for this database."""
         return not getattr(self.config, 'autocommit', False)
 
-    def get_default_adapter_suggestions(self) -> Dict[Type, Tuple[SQLTypeAdapter, Type]]:
-        """Provide default type adapter suggestions for MariaDB.
+    def suggest_data_adapters(self) -> DataAdapterSuggestion:
+        """Provide type adapter suggestions for MariaDB.
 
-        The framework defaults
-        (:meth:`TypeAdaptionMixin.get_default_adapter_suggestions`) are the
-        base; MariaDB merges its own pairs on top, including the neutral
-        families it carries as TEXT/BLOB text.
+        The portable framework defaults are the base; MariaDB merges its own
+        pairs on top, including the neutral families it carries as TEXT/BLOB
+        text. Core no longer supplies a default table, so the portable mappings
+        are resolved against this backend's adapter registry here.
         """
         from rhosocial.activerecord.backend.adapters import (
             BitString,
@@ -288,11 +292,12 @@ class MariaDBBackendMixin:
             Range,
             Vector,
         )
+        from rhosocial.activerecord.backend.adapters.portable import PORTABLE_TYPE_MAPPINGS
         from rhosocial.activerecord.backend.base.type_adaption import (
             merge_adapter_suggestions,
         )
 
-        base = super().get_default_adapter_suggestions()
+        base = merge_adapter_suggestions({}, PORTABLE_TYPE_MAPPINGS, self.adapter_registry)
 
         type_mappings = [
             (bool, int),
@@ -323,7 +328,11 @@ class MariaDBBackendMixin:
                     f"No adapter found for ({py_type.__name__}, {db_type.__name__}). "
                     "Suggestion will not be provided for this type.",
                 )
-        return suggestions
+        return DataAdapterSuggestion(table=suggestions)
+
+    def suggest_extra_data_adapters(self) -> ExtraDataAdapterSuggestion:
+        """No backend-owned extra adapter types."""
+        return ExtraDataAdapterSuggestion(table={})
 
     def get_type_adapters(self) -> List["SQLTypeAdapter"]:
         """Return the adapter instances this backend provides.

@@ -123,7 +123,7 @@ def _zerofill_signedness(unsigned: bool, zerofill: bool) -> bool:
     mind.** The caller asked for a zero-padded column; MariaDB will hand them a
     zero-padded *unsigned* column and offers no way to decline. Normalising
     here means the value object describes what will be stored, so
-    ``parse_type(rendered) == declared`` holds for every combination of width,
+    ``parser.parse(rendered) == declared`` holds for every combination of width,
     signedness and zerofill — the round trip that was exact for 450 of its 600
     cells across the matrix before this, and is exact for all of them now.
 
@@ -225,7 +225,7 @@ class MariaDBMediumIntType(IntegerType):
     **Why it is not a spelling of an existing type.** A width is a class in this
     hierarchy (D5), and 3 bytes is neither the 1-, 2-, 4- nor 8-byte concept, so
     there is nothing for it to be a synonym of. Mapping it onto
-    :class:`MariaDBIntType` — which is what ``parse_type`` used to do — makes a
+    :class:`MariaDBIntType` — which the old introspection parser used to do — makes a
     3-byte column compare ``==`` to a 4-byte one and the differ report a change
     that was never made, or hide one that was.
 

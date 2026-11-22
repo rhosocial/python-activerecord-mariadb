@@ -412,6 +412,6 @@ class TestAdapterInventory:
         assert isinstance(registry.get_adapter(MacAddress, str), MariaDBMacAddressAdapter)
 
     def test_json_adapter_still_wins_for_plain_lists(self, backend):
-        suggestions = backend.get_default_adapter_suggestions()
+        suggestions = backend.suggest_data_adapters().table
         assert isinstance(suggestions[list][0], MariaDBJSONAdapter)
         assert isinstance(backend.adapter_registry.get_adapter(list, str), MariaDBJSONAdapter)

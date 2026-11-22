@@ -7,10 +7,10 @@ system and the MariaDB backend:
 
 - ``supports_data_type_<name>`` / ``format_data_type_<name>`` 1:1
   correspondence on ``MariaDBDialect``;
-- ``supports_data_types()`` merges the ``mariadb_*`` namespaced family with
-  the core family;
-- ``substitute_data_types()`` values are real ``DataType`` classes and its
-  keys are disjoint from the supported keys;
+- the rendered-concept mapping (rebuilt from the formatter family) merges the
+  ``mariadb_*`` namespaced family with the core family;
+- ``suggest_substitute_types().mapping`` values are real ``DataType`` classes
+  and its keys are disjoint from the rendered keys;
 - ``MariaDBEnumType`` renders ``ENUM('a','b')`` (with charset/collation
   extensions);
 - the integer attribute pair ``UNSIGNED`` / ``ZEROFILL`` is honoured as two
@@ -25,10 +25,13 @@ system and the MariaDB backend:
   equality.
 """
 
+import re
+from typing import get_type_hints
+
 import pytest
 
+from rhosocial.activerecord.backend.impl.mariadb.introspection.type_parser import MariaDBTypeParser
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.dialect.mixins import DataTypeMixin
 from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
@@ -77,6 +80,52 @@ def dialect():
     return MariaDBDialect(version=(10, 7, 0))
 
 
+def _supported(dialect):
+    """The ``{concept name: DataType class}`` mapping this dialect renders.
+
+    Core removed the aggregate support-list method; the formatter family plus
+    each ``supports_data_type_<name>`` probe are the source of truth. This
+    rebuilds the old mapping by reading the formatter annotations, falling back
+    to the live ``DataType`` subclass tree for a backend-prefixed name.
+    """
+    result = {}
+    for member_name in dir(type(dialect)):
+        match = re.match(r"^format_data_type_([a-z][a-z0-9_]*)$", member_name)
+        if not match:
+            continue
+        name = match.group(1)
+        probe = getattr(dialect, f"supports_data_type_{name}", None)
+        if probe is not None and not probe():
+            continue
+        klass = None
+        try:
+            hints = get_type_hints(getattr(type(dialect), member_name))
+        except Exception:  # pragma: no cover - annotation resolution is best-effort
+            hints = {}
+        for param, annotation in hints.items():
+            if param == "return":
+                continue
+            if isinstance(annotation, type) and issubclass(annotation, DataType) \
+                    and annotation.name == name:
+                klass = annotation
+                break
+        if klass is None:
+            seen = set()
+            stack = [DataType]
+            while stack:
+                candidate = stack.pop()
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
+                stack.extend(candidate.__subclasses__())
+                if getattr(candidate, "name", None) == name:
+                    klass = candidate
+                    break
+        if klass is not None:
+            result[name] = klass
+    return result
+
+
 class TestSupportFormatCorrespondence:
     """Every format_data_type_<name> has supports_data_type_<name>, 1:1."""
 
@@ -94,11 +143,11 @@ class TestSupportFormatCorrespondence:
         assert format_names, "MariaDBDialect must implement format_data_type_* members"
         assert format_names == support_names
 
-    def test_supports_data_types_covers_every_formatter(self, dialect):
+    def test_supported_types_cover_every_formatter(self, dialect):
         """Every formatter is either in the mapping or gated off by version.
 
-        ``supports_data_types()`` is built by walking the formatters and keeping
-        the ones whose ``supports_*`` says yes, so one direction is true by
+        The mapping is built by walking the formatters and keeping the ones
+        whose ``supports_*`` says yes, so one direction is true by
         construction; this asserts the other, that nothing is silently dropped,
         and names the exceptions.
 
@@ -114,7 +163,7 @@ class TestSupportFormatCorrespondence:
             for member in dir(MariaDBDialect)
             if member.startswith("format_data_type_")
         }
-        supported = dialect.supports_data_types()
+        supported = _supported(dialect)
         assert set(supported) <= format_names
         assert format_names - set(supported) == {"mariadb_xml"}
 
@@ -126,22 +175,19 @@ class TestSupportFormatCorrespondence:
             for member in dir(MariaDBDialect)
             if member.startswith("format_data_type_")
         }
-        assert set(current.supports_data_types()) == format_names
+        assert set(_supported(current)) == format_names
 
-    def test_supports_data_types_returns_classes(self, dialect):
-        for name, klass in dialect.supports_data_types().items():
+    def test_supported_types_return_classes(self, dialect):
+        for name, klass in _supported(dialect).items():
             assert isinstance(klass, type), name
             assert issubclass(klass, DataType), name
 
-    def test_inherits_mixin_scan_implementation(self, dialect):
-        assert MariaDBDialect.supports_data_types is DataTypeMixin.supports_data_types
 
-
-class TestSupportsDataTypesMapping:
-    """supports_data_types() merges mariadb_* namespaced and core entries."""
+class TestSupportsTypesMapping:
+    """The rendered mapping merges mariadb_* namespaced and core entries."""
 
     def test_includes_mariadb_namespaced_entries(self, dialect):
-        supported = dialect.supports_data_types()
+        supported = _supported(dialect)
         assert "mariadb_int" in supported
         assert supported["mariadb_int"] is MariaDBIntType
         assert "mariadb_enum" in supported
@@ -149,7 +195,7 @@ class TestSupportsDataTypesMapping:
         assert supported["mariadb_uuid"] is MariaDBUUIDType
 
     def test_includes_core_entries(self, dialect):
-        supported = dialect.supports_data_types()
+        supported = _supported(dialect)
         assert "integer" in supported
         assert supported["integer"] is IntegerType
         assert "varchar" in supported
@@ -157,24 +203,24 @@ class TestSupportsDataTypesMapping:
         assert "json" in supported
 
     def test_per_type_support_methods_are_truthful(self, dialect):
-        supported = dialect.supports_data_types()
+        supported = _supported(dialect)
         for name in supported:
             checker = getattr(dialect, f"supports_data_type_{name}")
             assert checker() is True, name
 
 
 class TestSuggestedDataTypes:
-    """substitute_data_types(): real classes, disjoint from supported keys."""
+    """suggest_substitute_types(): real classes, disjoint from rendered keys."""
 
     def test_values_are_data_type_classes(self, dialect):
-        suggestions = dialect.substitute_data_types()
+        suggestions = dialect.suggest_substitute_types().mapping
         for key, klass in suggestions.items():
             assert isinstance(klass, type), key
             assert issubclass(klass, DataType), key
 
     def test_keys_disjoint_from_supported(self, dialect):
-        suggestions = dialect.substitute_data_types()
-        supported = dialect.supports_data_types()
+        suggestions = dialect.suggest_substitute_types().mapping
+        supported = _supported(dialect)
         assert not (set(suggestions) & set(supported))
 
     def test_uuid_is_rendered_not_suggested(self, dialect):
@@ -185,8 +231,8 @@ class TestSuggestedDataTypes:
         produced a column which is not a UUID -- stored without the byte-swap
         that makes UUIDv1 ordering index-friendly, and accepting inputs the real
         type rejects (``UUID_SHORT()``, braces)."""
-        assert "uuid" not in dialect.substitute_data_types()
-        assert dialect.supports_data_types()["mariadb_uuid"] is MariaDBUUIDType
+        assert "uuid" not in dialect.suggest_substitute_types().mapping
+        assert _supported(dialect)["mariadb_uuid"] is MariaDBUUIDType
 
     def test_uuid_type_renders_in_direct_column_expression(self, dialect):
         data_type = MariaDBUUIDType(dialect)
@@ -203,7 +249,7 @@ class TestSuggestedDataTypes:
 
         old = MariaDBDialect(version=(10, 6, 0))
         assert old.supports_data_type_mariadb_uuid() is False
-        assert "mariadb_uuid" not in old.supports_data_types()
+        assert "mariadb_uuid" not in _supported(old)
         with pytest.raises(UnsupportedFeatureError, match="UUID data type"):
             old.format_data_type(MariaDBUUIDType(old))
 
@@ -222,9 +268,9 @@ class TestSuggestedDataTypes:
         A name in both sets is one of the two being a lie, so the generic type
         is rendered and the suggestion went.
         """
-        suggestions = dialect.substitute_data_types()
+        suggestions = dialect.suggest_substitute_types().mapping
         assert "enum" not in suggestions
-        assert dialect.supports_data_types()["enum"] is EnumType
+        assert _supported(dialect)["enum"] is EnumType
 
     def test_real_is_suggested_as_double_and_the_error_says_why(self, dialect):
         """``REAL`` cannot round-trip: MariaDB resolves it to ``DOUBLE``.
@@ -238,9 +284,9 @@ class TestSuggestedDataTypes:
         class is therefore *substituted* rather than rendered, and the advice
         text carries the vendor fact so the caller can pick the right class.
         """
-        suggestions = dialect.substitute_data_types()
+        suggestions = dialect.suggest_substitute_types().mapping
         assert suggestions["real"] is DoubleType
-        assert "real" not in dialect.supports_data_types()
+        assert "real" not in _supported(dialect)
         with pytest.raises(TypeError) as excinfo:
             dialect.format_data_type(RealType(dialect))
         message = str(excinfo.value)
@@ -258,7 +304,7 @@ class TestSuggestedDataTypes:
 # and the differ reads it with `!=`. MariaDB infers UNSIGNED from a bare
 # ZEROFILL, so a formatter that wrote ZEROFILL alone for an unsigned
 # declaration would create a column whose stored range contradicts the emitted
-# text -- and `parse_type` derives `unsigned` from the literal presence of the
+# text -- and `the introspection parser` derives `unsigned` from the literal presence of the
 # word "UNSIGNED", so the round-trip would hand back a different value object
 # than the caller declared.
 # ---------------------------------------------------------------------------
@@ -286,7 +332,7 @@ class TestIntegerAttributeRoundTrip:
         declared = cls(dialect, unsigned=unsigned, zerofill=zerofill)
         rendered, params = dialect.format_data_type(declared)
         assert params == ()
-        back = dialect.parse_type(rendered)
+        back = MariaDBTypeParser(dialect).parse(rendered)
         assert back == declared, (
             f"{declared!r} rendered as {rendered!r} but parsed back as {back!r}"
         )
@@ -336,7 +382,7 @@ class TestIntegerAttributeRoundTrip:
         MEDIUMINT, i.e. UNSIGNED first -- the order this dialect now emits, which
         is what makes the round-trip above hold for a column that really exists.
         """
-        parsed = dialect.parse_type("mediumint(8) unsigned zerofill")
+        parsed = MariaDBTypeParser(dialect).parse("mediumint(8) unsigned zerofill")
         assert (parsed.unsigned, parsed.zerofill) == (True, True)
         assert dialect.format_data_type(parsed)[0] == "MEDIUMINT UNSIGNED ZEROFILL"
 
@@ -420,7 +466,7 @@ class TestExactAndApproximateNumericsHonourUnsigned:
     def test_round_trips_to_the_same_value_object(self, dialect, name, cls,
                                                  build, signed_sql,
                                                  unsigned_sql):
-        """``parse_type`` is the half that restores the differ's sight.
+        """``the introspection parser`` is the half that restores the differ's sight.
 
         Without reading ``UNSIGNED`` out of the catalog string, an introspected
         unsigned column came back as the *signed* value object, ``==`` called the
@@ -431,7 +477,7 @@ class TestExactAndApproximateNumericsHonourUnsigned:
             declared = build(dialect, unsigned)
             rendered, params = dialect.format_data_type(declared)
             assert params == ()
-            back = dialect.parse_type(rendered)
+            back = MariaDBTypeParser(dialect).parse(rendered)
             assert back == declared, (
                 f"{declared!r} rendered as {rendered!r} but parsed back as {back!r}"
             )
@@ -440,21 +486,21 @@ class TestExactAndApproximateNumericsHonourUnsigned:
 
     @pytest.mark.parametrize("name,cls,build,signed_sql,unsigned_sql", _NUMERICS,
                              ids=_IDS)
-    def test_parse_type_reads_the_catalog_word(self, dialect, name, cls, build,
+    def test_parser_parse_reads_the_catalog_word(self, dialect, name, cls, build,
                                               signed_sql, unsigned_sql):
         """The catalog strings themselves, byte for byte as measured above.
 
-        Fed to ``parse_type`` directly rather than only through the formatter, so a
+        Fed to ``the introspection parser`` directly rather than only through the formatter, so a
         change to either half alone fails here.
         """
-        unsigned_back = dialect.parse_type(unsigned_sql)
+        unsigned_back = MariaDBTypeParser(dialect).parse(unsigned_sql)
         assert unsigned_back.unsigned is True
         assert dialect.format_data_type(unsigned_back)[0] == unsigned_sql
-        signed_back = dialect.parse_type(signed_sql)
+        signed_back = MariaDBTypeParser(dialect).parse(signed_sql)
         assert signed_back.unsigned is False
         assert dialect.format_data_type(signed_back)[0] == signed_sql
 
-    def test_parse_type_does_not_mistake_the_precision_for_a_sign(self, dialect):
+    def test_parser_parse_does_not_mistake_the_precision_for_a_sign(self, dialect):
         """``re.findall(r"\\d+", ...)`` reads the argument, not the attribute.
 
         The obvious way to break this is to look for a digit where the sign is, so
@@ -466,13 +512,13 @@ class TestExactAndApproximateNumericsHonourUnsigned:
         ``FloatType``; ``real`` is a documented synonym of ``DOUBLE`` and
         canonicalises to ``DoubleType``.
         """
-        assert dialect.parse_type("decimal(10,2) unsigned") == DecimalType(
+        assert MariaDBTypeParser(dialect).parse("decimal(10,2) unsigned") == DecimalType(
             None, 10, 2, unsigned=True)
-        assert dialect.parse_type("float(10,2) unsigned") == FloatType(
+        assert MariaDBTypeParser(dialect).parse("float(10,2) unsigned") == FloatType(
             None, unsigned=True)
-        assert dialect.parse_type("double(10,2) unsigned") == DoubleType(
+        assert MariaDBTypeParser(dialect).parse("double(10,2) unsigned") == DoubleType(
             unsigned=True)
-        assert dialect.parse_type("real unsigned") == DoubleType(unsigned=True)
+        assert MariaDBTypeParser(dialect).parse("real unsigned") == DoubleType(unsigned=True)
 
     def test_the_attribute_is_written_after_the_argument_group(self, dialect):
         """The slot the grammar gives it, which is also the slot the catalog reports
@@ -555,7 +601,7 @@ class TestFloatPrecisionAndSynonymsAreCanonicalised:
     def test_double_precision_is_a_spelling_of_double(self, dialect):
         """The DOUBLE page accepts ``DOUBLE PRECISION``; the catalog says double."""
         for raw in ("DOUBLE PRECISION", "double precision"):
-            parsed = dialect.parse_type(raw)
+            parsed = MariaDBTypeParser(dialect).parse(raw)
             assert isinstance(parsed, DoubleType), raw
             assert not isinstance(parsed, CustomType), raw
         assert dialect.format_data_type(
@@ -575,10 +621,10 @@ class TestFloatPrecisionAndSynonymsAreCanonicalised:
         itself is substituted rather than parsed into.
         """
         for raw in ("REAL", "real"):
-            parsed = dialect.parse_type(raw)
+            parsed = MariaDBTypeParser(dialect).parse(raw)
             assert isinstance(parsed, DoubleType), raw
             assert not isinstance(parsed, CustomType), raw
-        assert dialect.parse_type("REAL UNSIGNED") == DoubleType(
+        assert MariaDBTypeParser(dialect).parse("REAL UNSIGNED") == DoubleType(
             dialect, unsigned=True
         )
 
@@ -595,7 +641,7 @@ class TestFloatPrecisionAndSynonymsAreCanonicalised:
         formatter refuses a precision-bearing ``FloatType`` for that reason and
         the caller is told which class to declare for each range.
         """
-        parsed = dialect.parse_type(raw)
+        parsed = MariaDBTypeParser(dialect).parse(raw)
         assert type(parsed) is expected, raw
         assert dialect.format_data_type(parsed) == (expected.name.upper(), ())
 
@@ -611,10 +657,10 @@ class TestFloatPrecisionAndSynonymsAreCanonicalised:
         so the declaration is the 4-byte concept.
         """
         for raw in ("FLOAT(10,2)", "FLOAT(24,2)", "FLOAT(25,2)", "FLOAT(53,2)"):
-            parsed = dialect.parse_type(raw)
+            parsed = MariaDBTypeParser(dialect).parse(raw)
             assert isinstance(parsed, FloatType), raw
             assert parsed.precision is None, raw
-        assert dialect.parse_type("FLOAT(53,2) UNSIGNED") == FloatType(
+        assert MariaDBTypeParser(dialect).parse("FLOAT(53,2) UNSIGNED") == FloatType(
             dialect, unsigned=True
         )
 
@@ -639,7 +685,7 @@ class TestMediumIntIsItsOwnWidth:
     """MEDIUMINT is 3 bytes. Reading it as the 4-byte INT was a false claim."""
 
     def test_own_dispatch_key_and_class(self, dialect):
-        supported = dialect.supports_data_types()
+        supported = _supported(dialect)
         assert supported["mariadb_mediumint"] is MariaDBMediumIntType
         assert dialect.supports_data_type_mariadb_mediumint() is True
         assert MariaDBMediumIntType.name == "mariadb_mediumint"
@@ -653,14 +699,14 @@ class TestMediumIntIsItsOwnWidth:
         "INT3 UNSIGNED",
     ])
     def test_parses_to_the_three_byte_class(self, dialect, raw):
-        parsed = dialect.parse_type(raw)
+        parsed = MariaDBTypeParser(dialect).parse(raw)
         assert isinstance(parsed, MariaDBMediumIntType)
         assert parsed.name == "mariadb_mediumint"
 
     def test_mediumint_is_not_an_int(self, dialect):
         """The defect: 3 bytes was being read as 4 bytes, so the differ saw a
         MEDIUMINT column and an INT column as the same type."""
-        medium = dialect.parse_type("mediumint(9)")
+        medium = MariaDBTypeParser(dialect).parse("mediumint(9)")
         assert medium != MariaDBIntType(dialect)
         assert type(medium) is not type(MariaDBIntType(dialect))
         assert MariaDBMediumIntType(dialect) != MariaDBIntType(dialect)
@@ -697,7 +743,7 @@ class TestMediumIntIsItsOwnWidth:
     def test_each_width_parses_to_its_own_class(self, dialect):
         """One concept in, one class out, for all five widths."""
         for cls, word in INTEGER_WIDTHS:
-            parsed = dialect.parse_type(word)
+            parsed = MariaDBTypeParser(dialect).parse(word)
             assert type(parsed) is cls, word
             assert parsed.unsigned is False
             assert dialect.format_data_type(cls(dialect)) == (word, ())
@@ -725,15 +771,15 @@ class TestXmlTypeSubstituteFollowsTheServer:
     def test_below_12_3_the_substitute_is_text(self):
         """Unchanged behaviour on an older server: XML is text."""
         old = MariaDBDialect(version=(12, 2, 2))
-        assert old.substitute_data_types()["xml"] is TextType
+        assert old.suggest_substitute_types().mapping["xml"] is TextType
         assert old.format_data_type(TextType(old)) == ("TEXT", ())
-        assert "mariadb_xml" not in old.supports_data_types()
+        assert "mariadb_xml" not in _supported(old)
 
     def test_from_12_3_the_substitute_is_the_native_type(self):
         """On 12.3+ the backend can store a real XML column, so TEXT is wrong."""
         new = MariaDBDialect(version=(12, 3, 0))
-        assert new.substitute_data_types()["xml"] is MariaDBXmlType
-        assert new.supports_data_types()["mariadb_xml"] is MariaDBXmlType
+        assert new.suggest_substitute_types().mapping["xml"] is MariaDBXmlType
+        assert _supported(new)["mariadb_xml"] is MariaDBXmlType
         assert new.format_data_type(MariaDBXmlType(new)) == ("XMLTYPE", ())
 
     def test_xml_is_substituted_not_rendered_under_the_core_name(self):
@@ -741,10 +787,10 @@ class TestXmlTypeSubstituteFollowsTheServer:
         rendered key. The two sets stay disjoint on both sides of the gate."""
         for version in [(12, 2, 2), (13, 1, 1)]:
             target = MariaDBDialect(version=version)
-            assert "xml" in target.substitute_data_types()
-            assert "xml" not in target.supports_data_types()
-            assert not (set(target.substitute_data_types())
-                        & set(target.supports_data_types()))
+            assert "xml" in target.suggest_substitute_types().mapping
+            assert "xml" not in _supported(target)
+            assert not (set(target.suggest_substitute_types().mapping)
+                        & set(_supported(target)))
 
     def test_xmltype_refuses_to_render_below_12_3(self):
         """Answering with TEXT would hand back a different column silently."""
@@ -767,11 +813,11 @@ class TestXmlTypeSubstituteFollowsTheServer:
             # Below the gate the word cannot come from the catalog, and handing
             # back a type this dialect refuses to render would be worse than
             # admitting ignorance.
-            assert isinstance(target.parse_type("xmltype"), CustomType)
+            assert isinstance(MariaDBTypeParser(target).parse("xmltype"), CustomType)
             return
         rendered, _ = target.format_data_type(declared)
         assert rendered == "XMLTYPE"
-        assert target.parse_type(rendered) == declared
+        assert MariaDBTypeParser(target).parse(rendered) == declared
 
     def test_derives_from_the_core_xml_concept(self):
         """``isinstance(col.data_type, XmlType)`` must answer across backends.
@@ -830,12 +876,12 @@ class TestTypeProtocolSetDeclaresTheNewFamilies:
 
 
 # ---------------------------------------------------------------------------
-# Integer spellings: D8 -- parse_type covers every SPELLINGS entry
+# Integer spellings: D8 -- the introspection parser covers every SPELLINGS entry
 #
 # The defect: ``format_data_type_tinyint`` / ``_smallint`` / ``_bigint`` all
 # accept a second spelling (``int1`` / ``int2`` / ``int8``, which are members of
 # the core classes' ``SPELLINGS``) and render the canonical word, but
-# ``_MARIA_INTEGER_TYPES`` did not match those words -- so ``parse_type("int8")``
+# ``_MARIA_INTEGER_TYPES`` did not match those words -- so ``parser.parse("int8")``
 # returned ``CustomType``. A dialect that will write a column whose declared
 # spelling it cannot name back is the asymmetry D8 forbids. Only ``INT3`` was
 # covered, because that is the one the previous round introduced.
@@ -849,7 +895,7 @@ class TestTypeProtocolSetDeclaresTheNewFamilies:
 # ---------------------------------------------------------------------------
 
 #: ``(core concept, every spelling its formatter accepts, documented synonym,
-#: the class parse_type must return for each of them)``. The class is the
+#: the class the introspection parser must return for each of them)``. The class is the
 #: ``mariadb_*`` one because ``zerofill`` has nowhere to live on the core class,
 #: so it is the only lossless answer and the one this dialect already returns for
 #: the canonical word.
@@ -868,7 +914,7 @@ INTEGER_SPELLING_WIDTHS = (
 )
 
 #: The ones that were genuine D8 violations: the spelling is in the concept's own
-#: ``SPELLINGS``, the formatter accepts it, and ``parse_type`` could not read it.
+#: ``SPELLINGS``, the formatter accepts it, and ``the introspection parser`` could not read it.
 INTEGER_SPELLINGS_D8_VIOLATIONS = tuple(
     row for row in INTEGER_SPELLING_WIDTHS if row[2] in row[0].SPELLINGS
 )
@@ -882,10 +928,10 @@ class TestIntegerSpellingsParseBackToTheSameClass:
 
     Two directions, because D8 is a round trip and either half can break:
 
-    * **read** -- ``parse_type(spelling)`` must give the same class, the same
+    * **read** -- ``parser.parse(spelling)`` must give the same class, the same
       ``spelling`` and the same ``unsigned`` / ``zerofill`` as
-      ``parse_type(canonical_word)``. That is "one concept in, one class out".
-    * **write then read** -- ``parse_type(format_data_type(declared))`` must give
+      ``parser.parse(canonical_word)``. That is "one concept in, one class out".
+    * **write then read** -- ``parser.parse(format_data_type(declared))`` must give
       the declared value object back for every accepted spelling. This is the
       half a pure-string test cannot see, because the formatter normalises
       ``INT8`` to ``BIGINT`` before the string exists.
@@ -895,7 +941,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         """Pin the size of the defect, so a regression is visible.
 
         Every documented ``INTn`` synonym that a core concept claims in its
-        closed ``SPELLINGS`` list was unreadable by ``parse_type``:
+        closed ``SPELLINGS`` list was unreadable by ``the introspection parser``:
         ``int1``, ``int2``, ``int4`` and ``int8``. ``int3`` was already covered
         by the previous round because ``MariaDBMediumIntType`` declares it, and
         it is not listed here because ``MariaDBMediumIntType`` is not one of the
@@ -909,7 +955,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
 
     @pytest.mark.parametrize("concept,word,synonym,cls",
                              INTEGER_SPELLINGS_D8_VIOLATIONS)
-    def test_formatter_accepts_and_parse_type_reads_the_spelling(
+    def test_formatter_accepts_and_parser_reads_the_spelling(
         self, dialect, concept, word, synonym, cls,
     ):
         """The defect: the word the formatter accepts, read back as its width.
@@ -928,7 +974,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         assert params == ()
 
         # read: and the word it wrote comes back as the width's own class
-        assert type(dialect.parse_type(rendered)) is cls
+        assert type(MariaDBTypeParser(dialect).parse(rendered)) is cls
 
     @pytest.mark.parametrize("concept,word,synonym,cls",
                              INTEGER_SPELLINGS_D8_VIOLATIONS)
@@ -949,11 +995,11 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         :class:`TestZerofillImpliesUnsigned`).
 
         This assertion used to read ``unsigned is ("UNSIGNED" in attr)``, which
-        asserted the defect: it made ``parse_type("INT1 ZEROFILL")`` a *signed*
+        asserted the defect: it made ``parser.parse("INT1 ZEROFILL")`` a *signed*
         type for a column that cannot hold ``-1``.
         """
-        canonical = dialect.parse_type(word + attr)
-        from_synonym = dialect.parse_type(synonym + attr)
+        canonical = MariaDBTypeParser(dialect).parse(word + attr)
+        from_synonym = MariaDBTypeParser(dialect).parse(synonym + attr)
 
         assert type(from_synonym) is type(canonical) is cls
         assert from_synonym == canonical
@@ -986,8 +1032,8 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         this is the assertion that says so: one spelling for a width, whichever
         word arrived.
         """
-        assert dialect.parse_type(synonym + attr).spelling == \
-            dialect.parse_type(word + attr).spelling
+        assert MariaDBTypeParser(dialect).parse(synonym + attr).spelling == \
+            MariaDBTypeParser(dialect).parse(word + attr).spelling
 
     @pytest.mark.parametrize("concept,word,synonym,cls",
                              INTEGER_SPELLINGS_D8_VIOLATIONS)
@@ -1013,7 +1059,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
                 rendered, params = dialect.format_data_type(declared)
                 assert params == ()
                 expected = cls(dialect, unsigned=unsigned)
-                assert dialect.parse_type(rendered) == expected, (
+                assert MariaDBTypeParser(dialect).parse(rendered) == expected, (
                     f"{concept.__name__}(spelling={spelling!r}, "
                     f"unsigned={unsigned}) rendered {rendered!r}"
                 )
@@ -1044,7 +1090,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
     def test_every_documented_integer_word_lands_on_its_width(
         self, dialect, raw, expected_name,
     ):
-        assert type(dialect.parse_type(raw)).__name__ == expected_name, raw
+        assert type(MariaDBTypeParser(dialect).parse(raw)).__name__ == expected_name, raw
 
     @pytest.mark.parametrize("raw", ["INT11", "INT1X", "INTERVAL", "INET6",
                                      "INVISIBLE"])
@@ -1056,7 +1102,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         unrecognised word as a real column type. The honest answer for a word
         MariaDB does not document is :class:`CustomType`.
         """
-        assert isinstance(dialect.parse_type(raw), CustomType), raw
+        assert isinstance(MariaDBTypeParser(dialect).parse(raw), CustomType), raw
 
     def test_bool_is_not_int1(self, dialect):
         """``BOOL``/``BOOLEAN`` are documented synonyms of ``TINYINT(1)``, which is
@@ -1066,14 +1112,14 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         TINYINT(1)", listing it apart from "INT1 - Synonym for TINYINT" -- and
         the server agrees: ``BOOL`` is stored as ``tinyint(1)`` and ``INT1`` as
         ``tinyint(4)`` (verified live on all fifteen wired servers). So
-        ``parse_type("bool")`` is a ``BooleanType`` and ``parse_type("int1")`` is
+        ``parser.parse("bool")`` is a ``BooleanType`` and ``parser.parse("int1")`` is
         a small integer.
         """
-        assert isinstance(dialect.parse_type("BOOL"), BooleanType)
-        assert isinstance(dialect.parse_type("BOOLEAN"), BooleanType)
-        assert isinstance(dialect.parse_type("TINYINT(1)"), BooleanType)
+        assert isinstance(MariaDBTypeParser(dialect).parse("BOOL"), BooleanType)
+        assert isinstance(MariaDBTypeParser(dialect).parse("BOOLEAN"), BooleanType)
+        assert isinstance(MariaDBTypeParser(dialect).parse("TINYINT(1)"), BooleanType)
         for raw in ("INT1", "INT1(4)", "TINYINT", "TINYINT(4)"):
-            parsed = dialect.parse_type(raw)
+            parsed = MariaDBTypeParser(dialect).parse(raw)
             assert isinstance(parsed, MariaDBTinyIntType), raw
             assert not isinstance(parsed, BooleanType), raw
 
@@ -1086,7 +1132,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         string, or every ``UNSIGNED`` / ``ZEROFILL`` synonym would silently
         become a boolean.
         """
-        parsed = dialect.parse_type("INT1" + attr)
+        parsed = MariaDBTypeParser(dialect).parse("INT1" + attr)
         assert isinstance(parsed, MariaDBTinyIntType), attr
         assert not isinstance(parsed, BooleanType), attr
 
@@ -1100,12 +1146,12 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         .../numeric-data-types/int4. So this dialect accepts it, normalises it
         to MariaDB's own ``INT`` -- the word ``COLUMN_TYPE`` reports, and the one
         that makes the round trip through the catalog stable -- and
-        ``parse_type`` reads it back to the same class with the same
+        ``the introspection parser`` reads it back to the same class with the same
         ``spelling``.
 
         It was previously the odd one out: ``int4`` was *not* in
         ``IntegerType.SPELLINGS``, so ``format_data_type_integer`` refused it
-        with a ``TypeError`` naming the spelling while ``parse_type`` read it
+        with a ``TypeError`` naming the spelling while ``the introspection parser`` read it
         anyway. That is the asymmetry D8 forbids in the other direction -- the
         reader is widened without the writer -- and the reader-only half could
         not be justified once the writer caught up.
@@ -1114,8 +1160,8 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         assert dialect.format_data_type(
             IntegerType(dialect, spelling="int4")
         )[0] == "INT"
-        assert isinstance(dialect.parse_type("INT4"), MariaDBIntType)
-        assert dialect.parse_type("INT4") == dialect.parse_type("INTEGER")
+        assert isinstance(MariaDBTypeParser(dialect).parse("INT4"), MariaDBIntType)
+        assert MariaDBTypeParser(dialect).parse("INT4") == MariaDBTypeParser(dialect).parse("INTEGER")
 
     @pytest.mark.parametrize("raw,expected", [
         ("int1", MariaDBTinyIntType),
@@ -1132,7 +1178,7 @@ class TestIntegerSpellingsParseBackToTheSameClass:
         regex without a branch would fall through to the 4-byte default and be
         read as the wrong width, which is the MEDIUMINT defect all over again.
         """
-        assert type(dialect.parse_type(raw)) is expected, raw
+        assert type(MariaDBTypeParser(dialect).parse(raw)) is expected, raw
 
 
 class TestZerofillImpliesUnsigned:
@@ -1141,9 +1187,9 @@ class TestZerofillImpliesUnsigned:
     The defect: a declaration of ``(unsigned=False, zerofill=True)`` was rendered
     as ``INT ZEROFILL``, which the server stores as ``int(10) unsigned zerofill``.
     So the stored column was unsigned while the declaration said signed, and
-    ``parse_type`` -- which reads ``unsigned`` off the literal presence of the
+    ``the introspection parser`` -- which reads ``unsigned`` off the literal presence of the
     word -- handed back a different value object than the caller declared. That
-    is 150 of the 600 formatter -> catalog -> ``parse_type`` round trips across
+    is 150 of the 600 formatter -> catalog -> ``the introspection parser`` round trips across
     the 15-server matrix, and it is what ``_zerofill_signedness`` fixes.
 
     **The fix is normalisation at construction, not an exemption.** Nothing here
@@ -1194,13 +1240,13 @@ class TestZerofillImpliesUnsigned:
         ``SchemaDiffer._columns_equivalent`` compares ``parsed_data_type`` with
         ``!=`` when both sides carry one. Both sides of a real MariaDB diff are
         *introspected* -- a snapshot from before and a snapshot from now -- so
-        both go through this dialect's own ``parse_type``. Two columns MariaDB
+        both go through this dialect's own ``the introspection parser``. Two columns MariaDB
         stores identically must therefore arrive as the same object, or the
         differ reports a change the server cannot make.
 
         The two spellings are fed through the reader exactly as the catalog would
         deliver them, including the pre-fix emitted text ``X ZEROFILL``: the
-        normalisation has to live in ``parse_type`` as well as in the
+        normalisation has to live in ``the introspection parser`` as well as in the
         constructor, or a dump written by the previous release would read back
         differently from one written now.
         """
@@ -1216,7 +1262,7 @@ class TestZerofillImpliesUnsigned:
                 name="c", table_name="t", schema="d", ordinal_position=1,
                 data_type=catalog_text.split("(")[0].lower(),
                 data_type_full=catalog_text,
-                parsed_data_type=dialect.parse_type(catalog_text),
+                parsed_data_type=MariaDBTypeParser(dialect).parse(catalog_text),
                 nullable=ColumnNullable.NULLABLE,
             )
 
@@ -1226,8 +1272,8 @@ class TestZerofillImpliesUnsigned:
         )
         # And the reader normalises the bare spelling too, so text this backend
         # emitted before the fix reads back as the column it created.
-        assert dialect.parse_type(f"{word} ZEROFILL") == \
-            dialect.parse_type(f"{word} UNSIGNED ZEROFILL")
+        assert MariaDBTypeParser(dialect).parse(f"{word} ZEROFILL") == \
+            MariaDBTypeParser(dialect).parse(f"{word} UNSIGNED ZEROFILL")
 
     @pytest.mark.parametrize("cls,word", INTEGER_WIDTHS)
     def test_unsigned_stays_in_identity(self, dialect, cls, word):
@@ -1348,10 +1394,10 @@ class TestIntegerSpellingRoundTripOnALiveServer:
     ):
         reported = catalog_type(synonym + attr)
         dialect = mariadb_backend.dialect
-        parsed = dialect.parse_type(reported)
+        parsed = MariaDBTypeParser(dialect).parse(reported)
 
         assert type(parsed).__name__ == cls_name, reported
-        assert parsed == dialect.parse_type(canonical + attr), reported
+        assert parsed == MariaDBTypeParser(dialect).parse(canonical + attr), reported
         assert parsed.unsigned is ("UNSIGNED" in attr or "ZEROFILL" in attr), reported
         assert parsed.zerofill is ("ZEROFILL" in attr), reported
 
@@ -1398,7 +1444,7 @@ class TestIntegerSpellingRoundTripOnALiveServer:
         # apart, which is the whole reason the two declarations are the same
         # value object.
         assert reported == catalog_type(f"{canonical} UNSIGNED ZEROFILL")
-        parsed = mariadb_backend.dialect.parse_type(reported)
+        parsed = MariaDBTypeParser(mariadb_backend.dialect).parse(reported)
         assert parsed.unsigned is True
         assert parsed.zerofill is True
 
@@ -1440,7 +1486,7 @@ class TestIntegerSpellingRoundTripOnALiveServer:
         )
         rendered = dialect.format_data_type(declared)[0]
         reported = catalog_type(rendered)
-        back = dialect.parse_type(reported)
+        back = MariaDBTypeParser(dialect).parse(reported)
 
         assert back == declared, (
             f"{declared!r} rendered {rendered!r}, catalog said {reported!r}, "
@@ -1450,7 +1496,7 @@ class TestIntegerSpellingRoundTripOnALiveServer:
 
 
 class TestParseTypeReadsBackEveryTypeTheDialectWrites:
-    """``parse_type`` must read back every type ``format_data_type`` writes.
+    """``the introspection parser`` must read back every type ``format_data_type`` writes.
 
     Populating ``IntrospectionColumnInfo.parsed_data_type`` (see the introspection suite) is
     what made this observable: with the field left at ``None`` the schema differ
@@ -1469,13 +1515,13 @@ class TestParseTypeReadsBackEveryTypeTheDialectWrites:
         ``format_data_type_uuid`` (the core ``uuid`` concept) and
         ``format_data_type_mariadb_uuid`` both write ``UUID``, and MariaDB 10.7
         stores it verbatim -- verified on all ten wired servers from 10.7 up,
-        where ``CREATE TABLE t (c UUID)`` reports ``uuid``. ``parse_type`` had no
+        where ``CREATE TABLE t (c UUID)`` reports ``uuid``. ``the introspection parser`` had no
         branch for the word and fell through to ``CustomType('uuid')``, so a
         ``UUIDType`` column did not survive a round trip through this dialect's
         own vocabulary and introspection reported it as a type the backend does
         not model.
         """
-        parsed = dialect.parse_type("uuid")
+        parsed = MariaDBTypeParser(dialect).parse("uuid")
         assert isinstance(parsed, MariaDBUUIDType)
         assert dialect.format_data_type(parsed) == ("UUID", ())
         assert parsed == MariaDBUUIDType(dialect)
@@ -1493,9 +1539,9 @@ class TestParseTypeReadsBackEveryTypeTheDialectWrites:
         """
         old = MariaDBDialect(version=(10, 6, 0))
         assert old.supports_data_type_uuid() is False
-        assert isinstance(old.parse_type("uuid"), CustomType)
+        assert isinstance(MariaDBTypeParser(old).parse("uuid"), CustomType)
         new = MariaDBDialect(version=(10, 7, 0))
-        assert isinstance(new.parse_type("uuid"), MariaDBUUIDType)
+        assert isinstance(MariaDBTypeParser(new).parse("uuid"), MariaDBUUIDType)
 
     @pytest.mark.parametrize("raw,expected", [
         ("geometry", "MariaDBGeometryType"),
@@ -1519,7 +1565,7 @@ class TestParseTypeReadsBackEveryTypeTheDialectWrites:
         can certainly make. Dispatch is now on the leading **word**, so no
         ordering discipline is needed to keep the eight apart.
         """
-        parsed = dialect.parse_type(raw)
+        parsed = MariaDBTypeParser(dialect).parse(raw)
         assert type(parsed).__name__ == expected, raw
         assert dialect.format_data_type(parsed) == (raw.upper(), ())
 
@@ -1529,8 +1575,8 @@ class TestParseTypeReadsBackEveryTypeTheDialectWrites:
             MariaDBGeometryType,
         )
 
-        collection = dialect.parse_type("geometrycollection")
-        generic = dialect.parse_type("geometry")
+        collection = MariaDBTypeParser(dialect).parse("geometrycollection")
+        generic = MariaDBTypeParser(dialect).parse("geometry")
         assert isinstance(collection, MariaDBGeometryCollectionType)
         assert collection != generic
         assert type(collection) is not type(generic)
@@ -1559,7 +1605,7 @@ class TestParseTypeReadsBackEveryTypeTheDialectWrites:
             DateType,
         )
 
-        parsed = dialect.parse_type(raw)
+        parsed = MariaDBTypeParser(dialect).parse(raw)
         if precision == "DATE":
             assert isinstance(parsed, DateType), raw
         else:
@@ -1574,18 +1620,18 @@ class TestParseTypeReadsBackEveryTypeTheDialectWrites:
             rendered = dialect.format_data_type(declared)[0]
             # The catalog keeps the parent'shesised form; the display width and
             # the fsp are both reported in COLUMN_TYPE.
-            assert dialect.parse_type(rendered.lower()) == declared, rendered
+            assert MariaDBTypeParser(dialect).parse(rendered.lower()) == declared, rendered
 
     def test_every_type_this_dialect_writes_is_readable(self, dialect):
         """The general form of the rule, across every rendered name.
 
         For every type this dialect renders, the rendered text must come back out
-        of ``parse_type`` as a real class -- never a ``CustomType``, which is the
+        of ``the introspection parser`` as a real class -- never a ``CustomType``, which is the
         honest answer only for a type the backend has *no* class for.
 
         The round trip's target for a core concept is the ``mariadb_*`` class of
         the same width, not the concept itself, and that is deliberate rather than
-        a defect left here: ``parse_type`` returns a ``MariaDBIntType`` for
+        a defect left here: ``the introspection parser`` returns a ``MariaDBIntType`` for
         ``int(11)`` because ``zerofill`` has nowhere to live on the core concept,
         so the backend's class is the only lossless answer. It has no effect on
         the schema differ, which compares two *introspected* columns and so sees
@@ -1620,14 +1666,14 @@ class TestParseTypeReadsBackEveryTypeTheDialectWrites:
         ]
         for declared, expected_cls in writable:
             rendered = dialect.format_data_type(declared)[0]
-            back = dialect.parse_type(rendered)
+            back = MariaDBTypeParser(dialect).parse(rendered)
             assert not isinstance(back, CustomType), (
-                f"{declared!r} renders {rendered!r} but parse_type returned "
+                f"{declared!r} renders {rendered!r} but the introspection parser returned "
                 f"{back!r}"
             )
             assert isinstance(back, CoreDataType), rendered
             assert type(back) is expected_cls, f"{rendered!r} -> {back!r}"
-            assert back == dialect.parse_type(rendered), rendered
+            assert back == MariaDBTypeParser(dialect).parse(rendered), rendered
             # A core concept and the backend class of the same width are not
             # ``==`` (DataType.__eq__ is class-exact), so only the backend's own
             # declarations round-trip to themselves. For a core concept the
