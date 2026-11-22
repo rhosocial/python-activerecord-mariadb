@@ -6,10 +6,10 @@ falling back to --version flag when no connection is available.
 """
 
 import argparse
-import inspect
 import json
 from typing import Any, Dict, List, Tuple
 
+from rhosocial.activerecord.backend.dialect import capabilities as _cap
 from rhosocial.activerecord.backend.dialect.protocols import (
     WindowFunctionSupport, CTESupport, FilterClauseSupport,
     ReturningSupport, UpsertSupport, LateralJoinSupport, JoinSupport,
@@ -143,10 +143,12 @@ def handle(args):
     """Handle the info subcommand."""
     create_provider(args.output, ascii_borders=args.rich_ascii)
 
-    # Track whether we're using actual database or defaults
+    # Track whether we're using an actual database or defaults
     is_connected = False
     dialect = None
     version_display = None
+    variables: Dict[str, Any] = {}
+    variables_source = "no live connection; server variables were not queried"
 
     named_conn = getattr(args, "named_connection", None)
     if named_conn or args.database:
@@ -166,6 +168,17 @@ def handle(args):
                     f".{version_tuple[2]}"
                 )
             is_connected = True
+
+            # Read server variables through the existing SHOW VARIABLES status
+            # introspector. No new database queries are introduced here; if the
+            # introspector cannot answer, the dialect information still stands.
+            try:
+                config_items = backend.introspector.status.list_configuration()
+                variables = {item.name: item.value for item in config_items}
+                variables_source = "SHOW VARIABLES via the status introspector (live connection)"
+            except Exception as e:
+                logger.warning("Could not read server variables: %s", e)
+                variables_source = "SHOW VARIABLES via the status introspector unavailable"
 
             backend.disconnect()
         except Exception as e:
@@ -188,6 +201,17 @@ def handle(args):
         dialect = MariaDBDialect(version=version)
         version_display = f"{version[0]}.{version[1]}.{version[2]}"
 
+    # Capability and suggestion reports are computed from the (possibly offline)
+    # dialect through the shared core helper.
+    capabilities = _cap.build_capability_report(
+        dialect,
+        family_groups=PROTOCOL_FAMILY_GROUPS,
+        dialect_specific_groups=DIALECT_SPECIFIC_GROUPS,
+        all_args=SUPPORT_METHOD_ALL_ARGS,
+        verbose=args.verbose,
+    )
+    suggestions = _cap.build_suggestion_report(dialect, args.verbose)
+
     # Unified structure for JSON output
     info = {
         "database": {
@@ -196,15 +220,18 @@ def handle(args):
             "version_tuple": list(dialect.version),
             "connected": is_connected,
         },
+        "server": {
+            "version": version_display,
+            "variables": variables,
+            "source": variables_source,
+            "connected": is_connected,
+        },
         "features": {},
-        "protocols": {},
+        "capabilities": capabilities,
+        "suggestions": suggestions,
+        # compatibility alias for one release cycle
+        "protocols": capabilities,
     }
-
-    # Build protocol support information
-    for group_name, protocols in PROTOCOL_FAMILY_GROUPS.items():
-        info["protocols"][group_name] = _build_protocol_info(
-            dialect, group_name, protocols, args.verbose
-        )
 
     if args.output == "json" or not RICH_AVAILABLE:
         print(json.dumps(info, indent=2))
@@ -212,82 +239,19 @@ def handle(args):
         # Use legacy structure for rich display
         info_legacy = {
             "mariadb": info["database"],
-            "protocols": info["protocols"],
+            "protocols": capabilities,
+            "suggestions": suggestions,
         }
         _display_info_rich(
             info_legacy, args.verbose, version_display, is_connected
         )
 
+    return info
+
 
 # ---------------------------------------------------------------------------
 # Internal helper functions
 # ---------------------------------------------------------------------------
-
-def get_protocol_support_methods(protocol_class: type) -> List[str]:
-    """Get all support check methods from a protocol class.
-
-    Supports both 'supports_*' and 'is_*_available' naming patterns.
-    """
-    methods = []
-    for name, member in inspect.getmembers(protocol_class):
-        is_supports = name.startswith("supports_")
-        is_available = name.startswith("is_") and name.endswith("_available")
-        if callable(member) and (is_supports or is_available):
-            methods.append(name)
-    return sorted(methods)
-
-
-def check_protocol_support(dialect, protocol_class: type) -> Dict[str, Any]:
-    """Check all support methods for a protocol against the dialect.
-
-    For methods requiring parameters, tests all possible arguments.
-
-    Returns:
-    Dict with method names as keys. For no-arg methods: bool value.
-    For methods with parameters: dict with 'supported', 'total', 'args' keys.
-    """
-    results = {}
-    methods = get_protocol_support_methods(protocol_class)
-    for method_name in methods:
-        if hasattr(dialect, method_name):
-            try:
-                method = getattr(dialect, method_name)
-                sig = inspect.signature(method)
-                params = [
-                    p for p in sig.parameters.values()
-                    if p.default == inspect.Parameter.empty
-                ]
-                required_params = [
-                    p for p in params if p.name != "self"
-                ]
-
-                if len(required_params) == 0:
-                    result = method()
-                    results[method_name] = bool(result)
-                elif method_name in SUPPORT_METHOD_ALL_ARGS:
-                    all_args = SUPPORT_METHOD_ALL_ARGS[method_name]
-                    arg_results = {}
-                    for arg in all_args:
-                        try:
-                            arg_results[arg] = bool(method(arg))
-                        except Exception:
-                            arg_results[arg] = False
-                    supported_count = sum(
-                        1 for v in arg_results.values() if v
-                    )
-                    results[method_name] = {
-                        "supported": supported_count,
-                        "total": len(all_args),
-                        "args": arg_results,
-                    }
-                else:
-                    results[method_name] = False
-            except Exception:
-                results[method_name] = False
-        else:
-            results[method_name] = False
-    return results
-
 
 def parse_version(version_str: str) -> Tuple[int, int, int]:
     """Parse version string like '10.11.0' to tuple."""
@@ -296,58 +260,6 @@ def parse_version(version_str: str) -> Tuple[int, int, int]:
     minor = int(parts[1]) if len(parts) > 1 else 0
     patch = int(parts[2]) if len(parts) > 2 else 0
     return (major, minor, patch)
-
-
-def _calculate_protocol_stats(
-    support_methods: Dict[str, Any]
-) -> Tuple[int, int]:
-    """Calculate supported and total counts from support methods."""
-    supported_count = 0
-    total_count = 0
-    for value in support_methods.values():
-        if isinstance(value, dict):
-            supported_count += value["supported"]
-            total_count += value["total"]
-        else:
-            total_count += 1
-            if value:
-                supported_count += 1
-    return supported_count, total_count
-
-
-def _build_protocol_info(
-    dialect,
-    group_name: str,
-    protocols: List[type],
-    verbose: int
-) -> Dict[str, Dict[str, Any]]:
-    """Build protocol support information for a single group."""
-    group_info = {}
-    for protocol in protocols:
-        protocol_name = protocol.__name__
-        support_methods = check_protocol_support(dialect, protocol)
-        supported_count, total_count = _calculate_protocol_stats(
-            support_methods
-        )
-
-        percentage = round(
-            supported_count / total_count * 100, 1
-        ) if total_count > 0 else 0
-
-        if verbose >= 2:
-            group_info[protocol_name] = {
-                "supported": supported_count,
-                "total": total_count,
-                "percentage": percentage,
-                "methods": support_methods,
-            }
-        else:
-            group_info[protocol_name] = {
-                "supported": supported_count,
-                "total": total_count,
-                "percentage": percentage,
-            }
-    return group_info
 
 
 def _get_status_style(pct: float) -> Tuple[str, str]:
@@ -408,8 +320,10 @@ def _display_protocol_item(
 
     sup = stats["supported"]
     tot = stats["total"]
+    origin = stats.get("origin", "")
+    origin_tag = f" [dim][{origin}][/dim]" if origin else ""
     console.print(
-        f" [{color}]{symbol}[/{color}] {protocol_name}: "
+        f" [{color}]{symbol}[/{color}] {protocol_name}{origin_tag}: "
         f"[{color}]{progress_bar}[/{color}] "
         f"{pct:.0f}% ({sup}/{tot})"
     )
@@ -471,5 +385,15 @@ def _display_info_rich(
 
     for group_name, protocols in info["protocols"].items():
         _display_protocol_group(console, group_name, protocols, verbose)
+
+    # Suggestion support (independent of capability support)
+    suggestions = info.get("suggestions", {})
+    if suggestions:
+        console.print("\n[bold green]Suggestion Support:[/bold green]")
+        for proto_name, entry in suggestions.items():
+            supported = entry.get("supported", False)
+            symbol = "[OK]" if supported else "[X]"
+            color = "green" if supported else "red"
+            console.print(f" [{color}]{symbol}[/{color}] {proto_name}")
 
     console.print()
