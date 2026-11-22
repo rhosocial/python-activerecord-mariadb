@@ -19,6 +19,7 @@ from .partition_retention_suggestion import MariaDBPartitionRetentionSuggestionM
 from .partition_split_suggestion import MariaDBPartitionSplitSuggestionMixin
 from .partition_table_alter_suggestion import MariaDBPartitionTableAlterSuggestionMixin
 from .partition_table_drop_suggestion import MariaDBPartitionTableDropSuggestionMixin
+from .string_concatenation_suggestion import MariaDBStringConcatenationSuggestionMixin
 
 __all__ = [
     "MARIADB_DATA_TYPE_SUGGESTIONS",
@@ -32,4 +33,5 @@ __all__ = [
     "MariaDBPartitionSplitSuggestionMixin",
     "MariaDBPartitionTableAlterSuggestionMixin",
     "MariaDBPartitionTableDropSuggestionMixin",
+    "MariaDBStringConcatenationSuggestionMixin",
 ]

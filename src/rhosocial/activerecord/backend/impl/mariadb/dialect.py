@@ -95,6 +95,12 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     RelationSourceMixin,
     # DDL Mixins
     TableMixin,
+    # Core split the constraint-side formatters (including
+    # ``format_alter_constraint_action``, required by ``AlterConstraintAction``)
+    # out of ``DDLColumnMixin`` into this standalone mixin. Compose it so the
+    # dialect keeps satisfying the constraint protocols it declares; MariaDB's
+    # own probes are declared on this class earlier in the MRO and still win.
+    ConstraintMixin,
     TruncateMixin,
     SchemaMixin,
     IndexMixin,
@@ -213,6 +219,7 @@ from .suggestion import (
     MariaDBPartitionSplitSuggestionMixin,
     MariaDBPartitionTableAlterSuggestionMixin,
     MariaDBPartitionTableDropSuggestionMixin,
+    MariaDBStringConcatenationSuggestionMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -262,6 +269,10 @@ class MariaDBDialect(
     MariaDBPartitionSplitSuggestionMixin,
     MariaDBPartitionMergeSuggestionMixin,
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
+    # MariaDB's concatenation spelling. Core's format_concatenation_operation
+    # consults suggest_concatenation_function(); without this mixin the dialect
+    # raises AttributeError instead of rendering CONCAT(a, b).
+    MariaDBStringConcatenationSuggestionMixin,
     # The bases below come in bundles: a backend mixin, then the core bundle
     # it stands in for. The backend's answer has to come first -- a mixin
     # placed after the class it overrides never wins -- so a new mixin goes
@@ -378,6 +389,7 @@ class MariaDBDialect(
 
     GraphMixin,
     TableMixin,
+    ConstraintMixin,
     MariaDBTruncateMixin,
     TruncateMixin,
     SchemaMixin,

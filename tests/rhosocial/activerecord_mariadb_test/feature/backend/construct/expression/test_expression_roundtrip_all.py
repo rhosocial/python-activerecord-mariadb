@@ -99,7 +99,6 @@ from typing import Dict
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import (
-    ProtocolNotImplementedError,
     UnsupportedDataTypeError,
     UnsupportedFeatureError,
 )
@@ -1096,6 +1095,13 @@ UNCONSTRUCTIBLE = (
     # UUID cast. `expression` is annotated Any, so the filler hands it a string
     # where the node needs an expression to cast.
     "rhosocial.activerecord.backend.expression.uuid.UUIDCastFunction",
+    # Core's rewritten partition clause nodes. Each takes a keyword-only
+    # `columns` / `expr` sequence behind a defaulted positional, so the
+    # introspective constructor skips it and the class refuses an empty
+    # payload -- the same gap MariaDB's own partition clause classes have.
+    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByHashClause",
+    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByListClause",
+    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByRangeClause",
     # ---- core expressions --------------------------------------------------
     # ALTER CONSTRAINT. `name` and `constraint_type` sit behind defaulted
     # positionals and are keyword-only, so the introspective constructor skips
@@ -1152,13 +1158,13 @@ LEGITIMATE_NON_RENDERS = {
     #  from 10.5, so that class renders and the probe is gated on the
     #  version instead.
     "rhosocial.activerecord.backend.expression.introspection.IndexUsageStatsQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "format_index_usage_stats_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.UnusedIndexesQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "format_unused_indexes_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "format_table_usage_stats_query_statement",
     ),
     #  The two rows that stood under this heading for the dependency and DDL
     #  families are gone: MariaDB answers both. REFERENTIAL_CONSTRAINTS is
