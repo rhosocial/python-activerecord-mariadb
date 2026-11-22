@@ -325,37 +325,33 @@ class TestCLIUtilityFunctions:
         assert _format_method_display('is_cte_available') == 'is cte available'
         assert _format_method_display('supports_explain_format') == 'explain format'
 
-    def test_calculate_protocol_stats(self):
-        """Test _calculate_protocol_stats function."""
-        from rhosocial.activerecord.backend.impl.mariadb.cli.info import _calculate_protocol_stats
+    def test_capability_report_stats(self):
+        """Capability statistics are computed by the shared core helper."""
+        from rhosocial.activerecord.backend.dialect import capabilities as cap
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import PROTOCOL_FAMILY_GROUPS
+        from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
-        # All boolean True
-        stats = {'method1': True, 'method2': True}
-        supported, total = _calculate_protocol_stats(stats)
-        assert supported == 2
-        assert total == 2
-
-        # Mixed boolean
-        stats = {'method1': True, 'method2': False}
-        supported, total = _calculate_protocol_stats(stats)
-        assert supported == 1
-        assert total == 2
-
-        # With dict values (parameterized methods)
-        stats = {
-            'method1': True,
-            'method2': {'supported': 3, 'total': 5, 'args': {}}
-        }
-        supported, total = _calculate_protocol_stats(stats)
-        assert supported == 4
-        assert total == 6
+        dialect = MariaDBDialect(version=(10, 11, 0))
+        report = cap.build_capability_report(
+            dialect,
+            family_groups={"Query Features": PROTOCOL_FAMILY_GROUPS["Query Features"]},
+        )
+        for stats in report["Query Features"].values():
+            supported, total = stats["supported"], stats["total"]
+            assert isinstance(supported, int) and isinstance(total, int)
+            assert 0 <= supported <= total
+            expected = round(supported / total * 100, 1) if total else 0
+            assert stats["percentage"] == expected
+            assert stats["origin"] in {"reuse", "override", "proprietary"}
 
     def test_get_protocol_support_methods(self):
-        """Test get_protocol_support_methods function."""
-        from rhosocial.activerecord.backend.impl.mariadb.cli.info import get_protocol_support_methods
+        """Support-method discovery comes from the shared core helper."""
+        from rhosocial.activerecord.backend.dialect import capabilities as cap
+        from rhosocial.activerecord.backend.impl.mariadb.cli import info as info_module
         from rhosocial.activerecord.backend.dialect.protocols import WindowFunctionSupport
 
-        methods = get_protocol_support_methods(WindowFunctionSupport)
+        assert not hasattr(info_module, "get_protocol_support_methods")
+        methods = cap.get_support_methods(WindowFunctionSupport)
         assert 'supports_window_functions' in methods
         assert 'supports_window_frame_clause' in methods
 
@@ -418,80 +414,104 @@ class TestCLIProviderFactory:
 
 
 class TestCLICheckProtocolSupport:
-    """Tests for check_protocol_support function."""
+    """Tests for the shared core helper's protocol support probes."""
 
     def test_check_protocol_support_basic(self):
-        """Test check_protocol_support with basic protocol."""
-        from rhosocial.activerecord.backend.impl.mariadb.cli.info import check_protocol_support
+        """Test cap.check_protocol_support with a basic protocol."""
+        from rhosocial.activerecord.backend.dialect import capabilities as cap
+        from rhosocial.activerecord.backend.impl.mariadb.cli import info as info_module
         from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
         from rhosocial.activerecord.backend.dialect.protocols import WindowFunctionSupport
 
+        assert not hasattr(info_module, "check_protocol_support")
         dialect = MariaDBDialect(version=(10, 11, 0))
 
-        results = check_protocol_support(dialect, WindowFunctionSupport)
+        results = cap.check_protocol_support(dialect, WindowFunctionSupport)
         assert 'supports_window_functions' in results
         assert results['supports_window_functions'] is True
         assert 'supports_window_frame_clause' in results
 
     def test_check_protocol_support_with_params(self):
-        """Test check_protocol_support with parameterized methods."""
-        from rhosocial.activerecord.backend.impl.mariadb.cli.info import check_protocol_support
+        """Test cap.check_protocol_support with parameterized methods."""
+        from rhosocial.activerecord.backend.dialect import capabilities as cap
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import SUPPORT_METHOD_ALL_ARGS
         from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
         from rhosocial.activerecord.backend.dialect.protocols import ExplainSupport
 
         dialect = MariaDBDialect(version=(10, 11, 0))
 
-        results = check_protocol_support(dialect, ExplainSupport)
+        results = cap.check_protocol_support(
+            dialect, ExplainSupport, all_args=SUPPORT_METHOD_ALL_ARGS
+        )
         assert 'supports_explain_format' in results
-        # Should return dict with args for parameterized methods
-        if isinstance(results['supports_explain_format'], dict):
-            assert 'supported' in results['supports_explain_format']
-            assert 'total' in results['supports_explain_format']
-            assert 'args' in results['supports_explain_format']
+        # Parameterized probes carry a per-argument breakdown
+        assert isinstance(results['supports_explain_format'], dict)
+        assert 'supported' in results['supports_explain_format']
+        assert 'total' in results['supports_explain_format']
+        assert 'args' in results['supports_explain_format']
 
 
 class TestCLIBuildProtocolInfo:
-    """Tests for _build_protocol_info function."""
+    """Tests for the shared core helper's capability report builder."""
 
     def test_build_protocol_info_verbose_0(self):
-        """Test _build_protocol_info with verbose=0."""
+        """Test build_capability_report with verbose=0."""
+        from rhosocial.activerecord.backend.dialect import capabilities as cap
         from rhosocial.activerecord.backend.impl.mariadb.cli.info import (
-            _build_protocol_info, PROTOCOL_FAMILY_GROUPS
+            DIALECT_SPECIFIC_GROUPS, PROTOCOL_FAMILY_GROUPS, SUPPORT_METHOD_ALL_ARGS,
         )
+        from rhosocial.activerecord.backend.impl.mariadb.cli import info as info_module
         from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
+        assert not hasattr(info_module, "_build_protocol_info")
         dialect = MariaDBDialect(version=(10, 11, 0))
         group_name = "Query Features"
-        protocols = PROTOCOL_FAMILY_GROUPS[group_name]
 
-        result = _build_protocol_info(dialect, group_name, protocols, verbose=0)
+        report = cap.build_capability_report(
+            dialect,
+            family_groups={group_name: PROTOCOL_FAMILY_GROUPS[group_name]},
+            dialect_specific_groups=DIALECT_SPECIFIC_GROUPS,
+            all_args=SUPPORT_METHOD_ALL_ARGS,
+            verbose=0,
+        )
+        result = report[group_name]
 
         assert isinstance(result, dict)
         for _protocol_name, stats in result.items():
             assert 'supported' in stats
             assert 'total' in stats
             assert 'percentage' in stats
+            assert 'origin' in stats
             assert 'methods' not in stats  # verbose < 2
 
     def test_build_protocol_info_verbose_2(self):
-        """Test _build_protocol_info with verbose=2."""
+        """Test build_capability_report with verbose=2."""
+        from rhosocial.activerecord.backend.dialect import capabilities as cap
         from rhosocial.activerecord.backend.impl.mariadb.cli.info import (
-            _build_protocol_info, PROTOCOL_FAMILY_GROUPS
+            DIALECT_SPECIFIC_GROUPS, PROTOCOL_FAMILY_GROUPS, SUPPORT_METHOD_ALL_ARGS,
         )
         from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 
         dialect = MariaDBDialect(version=(10, 11, 0))
         group_name = "Query Features"
-        protocols = PROTOCOL_FAMILY_GROUPS[group_name]
 
-        result = _build_protocol_info(dialect, group_name, protocols, verbose=2)
+        report = cap.build_capability_report(
+            dialect,
+            family_groups={group_name: PROTOCOL_FAMILY_GROUPS[group_name]},
+            dialect_specific_groups=DIALECT_SPECIFIC_GROUPS,
+            all_args=SUPPORT_METHOD_ALL_ARGS,
+            verbose=2,
+        )
+        result = report[group_name]
 
         assert isinstance(result, dict)
         for _protocol_name, stats in result.items():
             assert 'supported' in stats
             assert 'total' in stats
             assert 'percentage' in stats
+            assert 'origin' in stats
             assert 'methods' in stats  # verbose >= 2
+            assert 'method_origins' in stats
 
 
 class TestCLIHandleInfo:
@@ -526,9 +546,16 @@ class TestCLIHandleInfo:
         import json
         output = json.loads(captured.out)
         assert 'database' in output
+        assert 'server' in output
         assert 'features' in output
+        assert 'capabilities' in output
+        assert 'suggestions' in output
         assert 'protocols' in output
+        # compatibility alias: protocols points at the same capability report
+        assert output['protocols'] == output['capabilities']
         assert output['database']['type'] == 'mariadb'
+        assert output['server']['connected'] is False
+        assert output['server']['variables'] == {}
 
 
 class TestCLIDisplayFunctions:
