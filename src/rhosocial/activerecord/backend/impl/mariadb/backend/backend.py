@@ -154,6 +154,7 @@ class MariaDBBackend(
             MariaDBDecimalAdapter,
             MariaDBEnumAdapter,
             MariaDBGeometryAdapter,
+            MariaDBIPAddressAdapter,
             MariaDBJSONAdapter,
             MariaDBMacAddressAdapter,
             MariaDBRangeAdapter,
@@ -174,6 +175,7 @@ class MariaDBBackend(
             # Neutral adapters are keyed by their neutral Python type, so they
             # cannot shadow the JSON/date/... adapters above.
             MariaDBGeometryAdapter(),
+            MariaDBIPAddressAdapter(),
             MariaDBJSONAdapter(),
             MariaDBMacAddressAdapter(),
             MariaDBRangeAdapter(),

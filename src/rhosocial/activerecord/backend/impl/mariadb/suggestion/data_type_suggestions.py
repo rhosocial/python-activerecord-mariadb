@@ -38,8 +38,10 @@ from rhosocial.activerecord.backend.suggestion.definitions import (
 )
 
 from rhosocial.activerecord.backend.adapters import (
+    AwareDatetime,
     BitString,
     Geometry,
+    IPAddress,
     MacAddress,
     Multirange,
     Range,
@@ -53,6 +55,7 @@ from rhosocial.activerecord.backend.expression.types import (
     JsonType,
     TextType,
     TimestampType,
+    TimestampTzType,
     TimeType,
     VarCharType,
 )
@@ -77,6 +80,9 @@ MARIADB_DATA_TYPE_SUGGESTIONS: Dict[Any, Optional[Any]] = {
     bytearray: MariaDBBlobType(),
     datetime.date: DateType(),
     datetime.time: TimeType(),
+    # An instant: MariaDB spells this TIMESTAMP(p) (the tz formatter shares the
+    # same declaration as the naive one), so the value is aware on the wire.
+    AwareDatetime: TimestampTzType(precision=3),
     datetime.datetime: TimestampType(precision=3),
     # MariaDB has no interval type; the value's text form is the carrier.
     datetime.timedelta: TextType(),
@@ -97,6 +103,7 @@ MARIADB_DATA_TYPE_SUGGESTIONS: Dict[Any, Optional[Any]] = {
     Range: TextType(),
     Multirange: TextType(),
     MacAddress: VarCharType(length=17),
+    IPAddress: VarCharType(length=45),
 }
 
 

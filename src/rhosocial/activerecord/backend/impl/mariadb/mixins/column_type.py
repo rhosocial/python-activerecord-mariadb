@@ -7,9 +7,9 @@ column class says what a value can *do*; how it is stored is the DDL layer's
 separate decision. That separation is why MariaDB's one famous divergence from
 MySQL does not show up in this table at all -- see the ``dict`` entry below.
 
-The table answers all twenty-four entries of the framework's Python types --
-the eighteen common scalars, containers and value families, plus the six
-complex families core now models -- because an entry left out is
+The table answers every entry of the framework's Python types -- the common
+scalars, containers and value families, plus the complex families core now
+models -- because an entry left out is
 indistinguishable from one nobody thought about. Where MariaDB genuinely has
 no column class for an entry the answer is ``None`` -- the last resort, and the
 one that makes a refusal distinguishable from an oversight -- which resolution
@@ -55,8 +55,10 @@ import uuid
 from typing import Any, Dict, Optional, Type
 
 from rhosocial.activerecord.backend.adapters import (
+    AwareDatetime,
     BitString,
     Geometry,
+    IPAddress,
     MacAddress,
     Multirange,
     Range,
@@ -74,6 +76,7 @@ from rhosocial.activerecord.backend.expression.column_types import (
     GeometryColumn,
     IntegerColumn,
     IntervalColumn,
+    IPAddressColumn,
     JSONColumn,
     MacAddressColumn,
     MultirangeColumn,
@@ -141,6 +144,7 @@ MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     bytearray: BinaryColumn,
     datetime.date: TimestampColumn,
     datetime.time: TimestampColumn,
+    AwareDatetime: TimestampColumn,
     datetime.datetime: TimestampColumn,
     datetime.timedelta: IntervalColumn,
     uuid.UUID: UUIDColumn,
@@ -163,11 +167,12 @@ MARIADB_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     Range: RangeColumn,
     Multirange: MultirangeColumn,
     MacAddress: MacAddressColumn,
+    IPAddress: IPAddressColumn,
 }
 
 
 class MariaDBColumnTypeMixin:
-    """MariaDB's full twenty-four-entry column-type table, and its narrowing.
+    """MariaDB's full framework-committed column-type table, and its narrowing.
 
     Composed into :class:`~...dialect.MariaDBDialect` ahead of core's mixins,
     so its :meth:`suggest_column_types` is the one a model layer reaches.

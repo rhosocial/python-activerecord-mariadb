@@ -18,6 +18,8 @@ from rhosocial.activerecord.backend.adapters import (
     BitStringAdapterBase,
     Geometry,
     GeometryAdapterBase,
+    IPAddress,
+    IPAddressAdapterBase,
     MacAddress,
     MacAddressAdapterBase,
     Multirange,
@@ -526,10 +528,10 @@ class MariaDBSetAdapter(SQLTypeAdapter):
 # Neutral-type adapters (their neutral types live in the core package)
 # ---------------------------------------------------------------------------
 #
-# MariaDB has no range or MAC address column types, so those adapters carry
-# their values in TEXT/BINARY columns. The spatial types are native to the
-# server, but the adapter deliberately speaks WKT text rather than the
-# server's internal binary geometry layout (see MariaDBGeometryAdapter).
+# MariaDB has no range, MAC address or IP address column types, so those
+# adapters carry their values in TEXT/BINARY columns. The spatial types are
+# native to the server, but the adapter deliberately speaks WKT text rather
+# than the server's internal binary geometry layout (see MariaDBGeometryAdapter).
 
 
 class MariaDBGeometryAdapter(GeometryAdapterBase):
@@ -822,6 +824,27 @@ class MariaDBMacAddressAdapter(MacAddressAdapterBase):
         raise TypeError(f'expected MAC address text or bytes, got {type(value).__name__}')
 
 
+class MariaDBIPAddressAdapter(IPAddressAdapterBase):
+    """Store neutral :class:`IPAddress` values as canonical text.
+
+    MariaDB has no native IP address column type. The canonical compressed
+    form (``192.0.2.1`` / ``2001:db8::1``) is bound as ``str`` into a
+    ``VARCHAR(45)`` column, matching the framework's suggested declaration.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.register_type(IPAddress, str)
+
+    def _encode(
+        self, ip_addr: IPAddress, target_type: Type, options: Optional[Dict[str, Any]]
+    ) -> str:
+        return str(ip_addr)
+
+    def _decode(self, value: Any, options: Optional[Dict[str, Any]]) -> IPAddress:
+        return IPAddress.parse(self._require_text(value))
+
+
 mariadb_adapters = [
     MariaDBBlobAdapter(),
     MariaDBJSONAdapter(),
@@ -837,6 +860,7 @@ mariadb_adapters = [
     MariaDBBitStringAdapter(),
     MariaDBRangeAdapter(),
     MariaDBMacAddressAdapter(),
+    MariaDBIPAddressAdapter(),
 ]
 
 __all__ = [
@@ -855,5 +879,6 @@ __all__ = [
     'MariaDBBitStringAdapter',
     'MariaDBRangeAdapter',
     'MariaDBMacAddressAdapter',
+    'MariaDBIPAddressAdapter',
     'mariadb_adapters',
 ]

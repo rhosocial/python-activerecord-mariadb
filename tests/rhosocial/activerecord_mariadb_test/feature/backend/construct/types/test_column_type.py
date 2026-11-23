@@ -4,7 +4,7 @@
 Two things are under test, and they are the two halves of
 ``column-suggestion-protocol.md`` §12's MariaDB row:
 
-* the **table** -- all 18 common entries answered, with MariaDB's own answer
+* the **table** -- all framework-committed entries answered, with MariaDB's own answer
   where it differs from the portable baseline, and one version-gated refusal;
 * the **storage side** -- that the facts MariaDB answers differently from MySQL
   live on the DataType layer and never move the column class.
@@ -28,8 +28,10 @@ import uuid
 import pytest
 
 from rhosocial.activerecord.backend.adapters import (
+    AwareDatetime,
     BitString,
     Geometry,
+    IPAddress,
     MacAddress,
     Multirange,
     Range,
@@ -47,6 +49,7 @@ from rhosocial.activerecord.backend.expression.column_types import (
     GeometryColumn,
     IntegerColumn,
     IntervalColumn,
+    IPAddressColumn,
     JSONColumn,
     MacAddressColumn,
     MultirangeColumn,
@@ -115,6 +118,7 @@ _MARIADB_ANSWERS = [
     (bytearray, BinaryColumn),
     (datetime.date, TimestampColumn),
     (datetime.time, TimestampColumn),
+    (AwareDatetime, TimestampColumn),
     (datetime.datetime, TimestampColumn),
     (datetime.timedelta, IntervalColumn),
     (uuid.UUID, UUIDColumn),
@@ -130,6 +134,7 @@ _MARIADB_ANSWERS = [
     (Range, RangeColumn),
     (Multirange, MultirangeColumn),
     (MacAddress, MacAddressColumn),
+    (IPAddress, IPAddressColumn),
 ]
 
 _ENTRY_IDS = [getattr(entry, "__name__", str(entry)) for entry, _ in _MARIADB_ANSWERS]
@@ -138,7 +143,7 @@ _ENTRY_IDS = [getattr(entry, "__name__", str(entry)) for entry, _ in _MARIADB_AN
 class TestCompleteness:
     """Every entry of the closed protocol list is answered."""
 
-    def test_all_twenty_four_entries_are_answered(self):
+    def test_all_framework_entries_are_answered(self):
         table = _dialect(RC_131).suggest_column_types().table
         missing = [e for e in COMMON_TYPES if e not in table]
         assert missing == [], f"unanswered entries: {missing}"
