@@ -289,6 +289,7 @@ class MariaDBBackendMixin:
         from rhosocial.activerecord.backend.adapters import (
             BitString,
             Geometry,
+            IPAddress,
             MacAddress,
             Multirange,
             Range,
@@ -320,6 +321,7 @@ class MariaDBBackendMixin:
             (Range, str),
             (Multirange, str),
             (MacAddress, str),
+            (IPAddress, str),
         ]
 
         suggestions = merge_adapter_suggestions(base, type_mappings, self.adapter_registry)

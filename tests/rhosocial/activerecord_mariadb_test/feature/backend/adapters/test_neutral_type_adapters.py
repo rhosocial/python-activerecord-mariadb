@@ -21,6 +21,7 @@ from rhosocial.activerecord.backend.adapters import (
     BitString,
     Geometry,
     GeometryCollection,
+    IPAddress,
     LineString,
     MacAddress,
     Multirange,
@@ -34,6 +35,7 @@ from rhosocial.activerecord.backend.errors import TypeConversionError
 from rhosocial.activerecord.backend.impl.mariadb.adapters import (
     MariaDBBitStringAdapter,
     MariaDBGeometryAdapter,
+    MariaDBIPAddressAdapter,
     MariaDBJSONAdapter,
     MariaDBMacAddressAdapter,
     MariaDBRangeAdapter,
@@ -392,6 +394,7 @@ class TestAdapterInventory:
     EXPECTED = (
         MariaDBBitStringAdapter,
         MariaDBGeometryAdapter,
+        MariaDBIPAddressAdapter,
         MariaDBMacAddressAdapter,
         MariaDBRangeAdapter,
         MariaDBVectorAdapter,
@@ -410,6 +413,14 @@ class TestAdapterInventory:
         assert isinstance(registry.get_adapter(Range, str), MariaDBRangeAdapter)
         assert isinstance(registry.get_adapter(Multirange, str), MariaDBRangeAdapter)
         assert isinstance(registry.get_adapter(MacAddress, str), MariaDBMacAddressAdapter)
+        assert isinstance(registry.get_adapter(IPAddress, str), MariaDBIPAddressAdapter)
+
+    def test_ipaddress_is_suggested_as_str(self, backend):
+        suggestions = backend.suggest_data_adapters().table
+        assert IPAddress in suggestions
+        adapter, target_type = suggestions[IPAddress]
+        assert isinstance(adapter, MariaDBIPAddressAdapter)
+        assert target_type is str
 
     def test_json_adapter_still_wins_for_plain_lists(self, backend):
         suggestions = backend.suggest_data_adapters().table
