@@ -77,6 +77,9 @@ Documentation = "https://docs.python-activerecord.dev.rho.social"
 Repository = "https://github.com/rhosocial/python-activerecord-mariadb.git"
 Issues = "https://github.com/rhosocial/python-activerecord-mariadb/issues"
 
+[project.scripts]
+rhosocial-activerecord-mariadb = "rhosocial.activerecord.backend.impl.mariadb.__main__:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 namespaces = true
