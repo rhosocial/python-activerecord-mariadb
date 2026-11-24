@@ -8,11 +8,18 @@ capability automatically falls back to the split layout.
 """
 
 from rhosocial.activerecord.backend.suggestion.definitions import CreateTableLayoutSuggestion
-from rhosocial.activerecord.backend.suggestion.protocols import CreateTableLayoutSuggestionSupport
 
 
-class MariaDBCreateTableLayoutSuggestionMixin(CreateTableLayoutSuggestionSupport):
-    """Report the inline CREATE TABLE layout MariaDB can render."""
+class MariaDBCreateTableLayoutSuggestionMixin:
+    """Report the inline CREATE TABLE layout MariaDB can render.
+
+    Deliberately a plain class, not a subclass of the runtime-checkable
+    ``CreateTableLayoutSuggestionSupport`` Protocol: placing a Protocol in the
+    dialect MRO ahead of ``SQLDialectBase`` swallows ``super().__init__()`` and
+    leaves ``strict_validation`` unset (see the same caveat in
+    ``string_concatenation_suggestion.py``). Duck typing satisfies the
+    ``isinstance`` protocol check without polluting the MRO.
+    """
 
     def suggest_create_table_layout(self) -> CreateTableLayoutSuggestion:
         inline_index = bool(self.supports_inline_index())
