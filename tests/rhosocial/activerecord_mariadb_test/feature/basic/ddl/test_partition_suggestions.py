@@ -63,6 +63,7 @@ class _Plan:
 
     table: str
     definitions: tuple
+    cutoff: object = None
 
 
 #: (method suffix, protocol, suggestion dataclass, renderer intent)
@@ -261,12 +262,25 @@ def test_merge_is_explicitly_unsupported():
         assert _suggest(dialect, "merge", strategy, _plan(dialect)).operations is False
 
 
-def test_retention_drops_each_range_definition_by_less_than():
+def test_retention_requires_a_cutoff_and_drops_only_expired_partitions():
     dialect = _dialect()
-    range_operations = _suggest(dialect, "retention", "RANGE", _plan(dialect)).operations
-    assert isinstance(range_operations, tuple) and len(range_operations) == 2
-    assert all(isinstance(op, MariaDBDropPartitionExpression) for op in range_operations)
-    assert [op.partitions for op in range_operations] == [["p0"], ["p1"]]
+    plan = _plan(dialect)  # p0 less_than 10, p1 less_than 20
+
+    # No cutoff: refuse, never drop every bounded partition.
+    assert _suggest(dialect, "retention", "RANGE", plan).operations is False
+
+    # cutoff 15 -> only p0 (bound 10) is expired.
+    plan_with_cutoff = dataclasses.replace(plan, cutoff=15)
+    operations = _suggest(dialect, "retention", "RANGE", plan_with_cutoff).operations
+    assert isinstance(operations, tuple) and len(operations) == 1
+    assert [op.partitions for op in operations] == [["p0"]]
+
+    # cutoff 25 -> both expired.
+    plan_all = dataclasses.replace(plan, cutoff=25)
+    operations = _suggest(dialect, "retention", "RANGE", plan_all).operations
+    assert len(operations) == 2
+    assert [op.partitions for op in operations] == [["p0"], ["p1"]]
+
     for strategy in ("LIST", "LIST COLUMNS") + HASH_PLAN_KINDS:
         assert (
             _suggest(dialect, "retention", strategy, _plan(dialect, strategy)).operations is False
@@ -283,7 +297,8 @@ def test_false_states_are_explicit_for_unsupported_strategies():
 
 def test_renderer_parts_collect_the_real_expressions():
     dialect = _dialect()
-    plan = _plan(dialect)
+    # A cutoff makes retention produce real expired-partition drops.
+    plan = dataclasses.replace(_plan(dialect), cutoff=25)
     for name, _, _, intent in POINTS:
         result = partition_suggestion_operations(
             dialect, intent, _strategy(dialect, "RANGE"), plan
