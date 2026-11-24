@@ -45,7 +45,6 @@ from rhosocial.activerecord.backend.expression.statements import (
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.base import IdentityAttribute
 
 
 #: The versions measured for the probe table; every one answers the same.
@@ -128,11 +127,11 @@ def _create_table(dialect, name, *, auto_increment=False, identity=None):
     """Build ``CREATE TABLE <name> (id INT PRIMARY KEY ...)``.
 
     ``auto_increment`` selects the legacy constraint flag (the marker path);
-    ``identity`` selects an AR-layer :class:`IdentityAttribute` (the standard
-    clause path). The two never combine: they are different mechanisms.
+    ``identity`` selects an :class:`IdentityClause` (the standard clause path).
+    The two never combine: they are different mechanisms.
     """
     constraints = [ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]
-    attributes = [IdentityAttribute(**identity)] if identity is not None else []
+    attributes = [IdentityClause(dialect, **identity)] if identity is not None else []
     data_type = IntegerType(dialect)
     if auto_increment:
         data_type, suggested = integer_auto_increment_parts(dialect, data_type)
