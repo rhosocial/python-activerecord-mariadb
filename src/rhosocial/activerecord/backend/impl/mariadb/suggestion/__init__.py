@@ -7,6 +7,7 @@ only MariaDB's answers to the suggestion protocols, kept separate from
 MRO. One suggestion per file, mirroring SQLite's suggestion package.
 """
 
+from .create_table_layout_suggestion import MariaDBCreateTableLayoutSuggestionMixin
 from .data_type_suggestions import MARIADB_DATA_TYPE_SUGGESTIONS, MariaDBDataTypeSuggestionsMixin
 from .integer_auto_increment_column_suggestion import (
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
@@ -23,6 +24,7 @@ from .string_concatenation_suggestion import MariaDBStringConcatenationSuggestio
 
 __all__ = [
     "MARIADB_DATA_TYPE_SUGGESTIONS",
+    "MariaDBCreateTableLayoutSuggestionMixin",
     "MariaDBDataTypeSuggestionsMixin",
     "MariaDBIntegerAutoIncrementColumnSuggestionMixin",
     "MariaDBPartitionAddSuggestionMixin",

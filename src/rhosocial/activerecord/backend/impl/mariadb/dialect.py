@@ -209,6 +209,7 @@ from .mixins import (
 # Import MariaDB-specific backend suggestions (separate namespace: no core
 # mixin may shadow these answers; their base positions are unchanged).
 from .suggestion import (
+    MariaDBCreateTableLayoutSuggestionMixin,
     MariaDBDataTypeSuggestionsMixin,
     MariaDBIntegerAutoIncrementColumnSuggestionMixin,
     MariaDBPartitionAddSuggestionMixin,
@@ -260,6 +261,7 @@ class MariaDBDialect(
     # Backend suggestions first: no core mixin may shadow their answers. Each
     # partition suggestion point is its own mixin; they all share one base,
     # listed last among them so C3 linearisation stays unambiguous.
+    MariaDBCreateTableLayoutSuggestionMixin,
     MariaDBPartitionBuildSuggestionMixin,
     MariaDBPartitionAddSuggestionMixin,
     MariaDBPartitionDropSuggestionMixin,
