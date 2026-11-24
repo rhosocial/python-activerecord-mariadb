@@ -93,13 +93,30 @@ MARIADB_VERSION_BOUNDARIES = {
     'CHECK_CONSTRAINT': (10, 2, 1),
     # ``ALTER TABLE ... DROP CONSTRAINT`` first appears in the ALTER TABLE
     # grammar in 10.2.1: 10.2.0 and every 10.1 version have no such rule, so
-    # below that floor the clause does not exist to format. The rule arrives
-    # already carrying ``opt_if_exists_table_element``, which is why
-    # ``DROP CONSTRAINT IF EXISTS`` shares this floor rather than an earlier
-    # one. Verified live on 10.2.44 through 13.1.1: the IF EXISTS spelling is
-    # accepted for an absent constraint (warning 1091) while the bare spelling
-    # of the same absent name is rejected with errno 1091.
-    'DROP_CONSTRAINT_IF_EXISTS': (10, 2, 1),
+    # below that floor the statement does not exist to format. The rule arrives
+    # already carrying ``opt_if_exists_table_element``, which is why the
+    # statement probe and the ``IF EXISTS`` qualifier probe read the same
+    # boundary. Verified live on 10.2.44 through 13.1.1: the IF EXISTS spelling
+    # is accepted for an absent constraint (warning 1091) while the bare
+    # spelling of the same absent name is rejected with errno 1091.
+    #
+    # A version below 10.2.1 is not without the *capability*: the 10.0.15
+    # grammar already has ``DROP FOREIGN KEY``, ``DROP PRIMARY KEY`` and
+    # ``DROP INDEX`` / ``DROP KEY``. It has no ``DROP CONSTRAINT``, and CHECK
+    # constraints do not exist before 10.2.1 either, so the old spellings cover
+    # every constraint kind that exists on those releases.
+    'DROP_CONSTRAINT': (10, 2, 1),
+    # Multiple triggers for one timing/event and the FOLLOWS/PRECEDES clauses
+    # that order them arrived in the same release. The 10.2.3 release notes
+    # List "Multiple triggers per table (MDEV-6112)" and "The FOLLOWS/PRECEDES
+    # clauses have been added to CREATE TRIGGER"; the 10.2.3 ``sql_trigger.cc``
+    # carries the ordering walk over the trigger chain, and 10.0.15's grammar
+    # has no ``FOLLOWS_SYM`` / ``PRECEDES_SYM`` tokens at all. Verified live:
+    # 10.2.44 accepts three BEFORE INSERT triggers on one table, fires all
+    # three, and reports ACTION_ORDER 1/2/3 in ``information_schema.TRIGGERS``.
+    # https://mariadb.com/docs/release-notes/community-server/old-releases/10.2/10.2.3.md
+    'TRIGGER_ORDER': (10, 2, 3),
+    'MULTIPLE_TRIGGERS_PER_TIMING': (10, 2, 3),
     # --- 10.7 (UUID data type) ---
     # https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type
     'UUID': (10, 7, 0),

@@ -37,7 +37,7 @@ class MariaDBTriggerMixin:
     - Basic triggers: MariaDB 5.2+
     - INSTEAD OF triggers: MariaDB 10.4+
     - OR REPLACE: MariaDB 10.1.4+
-    - Multiple triggers per timing/event: MariaDB 10.4+
+    - Multiple triggers per timing/event: MariaDB 10.2.3+
 
     MariaDB vs MySQL:
     - MySQL does NOT support INSTEAD OF triggers
@@ -115,12 +115,15 @@ class MariaDBTriggerMixin:
     def supports_trigger_order(self) -> bool:
         """Whether trigger ordering (FOLLOWS/PRECEDES) is supported.
 
-        MariaDB 10.2.3+ supports FOLLOWS/PRECEDES for trigger ordering.
+        MariaDB 10.2.3 added it (MDEV-6112): the release notes list both
+        "Multiple triggers per table" and "The FOLLOWS/PRECEDES clauses have
+        been added to the CREATE TRIGGER statement". See
+        ``MARIADB_VERSION_BOUNDARIES['TRIGGER_ORDER']``.
 
         Returns:
             True if MariaDB version >= 10.2.3.
         """
-        return self.version_at_least((10, 2, 3))
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['TRIGGER_ORDER'])
 
     def supports_trigger_if_not_exists(self) -> bool:
         """Whether ``CREATE TRIGGER IF NOT EXISTS`` is supported.
@@ -170,13 +173,21 @@ class MariaDBTriggerMixin:
     def supports_multiple_triggers_per_timing(self) -> bool:
         """Whether multiple triggers per timing/event are supported.
 
-        MariaDB 10.4+ supports multiple triggers for the same
-        timing and event on a table.
+        MariaDB 10.2.3 added them (MDEV-6112): the release notes list
+        "Multiple triggers per table" under Triggers, alongside the
+        FOLLOWS/PRECEDES clauses that order them. The gate previously reused
+        the 10.4 ``INSTEAD_OF_TRIGGER`` boundary, which refused the capability
+        for 10.2.3 through 10.3.x where the server has it. Verified live on
+        10.2.44: three ``BEFORE INSERT`` triggers on one table are accepted,
+        all three fire on a single insert, and
+        ``information_schema.TRIGGERS.ACTION_ORDER`` reports 1/2/3.
 
         Returns:
-            True if MariaDB version >= 10.4.0.
+            True if MariaDB version >= 10.2.3.
         """
-        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['INSTEAD_OF_TRIGGER'])
+        return self.version_at_least(
+            MARIADB_VERSION_BOUNDARIES['MULTIPLE_TRIGGERS_PER_TIMING']
+        )
 
     def format_create_trigger_statement(
         self,

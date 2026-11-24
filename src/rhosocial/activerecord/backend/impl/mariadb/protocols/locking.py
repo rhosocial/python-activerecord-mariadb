@@ -48,7 +48,7 @@ class MariaDBLockingSupport(LockingSupport, Protocol):
         ...
 
     def supports_for_update_skip_locked(self) -> bool:
-        """Whether FOR UPDATE SKIP LOCKED is supported (MariaDB 10.3+)."""
+        """Whether FOR UPDATE SKIP LOCKED is supported (MariaDB 10.6+)."""
         ...
 
     def format_for_update_clause(self, expr: Any) -> Tuple[str, tuple]:

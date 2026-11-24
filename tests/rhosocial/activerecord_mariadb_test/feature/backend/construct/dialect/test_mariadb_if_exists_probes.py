@@ -1,5 +1,5 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/construct/dialect/test_mariadb_if_exists_probes.py
-"""MariaDB IF [NOT] EXISTS probes, with the formatter's refusal pinned to them.
+"""MariaDB IF [NOT] EXISTS and trigger-count floors, with the gates load-bearing.
 
 Every value below is measured, not inherited from the MySQL sibling:
 
@@ -20,11 +20,17 @@ Every value below is measured, not inherited from the MySQL sibling:
   ``view_suid VIEW_SYM table_ident``; 10.1.4 adds ``opt_if_not_exists``.
   Accepted on all eight live servers (repeated create is warning 1050);
   sentinel errno 1064.
-- ``DROP CONSTRAINT IF EXISTS``: MariaDB 10.2.1, the first release whose
-  ALTER TABLE grammar has ``DROP CONSTRAINT``; the rule carries
-  ``opt_if_exists_table_element`` from the start, so the qualifier shares
-  that floor. Accepted on all eight live servers for an absent name
-  (warning 1091) while the bare spelling answers errno 1091.
+- ``DROP CONSTRAINT`` and its ``IF EXISTS`` qualifier: MariaDB 10.2.1, the
+  first release whose ALTER TABLE grammar has the statement; the rule
+  carries ``opt_if_exists_table_element`` from the start, so the qualifier
+  shares that floor. Accepted on all eight live servers for an absent name
+  (warning 1091) while the bare spelling answers errno 1091. Before 10.2.1
+  the capability is spelled by kind -- ``DROP FOREIGN KEY``, ``DROP PRIMARY
+  KEY`` and ``DROP INDEX`` / ``DROP KEY`` are all in the 10.0.15 grammar.
+- Multiple triggers per timing/event: MariaDB 10.2.3 (MDEV-6112), the same
+  release that added FOLLOWS/PRECEDES. Live on 10.2.44: three ``BEFORE
+  INSERT`` triggers are accepted, all three fire on one insert, and
+  ``information_schema.TRIGGERS.ACTION_ORDER`` reports 1/2/3.
 
 The other probes in the cross-backend matrix were re-checked and are MariaDB's
 own answers, not MySQL's: ADD/DROP COLUMN and CREATE/DROP INDEX qualifiers
@@ -238,11 +244,44 @@ class TestDropConstraintIfExistsGate:
         ],
         ids=lambda value: "v" + ".".join(map(str, value)) if isinstance(value, tuple) else str(value),
     )
-    def test_gate(self, version, expected):
+    def test_statement_gate(self, version, expected):
+        assert _dialect(version).supports_drop_constraint() is expected
+
+    @pytest.mark.parametrize(
+        "version, expected",
+        [
+            ((10, 1, 20), False),
+            ((10, 2, 0), False),
+            ((10, 2, 1), True),
+            ((10, 2, 44), True),
+            ((13, 1, 1), True),
+        ],
+        ids=lambda value: "v" + ".".join(map(str, value)) if isinstance(value, tuple) else str(value),
+    )
+    def test_qualifier_gate(self, version, expected):
         assert _dialect(version).supports_drop_constraint_if_exists() is expected
 
-    def test_below_the_floor_refuses_the_qualifier_by_name(self):
+    def test_below_the_floor_refuses_the_statement_by_name(self):
         dialect = _dialect((10, 2, 0))
+        action = DropTableConstraintAction(dialect, "uq")
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            action.to_sql()
+        assert "ALTER TABLE DROP CONSTRAINT" in str(excinfo.value)
+        assert "10.2.1" in str(excinfo.value)
+
+    def test_qualifier_request_below_the_floor_stops_at_the_statement(self):
+        dialect = _dialect((10, 2, 0))
+        action = DropTableConstraintAction(dialect, "uq", if_exists=True)
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            action.to_sql()
+        assert "ALTER TABLE DROP CONSTRAINT" in str(excinfo.value)
+
+    def test_qualifier_gate_is_reached_when_the_statement_is_admitted(self):
+        class _AdmitsStatementDialect(MariaDBDialect):
+            def supports_drop_constraint(self) -> bool:
+                return True
+
+        dialect = _AdmitsStatementDialect((10, 2, 0))
         action = DropTableConstraintAction(dialect, "uq", if_exists=True)
         with pytest.raises(UnsupportedFeatureError) as excinfo:
             action.to_sql()
@@ -255,17 +294,58 @@ class TestDropConstraintIfExistsGate:
         assert sql == "DROP CONSTRAINT IF EXISTS `uq`"
         assert params == ()
 
-    def test_plain_form_is_not_refused(self):
-        """The qualifier probe gates only the qualifier, not the statement.
-
-        ``supports_drop_constraint`` is the statement-level switch; this
-        probe is asked only when ``if_exists=True``. The formatter's division
-        is what this pins.
-        """
+    def test_drop_primary_key_still_renders_below_the_floor(self):
+        """The primary key is dropped by its own spelling, which predates it."""
         dialect = _dialect((10, 2, 0))
-        action = DropTableConstraintAction(dialect, "uq")
-        sql, _ = action.to_sql()
-        assert sql == "DROP CONSTRAINT `uq`"
+        action = DropTableConstraintAction(dialect, "PRIMARY", if_exists=True)
+        sql, params = action.to_sql()
+        assert sql == "DROP PRIMARY KEY"
+        assert params == ()
+
+
+class TestMultipleTriggersPerTimingGate:
+    """Multiple triggers and their ordering both start at MariaDB 10.2.3."""
+
+    @pytest.mark.parametrize(
+        "version, expected",
+        [
+            ((10, 1, 19), False),
+            ((10, 2, 2), False),
+            ((10, 2, 3), True),
+            ((10, 2, 44), True),
+            ((10, 4, 0), True),
+            ((13, 1, 1), True),
+        ],
+        ids=lambda value: "v" + ".".join(map(str, value)) if isinstance(value, tuple) else str(value),
+    )
+    def test_multiple_triggers_gate(self, version, expected):
+        assert _dialect(version).supports_multiple_triggers_per_timing() is expected
+
+    @pytest.mark.parametrize(
+        "version, expected",
+        [
+            ((10, 2, 2), False),
+            ((10, 2, 3), True),
+            ((13, 1, 1), True),
+        ],
+        ids=lambda value: "v" + ".".join(map(str, value)) if isinstance(value, tuple) else str(value),
+    )
+    def test_trigger_order_gate_agrees(self, version, expected):
+        assert _dialect(version).supports_trigger_order() is expected
+
+    @pytest.mark.parametrize(
+        "probe",
+        ["supports_multiple_triggers_per_timing", "supports_trigger_order"],
+    )
+    def test_probe_is_declared_by_a_mariadb_class(self, probe):
+        declaring = _declaring_class(MariaDBDialect, probe)
+        assert declaring is not None, f"no class in the MRO answers {probe}"
+        assert declaring.__module__.startswith(MARIADB_IMPL_PREFIX)
+
+    def test_docstring_names_the_floor_and_its_ticket(self):
+        doc = MariaDBDialect.supports_multiple_triggers_per_timing.__doc__ or ""
+        assert "10.2.3" in doc
+        assert "MDEV-6112" in doc
 
 
 class TestRecheckedMatrix:

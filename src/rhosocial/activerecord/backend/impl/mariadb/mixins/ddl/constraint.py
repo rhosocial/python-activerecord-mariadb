@@ -12,7 +12,11 @@ class MariaDBAlterConstraintModifierMixin:
     MariaDB supports ``DROP CONSTRAINT IF EXISTS`` for named UNIQUE,
     FOREIGN KEY, and CHECK constraints from 10.2.1, the release that
     introduced ``DROP CONSTRAINT`` itself together with the ``IF EXISTS``
-    qualifier. The special ``DROP PRIMARY KEY`` form never takes
+    qualifier. Before 10.2.1 the older per-kind spellings carry the same
+    capability -- ``DROP FOREIGN KEY``, ``DROP PRIMARY KEY`` and ``DROP
+    INDEX`` / ``DROP KEY`` all exist in the 10.0.15 grammar; CHECK
+    constraints are absent too, so there is nothing the older spellings
+    cannot reach. The special ``DROP PRIMARY KEY`` form never takes
     ``IF EXISTS`` (MariaDB has a separate ``DROP PRIMARY KEY`` clause), so
     that path is preserved and emits the bare form even when
     ``if_exists=True``.
@@ -79,12 +83,11 @@ class MariaDBAlterConstraintModifierMixin:
     def supports_drop_constraint_if_exists(self) -> bool:
         """``DROP CONSTRAINT IF EXISTS`` is supported from MariaDB 10.2.1.
 
-        The whole ``DROP CONSTRAINT`` clause arrives in 10.2.1 and already
-        carries the ``IF EXISTS`` qualifier, so there is no version that has
-        the statement without the qualifier. 10.2.0 and every 10.1 version
-        have no ``DROP CONSTRAINT`` rule at all, which is why this is gated
-        rather than answered True: a pre-10.2.1 dialect would otherwise be
-        told the form is available when the grammar has no place for it.
+        The qualifier shares ``MARIADB_VERSION_BOUNDARIES['DROP_CONSTRAINT']``
+        with the statement itself: the whole ``DROP CONSTRAINT`` clause
+        arrives in 10.2.1 already carrying ``IF EXISTS``, so there is no
+        version that has the statement without the qualifier. 10.2.0 and every
+        10.1 version have no ``DROP CONSTRAINT`` rule at all.
 
         Exception: ``DROP PRIMARY KEY`` does not accept ``IF EXISTS``.
 
@@ -97,19 +100,26 @@ class MariaDBAlterConstraintModifierMixin:
         This is the shape MySQL has no answer for at all -- see the class
         docstring.
         """
-        return self.version_at_least(
-            MARIADB_VERSION_BOUNDARIES['DROP_CONSTRAINT_IF_EXISTS']
-        )
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['DROP_CONSTRAINT'])
 
     def format_drop_table_constraint_action(self, expr) -> Tuple[str, tuple]:
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         name = expr.constraint_name
         # MariaDB PRIMARY KEY goes through DROP PRIMARY KEY (no IF EXISTS).
         if name.upper() == "PRIMARY":
             return "DROP PRIMARY KEY", ()
+        if not self.supports_drop_constraint():
+            raise UnsupportedFeatureError(
+                self.name,
+                "ALTER TABLE DROP CONSTRAINT",
+                "DROP CONSTRAINT requires MariaDB 10.2.1 or later. Earlier "
+                "releases spell it by kind: DROP FOREIGN KEY for a foreign "
+                "key, DROP PRIMARY KEY for the primary key, and "
+                "DROP INDEX / DROP KEY for an index."
+            )
         if getattr(expr, "if_exists", None) is True:
             if not self.supports_drop_constraint_if_exists():
-                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-
                 raise UnsupportedFeatureError(
                     self.name,
                     "DROP CONSTRAINT IF EXISTS",

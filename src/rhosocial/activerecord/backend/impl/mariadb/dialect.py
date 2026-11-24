@@ -1298,8 +1298,26 @@ class MariaDBDialect(
     def supports_drop_constraint(self) -> bool:
         """Whether ``ALTER TABLE DROP CONSTRAINT`` is supported.
 
-        True, but the **name space** is narrower than it looks, and this is
-        the one place where MariaDB and MySQL differ in the opposite
+        Version-gated at **10.2.1** (``MARIADB_VERSION_BOUNDARIES
+        ['DROP_CONSTRAINT']``), the first release whose ALTER TABLE grammar
+        has the rule: 10.2.0 and every 10.1 version have no ``DROP
+        CONSTRAINT`` at all. Below that floor the statement is refused by
+        name.
+
+        A pre-10.2.1 server is not without the *capability* -- it spells the
+        drop by kind. ``DROP FOREIGN KEY``, ``DROP PRIMARY KEY`` and
+        ``DROP INDEX`` / ``DROP KEY`` are all in the 10.0.15 grammar (a
+        10.1.4 grammar comparison shows the same four rules and no
+        ``DROP CONSTRAINT``). CHECK constraints do not exist before 10.2.1
+        either, so those older spellings reach every constraint kind the
+        release has. This backend renders ``DROP INDEX`` through
+        :class:`~...expression.statements.ddl_alter.DropIndexAction` and
+        ``DROP PRIMARY KEY`` through ``DropTableConstraintAction``'s
+        ``PRIMARY`` branch; it has no expression class for ``DROP FOREIGN
+        KEY``.
+
+        Above the floor the **name space** is narrower than it looks, and
+        this is the one place where MariaDB and MySQL differ in the opposite
         direction from ``IF EXISTS``.
 
         Measured on **13.1.1**:
@@ -1328,7 +1346,7 @@ class MariaDBDialect(
         constraint can be dropped": a primary key needs a different statement,
         and that is a per-kind gap one boolean cannot express.
         """
-        return True
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['DROP_CONSTRAINT'])
 
     # endregion
 
