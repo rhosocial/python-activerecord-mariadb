@@ -3,15 +3,19 @@
 
 from typing import Tuple
 
+from ..backend import MARIADB_VERSION_BOUNDARIES
+
 
 class MariaDBAlterConstraintModifierMixin:
     """MariaDB ``DROP CONSTRAINT [IF EXISTS]`` formatting.
 
     MariaDB supports ``DROP CONSTRAINT IF EXISTS`` for named UNIQUE,
-    FOREIGN KEY, and CHECK constraints since 10.0.2. The special
-    ``DROP PRIMARY KEY`` form never takes ``IF EXISTS`` (MariaDB has a
-    separate ``DROP PRIMARY KEY`` clause), so that path is preserved and
-    emits the bare form even when ``if_exists=True``.
+    FOREIGN KEY, and CHECK constraints from 10.2.1, the release that
+    introduced ``DROP CONSTRAINT`` itself together with the ``IF EXISTS``
+    qualifier. The special ``DROP PRIMARY KEY`` form never takes
+    ``IF EXISTS`` (MariaDB has a separate ``DROP PRIMARY KEY`` clause), so
+    that path is preserved and emits the bare form even when
+    ``if_exists=True``.
 
     Measured on **13.1.1** (scenario ``mariadb_131rc``, TLSv1.2)::
 
@@ -73,21 +77,29 @@ class MariaDBAlterConstraintModifierMixin:
     """
 
     def supports_drop_constraint_if_exists(self) -> bool:
-        """``DROP CONSTRAINT IF EXISTS`` is supported since MariaDB 10.0.2.
+        """``DROP CONSTRAINT IF EXISTS`` is supported from MariaDB 10.2.1.
+
+        The whole ``DROP CONSTRAINT`` clause arrives in 10.2.1 and already
+        carries the ``IF EXISTS`` qualifier, so there is no version that has
+        the statement without the qualifier. 10.2.0 and every 10.1 version
+        have no ``DROP CONSTRAINT`` rule at all, which is why this is gated
+        rather than answered True: a pre-10.2.1 dialect would otherwise be
+        told the form is available when the grammar has no place for it.
 
         Exception: ``DROP PRIMARY KEY`` does not accept ``IF EXISTS``.
 
-        Measured on **13.1.1**, and re-measured on 10.2.44 / 10.4.34 / 10.5.29 /
-        12.0.2 / 12.1.2 / 13.1.1: the form is accepted on all six, **including
-        for a constraint that does not exist**, where it is a silent no-op
-        (against ``1091`` without ``IF EXISTS``). Every measured MariaDB
-        therefore accepts it, and none of the six is where the 10.0.2 floor
-        would show up.
+        Verified live on 10.2.44 / 10.4.34 / 10.5.29 / 10.6.28 / 10.11.19 /
+        11.4.13 / 12.0.2 / 13.1.1: the form is accepted on all eight,
+        **including for a constraint that does not exist**, where it is a
+        silent no-op (warning 1091; the bare spelling of the same absent name
+        is errno 1091).
 
         This is the shape MySQL has no answer for at all -- see the class
         docstring.
         """
-        return True
+        return self.version_at_least(
+            MARIADB_VERSION_BOUNDARIES['DROP_CONSTRAINT_IF_EXISTS']
+        )
 
     def format_drop_table_constraint_action(self, expr) -> Tuple[str, tuple]:
         name = expr.constraint_name
@@ -95,6 +107,14 @@ class MariaDBAlterConstraintModifierMixin:
         if name.upper() == "PRIMARY":
             return "DROP PRIMARY KEY", ()
         if getattr(expr, "if_exists", None) is True:
+            if not self.supports_drop_constraint_if_exists():
+                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "DROP CONSTRAINT IF EXISTS",
+                    "DROP CONSTRAINT IF EXISTS requires MariaDB 10.2.1 or later."
+                )
             result = f"DROP CONSTRAINT IF EXISTS {self.format_identifier(name)}"
         else:
             result = f"DROP CONSTRAINT {self.format_identifier(name)}"

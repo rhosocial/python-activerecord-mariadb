@@ -17,6 +17,21 @@ class MariaDBViewMixin:
         """
         return True
 
+    def supports_if_not_exists_view(self) -> bool:
+        """Whether ``CREATE VIEW IF NOT EXISTS`` is supported.
+
+        MariaDB 10.1.4 added it with the other IF [NOT] EXISTS / OR REPLACE
+        clauses (MDEV-7284); the 10.0.15 view rule has no slot for it. See
+        ``MARIADB_VERSION_BOUNDARIES['VIEW_IF_NOT_EXISTS']``.
+
+        Verified live on 10.2.44 through 13.1.1: a repeated
+        ``CREATE VIEW IF NOT EXISTS`` is accepted with warning 1050, and a
+        sentinel between the clause and the name is rejected with errno 1064.
+        """
+        from .backend import MARIADB_VERSION_BOUNDARIES
+
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['VIEW_IF_NOT_EXISTS'])
+
     def supports_temporary_view(self) -> bool:
         return True
 

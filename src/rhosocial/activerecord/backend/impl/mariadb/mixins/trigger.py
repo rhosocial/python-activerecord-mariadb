@@ -42,7 +42,8 @@ class MariaDBTriggerMixin:
     MariaDB vs MySQL:
     - MySQL does NOT support INSTEAD OF triggers
     - MySQL does NOT support multiple triggers per timing/event
-    - MySQL 8.0.4+ supports IF NOT EXISTS; MariaDB uses OR REPLACE
+    - Both accept IF NOT EXISTS, but from different releases: MySQL 8.0.29,
+      MariaDB 10.1.4 (MDEV-7286)
     """
 
     def supports_trigger(self) -> bool:
@@ -122,14 +123,39 @@ class MariaDBTriggerMixin:
         return self.version_at_least((10, 2, 3))
 
     def supports_trigger_if_not_exists(self) -> bool:
-        """Whether CREATE TRIGGER IF NOT EXISTS is supported.
+        """Whether ``CREATE TRIGGER IF NOT EXISTS`` is supported.
 
-        MariaDB uses OR REPLACE instead of IF NOT EXISTS.
+        MariaDB 10.1.4 added it, alongside ``OR REPLACE`` and the matching
+        DROP clause, as part of "consistent support for IF EXISTS, IF NOT
+        EXISTS, and OR REPLACE" (MDEV-7286). The 10.0 grammar has no slot for
+        it. See ``MARIADB_VERSION_BOUNDARIES['TRIGGER_IF_NOT_EXISTS']``.
+
+        Note that the MariaDB Knowledge Base has carried two different
+        per-clause badges for this option (10.1.4 in the clause body, while a
+        table-of-contents entry said 10.2.3); neither is the 10.1.20/10.2.4
+        pair sometimes attributed to it. The 10.1.4 release notes and the
+        10.1.4-to-10.0.15 grammar comparison are the sources this gate uses.
 
         Returns:
-            False (use OR REPLACE).
+            True if MariaDB version >= 10.1.4.
         """
-        return False
+        return self.version_at_least(MARIADB_VERSION_BOUNDARIES['TRIGGER_IF_NOT_EXISTS'])
+
+    def supports_trigger_if_exists(self) -> bool:
+        """Whether ``DROP TRIGGER IF EXISTS`` is supported.
+
+        It is accepted by every version this backend supports. The clause is
+        already in the 10.0.15 grammar (``DROP TRIGGER_SYM opt_if_exists
+        sp_name``) and the 10.1.4 release notes describe that release as
+        making its support *consistent* rather than introducing it, so there
+        is no floor to gate on. Verified live on 10.2.44 through 13.1.1: an
+        absent name with ``IF EXISTS`` is a warning (1360), the same name
+        without it is errno 1360.
+
+        Returns:
+            True.
+        """
+        return True
 
     def supports_or_replace_trigger(self) -> bool:
         """Whether CREATE OR REPLACE TRIGGER is supported.
@@ -242,12 +268,22 @@ class MariaDBTriggerMixin:
 
         parts = ["CREATE"]
 
-        if expr.or_replace:
+        # ``or_replace`` and ``ordering`` are MariaDB-only slots that core's
+        # ``CreateTriggerStatement`` does not carry. Read them optionally so a
+        # core expression renders the plain form instead of failing on a
+        # missing attribute the caller had no way to set.
+        if getattr(expr, "or_replace", False):
             parts.append("OR REPLACE")
 
         parts.append("TRIGGER")
 
         if expr.if_not_exists:
+            if not self.supports_trigger_if_not_exists():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CREATE TRIGGER IF NOT EXISTS",
+                    "CREATE TRIGGER IF NOT EXISTS requires MariaDB 10.1.4 or later."
+                )
             parts.append("IF NOT EXISTS")
 
         # The trigger's own name, the table it fires on, and -- when this
@@ -272,8 +308,9 @@ class MariaDBTriggerMixin:
 
         all_params = []
 
-        if expr.ordering:
-            order_type, order_trigger = expr.ordering
+        ordering = getattr(expr, "ordering", None)
+        if ordering:
+            order_type, order_trigger = ordering
             order_sql, _ = order_trigger.to_sql()
             parts.append(order_type.upper())
             parts.append(order_sql)
@@ -306,7 +343,10 @@ class MariaDBTriggerMixin:
 
         Raises:
             TypeError: ``expr.trigger`` is not a Trigger.
+            UnsupportedFeatureError: ``DROP TRIGGER IF EXISTS`` was requested
+                but this dialect does not answer the probe.
         """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.objects import Trigger
 
         if not isinstance(expr.trigger, Trigger):
@@ -317,6 +357,12 @@ class MariaDBTriggerMixin:
         parts = ["DROP TRIGGER"]
 
         if expr.if_exists:
+            if not self.supports_trigger_if_exists():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "DROP TRIGGER IF EXISTS",
+                    "The dialect answered supports_trigger_if_exists() as False."
+                )
             parts.append("IF EXISTS")
 
         # MariaDB drops a trigger by its own name; the database is part of

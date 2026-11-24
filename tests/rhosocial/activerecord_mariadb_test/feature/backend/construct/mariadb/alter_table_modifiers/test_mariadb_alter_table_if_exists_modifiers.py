@@ -1,9 +1,11 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/construct/mariadb/alter_table_modifiers/test_mariadb_alter_table_if_exists_modifiers.py
 """Tests for MariaDB ALTER TABLE IF [NOT] EXISTS qualifier rendering.
 
-MariaDB supports the vendor qualifiers since 10.0.2 for ADD COLUMN,
-DROP COLUMN, and (named) DROP CONSTRAINT. The special DROP PRIMARY KEY
-form never takes IF EXISTS.
+MariaDB supports the vendor qualifiers since 10.0.2 for ADD COLUMN and
+DROP COLUMN. Named DROP CONSTRAINT arrived later: 10.2.1 is the first
+release whose ALTER TABLE grammar has the rule at all, and it carries the
+IF EXISTS qualifier with it. The special DROP PRIMARY KEY form never takes
+IF EXISTS.
 """
 
 import pytest

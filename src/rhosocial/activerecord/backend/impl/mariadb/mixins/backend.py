@@ -18,7 +18,7 @@ from rhosocial.activerecord.backend.errors import (
 )
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 from uuid import UUID
 
 from rhosocial.activerecord.backend.suggestion.definitions import (
@@ -53,6 +53,18 @@ MARIADB_VERSION_BOUNDARIES = {
     'RETURNING': (10, 5, 0),
     'EXPLAIN_FORMAT': (10, 6, 0),
     'INSTEAD_OF_TRIGGER': (10, 4, 0),
+    # ``CREATE TRIGGER IF NOT EXISTS`` and ``CREATE VIEW IF NOT EXISTS``
+    # arrived together in 10.1.4, the release whose notes say "Consistent
+    # support for IF EXISTS, IF NOT EXISTS, and OR REPLACE clauses was added
+    # to: ... CREATE INDEX and DROP INDEX ... CREATE TRIGGER and DROP TRIGGER"
+    # (https://mariadb.com/docs/release-notes/community-server/old-releases/10.1/10.1.4.md,
+    # MDEV-7284 / MDEV-7286). The 10.0.15 grammar has no slot for either:
+    # ``trigger_tail`` goes straight from ``remember_name`` to ``sp_name``,
+    # and the view rule is ``view_suid VIEW_SYM table_ident``. Verified live
+    # on 10.2.44 through 13.1.1: both spellings are accepted, and a sentinel
+    # inserted between the clause and the name is rejected with errno 1064.
+    'TRIGGER_IF_NOT_EXISTS': (10, 1, 4),
+    'VIEW_IF_NOT_EXISTS': (10, 1, 4),
     # The two FOR UPDATE wait modifiers do not travel together on MariaDB,
     # so they get separate keys -- core's own ``supports_for_update_nowait``
     # docstring spells out why a shared probe would have to be answered
@@ -79,6 +91,15 @@ MARIADB_VERSION_BOUNDARIES = {
     'GRANT_OR_REPLACE': (10, 1, 4),
     'GRANT_IF_EXISTS': (10, 1, 4),
     'CHECK_CONSTRAINT': (10, 2, 1),
+    # ``ALTER TABLE ... DROP CONSTRAINT`` first appears in the ALTER TABLE
+    # grammar in 10.2.1: 10.2.0 and every 10.1 version have no such rule, so
+    # below that floor the clause does not exist to format. The rule arrives
+    # already carrying ``opt_if_exists_table_element``, which is why
+    # ``DROP CONSTRAINT IF EXISTS`` shares this floor rather than an earlier
+    # one. Verified live on 10.2.44 through 13.1.1: the IF EXISTS spelling is
+    # accepted for an absent constraint (warning 1091) while the bare spelling
+    # of the same absent name is rejected with errno 1091.
+    'DROP_CONSTRAINT_IF_EXISTS': (10, 2, 1),
     # --- 10.7 (UUID data type) ---
     # https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type
     'UUID': (10, 7, 0),

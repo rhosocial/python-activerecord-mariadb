@@ -19,16 +19,19 @@ class MariaDBTriggerSupport(TriggerObjectSupport, Protocol):
     - NEW/OLD: Row references
 
     MariaDB-specific trigger enhancements:
-    - Trigger IF NOT EXISTS: CREATE OR REPLACE TRIGGER (MariaDB 10.1.4+)
-    - Trigger order: FOLLOWS/PRECEDES (MariaDB 10.2.3+)
-    - Trigger on all tables: MariaDB 10.3+
+    - Trigger IF NOT EXISTS: CREATE TRIGGER IF NOT EXISTS (MariaDB 10.1.4+)
+    - Trigger ordering: FOLLOWS/PRECEDES (MariaDB 10.2.3+)
+    - INSTEAD OF triggers on views: MariaDB 10.4+
 
     Official Documentation:
     - CREATE TRIGGER: https://mariadb.com/kb/en/create-trigger/
+    - DROP TRIGGER: https://mariadb.com/kb/en/drop-trigger/
+    - 10.1.4 release notes (MDEV-7286): https://mariadb.com/docs/release-notes/community-server/old-releases/10.1/10.1.4.md
 
     Version Requirements:
     - Triggers: MariaDB 5.x+
     - Trigger IF NOT EXISTS: MariaDB 10.1.4+
+    - DROP TRIGGER IF EXISTS: every supported version (present in 10.0.15)
     - Trigger FOLLOWS/PRECEDES: MariaDB 10.2.3+
     """
 
@@ -40,11 +43,15 @@ class MariaDBTriggerSupport(TriggerObjectSupport, Protocol):
         """Whether CREATE TRIGGER IF NOT EXISTS is supported (MariaDB 10.1.4+)."""
         ...
 
+    def supports_trigger_if_exists(self) -> bool:
+        """Whether DROP TRIGGER IF EXISTS is supported (all supported versions)."""
+        ...
+
     def supports_instead_of_trigger(self) -> bool:
         """Whether INSTEAD OF triggers are supported.
 
-        MariaDB does NOT support INSTEAD OF triggers (only BEFORE/AFTER).
-        This method always returns False for MariaDB.
+        MariaDB 10.4+ supports INSTEAD OF triggers on views; before that
+        floor the formatter refuses the timing by name.
         """
         ...
 

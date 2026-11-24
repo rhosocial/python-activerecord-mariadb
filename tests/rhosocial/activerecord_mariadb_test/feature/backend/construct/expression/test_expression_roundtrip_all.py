@@ -556,11 +556,14 @@ def register_specials():
             timing=TriggerTiming.BEFORE,
             events=[TriggerEvent.INSERT],
             function=Function(d, "fn"),
+            if_not_exists=True,
         ),
     )
     register_special_constructor(
         "statements.ddl_trigger.DropTriggerStatement",
-        lambda d: ddl_trigger.DropTriggerStatement(d, trigger=Trigger(d, "trg")),
+        lambda d: ddl_trigger.DropTriggerStatement(
+            d, trigger=Trigger(d, "trg"), if_exists=True
+        ),
     )
     register_special_constructor(
         "statements.ddl_comment.CommentOnStatement",
@@ -1452,20 +1455,12 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedDataTypeError, "does not support the generic type None"
     ),
 
-    # MariaDB's trigger formatter reads ``or_replace``, ``ordering`` and
-    # ``body``, none of which core's ``CreateTriggerStatement`` carries -- it
-    # has ``if_not_exists`` and ``update_columns`` instead. So the MariaDB
-    # formatter and the core expression disagree about the same hook, and the
-    # expression reaches the formatter and then fails on a missing attribute.
-    #
-    # This is a real gap rather than a MariaDB refusal: MariaDB does support
-    # CREATE TRIGGER (its own ``MariaDBTriggerMixin`` renders the OR REPLACE
-    # form), but only for an expression shaped the way it expects, and this
-    # repository has no such expression class. Named here so the gap is
-    # recorded rather than swallowed.
-    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerStatement": (
-        AttributeError, "has no attribute 'or_replace'"
-    ),
+    # MariaDB's trigger formatter reads ``or_replace`` and ``ordering`` as
+    # optional MariaDB-only slots: core's ``CreateTriggerStatement`` carries
+    # neither, and the formatter falls back to the plain form when they are
+    # absent, so the expression renders instead of failing on a missing
+    # attribute. ``if_not_exists`` is core's field and is gated by
+    # ``supports_trigger_if_not_exists``.
 }
 
 
