@@ -14,6 +14,8 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
     AddColumnAction,
     AlterTableStatement,
+    ChangeColumnAction,
+    RenameColumnAction,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import ColumnDefinition
 from rhosocial.activerecord.backend.expression.statements.ddl_function import (
@@ -292,6 +294,48 @@ class TestMariaDBRenameIndex:
         )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
+
+
+class TestMariaDBRenameColumn:
+    """RENAME COLUMN is a 10.5.2 spelling; older servers use CHANGE COLUMN.
+
+    The probe used to inherit core's unconditional ``True``, so a 10.5.1
+    dialect advertised a statement its grammar does not have. These tests pin
+    the version gate and the two spellings it selects between.
+    """
+
+    def test_probe_is_gated_on_10_5_2(self):
+        assert _dialect((10, 4, 34)).supports_rename_column() is False
+        assert _dialect((10, 5, 1)).supports_rename_column() is False
+        assert _dialect((10, 5, 2)).supports_rename_column() is True
+        assert _dialect((11, 4, 0)).supports_rename_column() is True
+
+    def test_unadapted_dialect_does_not_claim_it(self):
+        """A dialect that cannot name its version must not claim the feature."""
+        assert MariaDBDialect().supports_rename_column() is False
+
+    def test_rename_column_renders_on_10_5_2(self):
+        dialect = _dialect((10, 5, 2))
+        action = RenameColumnAction(dialect, 'email', 'contact_email')
+        sql, params = action.to_sql()
+        assert sql == 'RENAME COLUMN `email` TO `contact_email`'
+        assert params == ()
+
+    def test_rename_column_is_refused_on_10_5_1(self):
+        dialect = _dialect((10, 5, 1))
+        with pytest.raises(UnsupportedFeatureError, match='RENAME COLUMN'):
+            RenameColumnAction(dialect, 'email', 'contact_email').to_sql()
+
+    def test_change_column_is_the_older_spelling(self):
+        dialect = _dialect((10, 5, 1))
+        action = ChangeColumnAction(
+            dialect=dialect,
+            old_name='email',
+            column=ColumnDefinition(dialect, 'contact_email', TextType(dialect)),
+        )
+        sql, params = action.to_sql()
+        assert sql == 'CHANGE COLUMN `email` `contact_email` TEXT'
+        assert params == ()
 
 
 class TestMariaDBTableMaintenance:

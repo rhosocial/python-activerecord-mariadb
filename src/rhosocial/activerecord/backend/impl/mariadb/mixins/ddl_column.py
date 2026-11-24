@@ -22,6 +22,19 @@ class MariaDBDDLColumnMixin:
     def supports_rename_table(self) -> bool:
         return True
 
+    def supports_rename_column(self) -> bool:
+        """Whether ``ALTER TABLE ... RENAME COLUMN`` is supported.
+
+        RENAME COLUMN entered MariaDB in 10.5.2. Older servers rename a
+        column by restating its definition under the new name with ``CHANGE
+        COLUMN``, which this backend renders through ``ChangeColumnAction``.
+
+        Gated rather than answered True, because the unconditional default
+        would have a pre-10.5.2 server receive a statement its grammar does
+        not have.
+        """
+        return self.version_at_least((10, 5, 2))
+
     def supports_table_partitioning(self) -> bool:
         return True
 
