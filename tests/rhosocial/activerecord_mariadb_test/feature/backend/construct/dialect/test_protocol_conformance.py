@@ -142,7 +142,7 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.AutoIncrementColumnSupport,
     dialect_protocols.DatabaseAssignedColumnSupport,
     dialect_protocols.IdentityColumnSupport,
-    suggestion_protocols.IntegerAutoIncrementColumnSuggestionSupport,
+    suggestion_protocols.GeneratedValueSuggestionSupport,
     # The eight partition lifecycle suggestions are answered by
     # backend.impl.mariadb.suggestion; the dialect satisfies every one.
     suggestion_protocols.PartitionBuildSuggestionSupport,

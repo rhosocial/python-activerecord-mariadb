@@ -211,7 +211,7 @@ from .mixins import (
 from .suggestion import (
     MariaDBCreateTableLayoutSuggestionMixin,
     MariaDBDataTypeSuggestionsMixin,
-    MariaDBIntegerAutoIncrementColumnSuggestionMixin,
+    MariaDBGeneratedValueSuggestionMixin,
     MariaDBPartitionAddSuggestionMixin,
     MariaDBPartitionBuildSuggestionMixin,
     MariaDBPartitionDropSuggestionMixin,
@@ -270,7 +270,7 @@ class MariaDBDialect(
     MariaDBPartitionTableAlterSuggestionMixin,
     MariaDBPartitionSplitSuggestionMixin,
     MariaDBPartitionMergeSuggestionMixin,
-    MariaDBIntegerAutoIncrementColumnSuggestionMixin,
+    MariaDBGeneratedValueSuggestionMixin,
     # MariaDB's concatenation spelling. Core's format_concatenation_operation
     # consults suggest_concatenation_function(); without this mixin the dialect
     # raises AttributeError instead of rendering CONCAT(a, b).

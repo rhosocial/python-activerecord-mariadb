@@ -9,9 +9,7 @@ MRO. One suggestion per file, mirroring SQLite's suggestion package.
 
 from .create_table_layout_suggestion import MariaDBCreateTableLayoutSuggestionMixin
 from .data_type_suggestions import MARIADB_DATA_TYPE_SUGGESTIONS, MariaDBDataTypeSuggestionsMixin
-from .integer_auto_increment_column_suggestion import (
-    MariaDBIntegerAutoIncrementColumnSuggestionMixin,
-)
+from .generated_value_suggestion import MariaDBGeneratedValueSuggestionMixin
 from .partition_add_suggestion import MariaDBPartitionAddSuggestionMixin
 from .partition_build_suggestion import MariaDBPartitionBuildSuggestionMixin
 from .partition_drop_suggestion import MariaDBPartitionDropSuggestionMixin
@@ -26,7 +24,7 @@ __all__ = [
     "MARIADB_DATA_TYPE_SUGGESTIONS",
     "MariaDBCreateTableLayoutSuggestionMixin",
     "MariaDBDataTypeSuggestionsMixin",
-    "MariaDBIntegerAutoIncrementColumnSuggestionMixin",
+    "MariaDBGeneratedValueSuggestionMixin",
     "MariaDBPartitionAddSuggestionMixin",
     "MariaDBPartitionBuildSuggestionMixin",
     "MariaDBPartitionDropSuggestionMixin",
