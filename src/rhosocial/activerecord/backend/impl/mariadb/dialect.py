@@ -555,6 +555,10 @@ class MariaDBDialect(
         """MariaDB commits each DDL statement implicitly."""
         return False
 
+    def supports_alter_table_index_actions(self) -> bool:
+        """MariaDB supports ``ALTER TABLE ... ADD/DROP INDEX`` on every version."""
+        return True
+
     #: Server and session parameters recorded during adaptation.
     #:
     #: They are not capabilities: an operator can change them, so no version
