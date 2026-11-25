@@ -10,10 +10,10 @@ the direction "round-trip coverage moves to the owning repository": the suite
 keeps the ActiveRecord-layer contracts and must not grow an opinion about
 which expressions exist, so each backend now owns the harness its own matrix
 runs on. Fix drift here deliberately; do not re-import it from the suite.
-The registration adaptation (``register_all`` writing to the framework's
-default kind registry, with the enum / dataclass sub-registries gone now that
-a member and a field travel as plain JSON) follows the mysql repository's own
-vendoring of the same module.
+The registration adaptation (``trusted_registry`` copying the owning backend's
+published table into a private workspace, with the enum / dataclass
+sub-registries gone now that a member and a field travel as plain JSON)
+follows the mysql repository's own vendoring of the same module.
 
 This module is the test-only home (NOT shipped as part of the core library's
 runtime API) for constructing expression instances and asserting they survive
@@ -1006,22 +1006,40 @@ def collect_expression_classes(package_path: str) -> Dict[str, Type[BaseExpressi
     return classes
 
 
-def register_all(classes: Dict[str, Type[BaseExpression]]) -> None:
-    """Hand the collected classes to the deserialization kind whitelist.
+def trusted_registry(base, *opt_ins):
+    """A private twin of *base* admitting the classes the caller vouches for.
 
-    Core split the class index out of the serialization module into a
-    registry: deserialization resolves a node to its class through the
-    framework's default registry, not through the ``(dialect, kind)`` render
-    registry -- the two are separate mechanisms and only the former names
-    expression classes. Core and the built-in backends populate that registry
-    on first use; registering one of those classes again is a no-op, and the
-    backend classes collected by the matrix are what this call adds.
+    Deserialization resolves a kind through the registry its caller chooses.
+    The owner's published table (``dialect.artifact_registry()``, assembled by
+    ``backend_registry()``) is frozen and answers only the kinds that owner
+    admits, so it must never be edited. A caller that reads artifacts it
+    produced itself and needs more than that copies the table with ``twin()``
+    and registers the extra classes there: the twin is the caller's own
+    workspace, frozen before use, and no other reader sees the widening.
+
+    Two groups need this here:
+
+    * the kinds core deliberately leaves out of every assembled table because
+      their SQL is caller-vouched text (``RawSQL``/``RawSQLPredicate``);
+    * MariaDB's own concrete classes that render through a ``to_sql()``
+      override rather than a ``format_method`` declaration -- the assembly walk
+      admits only nodes that name a formatter, so those classes are the
+      backend's but not yet the table's;
+    * the dummy backend's two type nodes, which are the only concrete
+      implementations of core's type-definition protocol a CREATE/ALTER TYPE
+      artifact can carry.
+
+    Args:
+        base: The frozen registry to copy (typically ``backend_registry()``).
+        *opt_ins: Expression classes to admit on top of *base*.
+
+    Returns:
+        A frozen registry holding *base*'s kinds plus the *opt_ins* classes.
     """
-    from rhosocial.activerecord.backend.expression.serialization import default_registry
-
-    registry = default_registry()
-    for cls in classes.values():
-        registry.register_node(cls)
+    view = base.twin()
+    for cls in opt_ins:
+        view.register_node(cls)
+    return view.freeze()
 
 
 def assert_params_equal(a: Any, b: Any, path: str = "params") -> None:
@@ -1056,42 +1074,46 @@ def assert_params_equal(a: Any, b: Any, path: str = "params") -> None:
     assert a == b, f"{path}: {a!r} != {b!r}"
 
 
-def roundtrip_expression(fqn: str, instance: BaseExpression, dialect: Any) -> None:
+def roundtrip_expression(fqn: str, instance: BaseExpression, dialect: Any, registry: Any = None) -> None:
     """Assert an instance round-trips losslessly through dict / JSON / XML."""
     original = instance.get_params()
     for restored in (
-        _rt_dict(instance, dialect),
-        _rt_json(instance, dialect),
-        _rt_xml(instance, dialect),
+        _rt_dict(instance, dialect, registry),
+        _rt_json(instance, dialect, registry),
+        _rt_xml(instance, dialect, registry),
     ):
         assert_params_equal(restored.get_params(), original, fqn)
 
 
-def _rt_dict(instance, dialect):
+def _rt_dict(instance, dialect, registry=None):
     from rhosocial.activerecord.backend.expression.serialization import deserialize, serialize
 
-    return deserialize(serialize(instance), dialect)
+    return deserialize(serialize(instance), dialect, registry=registry)
 
 
-def _rt_json(instance, dialect):
+def _rt_json(instance, dialect, registry=None):
     from rhosocial.activerecord.backend.expression.serialization import deserialize_json, serialize_json
 
-    return deserialize_json(serialize_json(instance), dialect)
+    return deserialize_json(serialize_json(instance), dialect, registry=registry)
 
 
-def _rt_xml(instance, dialect):
+def _rt_xml(instance, dialect, registry=None):
     from rhosocial.activerecord.backend.expression.serialization import deserialize_xml, serialize_xml
 
-    return deserialize_xml(serialize_xml(instance), dialect)
+    return deserialize_xml(serialize_xml(instance), dialect, registry=registry)
 
 
-def sql_consistent(fqn: str, instance: BaseExpression, dialect: Any) -> None:
+def sql_consistent(fqn: str, instance: BaseExpression, dialect: Any, registry: Any = None) -> None:
     """Assert to_sql is identical after round-trip, when the dialect supports it."""
     try:
         expected = instance.to_sql()
     except Exception:
         return
-    for restored in (_rt_dict(instance, dialect), _rt_json(instance, dialect), _rt_xml(instance, dialect)):
+    for restored in (
+        _rt_dict(instance, dialect, registry),
+        _rt_json(instance, dialect, registry),
+        _rt_xml(instance, dialect, registry),
+    ):
         assert restored.to_sql() == expected, fqn
 
 
@@ -1099,8 +1121,8 @@ __all__ = [
     "assert_params_equal",
     "collect_expression_classes",
     "make_instance",
-    "register_all",
     "register_special_constructor",
     "roundtrip_expression",
     "sql_consistent",
+    "trusted_registry",
 ]

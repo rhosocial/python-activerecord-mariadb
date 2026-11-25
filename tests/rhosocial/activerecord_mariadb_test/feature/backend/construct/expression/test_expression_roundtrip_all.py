@@ -140,6 +140,8 @@ from rhosocial.activerecord.backend.expression.objects import (
 )
 from rhosocial.activerecord.backend.expression.operators import (
     ArithmeticOperation,
+    RawSQL,
+    RawSQLPredicate,
 )
 from rhosocial.activerecord.backend.expression.predicates import (
     LikeOperator,
@@ -241,8 +243,8 @@ from expression_roundtrip_harness import (
     assert_params_equal,
     collect_expression_classes,
     make_instance,
-    register_all,
     register_special_constructor,
+    trusted_registry,
 )
 
 MARIADB_EXPR_PKG = "rhosocial.activerecord.backend.impl.mariadb.expression"
@@ -278,23 +280,64 @@ def _collect(package: str) -> Dict[str, type]:
 
 
 def _matrix_classes() -> Dict[str, type]:
-    """Both packages merged, and registered so deserialization can resolve them.
+    """Both packages merged, by package walk, with no registration.
 
-    Deserialization resolves a kind to its class through the framework's
-    default registry -- which is *not* the ``(dialect, kind)`` render
-    registry: the registry names classes for the artifact reader, the render
-    registry names formatters. Core populates the framework's own packages
-    on the registry's first use and re-registering one of those classes is a
-    no-op, so the MariaDB classes collected here are what the call adds.
+    Deserialization does not read this dict into a shared table: which kinds a
+    read may resolve is the owning backend's answer
+    (``MariaDBDialect.artifact_registry()``), and the matrix only reads through
+    that answer unless a class needs the private twin described below.
     """
     merged: Dict[str, type] = {}
     for package in (MARIADB_EXPR_PKG, CORE_EXPR_PKG):
         merged.update(_collect(package))
-    register_all(merged)
     return merged
 
 
 REGISTERED = _matrix_classes()
+
+#: Classes this matrix's artifacts name that no published table may admit.
+#:
+#: ``RawSQL``/``RawSQLPredicate`` are core's caller-vouched kinds, kept out of
+#: every assembled table on purpose; ``_DummyTypeDefinition`` and
+#: ``_DummyTypeAlterAction`` are the dummy backend's only concrete
+#: implementations of core's type-definition protocol, and the two core DDL
+#: statements the matrix builds (CREATE/ALTER TYPE) carry one of them as a
+#: parameter. None of these belongs in MariaDB's table: a reader of this backend
+#: must refuse a foreign backend's kind. The matrix is the caller, though, and
+#: it produced these artifacts itself, so it may name them in its own copy.
+_MATRIX_VOUCHED = (RawSQL, RawSQLPredicate, _DummyTypeDefinition, _DummyTypeAlterAction)
+
+
+def _matrix_registry(classes: Dict[str, type]):
+    """The matrix's private table: the backend's composition, plus what it vouches for.
+
+    ``backend_registry()`` is frozen and is what every reader of this backend
+    sees; editing it would widen or narrow the table for all of them, which is
+    the defect the ownership model removes. The matrix constructs its own
+    artifacts and serializes them itself, so it is a caller that may vouch for
+    classes the owner's table leaves out -- and it does that on a ``twin()``,
+    its own copy, frozen before use.
+
+    Three groups are added on top of the published table:
+
+    * ``RawSQL`` / ``RawSQLPredicate``, the kinds core keeps out of every
+      assembled table because their SQL is caller-vouched text;
+    * MariaDB's concrete classes that render through a ``to_sql()`` override
+      rather than a ``format_method`` declaration -- the assembly walk admits
+      only nodes that name a formatter, so those classes are this backend's
+      but not yet its table's;
+    * the two dummy type nodes named in :data:`_MATRIX_VOUCHED`.
+
+    Re-registering a class the table already names is a no-op, so handing it
+    the whole matrix is the same statement as handing it only the extras.
+    """
+    from rhosocial.activerecord.backend.impl.mariadb.registry import backend_registry
+
+    return trusted_registry(backend_registry(), *classes.values(), *_MATRIX_VOUCHED)
+
+
+MATRIX_REGISTRY = _matrix_registry(REGISTERED)
+
 # Enums need no registration of their own: a member travels as its scalar
 # value (a str enum is a str) and the constructor normalises on read, which
 # is the conversion §4.11.2 puts in the constructor rather than the reader.
@@ -1635,12 +1678,36 @@ def _serialization_gap(fqn):
 
 
 def _restore_channel(channel, instance, dialect):
-    """Serialize *instance* and read it back through one channel."""
-    if channel == "dict":
-        return deserialize(serialize(instance), dialect)
-    if channel == "json":
-        return deserialize_json(serialize_json(instance), dialect)
-    return deserialize_xml(serialize_xml(instance), dialect)
+    """Serialize *instance* and read it back through one channel.
+
+    A read starts on ``dialect.artifact_registry()`` -- the dialect's own
+    answer, and the table a reader of this backend actually gets. Only when
+    that table refuses a kind the matrix itself vouched for (a nested artifact
+    naming raw SQL, or the dummy type nodes a core CREATE/ALTER TYPE carries)
+    does the read move to the matrix's private twin. The twin differs from the
+    published table only in those classes, so a kind neither can resolve still
+    fails, with the second attempt's error.
+    """
+    from rhosocial.activerecord.backend.expression.registry import RegistryError
+    from rhosocial.activerecord.backend.expression.serialization import (
+        ExpressionDeserializationError,
+    )
+
+    for registry in (None, MATRIX_REGISTRY):
+        try:
+            if channel == "dict":
+                return deserialize(serialize(instance), dialect, registry=registry)
+            if channel == "json":
+                return deserialize_json(serialize_json(instance), dialect, registry=registry)
+            return deserialize_xml(serialize_xml(instance), dialect, registry=registry)
+        except ExpressionDeserializationError as exc:
+            # The reader reports an unregistered kind as a deserialization
+            # error, with the registry's refusal as its cause. That is the one
+            # signal worth retrying on the wider table; anything else is a real
+            # artifact failure and belongs to the caller's classification.
+            if registry is None and isinstance(exc.__cause__, RegistryError):
+                continue
+            raise
 
 
 def _run_channel(fqn, channel, instance, dialect):
@@ -2414,18 +2481,16 @@ class TestMatrixIntegrity:
     def test_every_covered_class_is_registered_for_deserialization(self):
         """A class in the matrix can be found again when deserializing.
 
-        Deserialization resolves a kind to its class through the framework's
-        default registry, so a class the matrix covers but the registry
-        cannot resolve would round-trip into nothing.
+        Deserialization resolves a kind through a registry, and the matrix's
+        reads select the dialect's table or the private twin that widens it.
+        A class the matrix covers but neither can resolve would round-trip
+        into nothing, so the union is asserted here.
         """
         from rhosocial.activerecord.backend.expression.registry import (
             RegistryError,
         )
-        from rhosocial.activerecord.backend.expression.serialization import (
-            default_registry,
-        )
 
-        registry = default_registry()
+        registry = MATRIX_REGISTRY
         unresolved = []
         for fqn, cls in REGISTERED.items():
             try:

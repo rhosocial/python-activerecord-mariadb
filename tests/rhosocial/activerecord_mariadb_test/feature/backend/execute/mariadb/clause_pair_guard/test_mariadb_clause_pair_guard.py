@@ -1,4 +1,4 @@
-# tests/rhosocial/activerecord_mariadb_test/feature/backend/execute/mariadb/clause_pair_guard/test_mariadb_clause_pair_guard.py
+# tests/rhosocial/activerecord_mariadb_test/feature/backend/execute/mariadb/clause_pair_guard/test_mariadb_clause_pair_guard.py  # noqa: E501
 """MariaDB guard: every clause pair this dialect consumes is really consumed.
 
 Core's ``test_clause_pair_guard.py`` renders through ``DummyDialect``, the
@@ -569,18 +569,12 @@ class TestPairParametersSurviveSerialization:
         ],
     )
     def test_second_spelling_survives_the_round_trip(self, factory, field):
-        from rhosocial.activerecord.backend.expression.serialization import (
-            default_registry,
-        )
-
         dialect = _dialect()
         expr = factory(dialect)
-        # Backend-local classes are not in core's auto-populated registry (that
-        # walk covers the framework's own packages only); the roundtrip matrix
-        # registers them via ``collect_expression_classes``. Registering here
-        # lets this focused round-trip deserialize MariaDB-owned expressions
-        # too; re-registering a class the matrix already added is a no-op.
-        default_registry().register_node(type(expr))
+        # No registration: the dialect hands the reader its backend's composed
+        # table (core's kinds plus MariaDB's own), frozen and cached, so a
+        # MariaDB-owned kind and a core kind both resolve without anyone mutating
+        # a process-global whitelist.
         decoded = deserialize_json(serialize_json(expr), dialect)
         assert getattr(decoded, field) is True
 
