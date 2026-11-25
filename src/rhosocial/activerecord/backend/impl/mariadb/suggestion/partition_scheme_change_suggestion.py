@@ -6,15 +6,37 @@ have an honest answer from the existing MariaDB nodes:
 
 * partitioning is removed (new projection is absent) -> ``REMOVE PARTITIONING``;
 * the projections are identical -> ``None``, no action;
-* a RANGE/LIST projection changes its definitions -> the existing add/drop
-  partition suggestions supply the statements, with retention left to its own
-  cutoff-driven rule (never invoked without a cutoff).
+* a RANGE/LIST projection changes its definitions -> the existing add and
+  cutoff-driven retention suggestions supply the statements.
+
+A partition merely missing from the new projection is **not** an authorization
+to discard its rows. ``DROP PARTITION`` discards all data in the named
+partitions, so the no-cutoff case is explicit unsupported; removing a partition
+requires an explicit retention cutoff or a data-preserving migration. The
+scheme-change point carries neither authorization.
 
 A HASH/KEY projection whose partition count shrinks reuses the existing
 COALESCE suggestion. Adding partitioning to a table that has none, switching
 between methods, and changing partition keys have no ``ALTER TABLE`` node on
 this backend: they need a table rebuild that the expression layer does not
 model, so the answer is explicit unsupported rather than an invented chain.
+
+Semantics evidence (official grammar and manuals), also pinned in
+:data:`NON_DESTRUCTIVE_EVIDENCE`:
+
+* MariaDB Partitioning Overview, *Dropping Partitions*: DROP PARTITION drops
+  partitions "and discard[s] all data within the specified partitions";
+  *Removing Partitioning*: REMOVE PARTITIONING "removes all partitioning from
+  the table, while leaving the data unaffected".
+  https://mariadb.com/docs/server/server-usage/partitioning-tables/partitioning-overview.md
+* MariaDB ALTER TABLE grammar lists ``ADD PARTITION``, ``COALESCE PARTITION``,
+  ``DROP PARTITION`` and ``REMOVE PARTITIONING`` as distinct alter specs.
+  https://mariadb.com/docs/server/reference/sql-statements/data-definition/alter/alter-table.md
+* MySQL 8.0 Reference Manual, *ALTER TABLE Partition Operations*: for
+  COALESCE PARTITION, "the data contained in the last number partitions is
+  merged into the remaining partitions"; REMOVE PARTITIONING removes
+  partitioning "without otherwise affecting the table or its data".
+  https://dev.mysql.com/doc/refman/8.0/en/alter-table-partition-operations.html
 """
 
 from __future__ import annotations
@@ -24,13 +46,32 @@ from typing import Any, Dict, List, Optional, Tuple
 from ....expression.statements import PartitionDefinitionExpression
 from ....suggestion import PartitionSchemeChangeSuggestion
 from ..expression.partition import (
-    MariaDBDropPartitionExpression,
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
     MariaDBRemovePartitioningExpression,
 )
 from ._change_plan_common import _PartitionPlan, canonical, params_of, table_for
 from ._common import _HASH_WORDS, _SUPPORTED, _MariaDBPartitionSuggestionBase, _word
+
+#: Why a partition missing from the new scheme cannot be dropped here.
+PARTITION_REMOVAL_UNSUPPORTED_REASON = (
+    "A partition missing from the new projection is not a request to discard "
+    "its rows. DROP PARTITION requires an explicit retention cutoff or a "
+    "data-preserving migration; a scheme-change point does not carry that "
+    "authorization."
+)
+
+#: Official semantics behind the non-destructive chains this answer may emit.
+NON_DESTRUCTIVE_EVIDENCE = (
+    "ADD PARTITION adds a partition definition to an existing table: "
+    "https://mariadb.com/docs/server/server-usage/partitioning-tables/partitioning-overview.md",
+    "COALESCE PARTITION reduces the HASH/KEY partition count; the data of the "
+    "removed partitions is merged into the remaining ones: "
+    "https://dev.mysql.com/doc/refman/8.0/en/alter-table-partition-operations.html",
+    "REMOVE PARTITIONING removes all partitioning while leaving the data "
+    "unaffected: "
+    "https://mariadb.com/docs/server/server-usage/partitioning-tables/partitioning-overview.md",
+)
 
 #: Why adding partitioning to an existing table is unaddressable.
 ADD_SCHEME_UNSUPPORTED_REASON = (
@@ -126,7 +167,15 @@ class MariaDBPartitionSchemeChangeSuggestionMixin(_MariaDBPartitionSuggestionBas
     def suggest_partition_scheme_change(
         self, point: PartitionSchemeChangeSuggestion
     ) -> PartitionSchemeChangeSuggestion:
-        """Return the real statements this point can name, or False/None."""
+        """Return the real statements this point can name, or False/None.
+
+        ``REMOVE PARTITIONING`` is safe here because it leaves rows unaffected.
+        A partition missing from the new projection is not a delete request:
+        without an explicit retention cutoff in the point, dropping it would
+        discard rows nobody authorized, so the answer is explicit unsupported
+        (see :data:`PARTITION_REMOVAL_UNSUPPORTED_REASON`). With a cutoff, the
+        cutoff-driven retention rule supplies the DROP PARTITION statements.
+        """
         table = table_for(self, point.table_name)
         if table is None:
             return PartitionSchemeChangeSuggestion(operations=False)
@@ -170,16 +219,17 @@ class MariaDBPartitionSchemeChangeSuggestionMixin(_MariaDBPartitionSuggestionBas
         operations: List[Any] = []
         if dropped_names:
             cutoff = new.get("cutoff", old.get("cutoff"))
-            if cutoff is not None:
-                plan = _PartitionPlan(table, old_definitions, cutoff)
-                retained = self.suggest_partition_retention(word, plan)
-                if retained.operations is False or retained.operations is None:
-                    return PartitionSchemeChangeSuggestion(operations=False)
-                operations.extend(retained.operations)
-            else:
-                if not getattr(self, "supports_drop_partition", lambda: False)():
-                    return PartitionSchemeChangeSuggestion(operations=False)
-                operations.append(MariaDBDropPartitionExpression(self, table, dropped_names))
+            if cutoff is None:
+                # A scheme change names the target shape, not a retention
+                # decision. Dropping the missing partitions here would discard
+                # rows the point never authorized; removing a partition needs
+                # an explicit cutoff or a data-preserving migration instead.
+                return PartitionSchemeChangeSuggestion(operations=False)
+            plan = _PartitionPlan(table, old_definitions, cutoff)
+            retained = self.suggest_partition_retention(word, plan)
+            if retained.operations is False or retained.operations is None:
+                return PartitionSchemeChangeSuggestion(operations=False)
+            operations.extend(retained.operations)
         if added_definitions:
             plan = _PartitionPlan(table, added_definitions)
             added = self.suggest_partition_add(word, plan)
@@ -213,6 +263,8 @@ class MariaDBPartitionSchemeChangeSuggestionMixin(_MariaDBPartitionSuggestionBas
 
 __all__ = [
     "ADD_SCHEME_UNSUPPORTED_REASON",
+    "NON_DESTRUCTIVE_EVIDENCE",
+    "PARTITION_REMOVAL_UNSUPPORTED_REASON",
     "REBUILD_UNSUPPORTED_REASON",
     "MariaDBPartitionSchemeChangeSuggestionMixin",
 ]

@@ -9,6 +9,7 @@ refusal.
 """
 
 import inspect
+import re
 
 from rhosocial.activerecord.backend.expression import Column
 from rhosocial.activerecord.backend.expression.statements import (
@@ -50,6 +51,8 @@ from rhosocial.activerecord.backend.impl.mariadb.suggestion.column_reorder_sugge
 )
 from rhosocial.activerecord.backend.impl.mariadb.suggestion.partition_scheme_change_suggestion import (
     ADD_SCHEME_UNSUPPORTED_REASON,
+    NON_DESTRUCTIVE_EVIDENCE,
+    PARTITION_REMOVAL_UNSUPPORTED_REASON,
     REBUILD_UNSUPPORTED_REASON,
 )
 from rhosocial.activerecord.backend.impl.mariadb.suggestion.table_constraint_change_suggestion import (
@@ -380,6 +383,10 @@ def test_partition_scheme_change_removes_partitioning():
     assert answer.state == "actions"
     assert isinstance(answer.operations[0], MariaDBRemovePartitioningExpression)
     assert _sql(answer.operations) == ["ALTER TABLE `events` REMOVE PARTITIONING"]
+    # Official semantics: REMOVE PARTITIONING leaves the data unaffected.
+    assert any(
+        "REMOVE PARTITIONING removes all partitioning" in line for line in NON_DESTRUCTIVE_EVIDENCE
+    )
 
 
 def test_adding_partitioning_to_an_existing_table_is_refused():
@@ -419,7 +426,7 @@ def test_identical_partition_projection_returns_none():
     assert answer.operations is None
 
 
-def test_partition_definition_change_reuses_drop_and_add_suggestions():
+def test_partition_definition_change_reuses_add_but_refuses_unauthorized_drop():
     dialect = _dialect()
     p0, p1, p2 = (
         _definition(dialect, name, bound) for name, bound in (("p0", 10), ("p1", 20), ("p2", 30))
@@ -428,14 +435,19 @@ def test_partition_definition_change_reuses_drop_and_add_suggestions():
     shorter = _partition_projection(dialect, definitions=(p1, p2))
     grown = _partition_projection(dialect, definitions=(p0, p1, p2, _definition(dialect, "p3", 40)))
 
+    # "p0" missing from the new definition is not permission to discard its
+    # rows; DROP PARTITION needs an explicit retention cutoff.
     dropped = dialect.suggest_partition_scheme_change(
         PartitionSchemeChangeSuggestion(
             table_name="events", old_partition=full, new_partition=shorter
         )
     )
-    assert dropped.state == "actions"
-    assert isinstance(dropped.operations[0], MariaDBDropPartitionExpression)
-    assert _sql(dropped.operations) == ["ALTER TABLE `events` DROP PARTITION `p0`"]
+    assert dropped.operations is False
+    assert dropped.state == "unaddressable"
+    assert "retention cutoff" in PARTITION_REMOVAL_UNSUPPORTED_REASON
+    assert "scheme-change point does not carry that authorization" in (
+        PARTITION_REMOVAL_UNSUPPORTED_REASON
+    )
 
     added = dialect.suggest_partition_scheme_change(
         PartitionSchemeChangeSuggestion(
@@ -446,6 +458,7 @@ def test_partition_definition_change_reuses_drop_and_add_suggestions():
     assert _sql(added.operations) == [
         "ALTER TABLE `events` ADD PARTITION (PARTITION `p3` VALUES LESS THAN (40))"
     ]
+    assert any(line.startswith("ADD PARTITION adds") for line in NON_DESTRUCTIVE_EVIDENCE)
 
 
 def test_partition_retention_is_only_cutoff_driven():
@@ -467,7 +480,8 @@ def test_partition_retention_is_only_cutoff_driven():
             table_name="events", old_partition=full, new_partition=with_cutoff
         )
     )
-    assert _sql(without.operations) == ["ALTER TABLE `events` DROP PARTITION `p0`"]
+    assert without.operations is False
+    assert isinstance(with_cut.operations[0], MariaDBDropPartitionExpression)
     assert _sql(with_cut.operations) == ["ALTER TABLE `events` DROP PARTITION `p0`"]
     assert (
         dialect.suggest_partition_retention(
@@ -487,3 +501,155 @@ def test_hash_partition_count_shrink_reuses_coalesce():
     assert answer.state == "actions"
     assert isinstance(answer.operations[0], MariaDBCoalescePartitionExpression)
     assert _sql(answer.operations) == ["ALTER TABLE `events` COALESCE PARTITION 2"]
+    # Official semantics: COALESCE merges the removed partitions' rows into
+    # the remaining ones, so it does not discard data the way DROP does.
+    assert any(
+        "COALESCE PARTITION reduces" in line and "merged" in line
+        for line in NON_DESTRUCTIVE_EVIDENCE
+    )
+
+
+# --- structural safety guard ------------------------------------------------
+
+
+#: Node classes that destroy a whole table/schema regardless of SQL spelling.
+_DESTRUCTIVE_CLASS_NAMES = frozenset(
+    {"DropTableStatement", "DropSchemaStatement", "DropDatabaseStatement"}
+)
+#: Destructive DDL keywords, matched against every rendered statement.
+_DESTRUCTIVE_SQL = re.compile(r"\bDROP\s+(TABLE|SCHEMA|DATABASE|PARTITION)\b", re.I)
+
+
+def _assert_no_unauthorized_data_loss(label, operations, drop_partition_authorized=False):
+    """Check a returned chain by node class name *and* by rendered SQL.
+
+    A change point is a declaration diff, not a delete authorization. Only a
+    point carrying a retention cutoff authorizes DROP PARTITION; DROP TABLE
+    and DROP SCHEMA are never authorized by any of the four points.
+    """
+    for operation in operations:
+        name = type(operation).__name__
+        assert name not in _DESTRUCTIVE_CLASS_NAMES, (label, name)
+        assert not (name == "MariaDBDropPartitionExpression" and not drop_partition_authorized), (
+            label,
+            name,
+        )
+        sql, _ = operation.to_sql()
+        match = _DESTRUCTIVE_SQL.search(sql)
+        if match is not None:
+            assert match.group(1).upper() == "PARTITION" and drop_partition_authorized, (
+                label,
+                name,
+                sql,
+            )
+
+
+def test_no_change_plan_chain_carries_unauthorized_data_loss():
+    """Every actionable answer is data-preserving unless the point authorizes it."""
+    dialect = _dialect()
+    p0, p1, p2 = (
+        _definition(dialect, name, bound) for name, bound in (("p0", 10), ("p1", 20), ("p2", 30))
+    )
+    full = _partition_projection(dialect, definitions=(p0, p1, p2))
+    shorter = _partition_projection(dialect, definitions=(p1, p2))
+    with_cutoff = _partition_projection(dialect, definitions=(p1, p2), cutoff=15)
+    grown = _partition_projection(dialect, definitions=(p0, p1, p2, _definition(dialect, "p3", 40)))
+
+    # One case per protocol, plus every partition-scheme chain shape. The last
+    # field records whether that point carries an explicit retention cutoff.
+    cases = (
+        (
+            "column_reorder",
+            "suggest_column_reorder",
+            ColumnReorderSuggestion(
+                table_name="events", old_order=("id",), new_order=("ts",), reordered_columns=("id",)
+            ),
+            False,
+        ),
+        (
+            "constraint_change",
+            "suggest_table_constraint_change",
+            TableConstraintChangeSuggestion(
+                table_name="events",
+                old_constraints=(_unique(dialect, "uq_old", "id"),),
+                new_constraints=(_unique(dialect, "uq_new", "created_at"),),
+            ),
+            False,
+        ),
+        (
+            "index_change",
+            "suggest_table_index_change",
+            TableIndexChangeSuggestion(
+                table_name="events",
+                old_indexes=(_freeze(IndexDefinition(dialect, "idx_old", ["id"])),),
+                new_indexes=(_freeze(IndexDefinition(dialect, "idx_new", ["created_at"])),),
+            ),
+            False,
+        ),
+        (
+            "partition_scheme_remove",
+            "suggest_partition_scheme_change",
+            PartitionSchemeChangeSuggestion(
+                table_name="events", old_partition=full, new_partition=None
+            ),
+            False,
+        ),
+        (
+            "partition_scheme_shrink_without_cutoff",
+            "suggest_partition_scheme_change",
+            PartitionSchemeChangeSuggestion(
+                table_name="events", old_partition=full, new_partition=shorter
+            ),
+            False,
+        ),
+        (
+            "partition_scheme_shrink_with_cutoff",
+            "suggest_partition_scheme_change",
+            PartitionSchemeChangeSuggestion(
+                table_name="events", old_partition=full, new_partition=with_cutoff
+            ),
+            True,
+        ),
+        (
+            "partition_scheme_grow",
+            "suggest_partition_scheme_change",
+            PartitionSchemeChangeSuggestion(
+                table_name="events", old_partition=full, new_partition=grown
+            ),
+            False,
+        ),
+        (
+            "partition_scheme_coalesce",
+            "suggest_partition_scheme_change",
+            PartitionSchemeChangeSuggestion(
+                table_name="events",
+                old_partition=_partition_projection(dialect, method="HASH", partitions_count=5),
+                new_partition=_partition_projection(dialect, method="HASH", partitions_count=3),
+            ),
+            False,
+        ),
+    )
+
+    seen_classes = set()
+    authorized_drops = 0
+    for label, method, point, authorized in cases:
+        answer = getattr(dialect, method)(point)
+        operations = answer.operations if isinstance(answer.operations, tuple) else ()
+        _assert_no_unauthorized_data_loss(label, operations, authorized)
+        for operation in operations:
+            seen_classes.add(type(operation).__name__)
+            sql, _ = operation.to_sql()
+            if "DROP PARTITION" in sql:
+                assert authorized, (label, sql)
+                authorized_drops += 1
+
+    # Guard against a vacuous pass: the chains checked must include each
+    # supported shape, and exactly one point-authorized DROP PARTITION.
+    assert {
+        "AlterTableStatement",
+        "MariaDBAddPartitionExpression",
+        "MariaDBCoalescePartitionExpression",
+        "MariaDBDropPartitionExpression",
+        "MariaDBRemovePartitioningExpression",
+    }.issubset(seen_classes)
+    assert authorized_drops == 1
