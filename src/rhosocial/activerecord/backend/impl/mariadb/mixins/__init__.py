@@ -62,6 +62,7 @@ from .truncate import MariaDBTruncateMixin
 from .ddl.column import MariaDBAlterColumnModifierMixin
 from .ddl.constraint import MariaDBAlterConstraintModifierMixin
 from .ddl.alter_table import MariaDBAlterTableMixin
+from .ddl_alter_table_options import MariaDBAlterTableOptionsMixin
 from .ddl.maintenance import MariaDBMaintenanceMixin
 from .ddl.routine import MariaDBRoutineMixin
 from .ddl.admin import MariaDBAdminMixin
@@ -121,6 +122,7 @@ __all__ = [
     'MariaDBTruncateMixin',
     'MariaDBAlterTableMixin',
     'MariaDBMaintenanceMixin',
+    'MariaDBAlterTableOptionsMixin',
     'MariaDBRoutineMixin',
     'MariaDBAdminMixin',
     'MariaDBDateTimeMixin',

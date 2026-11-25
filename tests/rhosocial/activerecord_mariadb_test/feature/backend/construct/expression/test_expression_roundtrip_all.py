@@ -406,6 +406,21 @@ def register_specials():
         lambda d: _column_predicate(d),
     )
 
+    # MariaDB's ALTER-time table options: the introspective guess cannot pick
+    # an option set, and the statement refuses an empty one.
+    def alter_table_options(d):
+        from rhosocial.activerecord.backend.impl.mariadb.expression.alter_table_options import (
+            MariaDBAlterTableOptionsStatement,
+        )
+
+        return MariaDBAlterTableOptionsStatement(
+            d, "t", engine="InnoDB", comment="note"
+        )
+
+    register_special_constructor(
+        "alter_table_options.MariaDBAlterTableOptionsStatement", alter_table_options
+    )
+
     # -- the FROM side ------------------------------------------------------
     register_special_constructor(
         "sources.relation.NamedRelationRef",
