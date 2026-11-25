@@ -272,35 +272,6 @@ class MariaDBJSONMixin:
                 f"JSON_TABLE requires MariaDB {required} or later.",
             )
 
-    def _format_json_table_body(
-        self,
-        expr,
-        doc_sql: str,
-        params: tuple,
-        columns,
-        nested_paths,
-        render_column,
-    ) -> Tuple[str, tuple]:
-        """Render the ``JSON_TABLE`` tail shared by the two node kinds."""
-        path_sql = self.escape_sql_string(expr.path)
-        column_defs = [render_column(col)[0] for col in columns]
-        for nested in nested_paths:
-            nested_cols = ", ".join(
-                self.format_mariadb_json_table_column(col)[0] for col in nested.columns
-            )
-            # MariaDB's grammar is `NESTED PATH 'p' COLUMNS (...)` with no
-            # alias; verified against 12.2 / 12.3 / 13.0 / 13.1, where adding
-            # one is a syntax error.
-            column_defs.append(
-                f"NESTED PATH '{self.escape_sql_string(nested.path)}' "
-                f"COLUMNS({nested_cols})"
-            )
-        columns_sql = f"COLUMNS({', '.join(column_defs)})"
-        sql = f"JSON_TABLE({doc_sql}, '{path_sql}' {columns_sql})"
-        if expr.alias:
-            sql += f" AS {self.format_identifier(expr.alias)}"
-        return sql, params
-
     def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
         """Format core's portable ``JSON_TABLE`` row source.
 
@@ -309,6 +280,9 @@ class MariaDBJSONMixin:
         with a different document contract, so it renders through its own
         formatter (``format_mariadb_json_table_expression``) instead of this
         one asking which class it was handed.
+
+        The core node has no ``nested_paths`` field, so no ``NESTED PATH``
+        entry can appear here; that grammar is MariaDB's own node's.
 
         Every string that reaches the SQL goes through identifier quoting or
         single-quote escaping; column types are validated against a strict
@@ -331,14 +305,13 @@ class MariaDBJSONMixin:
                 f"got {type(expr).__name__}"
             )
         doc_sql, params = self._json_column_sql(expr.json_column)
-        return self._format_json_table_body(
-            expr,
-            doc_sql,
-            params,
-            list(expr.columns),
-            [],
-            self.format_json_table_column,
-        )
+        path_sql = self.escape_sql_string(expr.path)
+        column_defs = [self.format_json_table_column(col)[0] for col in expr.columns]
+        columns_sql = f"COLUMNS({', '.join(column_defs)})"
+        sql = f"JSON_TABLE({doc_sql}, '{path_sql}' {columns_sql})"
+        if expr.alias:
+            sql += f" AS {self.format_identifier(expr.alias)}"
+        return sql, params
 
     def format_mariadb_json_table_expression(self, expr) -> Tuple[str, tuple]:
         """Format this backend's own ``JSON_TABLE`` row source.
@@ -365,14 +338,24 @@ class MariaDBJSONMixin:
                 f"MariaDBJSONTableExpression, got {type(expr).__name__}"
             )
         doc_sql, params = self._json_document_sql(expr.json_doc)
-        return self._format_json_table_body(
-            expr,
-            doc_sql,
-            params,
-            list(expr.columns),
-            expr.nested_paths,
-            self.format_mariadb_json_table_column,
-        )
+        path_sql = self.escape_sql_string(expr.path)
+        column_defs = [self.format_mariadb_json_table_column(col)[0] for col in expr.columns]
+        for nested in expr.nested_paths:
+            nested_cols = ", ".join(
+                self.format_mariadb_json_table_column(col)[0] for col in nested.columns
+            )
+            # MariaDB's grammar is `NESTED PATH 'p' COLUMNS (...)` with no
+            # alias; verified against 12.2 / 12.3 / 13.0 / 13.1, where adding
+            # one is a syntax error.
+            column_defs.append(
+                f"NESTED PATH '{self.escape_sql_string(nested.path)}' "
+                f"COLUMNS({nested_cols})"
+            )
+        columns_sql = f"COLUMNS({', '.join(column_defs)})"
+        sql = f"JSON_TABLE({doc_sql}, '{path_sql}' {columns_sql})"
+        if expr.alias:
+            sql += f" AS {self.format_identifier(expr.alias)}"
+        return sql, params
 
     def _json_document_sql(self, json_doc) -> Tuple[str, tuple]:
         """Render a JSON document argument.

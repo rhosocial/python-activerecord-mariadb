@@ -688,37 +688,92 @@ class MariaDBPartitionMixin:
         )
 
     def format_analyze_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ``ALTER TABLE ... ANALYZE PARTITION``."""
-        return self._format_partition_action(expr, "ANALYZE", self.supports_analyze_partition())
+        """Format ``ALTER TABLE ... ANALYZE PARTITION``.
 
-    def format_check_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ``ALTER TABLE ... CHECK PARTITION``."""
-        return self._format_partition_action(expr, "CHECK", self.supports_check_partition())
+        Raises:
+            UnsupportedFeatureError: If the server does not support
+                ANALYZE PARTITION.
+        """
+        if not self.supports_analyze_partition():
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-    def format_optimize_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ``ALTER TABLE ... OPTIMIZE PARTITION``."""
-        return self._format_partition_action(expr, "OPTIMIZE", self.supports_optimize_partition())
-
-    def format_rebuild_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ``ALTER TABLE ... REBUILD PARTITION``."""
-        return self._format_partition_action(expr, "REBUILD", self.supports_rebuild_partition())
-
-    def format_repair_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ``ALTER TABLE ... REPAIR PARTITION``."""
-        return self._format_partition_action(expr, "REPAIR", self.supports_repair_partition())
-
-    def _format_partition_action(
-        self, expr: Any, action: str, supported: bool
-    ) -> Tuple[str, tuple]:
-        """Format the shared ``ALTER TABLE ... <action> PARTITION`` shape."""
-        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-
-        if not supported:
-            raise UnsupportedFeatureError(self.name, f"{action} PARTITION")
+            raise UnsupportedFeatureError(self.name, "ANALYZE PARTITION")
         table_sql, table_params = expr.table.to_sql()
         partitions, _ = self.format_partition_name_list(expr.partitions)
         return (
-            f"ALTER TABLE {table_sql} {action} PARTITION {partitions}",
+            f"ALTER TABLE {table_sql} ANALYZE PARTITION {partitions}",
+            tuple(table_params),
+        )
+
+    def format_check_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... CHECK PARTITION``.
+
+        Raises:
+            UnsupportedFeatureError: If the server does not support
+                CHECK PARTITION.
+        """
+        if not self.supports_check_partition():
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+            raise UnsupportedFeatureError(self.name, "CHECK PARTITION")
+        table_sql, table_params = expr.table.to_sql()
+        partitions, _ = self.format_partition_name_list(expr.partitions)
+        return (
+            f"ALTER TABLE {table_sql} CHECK PARTITION {partitions}",
+            tuple(table_params),
+        )
+
+    def format_optimize_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... OPTIMIZE PARTITION``.
+
+        Raises:
+            UnsupportedFeatureError: If the server does not support
+                OPTIMIZE PARTITION.
+        """
+        if not self.supports_optimize_partition():
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+            raise UnsupportedFeatureError(self.name, "OPTIMIZE PARTITION")
+        table_sql, table_params = expr.table.to_sql()
+        partitions, _ = self.format_partition_name_list(expr.partitions)
+        return (
+            f"ALTER TABLE {table_sql} OPTIMIZE PARTITION {partitions}",
+            tuple(table_params),
+        )
+
+    def format_rebuild_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... REBUILD PARTITION``.
+
+        Raises:
+            UnsupportedFeatureError: If the server does not support
+                REBUILD PARTITION.
+        """
+        if not self.supports_rebuild_partition():
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+            raise UnsupportedFeatureError(self.name, "REBUILD PARTITION")
+        table_sql, table_params = expr.table.to_sql()
+        partitions, _ = self.format_partition_name_list(expr.partitions)
+        return (
+            f"ALTER TABLE {table_sql} REBUILD PARTITION {partitions}",
+            tuple(table_params),
+        )
+
+    def format_repair_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... REPAIR PARTITION``.
+
+        Raises:
+            UnsupportedFeatureError: If the server does not support
+                REPAIR PARTITION.
+        """
+        if not self.supports_repair_partition():
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+            raise UnsupportedFeatureError(self.name, "REPAIR PARTITION")
+        table_sql, table_params = expr.table.to_sql()
+        partitions, _ = self.format_partition_name_list(expr.partitions)
+        return (
+            f"ALTER TABLE {table_sql} REPAIR PARTITION {partitions}",
             tuple(table_params),
         )
 

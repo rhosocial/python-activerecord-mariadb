@@ -11,7 +11,7 @@ the SQL/PSM standard:
     DROP FUNCTION [IF EXISTS] name
     CALL name([args])
 """
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from ..backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -196,50 +196,6 @@ class MariaDBRoutineMixin:
         parts.append(procedure_sql)
         return " ".join(parts), ()
 
-    def _render_create_function_statement(
-        self,
-        function_sql: str,
-        param_strs: List[str],
-        returns,
-        *,
-        deterministic: bool,
-        aggregate: bool,
-        or_replace: bool,
-        if_not_exists: bool,
-        body,
-    ) -> Tuple[str, tuple]:
-        """Assemble a CREATE FUNCTION after its node has named its fields."""
-        parts = ["CREATE"]
-        if or_replace:
-            if not self.supports_routine_or_replace():
-                raise UnsupportedFeatureError(
-                    self.name,
-                    "CREATE OR REPLACE FUNCTION",
-                    "OR REPLACE for routines requires MariaDB 10.1.3 or later."
-                )
-            parts.append("OR REPLACE")
-        if if_not_exists:
-            if not self.supports_routine_if_not_exists():
-                raise UnsupportedFeatureError(
-                    self.name,
-                    "CREATE FUNCTION IF NOT EXISTS",
-                    "IF NOT EXISTS for routines requires MariaDB 10.1.3 or later."
-                )
-            parts.append("IF NOT EXISTS")
-        if aggregate:
-            parts.append("AGGREGATE")
-        parts.append("FUNCTION")
-        parts.append(function_sql)
-        parts.append(f"({', '.join(param_strs)})")
-
-        if returns:
-            parts.append(f"RETURNS {returns}")
-        if deterministic:
-            parts.append("DETERMINISTIC")
-        if body:
-            parts.append(body)
-        return " ".join(parts), ()
-
     def format_create_function_statement(
         self,
         expr: "CreateFunctionStatement",
@@ -251,7 +207,13 @@ class MariaDBRoutineMixin:
         stored-function node is a distinct kind and renders through
         ``format_mariadb_create_function_statement``.
 
+        The node carries one optional modifier, ``OR REPLACE``; the MariaDB
+        modifiers (``IF NOT EXISTS``, ``DETERMINISTIC``, ``AGGREGATE``) have
+        no field here, so this formatter never renders them.
+
         Raises:
+            UnsupportedFeatureError: ``or_replace`` is set below the 10.1.3
+                floor.
             TypeError: The node is not a core ``CreateFunctionStatement``, or
                 the named routine is not a Function. A Procedure carries its
                 own format_method and would render as a well-formed
@@ -284,16 +246,23 @@ class MariaDBRoutineMixin:
                 param_strs.append(f"{self.format_identifier(name)} {param_type}")
             elif param_type:
                 param_strs.append(param_type)
-        return self._render_create_function_statement(
-            function_sql,
-            param_strs,
-            expr.returns,
-            deterministic=False,
-            aggregate=False,
-            or_replace=expr.or_replace,
-            if_not_exists=False,
-            body=expr.body,
-        )
+        parts = ["CREATE"]
+        if expr.or_replace:
+            if not self.supports_routine_or_replace():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CREATE OR REPLACE FUNCTION",
+                    "OR REPLACE for routines requires MariaDB 10.1.3 or later."
+                )
+            parts.append("OR REPLACE")
+        parts.append("FUNCTION")
+        parts.append(function_sql)
+        parts.append(f"({', '.join(param_strs)})")
+        if expr.returns:
+            parts.append(f"RETURNS {expr.returns}")
+        if expr.body:
+            parts.append(expr.body)
+        return " ".join(parts), ()
 
     def format_mariadb_create_function_statement(
         self,
@@ -306,7 +275,12 @@ class MariaDBRoutineMixin:
         ``DETERMINISTIC``, ``AGGREGATE``). Core's portable SQL/PSM node is a
         distinct kind and renders through ``format_create_function_statement``.
 
+        Each modifier is appended in MariaDB's grammar order, and each
+        version-gated one is refused here, before the SQL is assembled.
+
         Raises:
+            UnsupportedFeatureError: ``or_replace`` / ``if_not_exists`` is set
+                below the 10.1.3 floor.
             TypeError: The node is not a MariaDB routine expression, or the
                 named routine is not a Function. A Procedure carries its own
                 format_method and would render as a well-formed
@@ -329,51 +303,34 @@ class MariaDBRoutineMixin:
             Function,
         )
         function_sql, _ = expr.routine.to_sql()
-        return self._render_create_function_statement(
-            function_sql,
-            [self._format_routine_param(p) for p in expr.params],
-            expr.returns,
-            deterministic=expr.deterministic,
-            aggregate=expr.aggregate,
-            or_replace=expr.or_replace,
-            if_not_exists=expr.if_not_exists,
-            body=expr.body,
-        )
-
-    def _render_drop_function_statement(
-        self,
-        expr,
-        function_sql: str,
-        *,
-        cascade: bool,
-        restrict: bool,
-    ) -> Tuple[str, tuple]:
-        """Assemble a DROP FUNCTION after its node has named its fields."""
-        parts = ["DROP FUNCTION"]
-        if expr.if_exists:
-            parts.append("IF EXISTS")
+        parts = ["CREATE"]
+        if expr.or_replace:
+            if not self.supports_routine_or_replace():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CREATE OR REPLACE FUNCTION",
+                    "OR REPLACE for routines requires MariaDB 10.1.3 or later."
+                )
+            parts.append("OR REPLACE")
+        if expr.if_not_exists:
+            if not self.supports_routine_if_not_exists():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CREATE FUNCTION IF NOT EXISTS",
+                    "IF NOT EXISTS for routines requires MariaDB 10.1.3 or later."
+                )
+            parts.append("IF NOT EXISTS")
+        if expr.aggregate:
+            parts.append("AGGREGATE")
+        parts.append("FUNCTION")
         parts.append(function_sql)
-        # The DROP FUNCTION form has no dependent-object behavior on MariaDB:
-        # both spellings of the cascade pair are measured rejected (errno 1064
-        # on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, sentinel rejected), so each is
-        # refused by name through its own probe rather than dropped.
-        if cascade or restrict:
-            if cascade:
-                if not self.supports_drop_function_cascade():
-                    raise UnsupportedFeatureError(
-                        self.name,
-                        "DROP FUNCTION CASCADE",
-                        f"{self.name} does not support DROP FUNCTION CASCADE.",
-                    )
-                parts.append("CASCADE")
-            else:
-                if not self.supports_drop_function_restrict():
-                    raise UnsupportedFeatureError(
-                        self.name,
-                        "DROP FUNCTION RESTRICT",
-                        f"{self.name} does not support DROP FUNCTION RESTRICT.",
-                    )
-                parts.append("RESTRICT")
+        parts.append(f"({', '.join(self._format_routine_param(p) for p in expr.params)})")
+        if expr.returns:
+            parts.append(f"RETURNS {expr.returns}")
+        if expr.deterministic:
+            parts.append("DETERMINISTIC")
+        if expr.body:
+            parts.append(expr.body)
         return " ".join(parts), ()
 
     def format_drop_function_statement(
@@ -387,6 +344,8 @@ class MariaDBRoutineMixin:
         renders through ``format_mariadb_drop_function_statement``.
 
         Raises:
+            UnsupportedFeatureError: ``cascade`` or ``restrict`` is set, which
+                MariaDB rejects in every measured version.
             TypeError: The node is not a core ``DropFunctionStatement``, or
                 the named routine is not a Function.
         """
@@ -407,12 +366,32 @@ class MariaDBRoutineMixin:
             Function,
         )
         function_sql, _ = expr.function.to_sql()
-        return self._render_drop_function_statement(
-            expr,
-            function_sql,
-            cascade=expr.cascade,
-            restrict=expr.restrict,
-        )
+        parts = ["DROP FUNCTION"]
+        if expr.if_exists:
+            parts.append("IF EXISTS")
+        parts.append(function_sql)
+        # The DROP FUNCTION form has no dependent-object behavior on MariaDB:
+        # both spellings of the cascade pair are measured rejected (errno 1064
+        # on 10.2 / 10.3 / 10.6 / 11.4 / 13.1rc, sentinel rejected), so each is
+        # refused by name through its own probe rather than dropped.
+        if expr.cascade or expr.restrict:
+            if expr.cascade:
+                if not self.supports_drop_function_cascade():
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "DROP FUNCTION CASCADE",
+                        f"{self.name} does not support DROP FUNCTION CASCADE.",
+                    )
+                parts.append("CASCADE")
+            else:
+                if not self.supports_drop_function_restrict():
+                    raise UnsupportedFeatureError(
+                        self.name,
+                        "DROP FUNCTION RESTRICT",
+                        f"{self.name} does not support DROP FUNCTION RESTRICT.",
+                    )
+                parts.append("RESTRICT")
+        return " ".join(parts), ()
 
     def format_mariadb_drop_function_statement(
         self,
@@ -421,8 +400,10 @@ class MariaDBRoutineMixin:
         """Format MariaDB's stored/aggregate ``DROP FUNCTION``.
 
         The node names the routine through ``routine`` and carries no
-        dependent-object flags. Core's portable node is a distinct kind and
-        renders through ``format_drop_function_statement``.
+        dependent-object flags: there is no ``cascade`` / ``restrict`` field
+        to honour, and MariaDB rejects both spellings anyway. Core's portable
+        node is a distinct kind and renders through
+        ``format_drop_function_statement``.
 
         Raises:
             TypeError: The node is not a MariaDB routine expression, or the
@@ -445,12 +426,11 @@ class MariaDBRoutineMixin:
             Function,
         )
         function_sql, _ = expr.routine.to_sql()
-        return self._render_drop_function_statement(
-            expr,
-            function_sql,
-            cascade=False,
-            restrict=False,
-        )
+        parts = ["DROP FUNCTION"]
+        if expr.if_exists:
+            parts.append("IF EXISTS")
+        parts.append(function_sql)
+        return " ".join(parts), ()
 
     def format_call_statement(
         self,
