@@ -309,17 +309,21 @@ class TestDropConstraintIfExistsGate:
 
 
 class TestDropConstraintByKindIsRefused:
-    """A declaration is refused; only a name is an address on this backend.
+    """A declaration is not an address; only a name is, on this backend.
 
     Core's ``DropTableConstraintAction`` may carry the constraint's *declaration*
     instead of a name, so a dialect that spells the drop by kind can use it.
     MariaDB does not advertise ``supports_drop_constraint_by_kind()``: the one
     kind spelling this formatter keeps -- ``DROP PRIMARY KEY`` -- is chosen from
     the literal *name* ``PRIMARY``, not from a declaration, and a primary key
-    has no symbol in MariaDB's name space. A declaration-only action therefore
-    has to be refused by feature name, or it would reach ``constraint_name`` as
-    ``None`` and fail as an ``AttributeError`` -- neither a capability answer
-    nor a spelling a caller can act on.
+    has no symbol in MariaDB's name space.
+
+    The addressing rule itself is core's
+    ``ConstraintMixin._resolve_drop_constraint_address``, which this formatter
+    now calls before reading any address: a declaration-only action is refused
+    by feature name, a declaration accompanying a name only confirms it when
+    the names match, and an unequal or unnamed declaration is an ambiguous
+    address refused by its own feature name.
     """
 
     @staticmethod
@@ -336,7 +340,7 @@ class TestDropConstraintByKindIsRefused:
         with pytest.raises(UnsupportedFeatureError) as excinfo:
             action.to_sql()
         assert excinfo.value.feature_name == "DROP CONSTRAINT by kind"
-        assert "constraint_name" in str(excinfo.value)
+        assert "address the constraint by name" in str(excinfo.value)
 
     def test_a_primary_key_declaration_does_not_reach_drop_primary_key(self):
         """The internal kind spelling is not a by-kind service.
@@ -357,8 +361,8 @@ class TestDropConstraintByKindIsRefused:
         assert excinfo.value.feature_name == "DROP CONSTRAINT by kind"
         assert "DROP PRIMARY KEY" not in str(excinfo.value)
 
-    def test_name_wins_when_both_addresses_are_given(self):
-        """Same precedence as core's name-only formatter, byte for byte."""
+    def test_both_addresses_that_agree_render_by_the_name(self):
+        """A declaration merely confirms the name; it adds no second address."""
         dialect = _dialect((10, 6, 0))
         action = DropTableConstraintAction(
             dialect,
@@ -370,6 +374,34 @@ class TestDropConstraintByKindIsRefused:
         assert sql == "DROP CONSTRAINT IF EXISTS `uq`"
         assert params == ()
 
+    def test_a_differing_declaration_name_is_an_ambiguous_address(self):
+        """Two addresses that disagree are refused, never resolved by choice."""
+        dialect = _dialect((13, 1, 1))
+        action = DropTableConstraintAction(
+            dialect,
+            constraint_name="uq",
+            constraint=TableConstraint(
+                dialect, branch=TableUniqueConstraint(dialect, ["v"]), name="other"
+            ),
+        )
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            action.to_sql()
+        assert excinfo.value.feature_name == "DROP CONSTRAINT address"
+
+    def test_an_unnamed_declaration_is_an_ambiguous_address(self):
+        """A declaration that names nothing cannot confirm the given name."""
+        dialect = _dialect((13, 1, 1))
+        action = DropTableConstraintAction(
+            dialect,
+            constraint_name="uq",
+            constraint=TableConstraint(
+                dialect, branch=TableUniqueConstraint(dialect, ["v"])
+            ),
+        )
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            action.to_sql()
+        assert excinfo.value.feature_name == "DROP CONSTRAINT address"
+
     def test_an_action_with_no_address_is_malformed(self):
         """The expression layer collects; the formatter says what is malformed."""
         dialect = _dialect((13, 1, 1))
@@ -380,6 +412,20 @@ class TestDropConstraintByKindIsRefused:
     def test_this_backend_does_not_advertise_a_by_kind_drop(self):
         """The probe stays ``False``: the kind spellings stay internal."""
         assert _dialect((13, 1, 1)).supports_drop_constraint_by_kind() is False
+
+    def test_a_kind_address_needs_the_formatter_overridden(self):
+        """Announcing by-kind drops without a kind spelling is refused loudly."""
+
+        class _AdvertisesByKindDialect(MariaDBDialect):
+            def supports_drop_constraint_by_kind(self) -> bool:
+                return True
+
+        dialect = _AdvertisesByKindDialect((13, 1, 1))
+        action = DropTableConstraintAction(
+            dialect, constraint=self._unique_declaration(dialect)
+        )
+        with pytest.raises(NotImplementedError, match="override"):
+            action.to_sql()
 
 
 class TestMultipleTriggersPerTimingGate:

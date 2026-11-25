@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/ddl/constraint.py
 """MariaDB ALTER TABLE DROP CONSTRAINT qualifier formatting."""
 
-from typing import Tuple
+from typing import Tuple, cast
 
 from ..backend import MARIADB_VERSION_BOUNDARIES
 
@@ -87,10 +87,18 @@ class MariaDBAlterConstraintModifierMixin:
     (``DROP PRIMARY KEY``, and the pre-10.2.1 ``DROP FOREIGN KEY`` / ``DROP
     INDEX`` capability) are internal to it and a declaration cannot decide
     between them -- a primary key symbol is not in the name space. A
-    declaration-only action is therefore refused by name
-    (``UnsupportedFeatureError`` naming ``DROP CONSTRAINT by kind``), and an
-    action carrying both addresses renders by the **name**, the same
-    precedence core's name-only formatter gives.
+    declaration-only action is therefore refused by feature name
+    (``UnsupportedFeatureError`` naming ``DROP CONSTRAINT by kind``). An
+    action carrying both addresses renders by the **name** only when the
+    declaration carries that same name -- an unequal or unnamed declaration is
+    an **ambiguous address** and is refused, never resolved by preference.
+
+    The addressing rule is core's, not restated here: this formatter calls
+    ``ConstraintMixin._resolve_drop_constraint_address`` first and spells
+    only the answer ``"name"``. A kind answer (a subclass that advertises
+    ``supports_drop_constraint_by_kind()``) has no name to render here, so it
+    raises ``NotImplementedError`` naming the override requirement instead of
+    inventing a spelling.
     """
 
     def supports_drop_constraint_if_exists(self) -> bool:
@@ -118,34 +126,29 @@ class MariaDBAlterConstraintModifierMixin:
     def format_drop_table_constraint_action(self, expr) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        # A declaration is not an address here. The by-kind spellings this
-        # mixin keeps -- ``DROP PRIMARY KEY`` above, ``DROP INDEX`` / ``DROP
-        # KEY`` below the 10.2.1 floor -- are its *internals*, not a service it
-        # offers to callers: ``supports_drop_constraint_by_kind()`` is
-        # inherited ``False`` and stays that way, because a declaration does
-        # not carry enough to pick between them. (A primary key has no symbol
-        # in MariaDB's name space; see MariaDBDialect.supports_drop_constraint.)
-        # Refuse a declaration-only action by feature name rather than let it
-        # reach ``constraint_name`` as ``None`` and fail as an
-        # ``AttributeError``, which is neither a capability answer nor a
-        # spelling a caller can act on. ``constraint`` is read through
-        # ``getattr`` because it is an optional slot on the action.
-        if expr.constraint_name is None and getattr(expr, "constraint", None) is not None:
-            raise UnsupportedFeatureError(
-                self.name,
-                "DROP CONSTRAINT by kind",
-                f"{self.name} drops a constraint by name only; pass "
-                f"constraint_name instead of relying on the declaration's kind."
+        # The addressing decision is core's, made once for every backend by
+        # ``_resolve_drop_constraint_address``: name-only is an address, a
+        # declaration-only action is a kind address (refused by feature name
+        # here, because ``supports_drop_constraint_by_kind()`` is inherited
+        # ``False`` and stays that way -- the kind spellings this mixin keeps
+        # are its internals, not a service it offers), a declaration
+        # accompanying a name only confirms that name, and an unequal or
+        # unnamed declaration is an ambiguous address refused by feature name.
+        # Neither address keeps core's ValueError, and a non-TableConstraint
+        # declaration its TypeError -- this override used to restate these
+        # checks locally, which let it drift from the name-only formatter core
+        # applies to every other backend.
+        address = self._resolve_drop_constraint_address(expr)
+        if address != "name":
+            # Reachable only when a subclass advertises
+            # ``supports_drop_constraint_by_kind()``; the resolver returned a
+            # kind address, and this formatter has no kind spelling to render.
+            raise NotImplementedError(
+                f"{self.name} advertises supports_drop_constraint_by_kind() "
+                f"but does not override format_drop_table_constraint_action; "
+                f"a declaration-only drop has no name to render."
             )
-        if expr.constraint_name is None:
-            # Neither address. The expression layer collects parameters and
-            # does not validate them, so the formatter is the layer that must
-            # call a drop with nothing to drop malformed. Wording kept
-            # identical to the name-only formatter this backend overrides.
-            raise ValueError(
-                "DropTableConstraintAction requires constraint_name or constraint"
-            )
-        name = expr.constraint_name
+        name = cast(str, expr.constraint_name)
         # MariaDB PRIMARY KEY goes through DROP PRIMARY KEY (no IF EXISTS).
         if name.upper() == "PRIMARY":
             return "DROP PRIMARY KEY", ()
