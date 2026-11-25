@@ -64,6 +64,11 @@ class MariaDBTableMaintenanceStatement(BaseExpression):
             ``'USE_FRM'``).
     """
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_table_maintenance_statement"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -101,7 +106,3 @@ class MariaDBTableMaintenanceStatement(BaseExpression):
                     f"Table maintenance targets must be Table objects, "
                     f"got {type(table).__name__}"
                 )
-
-    def to_sql(self):
-        """Generate SQL by delegating to the dialect."""
-        return self.dialect.format_table_maintenance_statement(self)

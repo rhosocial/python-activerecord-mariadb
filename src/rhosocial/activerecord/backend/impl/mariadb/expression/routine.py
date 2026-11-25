@@ -11,7 +11,7 @@ MariaDB supports:
     DROP FUNCTION [IF EXISTS] name
 """
 
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.objects import (
@@ -78,12 +78,19 @@ class MariaDBRoutineExpression(BaseExpression):
 class MariaDBCreateProcedureStatement(MariaDBRoutineExpression):
     """Represent ``CREATE [OR REPLACE] PROCEDURE``."""
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_create_procedure_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_create_procedure_statement"
 
 
 class MariaDBDropProcedureStatement(MariaDBRoutineExpression):
     """Represent ``DROP PROCEDURE [IF EXISTS]``."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_drop_procedure_statement"
 
     def __init__(
         self,
@@ -95,12 +102,14 @@ class MariaDBDropProcedureStatement(MariaDBRoutineExpression):
         super().__init__(dialect, routine)
         self.if_exists: bool = if_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_drop_procedure_statement(self)
-
 
 class MariaDBCreateFunctionStatement(MariaDBRoutineExpression):
     """Represent ``CREATE [OR REPLACE] [AGGREGATE] FUNCTION`` (stored function)."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_create_function_statement"
 
     routine_kind = Function
 
@@ -129,12 +138,14 @@ class MariaDBCreateFunctionStatement(MariaDBRoutineExpression):
         self.deterministic: bool = deterministic
         self.aggregate: bool = aggregate
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_create_function_statement(self)
-
 
 class MariaDBDropFunctionStatement(MariaDBRoutineExpression):
     """Represent ``DROP FUNCTION [IF EXISTS]`` (stored / aggregate function)."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_drop_function_statement"
 
     routine_kind = Function
 
@@ -148,9 +159,6 @@ class MariaDBDropFunctionStatement(MariaDBRoutineExpression):
         super().__init__(dialect, routine)
         self.if_exists: bool = if_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_drop_function_statement(self)
-
 
 class MariaDBCallStatement(BaseExpression):
     """Represent ``CALL procedure_name([args])``.
@@ -162,6 +170,11 @@ class MariaDBCallStatement(BaseExpression):
             ``app`.`get_user`` needs no second spelling here.
         args: Positional argument list.
     """
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_call_statement"
 
     def __init__(
         self,
@@ -180,6 +193,3 @@ class MariaDBCallStatement(BaseExpression):
             raise TypeError(
                 f"procedure must be a Procedure, got {type(self.procedure).__name__}"
             )
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_call_statement(self)

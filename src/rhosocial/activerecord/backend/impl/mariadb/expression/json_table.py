@@ -74,6 +74,11 @@ class MariaDBJSONTableExpression(BaseExpression):
         alias: Table alias. Required by MariaDB when the result is joined.
     """
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_table_expression"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -129,11 +134,3 @@ class MariaDBJSONTableExpression(BaseExpression):
         for nested in self.nested_paths:
             if not isinstance(nested, NestedPath):
                 raise TypeError(f"nested_paths must contain NestedPath, got {type(nested)}")
-
-    def to_sql(self):
-        """Generate SQL by delegating to dialect's format function.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        return self.dialect.format_json_table_expression(self)

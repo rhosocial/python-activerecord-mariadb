@@ -1021,13 +1021,12 @@ def trusted_registry(base, *opt_ins):
 
     * the kinds core deliberately leaves out of every assembled table because
       their SQL is caller-vouched text (``RawSQL``/``RawSQLPredicate``);
-    * MariaDB's own concrete classes that render through a ``to_sql()``
-      override rather than a ``format_method`` declaration -- the assembly walk
-      admits only nodes that name a formatter, so those classes are the
-      backend's but not yet the table's;
     * the dummy backend's two type nodes, which are the only concrete
       implementations of core's type-definition protocol a CREATE/ALTER TYPE
       artifact can carry.
+
+    Every class this backend owns declares ``format_method``, so the assembly
+    walk admits it without help; there is no backend-owned group here.
 
     Args:
         base: The frozen registry to copy (typically ``backend_registry()``).

@@ -31,6 +31,11 @@ class MariaDBRenameIndexStatement(BaseExpression):
         new_index: The index as it will be known.
     """
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_rename_index_statement"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -61,7 +66,3 @@ class MariaDBRenameIndexStatement(BaseExpression):
                 raise TypeError(
                     f"{name} must be an Index, got {type(value).__name__}"
                 )
-
-    def to_sql(self):
-        """Generate SQL by delegating to the dialect."""
-        return self.dialect.format_rename_index_statement(self)

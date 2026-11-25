@@ -14,7 +14,7 @@ These cover instance-level, security, and account management commands:
 """
 
 from enum import Enum
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -73,6 +73,11 @@ class KillTarget(str, Enum):
 class MariaDBFlushStatement(BaseExpression):
     """Represent ``FLUSH`` with one or more options."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_flush_statement"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -90,12 +95,14 @@ class MariaDBFlushStatement(BaseExpression):
         if not self.options:
             raise ValueError("FLUSH requires at least one option")
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_flush_statement(self)
-
 
 class MariaDBKillStatement(BaseExpression):
     """Represent ``KILL [CONNECTION | QUERY] processlist_id``."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_kill_statement"
 
     def __init__(
         self,
@@ -107,21 +114,20 @@ class MariaDBKillStatement(BaseExpression):
         self.processlist_id: int = processlist_id
         self.target: KillTarget = target
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_kill_statement(self)
-
 
 class MariaDBShutdownStatement(BaseExpression):
     """Represent the ``SHUTDOWN`` statement."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_shutdown_statement"
 
     def __init__(
         self,
         dialect: "SQLDialectBase",
     ):
         super().__init__(dialect)
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_shutdown_statement(self)
 
 
 class AccountSpec:
@@ -138,6 +144,11 @@ class AccountSpec:
 class MariaDBCreateUserStatement(BaseExpression):
     """Represent ``CREATE USER [IF NOT EXISTS] 'user'@'host' [IDENTIFIED BY ...]``."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_create_user_statement"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -150,14 +161,16 @@ class MariaDBCreateUserStatement(BaseExpression):
         self.accounts: List[AccountSpec] = list(accounts)
         self.if_not_exists: bool = if_not_exists
         self.identified_by: Optional[str] = identified_by
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_create_user_statement(self)
 
 
 class MariaDBAlterUserStatement(BaseExpression):
     """Represent ``ALTER USER [IF EXISTS] 'user'@'host' [IDENTIFIED BY ...]``."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_alter_user_statement"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -171,12 +184,14 @@ class MariaDBAlterUserStatement(BaseExpression):
         self.if_exists: bool = if_exists
         self.identified_by: Optional[str] = identified_by
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_alter_user_statement(self)
-
 
 class MariaDBDropUserStatement(BaseExpression):
     """Represent ``DROP USER [IF EXISTS] 'user'@'host' [, ...]``."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_drop_user_statement"
 
     def __init__(
         self,
@@ -189,12 +204,14 @@ class MariaDBDropUserStatement(BaseExpression):
         self.accounts: List[AccountSpec] = list(accounts)
         self.if_exists: bool = if_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_drop_user_statement(self)
-
 
 class MariaDBCreateRoleStatement(BaseExpression):
     """Represent ``CREATE ROLE [IF NOT EXISTS] role [, role ...]``."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_create_role_statement"
 
     def __init__(
         self,
@@ -207,12 +224,14 @@ class MariaDBCreateRoleStatement(BaseExpression):
         self.roles: List[str] = list(roles)
         self.if_not_exists: bool = if_not_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_create_role_statement(self)
-
 
 class MariaDBDropRoleStatement(BaseExpression):
     """Represent ``DROP ROLE [IF EXISTS] role [, role ...]``."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_drop_role_statement"
 
     def __init__(
         self,
@@ -224,9 +243,6 @@ class MariaDBDropRoleStatement(BaseExpression):
         super().__init__(dialect)
         self.roles: List[str] = list(roles)
         self.if_exists: bool = if_exists
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_drop_role_statement(self)
 
 
 class GrantPrivilege:
@@ -251,6 +267,11 @@ class GrantPrivilege:
 class MariaDBGrantStatement(BaseExpression):
     """Represent ``GRANT [OR REPLACE] [IF EXISTS] priv_list ON object TO accounts``."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_grant_statement"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -270,12 +291,14 @@ class MariaDBGrantStatement(BaseExpression):
         self.or_replace: bool = or_replace
         self.if_exists: bool = if_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_grant_statement(self)
-
 
 class MariaDBRevokeStatement(BaseExpression):
     """Represent ``REVOKE [IF EXISTS] priv_list ON object FROM accounts``."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_revoke_statement"
 
     def __init__(
         self,
@@ -292,12 +315,14 @@ class MariaDBRevokeStatement(BaseExpression):
         self.on_object: Optional[str] = on_object
         self.if_exists: bool = if_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_revoke_statement(self)
-
 
 class MariaDBDenyStatement(BaseExpression):
     """Represent ``DENY priv_list ON object TO accounts`` (MariaDB 13.1+)."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_deny_statement"
 
     def __init__(
         self,
@@ -311,6 +336,3 @@ class MariaDBDenyStatement(BaseExpression):
         self.privileges: List[GrantPrivilege] = list(privileges)
         self.accounts: List[AccountSpec] = list(accounts)
         self.on_object: Optional[str] = on_object
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_deny_statement(self)

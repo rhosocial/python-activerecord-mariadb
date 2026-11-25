@@ -85,6 +85,50 @@ def test_core_kinds_are_the_overlap():
     assert registry.resolve_node("query_statement").__name__ == "QueryStatement"
 
 
+def test_declaring_a_formatter_is_what_registers_a_class():
+    """The assembly walk admits a node by its declaration, not a manual list.
+
+    These are the kinds that used to render themselves through a ``to_sql``
+    override, which the walk cannot see. Now each declares ``format_method``,
+    so the one assembly entry point discovers it and the published table
+    answers it without any registration site naming it.
+    """
+    from rhosocial.activerecord.backend.impl.mariadb.expression.admin import (
+        MariaDBCreateUserStatement,
+        MariaDBFlushStatement,
+        MariaDBShutdownStatement,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.expression.load_data import (
+        MariaDBLoadDataStatement,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.expression.rename_table import (
+        MariaDBRenameTableStatement,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+        MariaDBCallStatement,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+        ShowCreateTableStatement,
+        ShowWarningsStatement,
+    )
+
+    registry = backend_registry()
+    for cls in (
+        MariaDBFlushStatement,
+        MariaDBShutdownStatement,
+        MariaDBCreateUserStatement,
+        MariaDBLoadDataStatement,
+        MariaDBRenameTableStatement,
+        MariaDBCallStatement,
+        ShowCreateTableStatement,
+        ShowWarningsStatement,
+    ):
+        assert registry.resolve_node(cls.kind()) is cls, (
+            f"{cls.__name__} declares format_method and must be discovered by "
+            f"registry_for_packages; a manual registration entry is redundant"
+        )
+
+
 def test_a_foreign_backend_kind_is_refused_by_name():
     """SQLite's kinds are SQLite's; MariaDB's table does not list them."""
     foreign = SQLiteVacuumStatement.kind()

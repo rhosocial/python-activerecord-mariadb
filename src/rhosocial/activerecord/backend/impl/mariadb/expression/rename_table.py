@@ -39,6 +39,11 @@ class MariaDBRenameTableStatement(BaseExpression):
         nowait: Do not wait for metadata locks (MariaDB 10.3+).
     """
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_rename_table_statement"
+
     def __init__(
         self,
         dialect: "SQLDialectBase",
@@ -71,7 +76,3 @@ class MariaDBRenameTableStatement(BaseExpression):
             old_name, new_name = pair
             if not isinstance(old_name, Table) or not isinstance(new_name, Table):
                 raise TypeError("Rename table names must be Table objects")
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        """Generate SQL by delegating to the dialect."""
-        return self.dialect.format_rename_table_statement(self)

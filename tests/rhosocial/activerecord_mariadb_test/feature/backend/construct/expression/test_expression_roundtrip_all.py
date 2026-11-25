@@ -318,22 +318,25 @@ def _matrix_registry(classes: Dict[str, type]):
     classes the owner's table leaves out -- and it does that on a ``twin()``,
     its own copy, frozen before use.
 
-    Three groups are added on top of the published table:
-
-    * ``RawSQL`` / ``RawSQLPredicate``, the kinds core keeps out of every
-      assembled table because their SQL is caller-vouched text;
-    * MariaDB's concrete classes that render through a ``to_sql()`` override
-      rather than a ``format_method`` declaration -- the assembly walk admits
-      only nodes that name a formatter, so those classes are this backend's
-      but not yet its table's;
-    * the two dummy type nodes named in :data:`_MATRIX_VOUCHED`.
-
-    Re-registering a class the table already names is a no-op, so handing it
-    the whole matrix is the same statement as handing it only the extras.
+    Every class that declares ``format_method`` is discovered by the assembly
+    walk, so the published table already answers it and adding it here would be
+    a no-op. The extras are therefore computed against that table rather than
+    listed: what remains are the kinds no assembled table may admit -- the
+    category bases the matrix covers but which deliberately declare no
+    formatter (``SQLValue``, ``SQLPredicate``, the object-tree and
+    constraint-branch roots), plus the classes in :data:`_MATRIX_VOUCHED`.
+    MariaDB's converted nodes are absent from this list because their
+    declarations put them in the published table; a regression back to a
+    ``to_sql`` override is caught by the dispatch contract test, which refuses
+    any override in the package.
     """
     from rhosocial.activerecord.backend.impl.mariadb.registry import backend_registry
 
-    return trusted_registry(backend_registry(), *classes.values(), *_MATRIX_VOUCHED)
+    published = backend_registry()
+    extras = [
+        cls for cls in classes.values() if cls.kind() not in published.node_kinds()
+    ]
+    return trusted_registry(published, *extras, *_MATRIX_VOUCHED)
 
 
 MATRIX_REGISTRY = _matrix_registry(REGISTERED)
@@ -1183,7 +1186,6 @@ UNCONSTRUCTIBLE = (
 #:   :func:`assert_sql_roundtrip_classified` consults this dict *before* the
 #:   catch-all ``UnsupportedFeatureError`` branch instead of after it.
 _NO_FORMATTER = "does not declare its dialect formatting method name"
-_NO_METHOD = "Subclasses must implement to_sql() method"
 
 LEGITIMATE_NON_RENDERS = {
     # ---- core data-profile families -----------------------------------------
@@ -1282,13 +1284,16 @@ LEGITIMATE_NON_RENDERS = {
         NotImplementedError, _NO_FORMATTER
     ),
     # MariaDB's own equivalent bases, reached the same way: `SHOW`'s two roots
-    # and the shared routine-DDL root declare no `format_method` because each
-    # concrete subclass spells its own.
+    # declare no `format_method` because each concrete subclass spells its own.
+    # Neither overrides `to_sql` any more: the base used to raise from such an
+    # override, which bypassed the one dispatch path every node takes, so the
+    # outcome is now the same canonical "no declaration" report core gives for
+    # every other category base.
     "rhosocial.activerecord.backend.impl.mariadb.expression.show.ShowExpression": (
-        NotImplementedError, _NO_METHOD
+        NotImplementedError, _NO_FORMATTER
     ),
     "rhosocial.activerecord.backend.impl.mariadb.expression.show.ShowRelationExpression": (
-        NotImplementedError, _NO_METHOD
+        NotImplementedError, _NO_FORMATTER
     ),
     "rhosocial.activerecord.backend.impl.mariadb.expression.routine.MariaDBRoutineExpression": (
         NotImplementedError, _NO_FORMATTER

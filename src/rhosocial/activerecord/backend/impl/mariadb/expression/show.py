@@ -8,7 +8,7 @@ to the dialect's format_show_* methods.
 
 MariaDB SHOW commands are fully compatible with MySQL SHOW commands.
 
-Expression classes inherit from BaseExpression and implement to_sql(),
+Expression classes inherit from BaseExpression and declare ``format_method``,
 following the expression-dialect pattern used throughout the codebase.
 
 Key design:
@@ -16,13 +16,14 @@ Key design:
   builder, so an instance is complete the moment ``get_params()`` reads it
   back (the artifact is the constructor call, nothing else).
 - Expressions hold a dialect reference
-- to_sql() delegates to dialect.format_show_* methods
+- ``format_method`` names the dialect's format_show_* method that renders the
+  node; ``BaseExpression.to_sql`` resolves that name against the bound dialect
 - Dialect handles actual SQL generation
 """
 
 from typing import Optional, TYPE_CHECKING, Union
 
-from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.objects import (
     RelationObject,
     Table,
@@ -48,10 +49,6 @@ class ShowExpression(BaseExpression):
         # Stored under the parameter's own name so get_params() reads it
         # without a detour.
         self.schema = schema
-
-    def to_sql(self) -> SQLQueryAndParams:
-        """Generate SQL. Subclasses must implement this method."""
-        raise NotImplementedError("Subclasses must implement to_sql() method")
 
 
 class ShowRelationExpression(ShowExpression):
@@ -117,8 +114,10 @@ class ShowRelationExpression(ShowExpression):
 class ShowCreateTableStatement(ShowRelationExpression):
     """Expression for SHOW CREATE TABLE command."""
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_table_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_create_table_statement"
 
 
 class ShowCreateViewStatement(ShowRelationExpression):
@@ -126,14 +125,21 @@ class ShowCreateViewStatement(ShowRelationExpression):
 
     #: A view is a relation; naming it as one is what lets the same
     #: qualified-name renderer serve both SHOW CREATE forms.
-    relation_kind = View
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_create_view_statement"
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_view_statement(self)
+    relation_kind = View
 
 
 class ShowColumnsStatement(ShowRelationExpression):
     """Expression for SHOW [FULL] COLUMNS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_columns_statement"
 
     def __init__(self, dialect: "MariaDBDialect", relation: Union[RelationObject, str],
                  *, full: bool = False, like_pattern: Optional[str] = None):
@@ -144,15 +150,14 @@ class ShowColumnsStatement(ShowRelationExpression):
         self.full = full
         self.like_pattern = like_pattern
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_columns_statement(self)
-
 
 class ShowIndexStatement(ShowRelationExpression):
     """Expression for SHOW INDEX command."""
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_index_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_index_statement"
 
 
 class ShowTablesStatement(ShowExpression):
@@ -164,6 +169,11 @@ class ShowTablesStatement(ShowExpression):
     serializer and the ``FROM`` clause would fall out of the artifact.
     """
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_tables_statement"
+
     def __init__(self, dialect: "MariaDBDialect",
                  *, schema: Optional[str] = None,
                  full: bool = False, like_pattern: Optional[str] = None):
@@ -171,20 +181,19 @@ class ShowTablesStatement(ShowExpression):
         self.full = full
         self.like_pattern = like_pattern
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_tables_statement(self)
-
 
 class ShowDatabasesStatement(ShowExpression):
     """Expression for SHOW DATABASES command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_databases_statement"
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None):
         super().__init__(dialect)
         self.like_pattern = like_pattern
-
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_databases_statement(self)
 
 
 class ShowTableStatusStatement(ShowExpression):
@@ -195,14 +204,16 @@ class ShowTableStatusStatement(ShowExpression):
     parameter of the class the serializer reads.
     """
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_table_status_statement"
+
     def __init__(self, dialect: "MariaDBDialect",
                  *, schema: Optional[str] = None,
                  like_pattern: Optional[str] = None):
         super().__init__(dialect, schema=schema)
         self.like_pattern = like_pattern
-
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_table_status_statement(self)
 
 
 class ShowTriggersStatement(ShowExpression):
@@ -216,18 +227,25 @@ class ShowTriggersStatement(ShowExpression):
     :class:`ShowTablesStatement`.
     """
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_triggers_statement"
+
     def __init__(self, dialect: "MariaDBDialect",
                  *, schema: Optional[str] = None,
                  table_name: Optional[str] = None):
         super().__init__(dialect, schema=schema)
         self.table_name = table_name
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_triggers_statement(self)
-
 
 class ShowCreateTriggerStatement(ShowExpression):
     """Expression for SHOW CREATE TRIGGER command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_create_trigger_statement"
 
     def __init__(self, dialect: "MariaDBDialect", trigger: Union[Trigger, str]):
         super().__init__(dialect)
@@ -259,34 +277,35 @@ class ShowCreateTriggerStatement(ShowExpression):
         """The trigger this statement names, database included."""
         return self._trigger
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_trigger_statement(self)
-
 
 class ShowVariablesStatement(ShowExpression):
     """Expression for SHOW [GLOBAL] VARIABLES command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_variables_statement"
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None, session: bool = True):
         super().__init__(dialect)
         self.like_pattern = like_pattern
         self.session = session
-
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_variables_statement(self)
 
 
 class ShowStatusStatement(ShowExpression):
     """Expression for SHOW [GLOBAL] STATUS command."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_status_statement"
+
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None, session: bool = True):
         super().__init__(dialect)
         self.like_pattern = like_pattern
         self.session = session
-
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_status_statement(self)
 
 
 class ShowMasterStatusStatement(ShowExpression):
@@ -302,8 +321,10 @@ class ShowMasterStatusStatement(ShowExpression):
     than catching a failure.
     """
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_master_status_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_master_status_statement"
 
 
 class ShowSlaveStatusStatement(ShowExpression):
@@ -316,79 +337,98 @@ class ShowSlaveStatusStatement(ShowExpression):
     the backend's floor and the row is the same either way.
     """
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_slave_status_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_slave_status_statement"
 
 
 class ShowProcessListStatement(ShowExpression):
     """Expression for SHOW [FULL] PROCESSLIST command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_process_list_statement"
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, full: bool = False):
         super().__init__(dialect)
         self.full = full
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_process_list_statement(self)
-
 
 class ShowWarningsStatement(ShowExpression):
     """Expression for SHOW WARNINGS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_warnings_statement"
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, limit: Optional[int] = None):
         super().__init__(dialect)
         self.limit = limit
-
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_warnings_statement(self)
 
 
 class ShowErrorsStatement(ShowExpression):
     """Expression for SHOW ERRORS command."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_errors_statement"
+
     def __init__(self, dialect: "MariaDBDialect",
                  *, limit: Optional[int] = None):
         super().__init__(dialect)
         self.limit = limit
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_errors_statement(self)
-
 
 class ShowEnginesStatement(ShowExpression):
     """Expression for SHOW ENGINES command."""
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_engines_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_engines_statement"
 
 
 class ShowCharsetStatement(ShowExpression):
     """Expression for SHOW CHARACTER SET command."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_charset_statement"
+
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None):
         super().__init__(dialect)
         self.like_pattern = like_pattern
-
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_charset_statement(self)
 
 
 class ShowCollationStatement(ShowExpression):
     """Expression for SHOW COLLATION command."""
 
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_collation_statement"
+
     def __init__(self, dialect: "MariaDBDialect",
                  *, like_pattern: Optional[str] = None):
         super().__init__(dialect)
         self.like_pattern = like_pattern
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_collation_statement(self)
-
 
 class ShowGrantsStatement(ShowExpression):
     """Expression for SHOW GRANTS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_grants_statement"
 
     def __init__(self, dialect: "MariaDBDialect",
                  *, user: Optional[str] = None, host: Optional[str] = None):
@@ -396,15 +436,14 @@ class ShowGrantsStatement(ShowExpression):
         self.user = user
         self.host = host
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_grants_statement(self)
-
 
 class ShowPluginsStatement(ShowExpression):
     """Expression for SHOW PLUGINS command."""
 
-    def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_plugins_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_plugins_statement"
 
 
 __all__ = [
