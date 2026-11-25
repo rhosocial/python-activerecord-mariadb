@@ -209,6 +209,7 @@ from .mixins import (
 # Import MariaDB-specific backend suggestions (separate namespace: no core
 # mixin may shadow these answers; their base positions are unchanged).
 from .suggestion import (
+    MariaDBColumnReorderSuggestionMixin,
     MariaDBCreateTableLayoutSuggestionMixin,
     MariaDBDataTypeSuggestionsMixin,
     MariaDBGeneratedValueSuggestionMixin,
@@ -217,10 +218,13 @@ from .suggestion import (
     MariaDBPartitionDropSuggestionMixin,
     MariaDBPartitionMergeSuggestionMixin,
     MariaDBPartitionRetentionSuggestionMixin,
+    MariaDBPartitionSchemeChangeSuggestionMixin,
     MariaDBPartitionSplitSuggestionMixin,
     MariaDBPartitionTableAlterSuggestionMixin,
     MariaDBPartitionTableDropSuggestionMixin,
     MariaDBStringConcatenationSuggestionMixin,
+    MariaDBTableConstraintChangeSuggestionMixin,
+    MariaDBTableIndexChangeSuggestionMixin,
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
@@ -260,7 +264,13 @@ if TYPE_CHECKING:
 class MariaDBDialect(
     # Backend suggestions first: no core mixin may shadow their answers. Each
     # partition suggestion point is its own mixin; they all share one base,
-    # listed last among them so C3 linearisation stays unambiguous.
+    # listed last among them so C3 linearisation stays unambiguous. The four
+    # change-plan points join the same group: they answer from frozen decision
+    # points and may call the partition suggestions below for their own chains.
+    MariaDBColumnReorderSuggestionMixin,
+    MariaDBTableConstraintChangeSuggestionMixin,
+    MariaDBTableIndexChangeSuggestionMixin,
+    MariaDBPartitionSchemeChangeSuggestionMixin,
     MariaDBCreateTableLayoutSuggestionMixin,
     MariaDBPartitionBuildSuggestionMixin,
     MariaDBPartitionAddSuggestionMixin,

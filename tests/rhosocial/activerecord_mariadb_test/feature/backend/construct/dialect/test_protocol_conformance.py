@@ -153,6 +153,11 @@ MYSQL_PROTOCOLS = [
     suggestion_protocols.PartitionTableAlterSuggestionSupport,
     suggestion_protocols.PartitionSplitSuggestionSupport,
     suggestion_protocols.PartitionMergeSuggestionSupport,
+    # The four change-plan points are answered by the same suggestion package.
+    suggestion_protocols.ColumnReorderSuggestionSupport,
+    suggestion_protocols.TableConstraintChangeSuggestionSupport,
+    suggestion_protocols.TableIndexChangeSuggestionSupport,
+    suggestion_protocols.PartitionSchemeChangeSuggestionSupport,
     dialect_protocols.ConstraintSupport,
     dialect_protocols.CreateDomainSupport,
     dialect_protocols.CreateIndexSupport,
