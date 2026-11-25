@@ -226,12 +226,31 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         self,
         expr: Any
     ) -> Tuple[str, tuple]:
-        """Format JSON_TABLE expression.
+        """Format core's portable ``JSON_TABLE`` expression.
 
-        MariaDB does NOT support JSON_TABLE (unlike MySQL 8.0.4+).
+        MariaDB supports JSON_TABLE from 10.6; below that floor the formatter
+        refuses the request rather than emitting SQL the server rejects.
 
         Args:
-            expr: JsonTableExpression instance
+            expr: core ``JSONTableExpression`` instance
+
+        Returns:
+            Tuple of (SQL string, parameters tuple)
+        """
+        ...
+
+    def format_mariadb_json_table_expression(
+        self,
+        expr: Any
+    ) -> Tuple[str, tuple]:
+        """Format this backend's own ``JSON_TABLE`` expression.
+
+        The MariaDB node carries ``json_doc`` and ``NESTED PATH`` support,
+        which core's portable node does not; each node kind names its own
+        formatter.
+
+        Args:
+            expr: ``MariaDBJSONTableExpression`` instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

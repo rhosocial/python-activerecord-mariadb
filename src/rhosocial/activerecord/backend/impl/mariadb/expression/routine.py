@@ -109,7 +109,7 @@ class MariaDBCreateFunctionStatement(MariaDBRoutineExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_create_function_statement"
+        return "format_mariadb_create_function_statement"
 
     routine_kind = Function
 
@@ -145,7 +145,7 @@ class MariaDBDropFunctionStatement(MariaDBRoutineExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_drop_function_statement"
+        return "format_mariadb_drop_function_statement"
 
     routine_kind = Function
 

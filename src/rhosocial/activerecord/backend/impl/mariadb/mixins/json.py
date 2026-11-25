@@ -257,30 +257,8 @@ class MariaDBJSONMixin:
                 )
         return head, params
 
-    def format_json_table_expression(
-        self, expr
-    ) -> Tuple[str, tuple]:
-        """Format a JSON_TABLE expression.
-
-        Two node shapes are accepted, because both are reachable on a
-        ``MariaDBDialect``:
-
-        - :class:`MariaDBJSONTableExpression` -- carries ``json_doc`` plus
-          ``FOR ORDINALITY``, ``EXISTS``, ``ON EMPTY`` / ``ON ERROR`` and
-          ``NESTED PATH`` support.
-        - the core :class:`JSONTableExpression` -- carries ``json_column`` and
-          columns typed by a ``data_type`` expression.
-
-        Every string that reaches the SQL goes through identifier quoting or
-        single-quote escaping; column types are validated against a strict
-        allow-list, because unlike a path they are not data and are never
-        escaped, only accepted or rejected.
-
-        Raises:
-            UnsupportedFeatureError: If the server predates JSON_TABLE, a
-                column type is not a plain SQL type, or an ``error_handling``
-                mode is not recognised.
-        """
+    def _require_json_table_supported(self) -> None:
+        """Refuse JSON_TABLE before its MariaDB floor, naming the floor."""
         from rhosocial.activerecord.backend.dialect.exceptions import (
             UnsupportedFeatureError,
         )
@@ -294,39 +272,17 @@ class MariaDBJSONMixin:
                 f"JSON_TABLE requires MariaDB {required} or later.",
             )
 
-        # Two declared contracts reach this formatter, told apart by their
-        # class rather than by probing: the MariaDB node carries ``json_doc``
-        # and ``nested_paths``, the core node ``json_column``. What a plain
-        # string means differs with the class (document literal versus
-        # column name) and is part of the same per-class contract.
-        from rhosocial.activerecord.backend.expression.query_sources import (
-            JSONTableExpression,
-        )
-        from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
-            MariaDBJSONTableExpression,
-        )
-
-        if isinstance(expr, MariaDBJSONTableExpression):
-            columns = list(expr.columns)
-            doc_sql, params = self._json_document_sql(expr.json_doc)
-            nested_paths = expr.nested_paths
-            # The expression settles the column's shape, and the two shapes
-            # differ: the MariaDB column carries the optional clauses, the
-            # core column does not.
-            render_column = self.format_mariadb_json_table_column
-        else:
-            if not isinstance(expr, JSONTableExpression):
-                raise TypeError(
-                    "format_json_table_expression takes a "
-                    "MariaDBJSONTableExpression or a JSONTableExpression, "
-                    f"got {type(expr).__name__}"
-                )
-            columns = list(expr.columns)
-            doc_sql, params = self._json_column_sql(expr.json_column)
-            nested_paths = []
-            render_column = self.format_json_table_column
+    def _format_json_table_body(
+        self,
+        expr,
+        doc_sql: str,
+        params: tuple,
+        columns,
+        nested_paths,
+        render_column,
+    ) -> Tuple[str, tuple]:
+        """Render the ``JSON_TABLE`` tail shared by the two node kinds."""
         path_sql = self.escape_sql_string(expr.path)
-
         column_defs = [render_column(col)[0] for col in columns]
         for nested in nested_paths:
             nested_cols = ", ".join(
@@ -339,12 +295,84 @@ class MariaDBJSONMixin:
                 f"NESTED PATH '{self.escape_sql_string(nested.path)}' "
                 f"COLUMNS({nested_cols})"
             )
-
         columns_sql = f"COLUMNS({', '.join(column_defs)})"
         sql = f"JSON_TABLE({doc_sql}, '{path_sql}' {columns_sql})"
         if expr.alias:
             sql += f" AS {self.format_identifier(expr.alias)}"
         return sql, params
+
+    def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
+        """Format core's portable ``JSON_TABLE`` row source.
+
+        The core node carries ``json_column`` and columns typed by a
+        ``data_type`` expression. This backend's own node is a distinct kind
+        with a different document contract, so it renders through its own
+        formatter (``format_mariadb_json_table_expression``) instead of this
+        one asking which class it was handed.
+
+        Every string that reaches the SQL goes through identifier quoting or
+        single-quote escaping; column types are validated against a strict
+        allow-list, because unlike a path they are not data and are never
+        escaped, only accepted or rejected.
+
+        Raises:
+            UnsupportedFeatureError: If the server predates JSON_TABLE, a
+                column type is not a plain SQL type, or an ``error_handling``
+                mode is not recognised.
+        """
+        from rhosocial.activerecord.backend.expression.query_sources import (
+            JSONTableExpression,
+        )
+
+        self._require_json_table_supported()
+        if not isinstance(expr, JSONTableExpression):
+            raise TypeError(
+                "format_json_table_expression takes a JSONTableExpression, "
+                f"got {type(expr).__name__}"
+            )
+        doc_sql, params = self._json_column_sql(expr.json_column)
+        return self._format_json_table_body(
+            expr,
+            doc_sql,
+            params,
+            list(expr.columns),
+            [],
+            self.format_json_table_column,
+        )
+
+    def format_mariadb_json_table_expression(self, expr) -> Tuple[str, tuple]:
+        """Format this backend's own ``JSON_TABLE`` row source.
+
+        The node carries ``json_doc`` plus ``FOR ORDINALITY``, ``EXISTS``,
+        ``ON EMPTY`` / ``ON ERROR`` and ``NESTED PATH`` support, and a plain
+        string is a document literal here rather than a column name. Core's
+        portable node is a distinct kind and renders through
+        ``format_json_table_expression``.
+
+        Raises:
+            UnsupportedFeatureError: If the server predates JSON_TABLE, a
+                column type is not a plain SQL type, or an ``error_handling``
+                mode is not recognised.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+            MariaDBJSONTableExpression,
+        )
+
+        self._require_json_table_supported()
+        if not isinstance(expr, MariaDBJSONTableExpression):
+            raise TypeError(
+                "format_mariadb_json_table_expression takes a "
+                f"MariaDBJSONTableExpression, got {type(expr).__name__}"
+            )
+        doc_sql, params = self._json_document_sql(expr.json_doc)
+        return self._format_json_table_body(
+            expr,
+            doc_sql,
+            params,
+            list(expr.columns),
+            expr.nested_paths,
+            self.format_mariadb_json_table_column,
+        )
 
     def _json_document_sql(self, json_doc) -> Tuple[str, tuple]:
         """Render a JSON document argument.

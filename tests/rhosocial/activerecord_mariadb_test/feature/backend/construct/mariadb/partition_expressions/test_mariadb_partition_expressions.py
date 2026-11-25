@@ -155,7 +155,37 @@ def test_partition_value_formats(dialect):
     assert dialect.format_partition_value(_value(dialect, None)) == ("NULL", ())
     assert dialect.format_partition_value(_value(dialect, 42)) == ("42", ())
     assert dialect.format_partition_value(_value(dialect, "o'brien")) == ("'o''brien'", ())
-    assert dialect.format_partition_value(MariaDBPartitionMaxValue(dialect)) == ("MAXVALUE", ())
+    assert dialect.format_partition_max_value(MariaDBPartitionMaxValue(dialect)) == (
+        "MAXVALUE",
+        (),
+    )
+
+
+def test_partition_boundary_kinds_name_their_own_formatter(dialect):
+    """A value and the MAXVALUE token are distinct kinds, not one formatter.
+
+    The value node carries a literal; the MAXVALUE node is the bare word and
+    is the piece the server's RANGE grammar gates. Each names its own
+    formatter, and neither formatter inspects the sibling class -- a
+    structure-level assertion, because the rendered words alone would stay
+    identical while the dispatch silently regressed.
+    """
+    import inspect
+
+    max_value = MariaDBPartitionMaxValue(dialect)
+    value = _value(dialect, 42)
+
+    assert max_value.format_method == "format_partition_max_value"
+    assert value.format_method == "format_partition_value"
+    assert max_value.format_method != value.format_method
+
+    assert max_value.to_sql() == ("MAXVALUE", ())
+    assert value.to_sql() == ("42", ())
+
+    max_source = inspect.getsource(type(dialect).format_partition_max_value)
+    value_source = inspect.getsource(type(dialect).format_partition_value)
+    assert "MariaDBPartitionValue" not in max_source
+    assert "MariaDBPartitionMaxValue" not in value_source
 
 
 def test_partition_value_rejects_bool(dialect):

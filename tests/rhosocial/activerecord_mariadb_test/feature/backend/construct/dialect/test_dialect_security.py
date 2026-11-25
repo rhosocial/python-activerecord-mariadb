@@ -168,7 +168,7 @@ def test_format_json_table_path_escaping(json_table_dialect):
         columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.name")],
     )
 
-    sql, _ = dialect.format_json_table_expression(expr)
+    sql, _ = dialect.format_mariadb_json_table_expression(expr)
     assert "$.key''s" in sql
     assert "key's" not in sql
 
@@ -183,7 +183,7 @@ def test_format_json_table_column_path_escaping(json_table_dialect):
         columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.field's")],
     )
 
-    sql, _ = dialect.format_json_table_expression(expr)
+    sql, _ = dialect.format_mariadb_json_table_expression(expr)
     assert "$.field''s" in sql
     assert "field's" not in sql
 
@@ -198,7 +198,7 @@ def test_format_json_table_json_doc_escaped(json_table_dialect):
         columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
     )
 
-    sql, _ = dialect.format_json_table_expression(expr)
+    sql, _ = dialect.format_mariadb_json_table_expression(expr)
     assert "DROP TABLE users--" in sql
     # The quote is doubled, so the literal cannot be terminated early.
     assert "b''; DROP TABLE users--" in sql
@@ -224,7 +224,7 @@ def test_format_json_table_json_doc_backslash_escaped(json_table_dialect):
         columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
     )
 
-    sql, _ = dialect.format_json_table_expression(expr)
+    sql, _ = dialect.format_mariadb_json_table_expression(expr)
     assert r"b\\c" in sql
     # The dialect's own spelling is what must appear.
     assert dialect.escape_sql_string(r"b\c") in sql
@@ -241,7 +241,7 @@ def test_format_json_table_alias_quoted(json_table_dialect):
         alias="test_alias",
     )
 
-    sql, _ = dialect.format_json_table_expression(expr)
+    sql, _ = dialect.format_mariadb_json_table_expression(expr)
     assert sql.endswith("AS `test_alias`")
 
 
@@ -260,7 +260,7 @@ class TestJSONTableVersionGate:
             columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
         )
         with pytest.raises(UnsupportedFeatureError, match="10.6"):
-            old.format_json_table_expression(expr)
+            old.format_mariadb_json_table_expression(expr)
 
     @pytest.mark.parametrize("version", [(10, 6, 0), (12, 3, 3), (13, 0, 2), (13, 1, 1)])
     def test_accepted_from_10_6(self, version):
@@ -271,7 +271,7 @@ class TestJSONTableVersionGate:
             path="$.data",
             columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
         )
-        sql, params = dialect.format_json_table_expression(expr)
+        sql, params = dialect.format_mariadb_json_table_expression(expr)
         assert sql.startswith("JSON_TABLE(")
         assert params == ()
 
@@ -287,7 +287,7 @@ class TestJSONTableTypeValidation:
             path="$.data",
             columns=[JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
         )
-        sql, _ = dialect.format_json_table_expression(expr)
+        sql, _ = dialect.format_mariadb_json_table_expression(expr)
         assert "`col1` VARCHAR(255) PATH '$.col1'" in sql
 
     def test_injected_type_rejected(self, json_table_dialect):
@@ -314,7 +314,7 @@ class TestJSONTableTypeValidation:
             ],
         )
         with pytest.raises(InvalidTypeNameError):
-            dialect.format_json_table_expression(expr)
+            dialect.format_mariadb_json_table_expression(expr)
 
 
 class TestJSONTableErrorHandling:
@@ -337,13 +337,13 @@ class TestJSONTableErrorHandling:
         )
 
     def test_null_on_empty_and_error(self, json_table_dialect):
-        sql, _ = json_table_dialect.format_json_table_expression(
+        sql, _ = json_table_dialect.format_mariadb_json_table_expression(
             self._expr(json_table_dialect, "NULL")
         )
         assert "PATH '$.col1' NULL ON EMPTY NULL ON ERROR" in sql
 
     def test_default_on_empty_and_error(self, json_table_dialect):
-        sql, _ = json_table_dialect.format_json_table_expression(
+        sql, _ = json_table_dialect.format_mariadb_json_table_expression(
             self._expr(json_table_dialect, "DEFAULT", default_value="fallback")
         )
         assert (
@@ -352,7 +352,7 @@ class TestJSONTableErrorHandling:
         )
 
     def test_default_value_is_escaped(self, json_table_dialect):
-        sql, _ = json_table_dialect.format_json_table_expression(
+        sql, _ = json_table_dialect.format_mariadb_json_table_expression(
             self._expr(json_table_dialect, "DEFAULT", default_value="a'; DROP TABLE t--")
         )
         assert "a''; DROP TABLE t--" in sql
@@ -362,7 +362,7 @@ class TestJSONTableErrorHandling:
             UnsupportedFeatureError,
         )
         with pytest.raises(UnsupportedFeatureError, match="error handling"):
-            json_table_dialect.format_json_table_expression(
+            json_table_dialect.format_mariadb_json_table_expression(
                 self._expr(json_table_dialect, "INVALID")
             )
 
@@ -378,7 +378,7 @@ class TestJSONTableColumnOptions:
             path="$[*]",
             columns=[JSONTableColumn(name="row_n", type="INT", path="$.n", ordinality=True)],
         )
-        sql, _ = dialect.format_json_table_expression(expr)
+        sql, _ = dialect.format_mariadb_json_table_expression(expr)
         assert "`row_n` FOR ORDINALITY" in sql
 
     def test_exists_sits_between_type_and_path(self, json_table_dialect):
@@ -389,7 +389,7 @@ class TestJSONTableColumnOptions:
             path="$[*]",
             columns=[JSONTableColumn(name="has", type="INT", path="$.h", exists=True)],
         )
-        sql, _ = dialect.format_json_table_expression(expr)
+        sql, _ = dialect.format_mariadb_json_table_expression(expr)
         assert "`has` INT EXISTS PATH '$.h'" in sql
 
     def test_nested_path_rendered(self, json_table_dialect):
@@ -404,7 +404,7 @@ class TestJSONTableColumnOptions:
             columns=[JSONTableColumn(name="a", type="INT", path="$.a")],
             nested_paths=[NestedPath("$.n", [JSONTableColumn(name="b", type="INT", path="$.b")], alias="np")],
         )
-        sql, _ = dialect.format_json_table_expression(expr)
+        sql, _ = dialect.format_mariadb_json_table_expression(expr)
         # MariaDB's grammar has no alias on NESTED PATH; emitting one is a
         # syntax error, so it is dropped even when the node carries an alias.
         assert "NESTED PATH '$.n' COLUMNS(`b` INT PATH '$.b')" in sql
@@ -418,7 +418,7 @@ class TestJSONTableColumnOptions:
             path="$[*]",
             columns=[JSONTableColumn(name="select", type="INT", path="$.s")],
         )
-        sql, _ = dialect.format_json_table_expression(expr)
+        sql, _ = dialect.format_mariadb_json_table_expression(expr)
         assert "`select`" in sql
 
 
@@ -435,14 +435,14 @@ class TestJSONTableJsonDocTypeValidation:
             path="$[*]",
             columns=[JSONTableColumn(name="a", type="INT", path="$.a")],
         )
-        sql, params = dialect.format_json_table_expression(expr)
+        sql, params = dialect.format_mariadb_json_table_expression(expr)
         assert sql.startswith("JSON_TABLE(")
         assert "`t`" in sql or "t" in sql
 
     @pytest.mark.parametrize("bad", [123, None, ["x"], {"a": 1}])
     def test_non_string_non_expression_rejected(self, json_table_dialect, bad):
         with pytest.raises(TypeError):
-            json_table_dialect.format_json_table_expression(
+            json_table_dialect.format_mariadb_json_table_expression(
                 MariaDBJSONTableExpression(
                     dialect=json_table_dialect,
                     json_doc=bad,

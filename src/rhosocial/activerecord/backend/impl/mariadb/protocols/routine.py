@@ -4,6 +4,10 @@
 from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
+    from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+        CreateFunctionStatement,
+        DropFunctionStatement,
+    )
     from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
         MariaDBCallStatement,
         MariaDBCreateFunctionStatement,
@@ -72,12 +76,26 @@ class MariaDBRoutineSupport(Protocol):
 
     def format_create_function_statement(
         self,
+        expr: "CreateFunctionStatement",
+    ) -> Tuple[str, tuple]:
+        """Format core's portable SQL/PSM CREATE FUNCTION."""
+        ...
+
+    def format_mariadb_create_function_statement(
+        self,
         expr: "MariaDBCreateFunctionStatement",
     ) -> Tuple[str, tuple]:
         """Format CREATE FUNCTION (stored / aggregate function)."""
         ...
 
     def format_drop_function_statement(
+        self,
+        expr: "DropFunctionStatement",
+    ) -> Tuple[str, tuple]:
+        """Format core's portable SQL/PSM DROP FUNCTION."""
+        ...
+
+    def format_mariadb_drop_function_statement(
         self,
         expr: "MariaDBDropFunctionStatement",
     ) -> Tuple[str, tuple]:

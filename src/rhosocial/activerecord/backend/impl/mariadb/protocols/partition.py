@@ -74,6 +74,10 @@ class MariaDBPartitionSupport(PartitionSupport, Protocol):
         """
         ...
 
+    def format_partition_max_value(self, expr: Any) -> Tuple[str, tuple]:
+        """Format the ``MAXVALUE`` partition boundary token."""
+        ...
+
     def format_partition_value(self, expr: Any) -> Tuple[str, tuple]:
         """Format a MariaDB partition boundary value."""
         ...

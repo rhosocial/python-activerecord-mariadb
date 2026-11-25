@@ -506,7 +506,7 @@ class TestMySQLExpressionDialectSeparation:
 
     EXPRESSION_DIALECT_PAIRS = [
         ("MariaDBLoadDataStatement", "format_load_data_statement"),
-        ("MariaDBJSONTableExpression", "format_json_table_expression"),
+        ("MariaDBJSONTableExpression", "format_mariadb_json_table_expression"),
         ("MariaDBJSONExtractExpression", "format_json_extract_expression"),
         ("MariaDBJSONObjectExpression", "format_json_object_expression"),
         ("MariaDBJSONArrayExpression", "format_json_array_expression"),

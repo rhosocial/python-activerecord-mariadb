@@ -11,12 +11,16 @@ the SQL/PSM standard:
     DROP FUNCTION [IF EXISTS] name
     CALL name([args])
 """
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, List, Tuple
 
 from ..backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
+    from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+        CreateFunctionStatement,
+        DropFunctionStatement,
+    )
     from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
         MariaDBCallStatement,
         MariaDBCreateFunctionStatement,
@@ -192,76 +196,19 @@ class MariaDBRoutineMixin:
         parts.append(procedure_sql)
         return " ".join(parts), ()
 
-    def format_create_function_statement(
+    def _render_create_function_statement(
         self,
-        expr: "MariaDBCreateFunctionStatement",
+        function_sql: str,
+        param_strs: List[str],
+        returns,
+        *,
+        deterministic: bool,
+        aggregate: bool,
+        or_replace: bool,
+        if_not_exists: bool,
+        body,
     ) -> Tuple[str, tuple]:
-        """Format ``CREATE [OR REPLACE] [IF NOT EXISTS] [AGGREGATE] FUNCTION ...``.
-
-        Supports both the MariaDB stored-function expression and the core
-        SQL/PSM ``CreateFunctionStatement``; the two differ only in how they
-        spell their parameter list and in whether they can be aggregate or
-        deterministic.
-
-        Raises:
-            TypeError: The named routine is not a Function. A Procedure carries
-                its own format_method and would render as a well-formed
-                CREATE FUNCTION over the procedure's name.
-        """
-        from rhosocial.activerecord.backend.expression.objects import Function
-        from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
-            MariaDBRoutineExpression,
-        )
-
-        # Every node reaching this formatter derives from ``BaseExpression``,
-        # which declares ``validate``, so the call is unconditional.
-        expr.validate(strict=self.strict_validation)
-
-        # Two declared contracts reach this formatter: the MariaDB routine
-        # expression (``routine`` / ``params`` / MariaDB-only modifiers) and
-        # the core SQL/PSM statement (``function`` / ``parameters``). Which
-        # slots exist is a property of the node's class, so the dispatch is
-        # isinstance rather than a probe.
-        if isinstance(expr, MariaDBRoutineExpression):
-            self._require_routine_kind(
-                "CreateFunctionStatement.routine",
-                expr.routine,
-                Function,
-            )
-            function_sql, _ = expr.routine.to_sql()
-            params = expr.params
-            returns = expr.returns
-            deterministic = expr.deterministic
-            aggregate = expr.aggregate
-            or_replace = expr.or_replace
-            if_not_exists = expr.if_not_exists
-            body = expr.body
-            param_strs = [self._format_routine_param(p) for p in params]
-        else:
-            self._require_routine_kind(
-                "CreateFunctionStatement.function",
-                expr.function,
-                Function,
-            )
-            function_sql, _ = expr.function.to_sql()
-            params = expr.parameters
-            returns = expr.returns
-            deterministic = False
-            aggregate = False
-            or_replace = expr.or_replace
-            if_not_exists = False
-            body = expr.body
-            param_strs = []
-            for p in params:
-                name = p.get("name", "")
-                param_type = p.get("type", "")
-                if name and param_type:
-                    param_strs.append(
-                        f"{self.format_identifier(name)} {param_type}"
-                    )
-                elif param_type:
-                    param_strs.append(param_type)
-
+        """Assemble a CREATE FUNCTION after its node has named its fields."""
         parts = ["CREATE"]
         if or_replace:
             if not self.supports_routine_or_replace():
@@ -283,10 +230,6 @@ class MariaDBRoutineMixin:
             parts.append("AGGREGATE")
         parts.append("FUNCTION")
         parts.append(function_sql)
-
-        # ``param_strs`` was spelled out per contract in the dispatch above:
-        # the MariaDB node's params are strings / tuples, the core node's are
-        # ``{"name": ..., "type": ...}`` dicts.
         parts.append(f"({', '.join(param_strs)})")
 
         if returns:
@@ -297,51 +240,118 @@ class MariaDBRoutineMixin:
             parts.append(body)
         return " ".join(parts), ()
 
-    def format_drop_function_statement(
+    def format_create_function_statement(
         self,
-        expr: "MariaDBDropFunctionStatement",
+        expr: "CreateFunctionStatement",
     ) -> Tuple[str, tuple]:
-        """Format ``DROP FUNCTION [IF EXISTS] name`` (stored / aggregate function).
+        """Format the core SQL/PSM ``CREATE FUNCTION`` statement.
 
-        Supports both the MariaDB stored-function expression and the core
-        SQL/PSM ``DropFunctionStatement``.
+        The core node names its routine through ``function`` and its
+        parameters as ``{"name": ..., "type": ...}`` mappings. MariaDB's own
+        stored-function node is a distinct kind and renders through
+        ``format_mariadb_create_function_statement``.
 
         Raises:
-            TypeError: The named routine is not a Function.
+            TypeError: The node is not a core ``CreateFunctionStatement``, or
+                the named routine is not a Function. A Procedure carries its
+                own format_method and would render as a well-formed
+                CREATE FUNCTION over the procedure's name.
+        """
+        from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+            CreateFunctionStatement,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Function
+
+        # Every node reaching this formatter derives from ``BaseExpression``,
+        # which declares ``validate``, so the call is unconditional.
+        expr.validate(strict=self.strict_validation)
+        if not isinstance(expr, CreateFunctionStatement):
+            raise TypeError(
+                "format_create_function_statement takes a "
+                f"CreateFunctionStatement, got {type(expr).__name__}"
+            )
+        self._require_routine_kind(
+            "CreateFunctionStatement.function",
+            expr.function,
+            Function,
+        )
+        function_sql, _ = expr.function.to_sql()
+        param_strs = []
+        for p in expr.parameters:
+            name = p.get("name", "")
+            param_type = p.get("type", "")
+            if name and param_type:
+                param_strs.append(f"{self.format_identifier(name)} {param_type}")
+            elif param_type:
+                param_strs.append(param_type)
+        return self._render_create_function_statement(
+            function_sql,
+            param_strs,
+            expr.returns,
+            deterministic=False,
+            aggregate=False,
+            or_replace=expr.or_replace,
+            if_not_exists=False,
+            body=expr.body,
+        )
+
+    def format_mariadb_create_function_statement(
+        self,
+        expr: "MariaDBCreateFunctionStatement",
+    ) -> Tuple[str, tuple]:
+        """Format MariaDB's stored/aggregate ``CREATE FUNCTION``.
+
+        The node names its routine through ``routine``, carries ``params``
+        and the MariaDB-only modifiers (``OR REPLACE``, ``IF NOT EXISTS``,
+        ``DETERMINISTIC``, ``AGGREGATE``). Core's portable SQL/PSM node is a
+        distinct kind and renders through ``format_create_function_statement``.
+
+        Raises:
+            TypeError: The node is not a MariaDB routine expression, or the
+                named routine is not a Function. A Procedure carries its own
+                format_method and would render as a well-formed
+                CREATE FUNCTION over the procedure's name.
         """
         from rhosocial.activerecord.backend.expression.objects import Function
         from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
             MariaDBRoutineExpression,
         )
 
-        # Every node reaching this formatter derives from ``BaseExpression``,
-        # which declares ``validate``, so the call is unconditional.
         expr.validate(strict=self.strict_validation)
+        if not isinstance(expr, MariaDBRoutineExpression):
+            raise TypeError(
+                "format_mariadb_create_function_statement takes a "
+                f"MariaDBRoutineExpression, got {type(expr).__name__}"
+            )
+        self._require_routine_kind(
+            "CreateFunctionStatement.routine",
+            expr.routine,
+            Function,
+        )
+        function_sql, _ = expr.routine.to_sql()
+        return self._render_create_function_statement(
+            function_sql,
+            [self._format_routine_param(p) for p in expr.params],
+            expr.returns,
+            deterministic=expr.deterministic,
+            aggregate=expr.aggregate,
+            or_replace=expr.or_replace,
+            if_not_exists=expr.if_not_exists,
+            body=expr.body,
+        )
+
+    def _render_drop_function_statement(
+        self,
+        expr,
+        function_sql: str,
+        *,
+        cascade: bool,
+        restrict: bool,
+    ) -> Tuple[str, tuple]:
+        """Assemble a DROP FUNCTION after its node has named its fields."""
         parts = ["DROP FUNCTION"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        # The same two declared contracts as CREATE FUNCTION, told apart by
-        # class: the MariaDB node names the routine through ``routine`` and
-        # carries no dependent-object flags, while the core node names it
-        # through ``function`` and declares ``cascade`` / ``restrict``.
-        if isinstance(expr, MariaDBRoutineExpression):
-            self._require_routine_kind(
-                "DropFunctionStatement.routine",
-                expr.routine,
-                Function,
-            )
-            function_sql, _ = expr.routine.to_sql()
-            cascade = False
-            restrict = False
-        else:
-            self._require_routine_kind(
-                "DropFunctionStatement.function",
-                expr.function,
-                Function,
-            )
-            function_sql, _ = expr.function.to_sql()
-            cascade = expr.cascade
-            restrict = expr.restrict
         parts.append(function_sql)
         # The DROP FUNCTION form has no dependent-object behavior on MariaDB:
         # both spellings of the cascade pair are measured rejected (errno 1064
@@ -365,6 +375,82 @@ class MariaDBRoutineMixin:
                     )
                 parts.append("RESTRICT")
         return " ".join(parts), ()
+
+    def format_drop_function_statement(
+        self,
+        expr: "DropFunctionStatement",
+    ) -> Tuple[str, tuple]:
+        """Format the core SQL/PSM ``DROP FUNCTION`` statement.
+
+        The core node names the routine through ``function`` and declares
+        ``cascade`` / ``restrict``. MariaDB's own node is a distinct kind and
+        renders through ``format_mariadb_drop_function_statement``.
+
+        Raises:
+            TypeError: The node is not a core ``DropFunctionStatement``, or
+                the named routine is not a Function.
+        """
+        from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+            DropFunctionStatement,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Function
+
+        expr.validate(strict=self.strict_validation)
+        if not isinstance(expr, DropFunctionStatement):
+            raise TypeError(
+                "format_drop_function_statement takes a "
+                f"DropFunctionStatement, got {type(expr).__name__}"
+            )
+        self._require_routine_kind(
+            "DropFunctionStatement.function",
+            expr.function,
+            Function,
+        )
+        function_sql, _ = expr.function.to_sql()
+        return self._render_drop_function_statement(
+            expr,
+            function_sql,
+            cascade=expr.cascade,
+            restrict=expr.restrict,
+        )
+
+    def format_mariadb_drop_function_statement(
+        self,
+        expr: "MariaDBDropFunctionStatement",
+    ) -> Tuple[str, tuple]:
+        """Format MariaDB's stored/aggregate ``DROP FUNCTION``.
+
+        The node names the routine through ``routine`` and carries no
+        dependent-object flags. Core's portable node is a distinct kind and
+        renders through ``format_drop_function_statement``.
+
+        Raises:
+            TypeError: The node is not a MariaDB routine expression, or the
+                named routine is not a Function.
+        """
+        from rhosocial.activerecord.backend.expression.objects import Function
+        from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+            MariaDBRoutineExpression,
+        )
+
+        expr.validate(strict=self.strict_validation)
+        if not isinstance(expr, MariaDBRoutineExpression):
+            raise TypeError(
+                "format_mariadb_drop_function_statement takes a "
+                f"MariaDBRoutineExpression, got {type(expr).__name__}"
+            )
+        self._require_routine_kind(
+            "DropFunctionStatement.routine",
+            expr.routine,
+            Function,
+        )
+        function_sql, _ = expr.routine.to_sql()
+        return self._render_drop_function_statement(
+            expr,
+            function_sql,
+            cascade=False,
+            restrict=False,
+        )
 
     def format_call_statement(
         self,

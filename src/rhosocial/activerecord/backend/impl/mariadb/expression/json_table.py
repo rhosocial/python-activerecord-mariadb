@@ -77,7 +77,7 @@ class MariaDBJSONTableExpression(BaseExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_table_expression"
+        return "format_mariadb_json_table_expression"
 
     def __init__(
         self,

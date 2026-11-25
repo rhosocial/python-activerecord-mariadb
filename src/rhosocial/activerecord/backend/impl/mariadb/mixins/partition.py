@@ -491,21 +491,27 @@ class MariaDBPartitionMixin:
             params.extend(options_params)
         return " ".join(parts), tuple(params)
 
+    def format_partition_max_value(self, expr: Any) -> Tuple[str, tuple]:
+        """Format the ``MAXVALUE`` partition boundary token.
+
+        A boundary token is not a value: it carries no literal and renders as
+        the bare word, and it is the piece the server's RANGE grammar gates.
+        The capability probe is asked here, before the word is emitted, so a
+        server that cannot take it refuses the request rather than receiving
+        SQL it will reject.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        if not self.supports_partition_value_maxvalue():
+            raise UnsupportedFeatureError(self.name, "MAXVALUE partition boundary")
+        return "MAXVALUE", ()
+
     def format_partition_value(self, expr: Any) -> Tuple[str, tuple]:
         """Format a MariaDB partition boundary value."""
         from datetime import date, datetime
         from decimal import Decimal
         from math import isfinite
 
-        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-            MariaDBPartitionMaxValue,
-        )
-
-        if isinstance(expr, MariaDBPartitionMaxValue):
-            if not self.supports_partition_value_maxvalue():
-                raise UnsupportedFeatureError(self.name, "MAXVALUE partition boundary")
-            return "MAXVALUE", ()
         value = expr.value
         if value is None:
             return "NULL", ()

@@ -76,7 +76,7 @@ class MariaDBPartitionMaxValue(BaseExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_partition_value"
+        return "format_partition_max_value"
 
 
 class MariaDBPartitionValue(BaseExpression):
