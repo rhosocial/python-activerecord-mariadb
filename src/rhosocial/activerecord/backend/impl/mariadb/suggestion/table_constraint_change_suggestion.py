@@ -10,12 +10,12 @@ not exist there, and there is no expression node for ``DROP FOREIGN KEY``,
 so those two cases answer explicit unsupported instead.
 
 A constraint added by the declaration is returned as a real
-``AddTableConstraintAction`` carrying a reconstructed ``TableConstraint``.
-Reconstruction is deliberately conservative: the frozen projection drops the
-branch class, so a columns-only projection cannot say whether it was a
-PRIMARY KEY or a UNIQUE constraint. Such a projection is refused rather than
-guessed; a branch carrying ``references`` (FOREIGN KEY), an explicit ``kind``
-field, or a real ``TableConstraint`` node is rebuilt faithfully.
+``AddTableConstraintAction``. The point now carries the model's live
+``TableConstraint`` declarations in ``new_constraint_declarations``, so the
+action reuses that exact node and preserves its branch class (PRIMARY KEY,
+UNIQUE, FOREIGN KEY or CHECK) instead of guessing. A caller that supplies only
+the frozen projections falls back to conservative reconstruction; a
+columns-only projection has no class tag and is refused rather than guessed.
 """
 
 from __future__ import annotations
@@ -248,9 +248,17 @@ class MariaDBTableConstraintChangeSuggestionMixin:
         table = table_for(self, point.table_name)
         if table is None:
             return TableConstraintChangeSuggestion(operations=False)
-        dropped, added = _diff(
-            tuple(point.old_constraints or ()), tuple(point.new_constraints or ())
-        )
+        # The live declarations keep the branch class that ``_freeze()``
+        # collapses, so prefer them: an ADD can then reuse the model's own
+        # ``TableConstraint`` instead of guessing PRIMARY KEY from UNIQUE.
+        # Their canonical keys match the frozen projections', so the same diff
+        # still detects what was added or dropped. Callers that supply only the
+        # original frozen projections keep working through the fallback.
+        old_live = tuple(point.old_constraint_declarations or ())
+        new_live = tuple(point.new_constraint_declarations or ())
+        old_values = old_live or tuple(point.old_constraints or ())
+        new_values = new_live or tuple(point.new_constraints or ())
+        dropped, added = _diff(old_values, new_values)
         if not dropped and not added:
             return TableConstraintChangeSuggestion(operations=None)
         if added and not getattr(self, "supports_add_constraint", lambda: False)():

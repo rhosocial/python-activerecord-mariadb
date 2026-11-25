@@ -11,7 +11,9 @@ refusal.
 import inspect
 import re
 
-from rhosocial.activerecord.backend.expression import Column
+from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements import (
     AddIndexAction,
     AddTableConstraintAction,
@@ -19,12 +21,16 @@ from rhosocial.activerecord.backend.expression.statements import (
     DropIndexAction,
     DropTableConstraintAction,
     IndexDefinition,
+    TableCheckConstraint,
     TableConstraint,
     TableExcludeConstraint,
+    TableForeignKeyConstraint,
     TablePrimaryKeyConstraint,
     TableUniqueConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumnAction
+from rhosocial.activerecord.backend.expression.statements.ddl_partition import PartitionClause
+from rhosocial.activerecord.backend.expression.types import IntegerType
 from rhosocial.activerecord.backend.suggestion import (
     ColumnReorderSuggestion,
     PartitionSchemeChangeSuggestion,
@@ -75,6 +81,23 @@ def _projection(dialect, fields):
 
 def _unique(dialect, name, column):
     return TableConstraint(dialect, branch=TableUniqueConstraint(dialect, [column]), name=name)
+
+
+def _columns(dialect, names):
+    """Full, typed column definitions keyed by database column name."""
+    return {name: ColumnDefinition(dialect, name, IntegerType(dialect)) for name in names}
+
+
+def _reorder(dialect, old_order, new_order, fields):
+    return dialect.suggest_column_reorder(
+        ColumnReorderSuggestion(
+            table_name="events",
+            old_order=old_order,
+            new_order=new_order,
+            reordered_columns=tuple(n for n in new_order if n in old_order),
+            new_fields=fields,
+        )
+    )
 
 
 # --- registration and the tri-state value ---------------------------------
@@ -140,6 +163,87 @@ def test_column_reorder_refusal_evidence_is_the_missing_column_definition():
     assert "MODIFY COLUMN" in REORDER_REASON
     assert "ColumnDefinition" in REORDER_REASON
     assert "Drop + add" in REORDER_REASON
+
+
+def test_column_reorder_with_full_definitions_reorders_in_place():
+    dialect = _dialect()
+    answer = _reorder(
+        dialect,
+        ("id", "created_at"),
+        ("created_at", "id"),
+        _columns(dialect, ("id", "created_at")),
+    )
+    assert answer.state == "actions"
+    assert isinstance(answer.operations[0].actions[0], ModifyColumnAction)
+    assert _sql(answer.operations) == [
+        "ALTER TABLE `events`  MODIFY COLUMN `id` INT AFTER `created_at`"
+    ]
+    # In-place repositioning only: no DROP TABLE, no DROP + ADD pair.
+    assert all(isinstance(op.actions[0], ModifyColumnAction) for op in answer.operations)
+
+
+def test_column_reorder_uses_first_for_the_new_first_column():
+    dialect = _dialect()
+    answer = _reorder(
+        dialect,
+        ("id", "created_at", "ts"),
+        ("ts", "id", "created_at"),
+        _columns(dialect, ("id", "created_at", "ts")),
+    )
+    assert answer.state == "actions"
+    action = answer.operations[0].actions[0]
+    assert action.first is True and action.after_column is None
+    assert _sql(answer.operations) == ["ALTER TABLE `events`  MODIFY COLUMN `ts` INT FIRST"]
+
+
+def test_column_reorder_emits_one_statement_per_moved_column():
+    dialect = _dialect()
+    answer = _reorder(
+        dialect,
+        ("a", "b", "c", "d", "e"),
+        ("c", "d", "a", "b", "e"),
+        _columns(dialect, ("a", "b", "c", "d", "e")),
+    )
+    assert answer.state == "actions"
+    assert len(answer.operations) == 2
+    assert [op.actions[0].column.name for op in answer.operations] == ["a", "b"]
+    assert _sql(answer.operations) == [
+        "ALTER TABLE `events`  MODIFY COLUMN `a` INT AFTER `d`",
+        "ALTER TABLE `events`  MODIFY COLUMN `b` INT AFTER `a`",
+    ]
+
+
+def test_column_reorder_reuses_the_points_own_definition_objects():
+    dialect = _dialect()
+    fields = _columns(dialect, ("id", "created_at"))
+    point = ColumnReorderSuggestion(
+        table_name="events",
+        old_order=("id", "created_at"),
+        new_order=("created_at", "id"),
+        reordered_columns=("id", "created_at"),
+        new_fields=fields,
+    )
+    answer = dialect.suggest_column_reorder(point)
+    assert answer.operations[0].actions[0].column is fields["id"]
+    assert answer.operations[0].actions[0].column.data_type is not None
+
+
+def test_column_reorder_without_a_definition_for_a_moved_column_is_refused():
+    dialect = _dialect()
+    # Full definitions exist, but not for the column that actually moves.
+    fields = _columns(dialect, ("created_at",))
+    answer = _reorder(dialect, ("id", "created_at"), ("created_at", "id"), fields)
+    assert answer.operations is False
+    assert answer.state == "unaddressable"
+
+
+def test_column_reorder_with_no_position_change_is_absent():
+    dialect = _dialect()
+    answer = _reorder(
+        dialect, ("id", "created_at"), ("id", "created_at"), _columns(dialect, ("id", "created_at"))
+    )
+    assert answer.operations is None
+    assert answer.state == "absent"
 
 
 # --- table constraint change ------------------------------------------------
@@ -278,6 +382,130 @@ def test_no_constraint_change_returns_none():
     assert answer.state == "absent"
 
 
+def test_constraint_add_uses_live_declaration_over_ambiguous_frozen_projection():
+    dialect = _dialect()
+    declaration = _unique(dialect, "uq_created", "created_at")
+    answer = dialect.suggest_table_constraint_change(
+        TableConstraintChangeSuggestion(
+            table_name="events",
+            # The frozen projection is columns-only and ambiguous; the live
+            # declaration keeps the UNIQUE branch.
+            new_constraints=(_freeze(declaration),),
+            new_constraint_declarations=(declaration,),
+        )
+    )
+    assert answer.state == "actions"
+    action = answer.operations[0].actions[0]
+    assert isinstance(action, AddTableConstraintAction)
+    assert action.constraint is declaration
+    assert isinstance(action.constraint.branch, TableUniqueConstraint)
+    assert _sql(answer.operations) == [
+        "ALTER TABLE `events`  ADD CONSTRAINT `uq_created` UNIQUE (`created_at`)"
+    ]
+
+
+def test_constraint_add_preserves_primary_key_branch_from_live_declaration():
+    dialect = _dialect()
+    declaration = TableConstraint(
+        dialect, branch=TablePrimaryKeyConstraint(dialect, ["id"]), name="pk_id"
+    )
+    answer = dialect.suggest_table_constraint_change(
+        TableConstraintChangeSuggestion(
+            table_name="events",
+            new_constraints=(_freeze(declaration),),
+            new_constraint_declarations=(declaration,),
+        )
+    )
+    assert answer.state == "actions"
+    assert isinstance(answer.operations[0].actions[0].constraint.branch, TablePrimaryKeyConstraint)
+    assert _sql(answer.operations) == [
+        "ALTER TABLE `events`  ADD CONSTRAINT `pk_id` PRIMARY KEY (`id`)"
+    ]
+
+
+def test_constraint_add_of_all_spellable_kinds_from_live_declarations():
+    dialect = _dialect()
+    check = TableConstraint(
+        dialect,
+        branch=TableCheckConstraint(
+            dialect,
+            ComparisonPredicate(
+                dialect, ">=", Column(dialect, "age"), Literal(dialect, 0, inline=True)
+            ),
+        ),
+        name="ck_age",
+    )
+    foreign_key = TableConstraint(
+        dialect,
+        branch=TableForeignKeyConstraint(
+            dialect, ["user_id"], (Table(dialect, "users"), ["id"]), on_delete="CASCADE"
+        ),
+        name="fk_user",
+    )
+    for declaration, expected in (
+        (check, "ALTER TABLE `events`  ADD CONSTRAINT `ck_age` CHECK (`age` >= 0)"),
+        (
+            foreign_key,
+            "ALTER TABLE `events`  ADD CONSTRAINT `fk_user` FOREIGN KEY (`user_id`) "
+            "REFERENCES `users` (`id`) ON DELETE CASCADE",
+        ),
+    ):
+        answer = dialect.suggest_table_constraint_change(
+            TableConstraintChangeSuggestion(
+                table_name="events",
+                new_constraints=(_freeze(declaration),),
+                new_constraint_declarations=(declaration,),
+            )
+        )
+        assert answer.state == "actions"
+        assert _sql(answer.operations) == [expected]
+
+
+def test_check_constraint_add_is_gated_at_the_10_2_1_floor():
+    for version, expected_state in (((13, 1, 1), "actions"), ((10, 1, 4), "unaddressable")):
+        dialect = _dialect(version)
+        declaration = TableConstraint(
+            dialect,
+            branch=TableCheckConstraint(
+                dialect,
+                ComparisonPredicate(
+                    dialect, ">=", Column(dialect, "age"), Literal(dialect, 0, inline=True)
+                ),
+            ),
+            name="ck_age",
+        )
+        answer = dialect.suggest_table_constraint_change(
+            TableConstraintChangeSuggestion(
+                table_name="events",
+                new_constraints=(_freeze(declaration),),
+                new_constraint_declarations=(declaration,),
+            )
+        )
+        assert answer.state == expected_state
+
+
+def test_constraint_drop_then_add_uses_both_live_declaration_fields():
+    dialect = _dialect()
+    old = _unique(dialect, "uq_old", "id")
+    new = _unique(dialect, "uq_new", "created_at")
+    answer = dialect.suggest_table_constraint_change(
+        TableConstraintChangeSuggestion(
+            table_name="events",
+            old_constraints=(_freeze(old),),
+            new_constraints=(_freeze(new),),
+            old_constraint_declarations=(old,),
+            new_constraint_declarations=(new,),
+        )
+    )
+    assert answer.state == "actions"
+    assert isinstance(answer.operations[0].actions[0], DropTableConstraintAction)
+    assert answer.operations[1].actions[0].constraint is new
+    assert _sql(answer.operations) == [
+        "ALTER TABLE `events`  DROP CONSTRAINT `uq_old`",
+        "ALTER TABLE `events`  ADD CONSTRAINT `uq_new` UNIQUE (`created_at`)",
+    ]
+
+
 # --- table index change -----------------------------------------------------
 
 
@@ -349,6 +577,28 @@ def test_index_change_is_gated_by_alter_table_index_actions(monkeypatch):
         )
     )
     assert answer.operations is False
+
+
+def test_enriched_index_declarations_do_not_change_the_index_answer():
+    dialect = _dialect()
+    old = IndexDefinition(dialect, "idx_old", ["id"])
+    new = IndexDefinition(dialect, "idx_new", ["created_at"])
+    answer = dialect.suggest_table_index_change(
+        TableIndexChangeSuggestion(
+            table_name="events",
+            old_indexes=(_freeze(old),),
+            new_indexes=(_freeze(new),),
+            old_index_declarations=(old,),
+            new_index_declarations=(new,),
+        )
+    )
+    assert answer.state == "actions"
+    assert isinstance(answer.operations[0].actions[0], DropIndexAction)
+    assert isinstance(answer.operations[1].actions[0], AddIndexAction)
+    assert _sql(answer.operations) == [
+        "ALTER TABLE `events`  DROP INDEX `idx_old`",
+        "ALTER TABLE `events`  ADD INDEX `idx_new` (`created_at`)",
+    ]
 
 
 # --- partition scheme change ------------------------------------------------
@@ -509,6 +759,37 @@ def test_hash_partition_count_shrink_reuses_coalesce():
     )
 
 
+def test_enriched_partition_declarations_do_not_change_the_partition_answer():
+    dialect = _dialect()
+    old = _partition_projection(dialect)
+    live = PartitionClause(dialect, "RANGE", [Column(dialect, "id")])
+    answer = dialect.suggest_partition_scheme_change(
+        PartitionSchemeChangeSuggestion(
+            table_name="events",
+            old_partition=old,
+            new_partition=None,
+            old_partition_declaration=live,
+            new_partition_declaration=None,
+        )
+    )
+    assert answer.state == "actions"
+    assert isinstance(answer.operations[0], MariaDBRemovePartitioningExpression)
+    assert _sql(answer.operations) == ["ALTER TABLE `events` REMOVE PARTITIONING"]
+
+    grown = _partition_projection(dialect, definitions=(_definition(dialect, "p0", 10),))
+    answer = dialect.suggest_partition_scheme_change(
+        PartitionSchemeChangeSuggestion(
+            table_name="events",
+            old_partition=None,
+            new_partition=grown,
+            old_partition_declaration=None,
+            new_partition_declaration=live,
+        )
+    )
+    # Adding partitioning to an existing table stays refused, live field or not.
+    assert answer.operations is False
+
+
 # --- structural safety guard ------------------------------------------------
 
 
@@ -562,7 +843,11 @@ def test_no_change_plan_chain_carries_unauthorized_data_loss():
             "column_reorder",
             "suggest_column_reorder",
             ColumnReorderSuggestion(
-                table_name="events", old_order=("id",), new_order=("ts",), reordered_columns=("id",)
+                table_name="events",
+                old_order=("id", "created_at"),
+                new_order=("created_at", "id"),
+                reordered_columns=("id", "created_at"),
+                new_fields=_columns(dialect, ("id", "created_at")),
             ),
             False,
         ),
@@ -573,6 +858,15 @@ def test_no_change_plan_chain_carries_unauthorized_data_loss():
                 table_name="events",
                 old_constraints=(_unique(dialect, "uq_old", "id"),),
                 new_constraints=(_unique(dialect, "uq_new", "created_at"),),
+            ),
+            False,
+        ),
+        (
+            "constraint_change_with_live_declarations",
+            "suggest_table_constraint_change",
+            TableConstraintChangeSuggestion(
+                table_name="events",
+                new_constraint_declarations=(_unique(dialect, "uq_live", "created_at"),),
             ),
             False,
         ),
