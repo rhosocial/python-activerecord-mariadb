@@ -512,6 +512,16 @@ def register_specials():
             TableConstraint(d, branch=TablePrimaryKeyConstraint(d, ["a"]), name="c"),
         ),
     )
+    # DROP CONSTRAINT takes either a name or a declaration and the generic
+    # constructor supplies neither -- both parameters are optional now, so it
+    # builds an action with no address at all, which the expression layer
+    # collects but no formatter will spell. This backend drops by name only
+    # (a declaration-only action is refused by feature name), so the address
+    # given here is the name.
+    register_special_constructor(
+        "statements.ddl_alter.DropTableConstraintAction",
+        lambda d: ddl_alter.DropTableConstraintAction(d, constraint_name="c"),
+    )
 
     # -- databases, schemas, domains, types --------------------------------
     register_special_constructor(

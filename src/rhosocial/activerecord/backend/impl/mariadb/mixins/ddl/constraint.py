@@ -78,6 +78,19 @@ class MariaDBAlterConstraintModifierMixin:
     NOT ENFORCED`` (and only for CHECK -- a FOREIGN KEY answers 3941 there).
     MariaDB accepts neither. A value copied between the two backends would be
     wrong in both directions.
+
+    **A declaration is not a by-kind drop here.** Core's
+    ``DropTableConstraintAction`` may carry the constraint's *declaration*
+    instead of a name, which lets a dialect spell the drop by kind. MariaDB
+    does not advertise that: ``supports_drop_constraint_by_kind()`` is
+    inherited ``False``, because the kind spellings this mixin keeps
+    (``DROP PRIMARY KEY``, and the pre-10.2.1 ``DROP FOREIGN KEY`` / ``DROP
+    INDEX`` capability) are internal to it and a declaration cannot decide
+    between them -- a primary key symbol is not in the name space. A
+    declaration-only action is therefore refused by name
+    (``UnsupportedFeatureError`` naming ``DROP CONSTRAINT by kind``), and an
+    action carrying both addresses renders by the **name**, the same
+    precedence core's name-only formatter gives.
     """
 
     def supports_drop_constraint_if_exists(self) -> bool:
@@ -105,6 +118,33 @@ class MariaDBAlterConstraintModifierMixin:
     def format_drop_table_constraint_action(self, expr) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
+        # A declaration is not an address here. The by-kind spellings this
+        # mixin keeps -- ``DROP PRIMARY KEY`` above, ``DROP INDEX`` / ``DROP
+        # KEY`` below the 10.2.1 floor -- are its *internals*, not a service it
+        # offers to callers: ``supports_drop_constraint_by_kind()`` is
+        # inherited ``False`` and stays that way, because a declaration does
+        # not carry enough to pick between them. (A primary key has no symbol
+        # in MariaDB's name space; see MariaDBDialect.supports_drop_constraint.)
+        # Refuse a declaration-only action by feature name rather than let it
+        # reach ``constraint_name`` as ``None`` and fail as an
+        # ``AttributeError``, which is neither a capability answer nor a
+        # spelling a caller can act on. ``constraint`` is read through
+        # ``getattr`` because it is an optional slot on the action.
+        if expr.constraint_name is None and getattr(expr, "constraint", None) is not None:
+            raise UnsupportedFeatureError(
+                self.name,
+                "DROP CONSTRAINT by kind",
+                f"{self.name} drops a constraint by name only; pass "
+                f"constraint_name instead of relying on the declaration's kind."
+            )
+        if expr.constraint_name is None:
+            # Neither address. The expression layer collects parameters and
+            # does not validate them, so the formatter is the layer that must
+            # call a drop with nothing to drop malformed. Wording kept
+            # identical to the name-only formatter this backend overrides.
+            raise ValueError(
+                "DropTableConstraintAction requires constraint_name or constraint"
+            )
         name = expr.constraint_name
         # MariaDB PRIMARY KEY goes through DROP PRIMARY KEY (no IF EXISTS).
         if name.upper() == "PRIMARY":

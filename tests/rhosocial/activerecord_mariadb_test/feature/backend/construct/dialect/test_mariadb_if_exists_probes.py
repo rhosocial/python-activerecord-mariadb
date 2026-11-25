@@ -50,6 +50,11 @@ from rhosocial.activerecord.backend.expression.objects import Function, Table, T
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
     DropTableConstraintAction,
 )
+from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    TableConstraint,
+    TablePrimaryKeyConstraint,
+    TableUniqueConstraint,
+)
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     CreateTriggerStatement,
     DropTriggerStatement,
@@ -301,6 +306,80 @@ class TestDropConstraintIfExistsGate:
         sql, params = action.to_sql()
         assert sql == "DROP PRIMARY KEY"
         assert params == ()
+
+
+class TestDropConstraintByKindIsRefused:
+    """A declaration is refused; only a name is an address on this backend.
+
+    Core's ``DropTableConstraintAction`` may carry the constraint's *declaration*
+    instead of a name, so a dialect that spells the drop by kind can use it.
+    MariaDB does not advertise ``supports_drop_constraint_by_kind()``: the one
+    kind spelling this formatter keeps -- ``DROP PRIMARY KEY`` -- is chosen from
+    the literal *name* ``PRIMARY``, not from a declaration, and a primary key
+    has no symbol in MariaDB's name space. A declaration-only action therefore
+    has to be refused by feature name, or it would reach ``constraint_name`` as
+    ``None`` and fail as an ``AttributeError`` -- neither a capability answer
+    nor a spelling a caller can act on.
+    """
+
+    @staticmethod
+    def _unique_declaration(dialect):
+        return TableConstraint(
+            dialect, branch=TableUniqueConstraint(dialect, ["v"]), name="uq"
+        )
+
+    def test_declaration_only_is_refused_by_feature_name(self):
+        dialect = _dialect((13, 1, 1))
+        action = DropTableConstraintAction(
+            dialect, constraint=self._unique_declaration(dialect)
+        )
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            action.to_sql()
+        assert excinfo.value.feature_name == "DROP CONSTRAINT by kind"
+        assert "constraint_name" in str(excinfo.value)
+
+    def test_a_primary_key_declaration_does_not_reach_drop_primary_key(self):
+        """The internal kind spelling is not a by-kind service.
+
+        ``DROP PRIMARY KEY`` renders from a *name* of ``PRIMARY`` and predates
+        the 10.2.1 statement. A declaration whose branch is a primary key must
+        not be read as asking for it -- the refusal is the same by-kind one.
+        """
+        dialect = _dialect((10, 2, 0))
+        action = DropTableConstraintAction(
+            dialect,
+            constraint=TableConstraint(
+                dialect, branch=TablePrimaryKeyConstraint(dialect, ["v"])
+            ),
+        )
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            action.to_sql()
+        assert excinfo.value.feature_name == "DROP CONSTRAINT by kind"
+        assert "DROP PRIMARY KEY" not in str(excinfo.value)
+
+    def test_name_wins_when_both_addresses_are_given(self):
+        """Same precedence as core's name-only formatter, byte for byte."""
+        dialect = _dialect((10, 6, 0))
+        action = DropTableConstraintAction(
+            dialect,
+            constraint_name="uq",
+            constraint=self._unique_declaration(dialect),
+            if_exists=True,
+        )
+        sql, params = action.to_sql()
+        assert sql == "DROP CONSTRAINT IF EXISTS `uq`"
+        assert params == ()
+
+    def test_an_action_with_no_address_is_malformed(self):
+        """The expression layer collects; the formatter says what is malformed."""
+        dialect = _dialect((13, 1, 1))
+        action = DropTableConstraintAction(dialect)
+        with pytest.raises(ValueError, match="requires constraint_name or constraint"):
+            action.to_sql()
+
+    def test_this_backend_does_not_advertise_a_by_kind_drop(self):
+        """The probe stays ``False``: the kind spellings stay internal."""
+        assert _dialect((13, 1, 1)).supports_drop_constraint_by_kind() is False
 
 
 class TestMultipleTriggersPerTimingGate:
