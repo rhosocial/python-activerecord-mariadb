@@ -11,6 +11,11 @@ and never a non-bool annotation.
 This walks the whole MariaDB backend source tree, not just the dialect module,
 because a ``supports_*`` that grows a parameter or answers with a mapping in a
 mixin, a protocol stub or a CLI helper is exactly the drift the rule forbids.
+
+The same tree is walked for the other half of the rule: no class ending in
+``Dialect`` may inherit a ``*Support`` protocol. A ``runtime_checkable``
+Protocol matches structurally, so inheriting one adds only ellipsis stubs and
+turns ``isinstance`` into a claim the class does not actually keep.
 """
 import ast
 from pathlib import Path
@@ -83,6 +88,50 @@ def _tree_offenders():
     for path in _source_files():
         tree = ast.parse(path.read_text(encoding="utf-8"))
         found.extend(_offenders(tree, path.name))
+    return found
+
+
+def _base_name(base):
+    """The written name of a base expression, or ``None``.
+
+    Only names matter here: a ``Name`` (``ReturningSupport``) or an
+    ``Attribute`` (``protocols.ReturningSupport``) spells the protocol; a
+    subscript or a call is not a class name and cannot end in ``Support``.
+    """
+    if isinstance(base, ast.Name):
+        return base.id
+    if isinstance(base, ast.Attribute):
+        return base.attr
+    return None
+
+
+def _protocol_base_offenders(tree, label):
+    """Dialects that inherit a ``*Support`` protocol, rendered ``label:line``.
+
+    A ``runtime_checkable`` Protocol is satisfied structurally, so inheriting
+    it adds nothing but its ellipsis-bodied members -- and makes ``isinstance``
+    answer ``True`` for a class with no implementation behind the members. The
+    protocol belongs in an ``isinstance`` target and a test, never in a
+    dialect's bases; the mixins are what implement it.
+    """
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        if not node.name.endswith("Dialect"):
+            continue
+        for base in node.bases:
+            name = _base_name(base)
+            if name is not None and name.endswith("Support"):
+                found.append(f"{label}:{node.lineno} {node.name}({name})")
+    return found
+
+
+def _tree_protocol_base_offenders():
+    found = []
+    for path in _source_files():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        found.extend(_protocol_base_offenders(tree, path.name))
     return found
 
 
@@ -167,3 +216,57 @@ def test_the_scan_accepts_a_quoted_bool_annotation(tmp_path):
     )
     tree = ast.parse(probe.read_text(encoding="utf-8"))
     assert not _offenders(tree, "probe")
+
+
+def test_no_dialect_inherits_a_support_protocol():
+    """A protocol in a dialect's bases is a lie waiting to be told."""
+    offenders = _tree_protocol_base_offenders()
+    assert not offenders, "\n".join(offenders)
+
+
+def test_the_protocol_base_scan_reaches_the_source_tree():
+    files = _source_files()
+    assert len(files) > 50, f"only {len(files)} source files were scanned"
+
+
+def test_the_protocol_base_scan_flags_a_planted_violation(tmp_path):
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        "from rhosocial.activerecord.backend.dialect.protocols import (\n"
+        "    ReturningSupport,\n"
+        ")\n"
+        "\n"
+        "class ProbeDialect(ReturningSupport):\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    tree = ast.parse(probe.read_text(encoding="utf-8"))
+    offenders = _protocol_base_offenders(tree, "probe")
+    assert offenders, "a dialect inheriting a protocol was not flagged"
+    assert "ProbeDialect(ReturningSupport)" in offenders[0]
+
+
+def test_the_protocol_base_scan_flags_a_qualified_base(tmp_path):
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        "class ProbeDialect(protocols.ReturningSupport):\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    tree = ast.parse(probe.read_text(encoding="utf-8"))
+    assert _protocol_base_offenders(tree, "probe")
+
+
+def test_the_protocol_base_scan_accepts_a_clean_control(tmp_path):
+    """A mixin may inherit a protocol; only a ``*Dialect`` may not."""
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        "class ProbeMixin(ReturningSupport):\n"
+        "    pass\n"
+        "\n"
+        "class ProbeDialect(ProbeMixin, SQLDialectBase):\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    tree = ast.parse(probe.read_text(encoding="utf-8"))
+    assert not _protocol_base_offenders(tree, "probe")

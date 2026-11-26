@@ -189,11 +189,9 @@ MYSQL_PROTOCOLS = [
     # --- MariaDB-specific protocols ---
     mysql_protocols.MariaDBAdminSupport,
     mysql_protocols.MariaDBAlterTableSupport,
-    mysql_protocols.MariaDBCTESupport,
     mysql_protocols.MariaDBCharsetCollationSupport,
     mysql_protocols.MariaDBDMLOperationSupport,
     mysql_protocols.MariaDBFullTextSearchSupport,
-    mysql_protocols.MariaDBIntersectExceptSupport,
     mysql_protocols.MariaDBJSONFunctionSupport,
     mysql_protocols.MariaDBLockingSupport,
     mysql_protocols.MariaDBMaintenanceSupport,
@@ -209,7 +207,6 @@ MYSQL_PROTOCOLS = [
     mysql_protocols.MariaDBSystemVersioningSupport,
     mysql_protocols.MariaDBTableSupport,
     mysql_protocols.MariaDBTriggerSupport,
-    mysql_protocols.MariaDBWindowFunctionSupport,
     # MariaDB's own data-type attributes. This one was declared and never
     # composed, which made all nine of its capability members unreachable.
     mysql_protocols.MariaDBTypeSupport,
@@ -258,6 +255,22 @@ class TestProtocolConformance:
 # satisfies one by accident, the negative test fails and forces a conscious
 # decision (move to MYSQL_PROTOCOLS or revert).
 MARIADB_NOT_IMPLEMENTED = [
+    # --- Backend-specific protocols with a member nothing implements ---
+    # These three were listed as supported only because they were bases of
+    # MariaDBDialect: inheriting a runtime-checkable Protocol copies its
+    # ellipsis-bodied members onto the class, so isinstance() answered True
+    # without any implementation behind it. With the protocol bases gone,
+    # structural matching asks the real question and finds the gap:
+    # * ``MariaDBCTESupport.supports_cte`` (the mixin answers
+    #   ``supports_basic_cte`` instead),
+    # * ``MariaDBIntersectExceptSupport.supports_intersect_all`` /
+    #   ``supports_except_all``,
+    # * ``MariaDBWindowFunctionSupport.supports_named_windows``.
+    # Recorded here rather than papered over; move one back to
+    # MYSQL_PROTOCOLS when its mixin actually implements every member.
+    mysql_protocols.MariaDBCTESupport,
+    mysql_protocols.MariaDBIntersectExceptSupport,
+    mysql_protocols.MariaDBWindowFunctionSupport,
     # UUID value expressions (generation / nil-max constants / cast) are not
     # implemented yet on this dialect. Listed here so the omission is a
     # recorded decision rather than a gap; move it to the implemented list
@@ -387,15 +400,6 @@ class TestProtocolNonOverlap:
             # MySQL fulltext search restates the generic fulltext capabilities
             ('FulltextIndexSupport', 'MariaDBFullTextSearchSupport'),
             ('MariaDBFullTextSearchSupport', 'FulltextIndexSupport'),
-            # MariaDB's CTE protocol restates the recursive-CTE switch.
-            ('CTESupport', 'MariaDBCTESupport'),
-            ('MariaDBCTESupport', 'CTESupport'),
-            # MariaDB's INTERSECT/EXCEPT protocol restates two set-operation switches.
-            ('SetOperationSupport', 'MariaDBIntersectExceptSupport'),
-            ('MariaDBIntersectExceptSupport', 'SetOperationSupport'),
-            # MariaDB's window protocol restates the window-functions switch.
-            ('WindowFunctionSupport', 'MariaDBWindowFunctionSupport'),
-            ('MariaDBWindowFunctionSupport', 'WindowFunctionSupport'),
             # MariaDB's RETURNING protocol restates the clause renderer.
             ('ReturningSupport', 'MariaDBReturningSupport'),
             ('MariaDBReturningSupport', 'ReturningSupport'),
@@ -744,22 +748,22 @@ class TestProtocolMixinReverseCoverage:
 # ============================================================================
 
 
-class TestTypeProtocolIsComposed:
-    """``MariaDBTypeSupport`` must be composed, exported, and answered correctly.
+class TestTypeProtocolIsReachable:
+    """``MariaDBTypeSupport`` must be exported, reachable, and answered correctly.
 
     The protocol was declared with nine ``supports_mariadb_*`` capability
     members, implemented by the mixin, and then left on the shelf: not exported
-    from ``protocols/__init__.py``, not composed into ``MariaDBDialect``, and not
-    in ``MYSQL_PROTOCOLS``. A ``runtime_checkable`` protocol is only an
-    ``isinstance`` target, so with nothing composed there was no way for any
-    caller -- or any test -- to see a single one of those members. MySQL's sibling
-    ``MySQLTypeSupport`` has always composed its own, which is the precedent that
-    makes this an inconsistency rather than a house style.
+    from ``protocols/__init__.py`` and not in ``MYSQL_PROTOCOLS``. A
+    ``runtime_checkable`` protocol is only an ``isinstance`` target, so with
+    nothing composed there was no way for any caller -- or any test -- to see a
+    single one of those members.
 
     Three things are checked here, and they are not the same thing:
 
-    1. **composed** — ``isinstance(dialect, MariaDBTypeSupport)`` holds, and the
-       protocol is really in the MRO rather than satisfied by accident;
+    1. **reachable, not inherited** — ``isinstance(dialect, MariaDBTypeSupport)``
+       holds while the protocol is deliberately *not* a base class: inheriting a
+       runtime-checkable Protocol contributes only its ellipsis-bodied members,
+       so the answer has to come from the mixin's real methods;
     2. **answered** — each member returns the value its docstring claims, with
        the two version-gated ones exercised on *both* sides of their boundary;
     3. **not vacuous** — a wrong entry in ``MYSQL_PROTOCOLS`` would fail, and an
@@ -786,8 +790,16 @@ class TestTypeProtocolIsComposed:
             is mariadb_protocol_types.MariaDBTypeSupport
         )
 
-    def test_protocol_is_composed_into_the_dialect(self):
-        assert mariadb_protocols.MariaDBTypeSupport in MariaDBDialect.__mro__
+    def test_protocol_is_satisfied_without_being_a_base_class(self):
+        """The protocol is an ``isinstance`` target only, never composed.
+
+        Inheriting it would copy its ellipsis stubs onto the dialect and make
+        the satisfaction check pass with nothing implementing them; the mixin
+        is what has to supply the real members.
+        """
+        dialect = mariadb_dialect.MariaDBDialect()
+        assert mariadb_protocols.MariaDBTypeSupport not in MariaDBDialect.__mro__
+        assert isinstance(dialect, mariadb_protocols.MariaDBTypeSupport)
 
     def test_dialect_satisfies_the_protocol(self):
         dialect = mariadb_dialect.MariaDBDialect()

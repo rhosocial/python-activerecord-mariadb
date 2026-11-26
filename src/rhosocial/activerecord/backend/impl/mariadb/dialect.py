@@ -26,52 +26,6 @@ from rhosocial.activerecord.backend.suggestion.definitions import (
 )
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
-from rhosocial.activerecord.backend.dialect.protocols import (
-    # Named-object protocols: how each kind of catalogue entry is spelled.
-    # MariaDB's spelling is core's default -- `catalog`.`name` -- so none of
-    # these needs a method of its own here.
-    TableObjectSupport,
-    ViewObjectSupport,
-    IndexObjectSupport,
-    SequenceObjectSupport,
-    TriggerObjectSupport,
-    RoutineObjectSupport,
-    TypeObjectSupport,
-    NamespaceSupport,
-    CollationSupport,
-    CTESupport,
-    WindowFunctionSupport,
-    ReturningSupport,
-    SetOperationSupport,
-    UpsertSupport,
-    ExplainSupport,
-    JoinSupport,
-    WildcardSupport,
-    ILIKESupport,
-    FilterClauseSupport,
-    AdvancedGroupingSupport,
-    ArraySupport,
-    LateralJoinSupport,
-    MergeSupport,
-    TemporalTableSupport,
-    QualifyClauseSupport,
-    OrderedSetAggregationSupport,
-    GraphSupport,
-    # DDL Protocols (non-overlapping with MariaDB-specific)
-    TruncateSupport,
-    ConstraintSupport,
-    IntrospectionSupport,
-    TransactionControlSupport,
-    TransactionalDDLSupport,
-    GeneratedColumnSupport,
-    # One protocol per mechanism: MariaDB accepts the parameterless
-    # AUTO_INCREMENT marker and refuses the parameterised standard identity
-    # clause, so both interfaces are declared and the probes carry the answer.
-    AutoIncrementColumnSupport,
-    IdentityColumnSupport,
-    # Additional Protocols
-    DataTypeSupport,
-)
 from rhosocial.activerecord.backend.dialect.mixins import (
     CollationMixin,
     CTEMixin,
@@ -230,32 +184,6 @@ from .suggestion import (
 )
 from .reserved_words import reserved_words_for_version
 from .show.dialect import MariaDBShowDialectMixin
-
-# Import MariaDB-specific protocols
-from .protocols import (
-    MariaDBDMLOperationSupport,
-    MariaDBTriggerSupport,
-    MariaDBTableSupport,
-    MariaDBSetTypeSupport,
-    MariaDBJSONFunctionSupport,
-    MariaDBSpatialSupport,
-    MariaDBFullTextSearchSupport,
-    MariaDBLockingSupport,
-    MariaDBModifyColumnSupport,
-    MariaDBSequenceSupport,
-    MariaDBReturningSupport,
-    MariaDBIntersectExceptSupport,
-    MariaDBSystemVersioningSupport,
-    MariaDBWindowFunctionSupport,
-    MariaDBCTESupport,
-    MariaDBPartitionSupport,
-    MariaDBRenameTableSupport,
-    MariaDBAlterTableSupport,
-    MariaDBMaintenanceSupport,
-    MariaDBRoutineSupport,
-    MariaDBAdminSupport,
-    MariaDBTypeSupport,
-)
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
@@ -448,77 +376,12 @@ class MariaDBDialect(
     RepeatMixin,
     RpadMixin,
     TrimMixin,
-    # Protocol support markers
-    CollationSupport,
-    CTESupport,
-    WindowFunctionSupport,
-    ReturningSupport,
-    SetOperationSupport,
-    UpsertSupport,
-    ExplainSupport,
-    JoinSupport,
-    WildcardSupport,
-    ILIKESupport,
-    FilterClauseSupport,
-    AdvancedGroupingSupport,
-    ArraySupport,
-    LateralJoinSupport,
-    MergeSupport,
-    TemporalTableSupport,
-    QualifyClauseSupport,
-    OrderedSetAggregationSupport,
-    GraphSupport,
-    TruncateSupport,
-    ConstraintSupport,
-    IntrospectionSupport,
-    TransactionControlSupport,
-    TransactionalDDLSupport,
-    GeneratedColumnSupport,
-    # One protocol per mechanism: MariaDB accepts the parameterless
-    # AUTO_INCREMENT marker and refuses the parameterised standard identity
-    # clause, so both interfaces are declared and the probes carry the answer.
-    AutoIncrementColumnSupport,
-    IdentityColumnSupport,
-    DataTypeSupport,
-    MariaDBDMLOperationSupport,
-    MariaDBTriggerSupport,
-    MariaDBTableSupport,
-    MariaDBSetTypeSupport,
-    MariaDBJSONFunctionSupport,
-    MariaDBSpatialSupport,
-    MariaDBFullTextSearchSupport,
-    MariaDBLockingSupport,
-    MariaDBModifyColumnSupport,
-    MariaDBSequenceSupport,
-    MariaDBReturningSupport,
-    MariaDBIntersectExceptSupport,
-    MariaDBSystemVersioningSupport,
-    MariaDBWindowFunctionSupport,
-    MariaDBCTESupport,
-    MariaDBPartitionSupport,
-    MariaDBRenameTableSupport,
-    MariaDBAlterTableSupport,
-    MariaDBMaintenanceSupport,
-    MariaDBRoutineSupport,
-    MariaDBAdminSupport,
-# Named-object protocols come after the MariaDB-specific ones, and
-    # `NamespaceSupport` trails them, on purpose. `MariaDBTableSupport` and
-    # `MariaDBTriggerSupport` derive from `TableObjectSupport` and
-    # `TriggerObjectSupport`, and every object protocol derives from
-    # `NamespaceSupport`: C3 requires a subclass to precede its base, so
-    # listing a base ahead of one of its subclasses is an MRO error rather
-    # than a precedence question.
-    TableObjectSupport,
-    ViewObjectSupport,
-    IndexObjectSupport,
-    SequenceObjectSupport,
-    TriggerObjectSupport,
-    RoutineObjectSupport,
-    TypeObjectSupport,
-    NamespaceSupport,
-    # MariaDB's own type attributes. Its mixin derives from DataTypeSupport,
-    # so it follows the core protocol above for the same C3 reason.
-    MariaDBTypeSupport,
+    # No protocol class is a base here. A ``runtime_checkable`` Protocol is
+    # satisfied structurally, so composing one adds only its ellipsis-bodied
+    # members: ``isinstance`` would answer True for a class that merely
+    # inherited the stub, even with nothing implementing it. Every protocol
+    # this dialect claims is satisfied by the mixins above, and the
+    # conformance suite asserts that one at a time.
 ):
     """MariaDB dialect implementation that adapts to the MariaDB version.
 
