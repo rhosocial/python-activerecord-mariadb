@@ -1045,9 +1045,14 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         self,
         options: TableOptionsInfo,
         schema: str,
-        partitioning: Optional[PartitionState],
+        partitioning: PartitionState,
     ) -> TableState:
         """Project a ``TABLES`` row and its partition state onto ``TableState``.
+
+        ``partitioning`` is never ``None``: a table that is not partitioned
+        arrives as an empty :class:`PartitionState` whose ``scheme`` is
+        ``None``, and only a non-``None`` scheme adds the ``partitioned``
+        trait.
 
         ``TABLE_TYPE`` distinguishes a base table from a view, a sequence and a
         system-versioned table. A system-versioned table stays a regular table
@@ -1061,7 +1066,7 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
         """
         table_type = (options.table_type or "").upper()
         kind, traits = self._table_kind(table_type)
-        if partitioning is not None and partitioning.scheme is not None:
+        if partitioning.scheme is not None:
             traits = traits + ("partitioned",)
         storage = StorageOptionsState(
             engine=options.engine,
@@ -1564,14 +1569,14 @@ class MariaDBIntrospector(MariaDBIntrospectorMixin, AbstractIntrospector):
         table_name: str,
         schema: Optional[str] = None,
         include_stats: bool = False,
-    ) -> Optional[PartitionState]:
+    ) -> PartitionState:
         """Return the table's neutral partition state.
 
         A non-partitioned table answers ``PartitionState()``, whose ``scheme``
-        is ``None`` -- the neutral spelling of "not partitioned". This method
-        deliberately returns that object rather than ``None``: ``None`` on the
-        method would leave a caller to distinguish "not partitioned" from "the
-        backend could not answer", which the state object already says.
+        is ``None``. That ``scheme`` slot is the single neutral answer to "is
+        this table partitioned"; the method itself never answers ``None``, so
+        a caller distinguishes "not partitioned" from "the backend could not
+        answer" through ``scheme``, not through the return value.
 
         ``include_stats`` changes the statement as well as the parsed result;
         ``False`` does not project the row counters at all. The two answers are
@@ -2037,9 +2042,10 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
         table_name: str,
         schema: Optional[str] = None,
         include_stats: bool = False,
-    ) -> Optional[PartitionState]:
-        """Return the table's neutral partition state; ``scheme`` is ``None``
-        when the table is not partitioned. See the synchronous twin."""
+    ) -> PartitionState:
+        """Return the table's neutral partition state. The answer is never
+        ``None``; a table that is not partitioned answers ``scheme`` ``None``.
+        See the synchronous twin."""
         key = self._cache.key(
             IntrospectionScope.PARTITION,
             table_name,

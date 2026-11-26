@@ -6,8 +6,13 @@ the introspectors are driven through a scripted executor. The live counterpart
 of the partition family is in ``execute/introspection/test_introspection_partitions.py``.
 """
 
+import inspect
+import pathlib
+import re
+
 import pytest
 
+import rhosocial.activerecord.backend.impl.mariadb as mariadb_package
 from rhosocial.activerecord.backend.dialect.exceptions import (
     UnsupportedFeatureError,
 )
@@ -250,6 +255,27 @@ class TestSyncStateMethods:
         assert len(executor.calls) == 1
         assert "`TABLE_ROWS`" not in executor.calls[0][0]
 
+    def test_unpartitioned_answers_a_partition_state_never_none(self):
+        """The annotation and the runtime agree: neither answer is ``None``."""
+        partition_introspector = MariaDBIntrospector(
+            _FakeBackend(), _ScriptedExecutor([[]])
+        )
+        state = partition_introspector.get_partition_state("orders")
+
+        table_introspector = MariaDBIntrospector(
+            _FakeBackend(), _ScriptedExecutor([[TABLE_ROW], []])
+        )
+        table_state = table_introspector.get_table_state("orders")
+
+        assert inspect.signature(
+            MariaDBIntrospector.get_partition_state
+        ).return_annotation is PartitionState
+        assert isinstance(state, PartitionState)
+        assert state.scheme is None
+        assert isinstance(table_state.partitioning, PartitionState)
+        assert table_state.partitioning.scheme is None
+        assert table_state.traits == ()
+
     def test_stats_request_projects_the_counters(self):
         executor = _ScriptedExecutor([RANGE_ROWS])
         introspector = MariaDBIntrospector(_FakeBackend(), executor)
@@ -465,6 +491,27 @@ class TestAsyncStateMethods:
         assert state.scheme is None
         assert "`TABLE_ROWS`" not in executor.calls[0][0]
 
+    async def test_unpartitioned_answers_a_partition_state_never_none(self):
+        """The annotation and the runtime agree: neither answer is ``None``."""
+        partition_introspector = AsyncMariaDBIntrospector(
+            _FakeBackend(), _AsyncScriptedExecutor([[]])
+        )
+        state = await partition_introspector.get_partition_state("orders")
+
+        table_introspector = AsyncMariaDBIntrospector(
+            _FakeBackend(), _AsyncScriptedExecutor([[TABLE_ROW], []])
+        )
+        table_state = await table_introspector.get_table_state("orders")
+
+        assert inspect.signature(
+            AsyncMariaDBIntrospector.get_partition_state
+        ).return_annotation is PartitionState
+        assert isinstance(state, PartitionState)
+        assert state.scheme is None
+        assert isinstance(table_state.partitioning, PartitionState)
+        assert table_state.partitioning.scheme is None
+        assert table_state.traits == ()
+
     async def test_get_table_state_and_derived_objects(self):
         versioned_row = dict(TABLE_ROW, TABLE_TYPE="SYSTEM VERSIONED")
         executor = _AsyncScriptedExecutor([[versioned_row], []])
@@ -596,3 +643,108 @@ class TestParserMappings:
         assert state.owned_by is None
         assert state.raw["maximum_value"] == 10
         assert state.raw["cycle"] is True
+
+# ---------------------------------------------------------------------------
+# Guard: the partitioning slot is never optional
+# ---------------------------------------------------------------------------
+
+#: The shipped package tree; ``__path__`` because the editable install resolves
+#: the package through a PEP 420 namespace finder where ``__file__`` is ``None``.
+PACKAGE_ROOT = pathlib.Path(next(iter(mariadb_package.__path__)))
+
+#: Repository root: ``PACKAGE_ROOT`` is ``src/rhosocial/activerecord/backend/
+#: impl/mariadb``, so ``src`` is five parents up and the tests sit beside it.
+REPO_ROOT = PACKAGE_ROOT.parents[5]
+
+SRC_ROOT = REPO_ROOT / "src"
+
+#: The repository's own test tree, a sibling of ``src``.
+TESTS_ROOT = REPO_ROOT / "tests"
+
+_SKIPPED_DIR_NAMES = {
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+    ".worktree",
+}
+
+#: The spellings that would make a partitioning slot optional again. The
+#: annotation form is included: core made ``TableState.partitioning``
+#: non-optional, so an ``Optional`` annotation is the same defect as a guard
+#: or a ``None`` default. No leading word boundary: a longer variable such as
+#: ``state_partitioning`` is the same slot under a fuller name.
+PARTITIONING_NONE_PATTERNS = (
+    re.compile(r"partitioning\s*=\s*None\b"),
+    re.compile(r"partitioning\s+is\s+None\b"),
+    re.compile(r"partitioning\s+is\s+not\s+None\b"),
+    re.compile(r"partitioning\s*:\s*Optional\b"),
+)
+
+
+def _python_files(root):
+    """Every module under ``root``, skipping virtualenvs and caches."""
+    if not root.is_dir():
+        return []
+    return sorted(
+        path
+        for path in root.rglob("*.py")
+        if not any(
+            part in _SKIPPED_DIR_NAMES for part in path.relative_to(root).parts
+        )
+    )
+
+
+def _partitioning_none_sites(paths):
+    """Return ``(path, lineno, line)`` for each optional-partitioning spelling."""
+    sites = []
+    for path in paths:
+        source = path.read_text(encoding="utf-8")
+        for lineno, line in enumerate(source.splitlines(), start=1):
+            if any(pattern.search(line) for pattern in PARTITIONING_NONE_PATTERNS):
+                sites.append((path, lineno, line.strip()))
+    return sites
+
+
+class TestPartitioningIsNeverNoneGuard:
+    """Neither ``src`` nor the tests may treat partitioning as optional."""
+
+    def test_the_guard_scans_both_trees(self):
+        src_files = _python_files(SRC_ROOT)
+        test_files = _python_files(TESTS_ROOT)
+        assert src_files, f"no modules found under {SRC_ROOT}"
+        assert test_files, f"no modules found under {TESTS_ROOT}"
+        assert any(path.name == "introspector.py" for path in src_files)
+        assert any(path.name == pathlib.Path(__file__).name for path in test_files)
+
+    def test_no_module_treats_partitioning_as_optional(self):
+        sites = _partitioning_none_sites(
+            _python_files(SRC_ROOT) + _python_files(TESTS_ROOT)
+        )
+        assert not sites, (
+            "These sites treat partitioning as optional: "
+            f"{sites}. Core's ``TableState.partitioning`` is never ``None``; "
+            "an unpartitioned table answers an empty ``PartitionState`` whose "
+            "``scheme`` is ``None``."
+        )
+
+    def test_the_guard_reports_a_synthetic_violation(self, tmp_path):
+        """The scan is not vacuous: every spelling it rejects is recognised."""
+        offender = tmp_path / "offending.py"
+        offender.write_text(
+            "\n".join(
+                [
+                    "state_partitioning" + " = None",
+                    "if table.partitioning" + " is None:",
+                    "if table.partitioning" + " is not None:",
+                    "def parse(partitioning" + ": Optional[PartitionState]):",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        sites = _partitioning_none_sites([offender])
+        assert len(sites) == len(PARTITIONING_NONE_PATTERNS), sites
