@@ -113,12 +113,57 @@ class MariaDBIntrospectorMixin(IntrospectorMixin):
     which calls MariaDBIntrospectionMixin.format_*_query() methods.
     """
 
+    #: Kinds of shared object MariaDB holds and this backend can query by name.
+    #: ``item_exists`` answers every one of them from the catalogue.
+    ITEM_KINDS_QUERIED = frozenset(
+        {
+            ItemKind.SCHEMA,
+            ItemKind.TABLE,
+            ItemKind.SEQUENCE,
+            ItemKind.FUNCTION,
+        }
+    )
+
+    #: Engine kinds this backend holds but has no name-only catalogue query
+    #: for. MariaDB names an index under its table, so a bare index name cannot
+    #: be resolved; asking is refused rather than answered.
+    ITEM_KINDS_REFUSED = frozenset({ItemKind.INDEX})
+
+    #: Shared object kinds MariaDB does not have at all. ``item_exists``
+    #: answers ``False``: there is none, not "cannot tell".
+    ITEM_KINDS_ABSENT = frozenset(
+        {
+            ItemKind.TYPE,
+            ItemKind.DOMAIN,
+            ItemKind.EXTENSION,
+            ItemKind.TABLESPACE,
+            ItemKind.PARTITION_FUNCTION,
+            ItemKind.PARTITION_SCHEME,
+            ItemKind.FULLTEXT_CATALOG,
+        }
+    )
+
     @property
     def default_schema(self) -> str:
         """Return the MariaDB database name from the backend config."""
         if hasattr(self._backend, 'config') and hasattr(self._backend.config, 'database'):
             return self._backend.config.database or ""
         return ""
+
+    def _refuse_item_exists(self, kind: ItemKind) -> None:
+        """Refuse a kind this backend cannot resolve from the catalogue.
+
+        The import stays local, as in core's ``_refuse``: ``dialect.exceptions``
+        pulls in the dialect package, which imports back into this layer.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import (
+            UnsupportedFeatureError,
+        )
+
+        kind_name = kind.value if isinstance(kind, ItemKind) else str(kind)
+        raise UnsupportedFeatureError(
+            self.dialect.name, f"item_exists({kind_name})"
+        )
 
     # ------------------------------------------------------------------ #
     # Parse methods — pure Python, no I/O
@@ -1686,13 +1731,19 @@ class MariaDBIntrospector(MariaDBIntrospectorMixin, AbstractIntrospector):
     ) -> bool:
         """Whether one of the shared objects MariaDB holds exists.
 
-        MariaDB has schemas (databases), tables, sequences and routines
-        (procedures and functions). It has no standalone type/domain objects,
-        extensions, full-text catalogues, partition functions or partition
-        schemes, so those kinds are refused rather than answered ``False``:
-        ``False`` would claim the object does not exist when the engine has no
-        such object kind at all.
+        Core states one rule for every kind: answer when the engine holds the
+        object and a catalogue query exists, refuse when the engine holds the
+        kind but this backend has no query for it, and ``False`` when the
+        engine has no objects of the kind at all. ``ITEM_KINDS_QUERIED``,
+        ``ITEM_KINDS_REFUSED`` and ``ITEM_KINDS_ABSENT`` declare which kinds
+        fall where; a kind added to :class:`ItemKind` later is refused, so an
+        unimplemented query cannot hide as absence.
         """
+        if kind in self.ITEM_KINDS_ABSENT:
+            return False
+        if kind not in self.ITEM_KINDS_QUERIED:
+            self._refuse_item_exists(kind)
+
         if kind is ItemKind.SCHEMA:
             return name in self.list_schemas()
         if kind is ItemKind.TABLE:
@@ -1712,14 +1763,8 @@ class MariaDBIntrospector(MariaDBIntrospectorMixin, AbstractIntrospector):
                 is not None
             )
 
-        from rhosocial.activerecord.backend.dialect.exceptions import (
-            UnsupportedFeatureError,
-        )
-
-        kind_name = kind.value if isinstance(kind, ItemKind) else str(kind)
-        raise UnsupportedFeatureError(
-            self.dialect.name, f"item_exists({kind_name})"
-        )
+        # A queried kind without a branch above is the same implementation gap.
+        self._refuse_item_exists(kind)
 
     def list_routines(
         self, schema: Optional[str] = None
@@ -2142,9 +2187,16 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
     ) -> bool:
         """Whether one of the shared objects MariaDB holds exists.
 
-        The same kinds the synchronous twin answers are answered here; the
-        rest are refused because MariaDB has no such object kind.
+        Same three-case rule as the synchronous twin: the kinds in
+        ``ITEM_KINDS_ABSENT`` answer ``False``, the kinds in
+        ``ITEM_KINDS_QUERIED`` are read from the catalogue, and every other
+        kind -- the refused set above all -- is refused rather than answered.
         """
+        if kind in self.ITEM_KINDS_ABSENT:
+            return False
+        if kind not in self.ITEM_KINDS_QUERIED:
+            self._refuse_item_exists(kind)
+
         if kind is ItemKind.SCHEMA:
             return name in await self.list_schemas()
         if kind is ItemKind.TABLE:
@@ -2164,14 +2216,8 @@ class AsyncMariaDBIntrospector(MariaDBIntrospectorMixin, AsyncAbstractIntrospect
                 is not None
             )
 
-        from rhosocial.activerecord.backend.dialect.exceptions import (
-            UnsupportedFeatureError,
-        )
-
-        kind_name = kind.value if isinstance(kind, ItemKind) else str(kind)
-        raise UnsupportedFeatureError(
-            self.dialect.name, f"item_exists({kind_name})"
-        )
+        # A queried kind without a branch above is the same implementation gap.
+        self._refuse_item_exists(kind)
 
     async def list_routines(
         self, schema: Optional[str] = None

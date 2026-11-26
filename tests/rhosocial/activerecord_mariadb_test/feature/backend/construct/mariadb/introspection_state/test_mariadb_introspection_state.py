@@ -410,13 +410,49 @@ class TestSyncStateMethods:
         assert introspector.item_exists(ItemKind.SEQUENCE, "orders_seq") is False
         assert introspector.item_exists(ItemKind.FUNCTION, "app_total") is True
 
-    def test_item_exists_refuses_a_kind_mariadb_does_not_have(self):
+    def test_item_exists_returns_false_for_a_kind_mariadb_does_not_have(self):
+        introspector = MariaDBIntrospector(_FakeBackend(), _ScriptedExecutor())
+
+        assert introspector.item_exists(ItemKind.TYPE, "order_total") is False
+
+    def test_item_exists_refuses_a_kind_mariadb_has_without_a_query(self):
         introspector = MariaDBIntrospector(_FakeBackend(), _ScriptedExecutor())
 
         with pytest.raises(UnsupportedFeatureError) as caught:
-            introspector.item_exists(ItemKind.TYPE, "order_total")
+            introspector.item_exists(ItemKind.INDEX, "idx_orders_created")
 
-        assert "item_exists(type)" in str(caught.value)
+        assert "item_exists(index)" in str(caught.value)
+
+
+class TestDeclaredItemKinds:
+    """The declared kind sets are the whole of ``ItemKind``."""
+
+    def test_the_three_declared_sets_partition_every_kind(self):
+        declared = (
+            MariaDBIntrospectorMixin.ITEM_KINDS_QUERIED,
+            MariaDBIntrospectorMixin.ITEM_KINDS_REFUSED,
+            MariaDBIntrospectorMixin.ITEM_KINDS_ABSENT,
+        )
+
+        assert declared[0].isdisjoint(declared[1])
+        assert declared[0].isdisjoint(declared[2])
+        assert declared[1].isdisjoint(declared[2])
+        assert declared[0] | declared[1] | declared[2] == frozenset(ItemKind)
+
+    def test_every_kind_takes_its_declared_branch(self):
+        for kind in ItemKind:
+            executor = _ScriptedExecutor()
+            introspector = MariaDBIntrospector(_FakeBackend(), executor)
+
+            if kind in MariaDBIntrospectorMixin.ITEM_KINDS_ABSENT:
+                assert introspector.item_exists(kind, "probe") is False
+            elif kind in MariaDBIntrospectorMixin.ITEM_KINDS_REFUSED:
+                with pytest.raises(UnsupportedFeatureError):
+                    introspector.item_exists(kind, "probe")
+            else:
+                # The queried branch asks the catalogue before it answers.
+                assert introspector.item_exists(kind, "probe") is False
+                assert executor.calls
 
 
 class TestAsyncStateMethods:
@@ -461,6 +497,38 @@ class TestAsyncStateMethods:
         introspector = AsyncMariaDBIntrospector(_FakeBackend(), executor)
 
         assert await introspector.list_schemas() == ["app"]
+
+    async def test_item_exists_returns_false_for_a_kind_mariadb_does_not_have(self):
+        introspector = AsyncMariaDBIntrospector(
+            _FakeBackend(), _AsyncScriptedExecutor()
+        )
+
+        assert await introspector.item_exists(ItemKind.TYPE, "order_total") is False
+
+    async def test_item_exists_refuses_a_kind_mariadb_has_without_a_query(self):
+        introspector = AsyncMariaDBIntrospector(
+            _FakeBackend(), _AsyncScriptedExecutor()
+        )
+
+        with pytest.raises(UnsupportedFeatureError) as caught:
+            await introspector.item_exists(ItemKind.INDEX, "idx_orders_created")
+
+        assert "item_exists(index)" in str(caught.value)
+
+    async def test_every_kind_takes_its_declared_branch(self):
+        for kind in ItemKind:
+            executor = _AsyncScriptedExecutor()
+            introspector = AsyncMariaDBIntrospector(_FakeBackend(), executor)
+
+            if kind in MariaDBIntrospectorMixin.ITEM_KINDS_ABSENT:
+                assert await introspector.item_exists(kind, "probe") is False
+            elif kind in MariaDBIntrospectorMixin.ITEM_KINDS_REFUSED:
+                with pytest.raises(UnsupportedFeatureError):
+                    await introspector.item_exists(kind, "probe")
+            else:
+                # The queried branch asks the catalogue before it answers.
+                assert await introspector.item_exists(kind, "probe") is False
+                assert executor.calls
 
 
 class TestParserMappings:
