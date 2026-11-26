@@ -7,6 +7,7 @@ This test ensures:
 2. All protocols have at least one member
 3. No two protocols share the same method name (no overlap)
 """
+import importlib
 import inspect
 import sys
 from itertools import combinations
@@ -184,7 +185,21 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.TruncateSupport,
     dialect_protocols.TransactionalDDLSupport,
     # --- Introspection and sessions ---
-    dialect_protocols.IntrospectionSupport,
+    # Core split the single ``IntrospectionSupport`` into four protocol
+    # families, each with an async twin. MariaDB answers all four: declaration
+    # from information_schema, runtime from the instrument catalogue, the data
+    # families by aggregating the rows, and DDL from ``SHOW CREATE``. The
+    # probes that answer False inside the operational family (unused-indexes,
+    # table-stats, index-stats) still *exist*, which is what protocol
+    # conformance asks; the refusal is their value, not a missing member.
+    dialect_protocols.StructureIntrospectionSupport,
+    dialect_protocols.OperationalStatsIntrospectionSupport,
+    dialect_protocols.DataProfileIntrospectionSupport,
+    dialect_protocols.DdlExtractionIntrospectionSupport,
+    dialect_protocols.AsyncStructureIntrospectionSupport,
+    dialect_protocols.AsyncOperationalStatsIntrospectionSupport,
+    dialect_protocols.AsyncDataProfileIntrospectionSupport,
+    dialect_protocols.AsyncDdlExtractionIntrospectionSupport,
     dialect_protocols.TransactionControlSupport,
     # --- MariaDB-specific protocols ---
     mysql_protocols.MariaDBAdminSupport,
@@ -213,7 +228,6 @@ MYSQL_PROTOCOLS = [
     # Core split several capability protocols into their own modules. MariaDB
     # composes the mixins that implement all of them; classify them explicitly
     # so the partition test stays complete as core's protocol set grows.
-    dialect_protocols.AsyncIntrospectionSupport,
     dialect_protocols.DDLColumnSupport,
     dialect_protocols.DMLSupport,
     dialect_protocols.DQLSupport,
@@ -440,9 +454,29 @@ class TestProtocolNonOverlap:
             ('MariaDBRoutineSupport', 'CreateRoutineSupport'),
             ('DropRoutineSupport', 'MariaDBRoutineSupport'),
             ('MariaDBRoutineSupport', 'DropRoutineSupport'),
-            # Async introspection extends the sync surface by inheritance.
-            ('IntrospectionSupport', 'AsyncIntrospectionSupport'),
-            ('AsyncIntrospectionSupport', 'IntrospectionSupport'),
+            # Async introspection twins are the same surface as their sync
+            # family by design: the formatters build a query and perform no
+            # I/O, so the async protocol declares the same members in the
+            # same order. One pair per family, both directions, so the check
+            # stays meaningful without listing the whole surface twice.
+            *[
+                (stem, "Async" + stem)
+                for stem in (
+                    "StructureIntrospectionSupport",
+                    "OperationalStatsIntrospectionSupport",
+                    "DataProfileIntrospectionSupport",
+                    "DdlExtractionIntrospectionSupport",
+                )
+            ],
+            *[
+                ("Async" + stem, stem)
+                for stem in (
+                    "StructureIntrospectionSupport",
+                    "OperationalStatsIntrospectionSupport",
+                    "DataProfileIntrospectionSupport",
+                    "DdlExtractionIntrospectionSupport",
+                )
+            ],
             # MariaDB's own DML/column/table protocols restate the per-concept
             # surfaces core now groups under DMLSupport / DDLColumnSupport.
             ('MariaDBDMLOperationSupport', 'DMLSupport'),
@@ -1043,3 +1077,146 @@ class TestTheBackendOwnAnswersAreTheEffectiveOnes:
             "a core class wins these backend methods, so the backend's "
             f"implementation is dead code: {shadowed}"
         )
+
+
+# ============================================================================
+# Introspection families — the split surface, and the names it replaced
+# ============================================================================
+
+
+class TestIntrospectionFamilySplit:
+    """Core's four introspection families are the whole surface here.
+
+    Core deleted the single ``IntrospectionSupport`` aggregate (and its async
+    twin) and split it into four families with a same-stem protocol/mixin
+    pair each, and deleted ``supports_partition_info`` with no alias. MariaDB
+    answered the old aggregate name and kept a second partition probe beside
+    its DDL protocol's; both are gone. What remains must be reachable, must
+    still answer, and must be the only spelling of each question.
+    """
+
+    FAMILIES = [
+        (
+            "structure",
+            "StructureIntrospectionSupport",
+            "AsyncStructureIntrospectionSupport",
+        ),
+        (
+            "operational_stats",
+            "OperationalStatsIntrospectionSupport",
+            "AsyncOperationalStatsIntrospectionSupport",
+        ),
+        (
+            "data_profile",
+            "DataProfileIntrospectionSupport",
+            "AsyncDataProfileIntrospectionSupport",
+        ),
+        (
+            "ddl_extraction",
+            "DdlExtractionIntrospectionSupport",
+            "AsyncDdlExtractionIntrospectionSupport",
+        ),
+    ]
+
+    SYNC_NAMES = [sync for _module, sync, _async in FAMILIES]
+
+    @pytest.mark.parametrize("version", [(10, 2, 0), (10, 11, 0), (13, 1, 1)])
+    def test_supports_partition_info_is_gone_on_every_version(self, version):
+        """The duplicate probe is deleted, not aliased to the surviving name.
+
+        Every release in the matrix is walked because a ``__getattr__`` or a
+        subclass could otherwise answer for one construction path only -- the
+        absence has to hold for a dialect built at any version.
+        """
+        dialect = mariadb_dialect.MariaDBDialect(version=version)
+        assert not hasattr(dialect, "supports_partition_info")
+        # The partition question is still answerable -- by the DDL protocol's
+        # probe, which is the one the CLI map and the introspector read.
+        assert dialect.supports_partition_metadata_introspection() is True
+
+    def test_partitions_cli_map_points_at_the_metadata_probe(self):
+        """The CLI must not name a probe core no longer declares."""
+        from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
+            INTROSPECT_TYPES,
+            _TYPE_CAPABILITIES,
+        )
+
+        assert "partitions" in INTROSPECT_TYPES
+        probe_name = _TYPE_CAPABILITIES["partitions"]
+        assert probe_name == "supports_partition_metadata_introspection"
+
+        dialect = mariadb_dialect.MariaDBDialect()
+        probe = getattr(dialect, probe_name, None)
+        assert callable(probe)
+        assert probe() is True
+
+    @pytest.mark.parametrize("module_name, sync_name, async_name", FAMILIES)
+    def test_family_protocols_import_from_their_own_module(
+        self, module_name, sync_name, async_name
+    ):
+        """Each family is its own module, and the package re-exports it.
+
+        Asserting identity against the package export catches a stale
+        re-export that resolves to a different class than the module holds --
+        the two would satisfy ``isinstance`` identically and only diverge in
+        what a caller reading the module gets.
+        """
+        module = importlib.import_module(
+            "rhosocial.activerecord.backend.dialect.protocols.introspect."
+            + module_name
+        )
+        sync_proto = getattr(module, sync_name)
+        async_proto = getattr(module, async_name)
+
+        assert sync_proto.__module__ == module.__name__
+        assert async_proto.__module__ == module.__name__
+        assert sync_proto is getattr(dialect_protocols, sync_name)
+        assert async_proto is getattr(dialect_protocols, async_name)
+
+        assert isinstance(mariadb_dialect.MariaDBDialect(), sync_proto)
+        assert isinstance(mariadb_dialect.MariaDBDialect(), async_proto)
+
+    def test_the_deleted_aggregate_names_do_not_exist(self):
+        """Old names are gone with no aliases, in the package and in core."""
+        from rhosocial.activerecord.backend.dialect.protocols import (
+            introspect as introspect_package,
+        )
+
+        for name in ("IntrospectionSupport", "AsyncIntrospectionSupport"):
+            assert not hasattr(dialect_protocols, name), name
+            assert not hasattr(introspect_package, name), name
+            assert name not in introspect_package.__all__, name
+
+    def test_no_family_declares_the_deleted_partition_probe(self):
+        """``supports_partition_info`` is gone from the protocols too."""
+        for name in self.SYNC_NAMES:
+            protocol = getattr(dialect_protocols, name)
+            assert "supports_partition_info" not in get_all_protocol_methods(
+                protocol
+            ), name
+
+    def test_cli_info_reports_every_family(self):
+        """The four families are displayed, not folded back into one.
+
+        Core's own SQLite ``info`` reports none of them; copying that would
+        leave the split invisible in the one command whose job is to show
+        which questions a dialect answers.
+        """
+        from rhosocial.activerecord.backend.impl.mariadb.cli.info import (
+            PROTOCOL_FAMILY_GROUPS,
+        )
+
+        grouped = {
+            protocol
+            for protocols in PROTOCOL_FAMILY_GROUPS.values()
+            for protocol in protocols
+        }
+        missing = [
+            name for name in self.SYNC_NAMES
+            if getattr(dialect_protocols, name) not in grouped
+        ]
+        assert not missing, (
+            "introspection families missing from the info display: "
+            f"{missing}"
+        )
+

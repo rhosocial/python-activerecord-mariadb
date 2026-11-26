@@ -1,7 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/introspection.py
 """MariaDB introspection capability mixin.
 
-This mixin implements the IntrospectionSupport protocol for MariaDB,
+This mixin implements core's four introspection protocol families for
+MariaDB -- structure, operational stats, data profile and DDL extraction --
 providing database metadata introspection via information_schema.
 
 Every query here is a tree of expression nodes: the formatter supplies the
@@ -81,7 +82,7 @@ class MariaDBIntrospectionMixin:
     become a second, hand-spelled way of naming a namespace that the rest
     of the backend spells as a catalog slot.
 
-    This mixin implements the IntrospectionSupport protocol by:
+    This mixin implements the four introspection protocol families by:
     1. Declaring which introspection features MariaDB supports (supports_* methods)
     2. Formatting SQL queries for introspection (format_*_query methods)
 
@@ -162,19 +163,6 @@ class MariaDBIntrospectionMixin:
         10.3 on.
         """
         return self.version_at_least(SEQUENCES_SINCE)
-
-    def supports_partition_info(self) -> bool:
-        """Partitions, read from ``information_schema.PARTITIONS``.
-
-        Core's ``IntrospectionSupport`` names this question
-        ``supports_partition_info``; MariaDB's DDL protocol already carries
-        ``supports_partition_metadata_introspection`` for the same catalog
-        family, and both answer ``True`` because the view exists on every
-        release this backend supports (10.2 through 13.x). The two names are
-        kept in step rather than one being treated as an alias here: a caller
-        checking either gets the same measured answer.
-        """
-        return True
 
     def supports_routine_introspection(self) -> bool:
         """Stored procedures and functions, read from ``information_schema``.

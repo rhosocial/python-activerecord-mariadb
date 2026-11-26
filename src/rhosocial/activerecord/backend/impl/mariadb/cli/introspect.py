@@ -62,7 +62,7 @@ _TYPE_CAPABILITIES = {
     "database": "supports_database_info",
     "sequences": "supports_sequence_introspection",  # MariaDB 10.3+
     "table-options": "supports_table_options_introspection",
-    "partitions": "supports_partition_info",
+    "partitions": "supports_partition_metadata_introspection",
     "routines": "supports_routine_introspection",
     "constraints": "supports_constraint_introspection",  # MariaDB 10.2.1+
     "unused-indexes": "supports_unused_indexes_detection",

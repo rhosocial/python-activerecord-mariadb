@@ -48,7 +48,7 @@ Every question in the introspection contract has a probe on the dialect, and a p
 | `supports_column_data_profile()` | `True` | What each column of a table holds |
 | `supports_column_value_sample()` | `True` | Which values occur, and how often |
 | `supports_join_coverage()` | `True` | How much two columns' domains overlap |
-| `supports_partition_info()` | `True` | Partitions of one table |
+| `supports_partition_metadata_introspection()` | `True` | Partitions of one table |
 | `supports_extensions()` | `False` | Installed add-on components |
 
 Four switches beyond core's set are this backend's own: `supports_table_options_introspection()`, which answers `True` for the `table-options` family; `supports_sequence_introspection()`, which answers `version_at_least((10, 3))` for `sequences`; `supports_routine_introspection()`, which answers `True` for `routines`; and `supports_constraint_introspection()`, which follows `supports_check_constraint()` — `True` from 10.2.1, where MariaDB starts recording and enforcing CHECK constraints. Each CLI type is gated on its own switch. A `True` promises only that the query renders and the server accepts it; it says nothing about the shape of the answer or its price, and the price of every family is stated where the family is described.
@@ -64,7 +64,7 @@ What MariaDB does report about an index — `information_schema.STATISTICS` — 
 
 `supports_ddl_extraction()` and `supports_ddl_extraction_native()` are both `True`, because `SHOW CREATE TABLE` is MariaDB's own retrieval of the text it holds, not an assembly that reads as authoritative.
 
-`supports_partition_info()` is `True`: `get_partition_state()` reads `information_schema.PARTITIONS` and answers `PartitionState(scheme=None)` for a table that is not partitioned, because the statement excludes the NULL-partition sentinel row. `supports_extensions()` stays `False` by inheritance: MariaDB exposes no catalogue of installable add-on components, so there is no answer behind a `True`.
+`supports_partition_metadata_introspection()` is `True`: `get_partition_state()` reads `information_schema.PARTITIONS` and answers `PartitionState(scheme=None)` for a table that is not partitioned, because the statement excludes the NULL-partition sentinel row. `supports_extensions()` stays `False` by inheritance: MariaDB exposes no catalogue of installable add-on components, so there is no answer behind a `True`.
 
 ## Basic Usage
 

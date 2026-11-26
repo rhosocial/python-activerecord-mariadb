@@ -21,6 +21,8 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     IndexObjectSupport, LockingSupport, MergeSupport,
     OrderedSetAggregationSupport, QualifyClauseSupport,
     NamespaceSupport, SequenceObjectSupport, TemporalTableSupport,
+    StructureIntrospectionSupport, OperationalStatsIntrospectionSupport,
+    DataProfileIntrospectionSupport, DdlExtractionIntrospectionSupport,
 )
 from rhosocial.activerecord.backend.impl.mariadb.protocols import (
     MariaDBSequenceSupport,
@@ -62,6 +64,15 @@ PROTOCOL_FAMILY_GROUPS: Dict[str, list] = {
     "DDL - Sequence & Trigger": [
         SequenceObjectSupport, TriggerObjectSupport, RoutineObjectSupport,
     ],
+    # Introspection is four protocols, not one: core split the single old
+    # aggregate into families, and each family is its own column so a
+    # dialect that answers declaration but not operational statistics
+    # reads as exactly that. The async twins declare the same probes and
+    # are left out of the display, which asks about one dialect instance.
+    "Introspection - Structure": [StructureIntrospectionSupport],
+    "Introspection - Operational Stats": [OperationalStatsIntrospectionSupport],
+    "Introspection - Data Profile": [DataProfileIntrospectionSupport],
+    "Introspection - DDL Extraction": [DdlExtractionIntrospectionSupport],
     "String Matching": [ILIKESupport],
     "MariaDB-specific": [
         MariaDBSequenceSupport, MariaDBReturningSupport,

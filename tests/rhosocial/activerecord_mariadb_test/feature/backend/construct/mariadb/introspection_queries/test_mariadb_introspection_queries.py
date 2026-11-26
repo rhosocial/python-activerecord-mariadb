@@ -313,8 +313,7 @@ class TestNewFamilyCapabilitySwitches:
     """Each family's probe answers for the family it governs."""
 
     def test_partition_info_is_declared(self, dialect):
-        """Core's probe and the DDL protocol's probe answer the same."""
-        assert dialect.supports_partition_info() is True
+        """The partition question is named once, by the DDL protocol's probe."""
         assert dialect.supports_partition_metadata_introspection() is True
 
     def test_routine_introspection_is_declared(self, dialect):
