@@ -240,7 +240,7 @@ class TestPartitionRoutineConstraintQueries:
             "`SUBPARTITION_EXPRESSION`, `PARTITION_DESCRIPTION`, "
             "`PARTITION_ORDINAL_POSITION`, "
             "`SUBPARTITION_ORDINAL_POSITION`, `TABLE_ROWS`, `DATA_LENGTH`, "
-            "`INDEX_LENGTH`, `PARTITION_COMMENT` "
+            "`INDEX_LENGTH`, `PARTITION_COMMENT`, `TABLESPACE_NAME` "
             "FROM `information_schema`.`PARTITIONS` "
             "WHERE `TABLE_SCHEMA` = %s AND `TABLE_NAME` = %s "
             "AND `PARTITION_NAME` IS NOT NULL "
@@ -248,6 +248,18 @@ class TestPartitionRoutineConstraintQueries:
             "`SUBPARTITION_ORDINAL_POSITION`"
         )
         assert params == ("app", "orders")
+
+    def test_partition_query_without_stats_omits_the_counters(self, dialect):
+        """A scheme/bounds question must not project the counters it discards."""
+        sql, _ = MariaDBPartitionQuery(
+            dialect, "app", "orders", include_stats=False
+        ).to_sql()
+        assert "`TABLE_ROWS`" not in sql
+        assert "`DATA_LENGTH`" not in sql
+        assert "`INDEX_LENGTH`" not in sql
+        # The boundary and catalogue columns are still there.
+        assert "`PARTITION_DESCRIPTION`" in sql
+        assert "`TABLESPACE_NAME`" in sql
 
     def test_routine_query_joins_on_schema_name_and_kind(self, dialect):
         sql, params = MariaDBRoutineQuery(dialect, "app").to_sql()

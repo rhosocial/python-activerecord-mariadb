@@ -28,7 +28,7 @@ $env:PYTHONPATH='tests'
 A single case:
 
 ```powershell
-.\.venv3.14\Scripts\python.exe -m pytest tests/test_introspection.py::test_list_partitions -q
+.\.venv3.14\Scripts\python.exe -m pytest tests/test_introspection.py::test_get_partition_state -q
 ```
 
 ## Import/syntax smoke test

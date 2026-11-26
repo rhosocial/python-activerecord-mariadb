@@ -42,9 +42,9 @@ MariaDB exposes its partition capability through two backend mechanisms:
    suggestion protocols; each answer is a tuple of real expression nodes (or
    an explicit `False`/`None` tri-state when the strategy is unsupported).
 2. **Introspection** answers *what* the server currently reports, via
-   `information_schema.PARTITIONS` (the `MariaDBGetPartitionsExpression`
-   statement and the `MariaDBPartitionInfo` records returned by the
-   introspector).
+   `information_schema.PARTITIONS` (the `MariaDBPartitionQuery` statement
+   and the neutral `PartitionState` returned by
+   `get_partition_state()`).
 
 ```python
 from rhosocial.activerecord.backend.suggestion.protocols import (

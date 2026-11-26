@@ -996,8 +996,15 @@ class MariaDBIntrospectionMixin:
         the boundary text would only come from de-parsed ``SHOW CREATE TABLE``
         output, which this backend does not read.
 
+        ``TABLE_ROWS``, ``DATA_LENGTH`` and ``INDEX_LENGTH`` are projected only
+        when ``expr.include_stats`` asks for them. They share the view row with
+        the boundary columns, so asking for the scheme and bounds need not pay
+        for counters it will discard. ``TABLESPACE_NAME`` is not a statistic and
+        stays in both shapes.
+
         Args:
-            expr: Partition expression with the schema and table name.
+            expr: Partition expression with the schema, table name and stats
+                request.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
@@ -1028,23 +1035,35 @@ class MariaDBIntrospectionMixin:
             Column(self, "PARTITION_NAME").is_not_null(),
         ]
 
+        select = [
+            Column(self, "PARTITION_NAME"),
+            Column(self, "SUBPARTITION_NAME"),
+            Column(self, "PARTITION_METHOD"),
+            Column(self, "SUBPARTITION_METHOD"),
+            Column(self, "PARTITION_EXPRESSION"),
+            Column(self, "SUBPARTITION_EXPRESSION"),
+            Column(self, "PARTITION_DESCRIPTION"),
+            Column(self, "PARTITION_ORDINAL_POSITION"),
+            Column(self, "SUBPARTITION_ORDINAL_POSITION"),
+        ]
+        if expr.include_stats:
+            select.extend(
+                [
+                    Column(self, "TABLE_ROWS"),
+                    Column(self, "DATA_LENGTH"),
+                    Column(self, "INDEX_LENGTH"),
+                ]
+            )
+        select.extend(
+            [
+                Column(self, "PARTITION_COMMENT"),
+                Column(self, "TABLESPACE_NAME"),
+            ]
+        )
+
         query = QueryStatement(
             self,
-            select=[
-                Column(self, "PARTITION_NAME"),
-                Column(self, "SUBPARTITION_NAME"),
-                Column(self, "PARTITION_METHOD"),
-                Column(self, "SUBPARTITION_METHOD"),
-                Column(self, "PARTITION_EXPRESSION"),
-                Column(self, "SUBPARTITION_EXPRESSION"),
-                Column(self, "PARTITION_DESCRIPTION"),
-                Column(self, "PARTITION_ORDINAL_POSITION"),
-                Column(self, "SUBPARTITION_ORDINAL_POSITION"),
-                Column(self, "TABLE_ROWS"),
-                Column(self, "DATA_LENGTH"),
-                Column(self, "INDEX_LENGTH"),
-                Column(self, "PARTITION_COMMENT"),
-            ],
+            select=select,
             from_=self._information_schema("PARTITIONS"),
             where=WhereClause(self, LogicalPredicate(self, "AND", *conditions)),
             order_by=OrderByClause(

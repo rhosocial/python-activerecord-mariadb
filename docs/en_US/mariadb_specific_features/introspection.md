@@ -64,7 +64,7 @@ What MariaDB does report about an index — `information_schema.STATISTICS` — 
 
 `supports_ddl_extraction()` and `supports_ddl_extraction_native()` are both `True`, because `SHOW CREATE TABLE` is MariaDB's own retrieval of the text it holds, not an assembly that reads as authoritative.
 
-`supports_partition_info()` is `True`: `list_partitions()` reads `information_schema.PARTITIONS` and returns an empty list for a table that is not partitioned, because the statement excludes the NULL-partition sentinel row. `supports_extensions()` stays `False` by inheritance: MariaDB exposes no catalogue of installable add-on components, so there is no answer behind a `True`.
+`supports_partition_info()` is `True`: `get_partition_state()` reads `information_schema.PARTITIONS` and answers `PartitionState(scheme=None)` for a table that is not partitioned, because the statement excludes the NULL-partition sentinel row. `supports_extensions()` stays `False` by inheritance: MariaDB exposes no catalogue of installable add-on components, so there is no answer behind a `True`.
 
 ## Basic Usage
 
@@ -107,9 +107,11 @@ if options:
     print(options.engine, options.row_format,
           options.collation, options.auto_increment)
 
-for partition in introspector.list_partitions("orders"):
-    print(partition.partition_name, partition.partition_method,
-          partition.partition_description, partition.total_length)
+state = introspector.get_partition_state("orders")
+if state.scheme is not None:
+    for bound in state.bounds:
+        print(bound.name, bound.upper, bound.is_maxvalue,
+              bound.row_count, bound.size_bytes)
 
 for routine in introspector.list_routines():
     print(routine.kind, routine.name, routine.return_type,
@@ -121,7 +123,7 @@ for constraint in introspector.list_constraints("orders"):
 
 `get_table_options()` answers for any relation in `information_schema.TABLES` — base table, view or sequence — and the record carries the row's `table_type`, so the caller decides whether the answer is the one it wanted. `get_sequence_info()` returns `None` below 10.3, where a sequence cannot exist; its numeric fields are `None` below 11.7, where `information_schema.SEQUENCES` arrives. Above that floor a sequence is still listed from `TABLES`, because a sequence *is* a table there.
 
-`list_partitions()` returns `[]` for a table that is not partitioned. `list_routines()` returns both kinds in one read; a function's `return_type` is filled and a procedure's is `None`, and `get_routine_info(name, kind=...)` disambiguates a name used by both. `list_constraints()` answers CHECK constraints only — primary keys and unique keys are reported by `list_indexes()`, and foreign keys by `list_foreign_keys()` — and returns `[]` below 10.2.1, where MariaDB has no `CHECK_CONSTRAINTS` view. `IntrospectionColumnInfo.is_auto_increment` is filled from the column's `EXTRA` token, so an `AUTO_INCREMENT` primary key is visible without a second query.
+`get_partition_state()` returns a neutral `PartitionState`; its `scheme` is `None` for a table that is not partitioned, which is the single neutral answer to that question, and `include_stats=False` leaves the per-partition counters unprojected. `list_routines()` returns both kinds in one read; a function's `return_type` is filled and a procedure's is `None`, and `get_routine_info(name, kind=...)` disambiguates a name used by both. `list_constraints()` answers CHECK constraints only — primary keys and unique keys are reported by `list_indexes()`, and foreign keys by `list_foreign_keys()` — and returns `[]` below 10.2.1, where MariaDB has no `CHECK_CONSTRAINTS` view. `IntrospectionColumnInfo.is_auto_increment` is filled from the column's `EXTRA` token, so an `AUTO_INCREMENT` primary key is visible without a second query.
 
 ## Structure answers worth knowing
 

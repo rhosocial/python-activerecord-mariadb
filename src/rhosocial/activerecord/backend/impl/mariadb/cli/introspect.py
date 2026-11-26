@@ -600,11 +600,11 @@ def _handle_introspect_sync(args, backend: MariaDBBackend, provider):
                 provider.display_results(data, title="Table Options")
 
         elif args.type == "partitions":
-            partitions = introspector.list_partitions(
+            state = introspector.get_partition_state(
                 args.name, schema=None
             )
             provider.display_results(
-                _serialize_for_output(partitions),
+                _serialize_for_output([state]),
                 title=f"Partitions of {args.name}",
             )
 
@@ -873,11 +873,11 @@ async def _handle_introspect_async(args, backend: AsyncMariaDBBackend, provider)
                 provider.display_results(data, title="Table Options")
 
         elif args.type == "partitions":
-            partitions = await introspector.list_partitions(
+            state = await introspector.get_partition_state(
                 args.name, schema=None
             )
             provider.display_results(
-                _serialize_for_output(partitions),
+                _serialize_for_output([state]),
                 title=f"Partitions of {args.name}",
             )
 

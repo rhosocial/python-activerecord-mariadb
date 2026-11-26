@@ -92,6 +92,13 @@ class MariaDBPartitionQuery(BaseExpression):
     had nothing to say". The table is required: a partition belongs to exactly
     one table and a whole-database partition listing would be a different
     question with a much larger answer.
+
+    ``include_stats`` decides whether the per-partition counters --
+    ``TABLE_ROWS``, ``DATA_LENGTH`` and ``INDEX_LENGTH`` -- are projected.
+    They live on the same view row as the boundary columns, but a caller that
+    only wants the scheme and bounds should not pay for columns it will
+    discard; ``False`` leaves them out of the statement as well as out of the
+    parsed result.
     """
 
     def __init__(
@@ -99,10 +106,12 @@ class MariaDBPartitionQuery(BaseExpression):
         dialect: "SQLDialectBase",
         schema: str,
         table_name: str,
+        include_stats: bool = True,
     ):
         super().__init__(dialect)
         self.schema = schema
         self.table_name = table_name
+        self.include_stats = include_stats
 
     @property
     def format_method(self) -> str:

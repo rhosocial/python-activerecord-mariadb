@@ -26,6 +26,10 @@ from rhosocial.activerecord.backend.impl.mariadb.introspection.types import (
     MariaDBRoutineInfo,
     MariaDBRoutineParameterInfo,
 )
+from rhosocial.activerecord.backend.introspection.types import (
+    PartitionScheme,
+    PartitionState,
+)
 
 
 class _FakeBackend:
@@ -399,15 +403,16 @@ CONSTRAINT_ROWS = [
 
 
 class TestSyncIntrospectorFamilies:
-    def test_list_partitions_reads_and_caches(self):
+    def test_get_partition_state_reads_and_caches(self):
         executor = _RecordingExecutor(PARTITION_ROWS)
         introspector = MariaDBIntrospector(_FakeBackend(), executor)
 
-        first = introspector.list_partitions("orders")
-        second = introspector.list_partitions("orders")
+        first = introspector.get_partition_state("orders")
+        second = introspector.get_partition_state("orders")
 
-        assert len(first) == 1
-        assert first[0].partition_name == "p0"
+        assert isinstance(first, PartitionState)
+        assert first.scheme is PartitionScheme.RANGE
+        assert first.bounds[0].name == "p0"
         assert first == second
         assert len(executor.calls) == 1
 
@@ -480,19 +485,20 @@ class TestSyncIntrospectorFamilies:
         executor = _RecordingExecutor(PARTITION_ROWS)
         introspector = MariaDBIntrospector(_FakeBackend(), executor)
 
-        introspector.list_partitions("orders", schema="other")
+        introspector.get_partition_state("orders", schema="other")
 
         assert executor.calls[0][1] == ("other", "orders")
 
 
 class TestAsyncIntrospectorFamilies:
-    async def test_list_partitions(self):
+    async def test_get_partition_state(self):
         executor = _AsyncRecordingExecutor(PARTITION_ROWS)
         introspector = AsyncMariaDBIntrospector(_FakeBackend(), executor)
 
-        result = await introspector.list_partitions("orders")
+        result = await introspector.get_partition_state("orders")
 
-        assert len(result) == 1
+        assert isinstance(result, PartitionState)
+        assert result.scheme is PartitionScheme.RANGE
         assert len(executor.calls) == 1
 
     async def test_list_routines(self):

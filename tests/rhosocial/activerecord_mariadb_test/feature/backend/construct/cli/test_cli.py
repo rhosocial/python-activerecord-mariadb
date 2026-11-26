@@ -13,6 +13,11 @@ from rhosocial.activerecord.backend.impl.mariadb.cli.introspect import (
     INTROSPECT_TYPES,
     _TYPE_CAPABILITIES,
 )
+from rhosocial.activerecord.backend.introspection.types import (
+    PartitionBound,
+    PartitionScheme,
+    PartitionState,
+)
 
 
 class TestCLIParseArgs:
@@ -1091,9 +1096,13 @@ class _FakeIntrospector:
         self.calls.append("get_table_options")
         return {"name": table_name}
 
-    def list_partitions(self, table_name, schema=None):
-        self.calls.append("list_partitions")
-        return [{"table_name": table_name, "partition_name": "p0"}]
+    def get_partition_state(self, table_name, schema=None):
+        self.calls.append("get_partition_state")
+        return PartitionState(
+            scheme=PartitionScheme.RANGE,
+            key_expression="`id`",
+            bounds=(PartitionBound(name="p0", upper="10"),),
+        )
 
     def list_routines(self, schema=None):
         self.calls.append("list_routines")
@@ -1206,7 +1215,7 @@ class _FakeAsyncIntrospector(_FakeIntrospector):
         "get_sequence_info",
         "list_table_options",
         "get_table_options",
-        "list_partitions",
+        "get_partition_state",
         "list_routines",
         "get_routine_info",
         "list_constraints",
@@ -1335,7 +1344,7 @@ _INTROSPECT_CALLS = {
     "database": "get_database_info",
     "sequences": "list_sequences",
     "table-options": "list_table_options",
-    "partitions": "list_partitions",
+    "partitions": "get_partition_state",
     "routines": "list_routines",
     "constraints": "list_constraints",
     # The nine families shared with the MySQL and PostgreSQL CLIs. Four of
@@ -1561,8 +1570,9 @@ class TestCLIIntrospectRoutinesAndNewFamilies:
         )
 
         payload = json.loads(capsys.readouterr().out)
-        assert payload[0]["partition_name"] == "p0"
-        assert backend.introspector.calls == ["list_partitions"]
+        assert payload[0]["scheme"] == "range"
+        assert payload[0]["bounds"][0]["name"] == "p0"
+        assert backend.introspector.calls == ["get_partition_state"]
 
     def test_constraints_answer_is_table_scoped(self, capsys):
         import json

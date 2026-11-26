@@ -70,9 +70,9 @@ def main() -> None:
             options = introspector.get_table_options(table.name)
             if options:
                 print("  Table options:", options.engine, options.row_format, options.collation)
-            partitions = introspector.list_partitions(table.name)
-            if partitions:
-                print("  Partitions:", [p.partition_name for p in partitions])
+            state = introspector.get_partition_state(table.name)
+            if state.scheme is not None:
+                print("  Partitions:", [bound.name for bound in state.bounds])
             constraints = introspector.list_constraints(table.name)
             if constraints:
                 print("  CHECK constraints:", [c.name for c in constraints])
