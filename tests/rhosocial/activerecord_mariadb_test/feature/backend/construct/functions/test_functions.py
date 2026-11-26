@@ -2,13 +2,14 @@
 """
 Tests for MariaDB-specific SQL function factories.
 
-Tests the supports_functions() method and function factories.
+Tests suggest_functions() and the function factories.
 """
 
 import pytest
 
 from rhosocial.activerecord.backend.impl.mariadb import functions
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
+from rhosocial.activerecord.backend.suggestion.definitions import FunctionSuggestion
 
 
 class TestFunctionsModule:
@@ -72,60 +73,62 @@ class TestFunctionsModule:
 
 
 class TestSupportsFunctions:
-    """Test the supports_functions() method."""
+    """Test the suggest_functions() method."""
 
-    def test_supports_functions_returns_dict(self):
-        """Test that supports_functions returns a dictionary."""
+    def test_suggest_functions_returns_catalogue(self):
+        """Test that suggest_functions returns the frozen suggestion value."""
         dialect = MariaDBDialect(version=(10, 6, 0))
-        result = dialect.supports_functions()
-        assert isinstance(result, dict)
+        suggestion = dialect.suggest_functions()
+        assert isinstance(suggestion, FunctionSuggestion)
+        assert isinstance(suggestion.functions, dict)
+        assert len(suggestion.functions) > 0
 
-    def test_supports_functions_all_values_are_bool(self):
-        """Test that all values in supports_functions are booleans."""
+    def test_suggest_functions_all_values_are_bool(self):
+        """Test that all values in the function catalogue are booleans."""
         dialect = MariaDBDialect(version=(10, 6, 0))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         for key, value in result.items():
             assert isinstance(value, bool), f"Non-bool value for {key}: {value}"
 
-    def test_supports_functions_json_functions(self):
+    def test_suggest_functions_json_functions(self):
         """Test JSON functions are supported on modern MariaDB."""
         dialect = MariaDBDialect(version=(10, 6, 0))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         json_funcs = ["json_extract", "json_type", "json_valid", "json_search"]
         for func in json_funcs:
             assert result.get(func) is True, f"{func} should be True"
 
-    def test_supports_functions_spatial_functions(self):
+    def test_suggest_functions_spatial_functions(self):
         """Test spatial functions are supported on modern MariaDB."""
         dialect = MariaDBDialect(version=(10, 2, 0))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         spatial_funcs = ["st_geom_from_text", "st_distance", "st_contains"]
         for func in spatial_funcs:
             assert result.get(func) is True, f"{func} should be True on 10.2+"
 
-    def test_supports_functions_old_version(self):
+    def test_suggest_functions_old_version(self):
         """Test functions are not supported on old MariaDB versions."""
         dialect_old = MariaDBDialect(version=(10, 1, 0))
-        result_old = dialect_old.supports_functions()
+        result_old = dialect_old.suggest_functions().functions
 
         dialect_new = MariaDBDialect(version=(10, 6, 0))
-        result_new = dialect_new.supports_functions()
+        result_new = dialect_new.suggest_functions().functions
 
         assert result_old.get("json_extract") is False
         assert result_new.get("json_extract") is True
 
-    def test_supports_functions_version_boundaries(self):
+    def test_suggest_functions_version_boundaries(self):
         """Test version boundary checks."""
         dialect_10_2_3 = MariaDBDialect(version=(10, 2, 3))
         dialect_10_2_2 = MariaDBDialect(version=(10, 2, 2))
 
-        result_10_2_3 = dialect_10_2_3.supports_functions()
-        result_10_2_2 = dialect_10_2_2.supports_functions()
+        result_10_2_3 = dialect_10_2_3.suggest_functions().functions
+        result_10_2_2 = dialect_10_2_2.suggest_functions().functions
 
         assert result_10_2_3.get("json_extract") is True
         assert result_10_2_2.get("json_extract") is False
 
-    def test_supports_functions_math_functions(self):
+    def test_suggest_functions_math_functions(self):
         """Test math functions are available on all versions.
 
         TRUNC is not among them. It is absent from 10.2 through 12.1 and
@@ -134,7 +137,7 @@ class TestSupportsFunctions:
         oldest version this backend supports.
         """
         dialect = MariaDBDialect(version=(10, 0, 0))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         math_funcs = ["round_", "pow", "sqrt", "ceil", "floor"]
         for func in math_funcs:
             assert result.get(func) is True, f"{func} should be True"

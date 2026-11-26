@@ -124,7 +124,7 @@ MYSQL_PROTOCOLS = [
     dialect_protocols.QualifyClauseSupport,
     dialect_protocols.ReturningSupport,
     dialect_protocols.SetOperationSupport,
-    dialect_protocols.SQLFunctionSupport,
+    suggestion_protocols.FunctionSuggestionSupport,
     dialect_protocols.TemporalTableSupport,
     dialect_protocols.UpsertSupport,
     dialect_protocols.WildcardSupport,

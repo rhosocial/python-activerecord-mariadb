@@ -2,13 +2,15 @@
 """``supports_*`` is a support switch: no arguments, one bool.
 
 A capability flag answers "does this dialect configuration have capability k",
-so its only input is the dialect instance. Anything that needs a name or a kind
-is either a separate switch over a closed vocabulary or a format-time
-validation (``validate_*``) -- never an argument to ``supports_*``.
+so its only input is the dialect instance, and its only answer is a bool.
+Anything that needs a name or a kind -- or answers with a catalogue -- is
+either a separate switch over a closed vocabulary, a ``suggest_*`` value or a
+format-time validation (``validate_*``) -- never an argument to ``supports_*``
+and never a non-bool annotation.
 
 This walks the whole MariaDB backend source tree, not just the dialect module,
-because a ``supports_*`` that grows a parameter in a mixin, a protocol stub or
-a CLI helper is exactly the drift the rule forbids.
+because a ``supports_*`` that grows a parameter or answers with a mapping in a
+mixin, a protocol stub or a CLI helper is exactly the drift the rule forbids.
 """
 import ast
 from pathlib import Path
@@ -38,6 +40,24 @@ def _required_arguments(func: ast.FunctionDef):
     return [a.arg for a in required]
 
 
+def _annotates_bool(func: ast.FunctionDef):
+    """Why a switch's annotation is not ``-> bool``, or ``None`` when it is.
+
+    A switch declares one answer, so the annotation is part of the rule rather
+    than decoration: returning a mapping or an info record from ``supports_*``
+    is a catalogue wearing a switch's name. The quoted form ``-> "bool"`` is
+    the same declaration under postponed evaluation and is accepted.
+    """
+    annotation = func.returns
+    if annotation is None:
+        return "has no return annotation (expected -> bool)"
+    if isinstance(annotation, ast.Name) and annotation.id == "bool":
+        return None
+    if isinstance(annotation, ast.Constant) and annotation.value == "bool":
+        return None
+    return f"does not return bool (annotated {ast.unparse(annotation)})"
+
+
 def _offenders(tree, label):
     found = []
     for node in ast.walk(tree):
@@ -51,6 +71,10 @@ def _offenders(tree, label):
             missing = _required_arguments(item)
             if missing:
                 found.append(f"{label}:{item.lineno} {item.name}({', '.join(missing)})")
+            else:
+                annotation_offence = _annotates_bool(item)
+                if annotation_offence:
+                    found.append(f"{label}:{item.lineno} {item.name} {annotation_offence}")
     return found
 
 
@@ -100,8 +124,45 @@ def test_the_scan_accepts_a_defaulted_parameter(tmp_path):
     probe = tmp_path / "_probe.py"
     probe.write_text(
         "class P:\n"
-        "    def supports_thing(self, name=None):\n"
+        "    def supports_thing(self, name=None) -> bool:\n"
         "        return False\n",
+        encoding="utf-8",
+    )
+    tree = ast.parse(probe.read_text(encoding="utf-8"))
+    assert not _offenders(tree, "probe")
+
+
+def test_the_scan_flags_a_non_bool_annotation(tmp_path):
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        "from typing import Dict\n"
+        "class P:\n"
+        "    def supports_thing(self) -> Dict[str, bool]:\n"
+        "        return {}\n",
+        encoding="utf-8",
+    )
+    tree = ast.parse(probe.read_text(encoding="utf-8"))
+    offenders = _offenders(tree, "probe")
+    assert offenders and "does not return bool" in offenders[0]
+
+
+def test_the_scan_flags_an_unannotated_switch(tmp_path):
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        "class P:\n"
+        "    def supports_thing(self):\n"
+        "        return False\n",
+        encoding="utf-8",
+    )
+    tree = ast.parse(probe.read_text(encoding="utf-8"))
+    offenders = _offenders(tree, "probe")
+    assert offenders and "no return annotation" in offenders[0]
+
+
+def test_the_scan_accepts_a_quoted_bool_annotation(tmp_path):
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        'class P:\n    def supports_thing(self) -> "bool":\n        return False\n',
         encoding="utf-8",
     )
     tree = ast.parse(probe.read_text(encoding="utf-8"))

@@ -24,6 +24,9 @@ from rhosocial.activerecord.backend.suggestion.definitions import (
     SubstituteAdviceSuggestion,
     SubstituteTypeSuggestion,
 )
+from rhosocial.activerecord.backend.suggestion.protocols import (
+    FunctionSuggestionSupport,
+)
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
@@ -70,7 +73,6 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     AutoIncrementColumnSupport,
     IdentityColumnSupport,
     # Additional Protocols
-    SQLFunctionSupport,
     DataTypeSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
@@ -480,7 +482,7 @@ class MariaDBDialect(
     # clause, so both interfaces are declared and the probes carry the answer.
     AutoIncrementColumnSupport,
     IdentityColumnSupport,
-    SQLFunctionSupport,
+    FunctionSuggestionSupport,
     DataTypeSupport,
     MariaDBDMLOperationSupport,
     MariaDBTriggerSupport,

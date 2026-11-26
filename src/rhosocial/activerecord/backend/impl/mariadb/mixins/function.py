@@ -1,6 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/function.py
 """MariaDB SQL function support mixin."""
-from typing import Dict, Tuple
+from typing import Tuple
+
+from rhosocial.activerecord.backend.suggestion.definitions import FunctionSuggestion
 
 
 class MariaDBFunctionMixin:
@@ -84,10 +86,12 @@ class MariaDBFunctionMixin:
         "des_decrypt": (None, (13, 0, 0)),
     }
 
-    def supports_functions(self) -> Dict[str, bool]:
-        """Return supported SQL functions as function_name -> bool mapping.
+    def suggest_functions(self) -> "FunctionSuggestion":
+        """Return the SQL function catalogue this dialect renders.
 
-        This method combines:
+        The answer is a catalogue, not a support switch, so it is a
+        suggestion value rather than a ``supports_*`` flag. This method
+        combines:
         1. Core functions from rhosocial.activerecord.backend.expression.functions
         2. MariaDB-specific functions from rhosocial.activerecord.backend.impl.mariadb.functions
         """
@@ -113,7 +117,7 @@ class MariaDBFunctionMixin:
             elif func_name not in result:
                 result[func_name] = True
 
-        return result
+        return FunctionSuggestion(result)
 
     def _is_mariadb_function_supported(self, func_name: str) -> bool:
         """Check if a MariaDB-specific function is supported based on version.

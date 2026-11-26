@@ -141,7 +141,7 @@ class TestFunctionUpperBound:
         assert _dialect(version)._is_mariadb_function_supported("des_encrypt") is expected
 
     def test_lookup_is_case_insensitive(self):
-        # ``supports_functions`` lower-cases the names it reads from the
+        # ``suggest_functions`` lower-cases the names it reads from the
         # function modules before consulting the same table.
         assert _dialect(GA_130)._is_mariadb_function_supported("des_encrypt") is False
         assert _dialect(RC_131)._is_mariadb_function_supported("des_encrypt") is True
