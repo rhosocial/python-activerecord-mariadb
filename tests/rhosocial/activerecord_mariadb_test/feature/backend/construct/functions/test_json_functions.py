@@ -28,32 +28,38 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.json import (
 class TestJSONFunctionProtocol:
     """Test JSON function protocol implementation."""
 
-    def test_supports_json_function_basic(self):
-        """Test basic JSON function support (MariaDB 10.2.3+)."""
+    def test_supports_json_type_and_path_basic(self):
+        """Test the JSON family gate (MariaDB 10.2.3+)."""
         dialect_102 = MariaDBDialect(version=(10, 2, 0))
-        assert not dialect_102.supports_json_function('JSON_EXTRACT')
+        assert not dialect_102.supports_json_type()
+        assert not dialect_102.supports_json_path()
 
         dialect_1023 = MariaDBDialect(version=(10, 2, 3))
-        assert dialect_1023.supports_json_function('JSON_EXTRACT')
+        assert dialect_1023.supports_json_type()
+        assert dialect_1023.supports_json_path()
 
         dialect_103 = MariaDBDialect(version=(10, 3, 0))
-        assert dialect_103.supports_json_function('JSON_EXTRACT')
+        assert dialect_103.supports_json_type()
 
-    def test_supports_json_function_json_table(self):
-        """Test JSON_TABLE support - MariaDB does NOT support JSON_TABLE."""
+    def test_supports_json_table(self):
+        """JSON_TABLE arrives with MariaDB 10.6, later than the function family."""
         dialect_103 = MariaDBDialect(version=(10, 3, 0))
-        assert not dialect_103.supports_json_function('JSON_TABLE')
+        assert not dialect_103.supports_json_table()
 
         dialect_105 = MariaDBDialect(version=(10, 5, 0))
-        assert not dialect_105.supports_json_function('JSON_TABLE')
+        assert not dialect_105.supports_json_table()
 
-    def test_supports_json_function_json_value(self):
-        """Test JSON_VALUE support (MariaDB 10.2.3+)."""
+        dialect_106 = MariaDBDialect(version=(10, 6, 0))
+        assert dialect_106.supports_json_table()
+
+    def test_json_family_names_are_version_gated_internally(self):
+        """Per-name answers live in the function table, not in a support switch."""
         dialect_102 = MariaDBDialect(version=(10, 2, 0))
-        assert not dialect_102.supports_json_function('JSON_VALUE')
+        assert not dialect_102._is_mariadb_function_supported("json_extract")
 
         dialect_1023 = MariaDBDialect(version=(10, 2, 3))
-        assert dialect_1023.supports_json_function('JSON_VALUE')
+        assert dialect_1023._is_mariadb_function_supported("json_extract")
+        assert dialect_1023._is_mariadb_function_supported("json_value")
 
     def test_format_json_extract_single_path(self):
         """Test JSON_EXTRACT with single path."""
@@ -250,10 +256,11 @@ class TestAsyncJSONFunctionProtocol:
     """Test async JSON function protocol (same as sync, but verifies parity)."""
 
     @pytest.mark.asyncio
-    async def test_async_supports_json_function(self):
-        """Test async version of supports_json_function."""
+    async def test_async_supports_json_type(self):
+        """Test async version of the JSON family gate."""
         dialect = MariaDBDialect(version=(10, 2, 3))
-        assert dialect.supports_json_function('JSON_EXTRACT')
+        assert dialect.supports_json_type()
+        assert dialect.supports_json_path()
 
     @pytest.mark.asyncio
     async def test_async_format_json_extract(self):

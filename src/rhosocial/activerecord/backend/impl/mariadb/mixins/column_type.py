@@ -205,7 +205,7 @@ class MariaDBColumnTypeMixin:
           The boundary is the existing ``JSON_FUNCTIONS`` entry of
           :data:`MARIADB_VERSION_BOUNDARIES` (10.2.3), not a number written
           here, so the gate and the JSON mixin's own ``supports_json_type`` /
-          ``supports_json_function`` cannot drift apart. Measured bracket:
+          ``supports_json_path`` cannot drift apart. Measured bracket:
           10.6.28 and 13.1.1 both pass the whole JSON family
           (``suggested-pairing-json.md`` table A rows ``mariadb10.6`` /
           ``mariadb13.1``, and §"发现" item 7 lists the gate set). No server

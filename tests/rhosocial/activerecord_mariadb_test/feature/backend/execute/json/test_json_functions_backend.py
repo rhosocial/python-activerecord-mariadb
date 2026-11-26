@@ -15,13 +15,13 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.json import (
 class TestJSONFunctions:
     """Synchronous tests for MariaDB JSON functions with real database."""
 
-    def test_supports_json_function(self, mariadb_backend):
-        """Test that JSON functions are supported."""
+    def test_supports_json_type(self, mariadb_backend):
+        """Test that the JSON family is supported where the server has it."""
         dialect = mariadb_backend.dialect
         if dialect.version >= (10, 2, 3):
-            assert dialect.supports_json_function('JSON_EXTRACT')
+            assert dialect.supports_json_type()
         else:
-            assert not dialect.supports_json_function('JSON_EXTRACT')
+            assert not dialect.supports_json_type()
 
     def test_create_table_with_json_column(self, mariadb_backend, json_column_adapter):
         """Test creating table with JSON column type."""
@@ -154,13 +154,13 @@ class TestAsyncJSONFunctions:
     """Asynchronous tests for MariaDB JSON functions with real database."""
 
     @pytest.mark.asyncio
-    async def test_async_supports_json_function(self, async_mariadb_backend):
-        """Test that JSON functions are supported (async)."""
+    async def test_async_supports_json_type(self, async_mariadb_backend):
+        """Test that the JSON family is supported (async)."""
         dialect = async_mariadb_backend.dialect
         if dialect.version >= (10, 2, 3):
-            assert dialect.supports_json_function('JSON_EXTRACT')
+            assert dialect.supports_json_type()
         else:
-            assert not dialect.supports_json_function('JSON_EXTRACT')
+            assert not dialect.supports_json_type()
 
     @pytest.mark.asyncio
     async def test_async_create_table_with_json_column(self, async_mariadb_backend, json_column_adapter):

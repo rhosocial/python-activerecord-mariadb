@@ -258,13 +258,6 @@ class MariaDBCharsetCollationMixin:
             return name
         return replacement
 
-    def supports_charset(self, name: object) -> bool:
-        try:
-            self.validate_charset_name(name)
-        except (TypeError, ValueError):
-            return False
-        return True
-
     def validate_charset_name(self, name: object) -> str:
         """Validate a charset and return the spelling to emit in SQL.
 
@@ -315,13 +308,6 @@ class MariaDBCharsetCollationMixin:
             names.add(name)
         return frozenset(names)
 
-    def supports_collation_name(self, name: str) -> bool:
-        try:
-            self.validate_collation_by_name(name)
-        except (TypeError, ValueError):
-            return False
-        return True
-
     def validate_collation_by_name(self, name: str) -> str:
         version = self._mariadb_capability_version()
         if not isinstance(name, str):
@@ -357,12 +343,83 @@ class MariaDBCharsetCollationMixin:
             or version >= _ENGINE_MIN_VERSIONS[member.value]
         )
 
-    def supports_storage_engine(self, name: object) -> bool:
-        try:
-            self.validate_storage_engine_name(name)
-        except (TypeError, ValueError):
-            return False
-        return True
+    def _supports_storage_engine(self, name: str) -> bool:
+        """Whether ``ENGINE=<name>`` is emittable on this server version.
+
+        Reads the same whitelist ``validate_storage_engine_name`` enforces, so
+        a switch cannot admit an engine the formatter then refuses.
+        """
+        return name in self.supported_storage_engines()
+
+    # One switch per engine the grammar and this backend's whitelist name
+    # apart. Engines absent from ``MariaDBStorageEngine`` answer False rather
+    # than True: the whitelist is what ``ENGINE=<name>`` is actually
+    # validated against, so claiming them would advertise SQL the dialect
+    # refuses to emit.
+
+    def supports_storage_engine_innodb(self) -> bool:
+        """InnoDB is built into every MariaDB release this backend targets."""
+        return self._supports_storage_engine("InnoDB")
+
+    def supports_storage_engine_myisam(self) -> bool:
+        """MyISAM is built into every MariaDB release this backend targets."""
+        return self._supports_storage_engine("MyISAM")
+
+    def supports_storage_engine_aria(self) -> bool:
+        """Aria is MariaDB's own crash-safe built-in engine (since 5.5)."""
+        return self._supports_storage_engine("Aria")
+
+    def supports_storage_engine_memory(self) -> bool:
+        """MEMORY is built into every MariaDB release this backend targets."""
+        return self._supports_storage_engine("MEMORY")
+
+    def supports_storage_engine_csv(self) -> bool:
+        """CSV is built into every MariaDB release this backend targets."""
+        return self._supports_storage_engine("CSV")
+
+    def supports_storage_engine_archive(self) -> bool:
+        """ARCHIVE is built into every MariaDB release this backend targets."""
+        return self._supports_storage_engine("ARCHIVE")
+
+    def supports_storage_engine_blackhole(self) -> bool:
+        """BLACKHOLE is built into every MariaDB release this backend targets."""
+        return self._supports_storage_engine("BLACKHOLE")
+
+    def supports_storage_engine_mrg_myisam(self) -> bool:
+        """MRG_MyISAM is built into every MariaDB release this backend targets."""
+        return self._supports_storage_engine("MRG_MyISAM")
+
+    def supports_storage_engine_sequence(self) -> bool:
+        """SEQUENCE arrived in MariaDB 10.3."""
+        return self._supports_storage_engine("SEQUENCE")
+
+    def supports_storage_engine_connect(self) -> bool:
+        """CONNECT is a bundled plugin engine on every release this backend targets."""
+        return self._supports_storage_engine("CONNECT")
+
+    def supports_storage_engine_federated(self) -> bool:
+        """FEDERATED is a bundled plugin engine on every release this backend targets."""
+        return self._supports_storage_engine("FEDERATED")
+
+    def supports_storage_engine_performance_schema(self) -> bool:
+        """PERFORMANCE_SCHEMA is the instrumentation engine every release carries."""
+        return self._supports_storage_engine("PERFORMANCE_SCHEMA")
+
+    def supports_storage_engine_ndb(self) -> bool:
+        """MariaDB ships no NDB engine, so ``ENGINE=NDB`` is refused here."""
+        return self._supports_storage_engine("NDB")
+
+    def supports_storage_engine_ndbcluster(self) -> bool:
+        """MariaDB ships no NDB Cluster engine, so ``ENGINE=NDBCLUSTER`` is refused."""
+        return self._supports_storage_engine("NDBCLUSTER")
+
+    def supports_storage_engine_example(self) -> bool:
+        """``EXAMPLE`` is a MySQL sample engine MariaDB does not ship."""
+        return self._supports_storage_engine("EXAMPLE")
+
+    def supports_storage_engine_temporary(self) -> bool:
+        """``TEMPORARY`` is a table property (``CREATE TEMPORARY TABLE``), not an engine."""
+        return self._supports_storage_engine("TEMPORARY")
 
     def validate_storage_engine_name(self, name: object) -> str:
         version = self._mariadb_capability_version()

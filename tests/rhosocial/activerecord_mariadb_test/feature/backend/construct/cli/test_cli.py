@@ -323,7 +323,7 @@ class TestCLIUtilityFunctions:
 
         assert _format_method_display('supports_window_function') == 'window function'
         assert _format_method_display('is_cte_available') == 'is cte available'
-        assert _format_method_display('supports_explain_format') == 'explain format'
+        assert _format_method_display('supports_explain_format_json') == 'explain format json'
 
     def test_capability_report_stats(self):
         """Capability statistics are computed by the shared core helper."""
@@ -431,24 +431,25 @@ class TestCLICheckProtocolSupport:
         assert results['supports_window_functions'] is True
         assert 'supports_window_frame_clause' in results
 
-    def test_check_protocol_support_with_params(self):
-        """Test cap.check_protocol_support with parameterized methods."""
+    def test_check_protocol_support_has_no_parameterised_probes(self):
+        """``supports_*`` takes no argument, so the all-args table is empty."""
         from rhosocial.activerecord.backend.dialect import capabilities as cap
         from rhosocial.activerecord.backend.impl.mariadb.cli.info import SUPPORT_METHOD_ALL_ARGS
         from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
         from rhosocial.activerecord.backend.dialect.protocols import ExplainSupport
+
+        assert SUPPORT_METHOD_ALL_ARGS == {}
 
         dialect = MariaDBDialect(version=(10, 11, 0))
 
         results = cap.check_protocol_support(
             dialect, ExplainSupport, all_args=SUPPORT_METHOD_ALL_ARGS
         )
-        assert 'supports_explain_format' in results
-        # Parameterized probes carry a per-argument breakdown
-        assert isinstance(results['supports_explain_format'], dict)
-        assert 'supported' in results['supports_explain_format']
-        assert 'total' in results['supports_explain_format']
-        assert 'args' in results['supports_explain_format']
+        # Every EXPLAIN switch is a plain bool; none carries an arg breakdown.
+        for name, value in results.items():
+            assert not isinstance(value, dict), name
+        assert results['supports_explain_format_json'] is True
+        assert results['supports_explain_format_tree'] is False
 
 
 class TestCLIBuildProtocolInfo:

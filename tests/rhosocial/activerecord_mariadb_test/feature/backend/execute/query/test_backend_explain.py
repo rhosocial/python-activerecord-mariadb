@@ -13,7 +13,7 @@ from rhosocial.activerecord.backend.explain import (
     AsyncExplainBackendProtocol,
 )
 from rhosocial.activerecord.backend.expression import RawSQL
-from rhosocial.activerecord.backend.expression.statements import ExplainOptions, ExplainType
+from rhosocial.activerecord.backend.expression.statements import ExplainOptions
 from rhosocial.activerecord.backend.impl.mariadb.explain import (
     MariaDBExplainResult,
     MariaDBExplainRow,
@@ -265,8 +265,8 @@ class TestExplainFormat:
     def test_format_json_when_supported(self, indexed_backend):
         """EXPLAIN FORMAT=JSON returns a result (may not be MariaDBExplainResult rows)."""
         dialect = indexed_backend.dialect
-        if not dialect.supports_explain_format("JSON"):
-            pytest.skip("MySQL version does not support FORMAT=JSON")
+        if not dialect.supports_explain_format_json():
+            pytest.skip("MariaDB version does not support FORMAT=JSON")
         from rhosocial.activerecord.backend.expression.statements import ExplainFormat
         opts = ExplainOptions(format=ExplainFormat.JSON)
         expr = RawSQL(dialect, "SELECT * FROM explain_orders")
@@ -276,10 +276,10 @@ class TestExplainFormat:
         assert len(result.raw_rows) > 0
 
     def test_format_tree_when_supported(self, indexed_backend):
-        """EXPLAIN FORMAT=TREE (MySQL 8.0.16+)."""
+        """EXPLAIN FORMAT=TREE (MySQL 8.0.16+; MariaDB never accepts it)."""
         dialect = indexed_backend.dialect
-        if not dialect.supports_explain_format("TREE"):
-            pytest.skip("MySQL version does not support FORMAT=TREE")
+        if not dialect.supports_explain_format_tree():
+            pytest.skip("MariaDB does not support FORMAT=TREE")
         from rhosocial.activerecord.backend.expression.statements import ExplainFormat
         opts = ExplainOptions(format=ExplainFormat.TREE)
         expr = RawSQL(dialect, "SELECT * FROM explain_orders")

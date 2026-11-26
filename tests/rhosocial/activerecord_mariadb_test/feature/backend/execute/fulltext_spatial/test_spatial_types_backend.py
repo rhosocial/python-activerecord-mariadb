@@ -15,16 +15,24 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
 class TestSpatialTypes:
     """Synchronous tests for MariaDB spatial types with real database."""
 
-    def test_supports_spatial_type_detection(self, mariadb_backend):
-        """Test that dialect correctly detects spatial type support."""
-        dialect = mariadb_backend.dialect
+    def test_spatial_type_rendering(self, mariadb_backend):
+        """Test that every spatial type class renders its MariaDB word."""
+        from rhosocial.activerecord.backend.impl.mariadb.expression import types as maria_types
 
-        if dialect.version >= (5, 7, 0):
-            assert dialect.supports_spatial_type('POINT')
-            assert dialect.supports_spatial_type('GEOMETRY')
-            assert not dialect.supports_spatial_type('INVALID_TYPE')
-        else:
-            assert not dialect.supports_spatial_type('POINT')
+        dialect = mariadb_backend.dialect
+        cases = (
+            (maria_types.MariaDBGeometryType, "GEOMETRY"),
+            (maria_types.MariaDBPointType, "POINT"),
+            (maria_types.MariaDBLineStringType, "LINESTRING"),
+            (maria_types.MariaDBPolygonType, "POLYGON"),
+            (maria_types.MariaDBMultiPointType, "MULTIPOINT"),
+            (maria_types.MariaDBMultiLineStringType, "MULTILINESTRING"),
+            (maria_types.MariaDBMultiPolygonType, "MULTIPOLYGON"),
+            (maria_types.MariaDBGeometryCollectionType, "GEOMETRYCOLLECTION"),
+        )
+        for type_class, word in cases:
+            sql, _ = type_class(dialect).to_sql()
+            assert sql == word, f"{type_class.__name__} should render {word}"
 
     def test_supports_spatial_index_detection(self, mariadb_backend):
         """Test that dialect correctly detects SPATIAL index support."""
@@ -306,15 +314,17 @@ class TestAsyncSpatialTypes:
     """Asynchronous tests for MariaDB spatial types with real database."""
 
     @pytest.mark.asyncio
-    async def test_async_supports_spatial_type_detection(self, async_mariadb_backend):
-        """Test that dialect correctly detects spatial type support (async)."""
-        dialect = async_mariadb_backend.dialect
+    async def test_async_spatial_type_rendering(self, async_mariadb_backend):
+        """Test that spatial types render their MariaDB words (async)."""
+        from rhosocial.activerecord.backend.impl.mariadb.expression import types as maria_types
 
-        if dialect.version >= (5, 7, 0):
-            assert dialect.supports_spatial_type('POINT')
-            assert dialect.supports_spatial_type('GEOMETRY')
-        else:
-            assert not dialect.supports_spatial_type('POINT')
+        dialect = async_mariadb_backend.dialect
+        for type_class, word in (
+            (maria_types.MariaDBGeometryType, "GEOMETRY"),
+            (maria_types.MariaDBPointType, "POINT"),
+        ):
+            sql, _ = type_class(dialect).to_sql()
+            assert sql == word, f"{type_class.__name__} should render {word}"
 
     @pytest.mark.asyncio
     async def test_async_format_spatial_literal(self, async_mariadb_backend):

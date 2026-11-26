@@ -29,22 +29,6 @@ class MariaDBSpatialMixin:
     - GeoJSON support: MariaDB 10.2.3+
     """
 
-    def supports_spatial_type(self, type_name: str) -> bool:
-        """Check if specific spatial type is supported.
-
-        Args:
-            type_name: Name of the spatial type.
-
-        Returns:
-            True if the type is valid.
-        """
-        valid_types = {
-            'GEOMETRY', 'POINT', 'LINESTRING', 'POLYGON',
-            'MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON',
-            'GEOMETRYCOLLECTION'
-        }
-        return type_name.upper() in valid_types
-
     def supports_spatial_index(self) -> bool:
         """Whether SPATIAL indexes are supported.
 

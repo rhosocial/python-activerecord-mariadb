@@ -23,33 +23,38 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
 
 
 class TestSpatialTypeProtocol:
-    """Test spatial data type protocol implementation."""
+    """Test spatial data type formatting.
 
-    def test_supports_spatial_type_point(self):
-        """Test POINT type support - MariaDB supports POINT in all versions."""
-        dialect_102 = MariaDBDialect(version=(10, 3, 0))
-        assert dialect_102.supports_spatial_type('POINT')
+    The spatial vocabulary is a closed set of MariaDB type classes, so the
+    check is the rendered word rather than a name-based probe: a dialect that
+    can format ``POINT`` is one that supports it.
+    """
 
-        dialect_103 = MariaDBDialect(version=(10, 3, 0))
-        assert dialect_103.supports_spatial_type('POINT')
-
-    def test_supports_spatial_type_all_types(self):
-        """Test all spatial types support."""
+    def test_spatial_types_render_their_mariadb_words(self):
+        """Every spatial type class renders the word MariaDB documents."""
         dialect = MariaDBDialect(version=(10, 3, 0))
 
-        spatial_types = [
-            'GEOMETRY', 'POINT', 'LINESTRING', 'POLYGON',
-            'MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON',
-            'GEOMETRYCOLLECTION'
-        ]
+        cases = (
+            (maria_types.MariaDBGeometryType, "GEOMETRY"),
+            (maria_types.MariaDBPointType, "POINT"),
+            (maria_types.MariaDBLineStringType, "LINESTRING"),
+            (maria_types.MariaDBPolygonType, "POLYGON"),
+            (maria_types.MariaDBMultiPointType, "MULTIPOINT"),
+            (maria_types.MariaDBMultiLineStringType, "MULTILINESTRING"),
+            (maria_types.MariaDBMultiPolygonType, "MULTIPOLYGON"),
+            (maria_types.MariaDBGeometryCollectionType, "GEOMETRYCOLLECTION"),
+        )
+        for type_class, word in cases:
+            sql, params = type_class(dialect).to_sql()
+            assert sql == word, f"{type_class.__name__} should render {word}"
+            assert params == ()
 
-        for stype in spatial_types:
-            assert dialect.supports_spatial_type(stype), f"{stype} should be supported"
-
-    def test_supports_spatial_type_invalid(self):
-        """Test invalid spatial type."""
+    def test_spatial_type_carries_srid(self):
+        """``REF_SYSTEM_ID`` is MariaDB's spelling for a declared SRID."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        assert not dialect.supports_spatial_type('INVALID_TYPE')
+        sql, params = maria_types.MariaDBPointType(dialect, srid=4326).to_sql()
+        assert sql == "POINT REF_SYSTEM_ID=4326"
+        assert params == ()
 
     def test_supports_spatial_index(self):
         """Test SPATIAL index support - InnoDB SPATIAL index from MariaDB 10.2.2+."""

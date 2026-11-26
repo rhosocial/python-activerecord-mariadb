@@ -115,19 +115,6 @@ class MariaDBFunctionMixin:
 
         return result
 
-    def supports_function_name(self, name: str) -> bool:
-        """Whether ``name`` exists as a SQL function on the configured version.
-
-        Unlike :meth:`supports_functions`, which only reports what this
-        backend can construct, this answers the question for an arbitrary
-        name -- including functions that are *not* constructible here but
-        whose availability is version-bounded, such as the DES functions
-        removed in MariaDB 13.0.
-        """
-        if not isinstance(name, str):
-            return False
-        return self._is_mariadb_function_supported(name.strip().lower())
-
     def _is_mariadb_function_supported(self, func_name: str) -> bool:
         """Check if a MariaDB-specific function is supported based on version.
 

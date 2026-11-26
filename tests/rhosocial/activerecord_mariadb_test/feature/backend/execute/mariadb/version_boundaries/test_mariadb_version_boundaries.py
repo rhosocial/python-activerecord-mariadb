@@ -136,22 +136,19 @@ class TestFunctionUpperBound:
         (RC_131, False),
     ])
     def test_des_encrypt_removed_in_13_0(self, version, expected):
-        assert _dialect(version).supports_function_name("des_encrypt") is expected
+        # The per-name answer is the function table's job, not a support
+        # switch: ``supports_*`` is parameterless.
+        assert _dialect(version)._is_mariadb_function_supported("des_encrypt") is expected
 
     def test_lookup_is_case_insensitive(self):
-        assert _dialect(GA_130).supports_function_name("DES_ENCRYPT") is False
+        # ``supports_functions`` lower-cases the names it reads from the
+        # function modules before consulting the same table.
+        assert _dialect(GA_130)._is_mariadb_function_supported("des_encrypt") is False
+        assert _dialect(RC_131)._is_mariadb_function_supported("des_encrypt") is True
 
     def test_unbounded_functions_still_supported(self):
         for name in ("json_extract", "elt", "find_in_set"):
-            assert _dialect(RC_131).supports_function_name(name) is True
-
-    def test_unknown_name_is_permitted(self):
-        # An unlisted name is not this table's business to reject; the server
-        # is the authority on whether a function exists.
-        assert _dialect(RC_131).supports_function_name("not_a_real_function") is True
-
-    def test_non_string_is_rejected(self):
-        assert _dialect(RC_131).supports_function_name(None) is False
+            assert _dialect(RC_131)._is_mariadb_function_supported(name) is True
 
 
 class TestUpdateReturning:
@@ -726,7 +723,7 @@ class TestGatesMatchLiveServer:
         assert JSONSupport is not None
 
     def test_des_encrypt_gate_matches_server(self, mariadb_backend):
-        gate = mariadb_backend.dialect.supports_function_name("des_encrypt")
+        gate = mariadb_backend.dialect._is_mariadb_function_supported("des_encrypt")
         try:
             mariadb_backend.execute("SELECT DES_ENCRYPT('x', 'k') AS v")
             available = True

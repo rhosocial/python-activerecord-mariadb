@@ -21,6 +21,8 @@ from .partition_split_suggestion import MariaDBPartitionSplitSuggestionMixin
 from .partition_table_alter_suggestion import MariaDBPartitionTableAlterSuggestionMixin
 from .partition_table_drop_suggestion import MariaDBPartitionTableDropSuggestionMixin
 from .string_concatenation_suggestion import MariaDBStringConcatenationSuggestionMixin
+from .storage_engine_suggestion import MariaDBStorageEngineSuggestionMixin
+from .text_encoding_suggestion import MariaDBTextEncodingSuggestionMixin
 from .table_constraint_change_suggestion import MariaDBTableConstraintChangeSuggestionMixin
 from .table_index_change_suggestion import MariaDBTableIndexChangeSuggestionMixin
 
@@ -40,6 +42,8 @@ __all__ = [
     "MariaDBPartitionTableAlterSuggestionMixin",
     "MariaDBPartitionTableDropSuggestionMixin",
     "MariaDBStringConcatenationSuggestionMixin",
+    "MariaDBStorageEngineSuggestionMixin",
+    "MariaDBTextEncodingSuggestionMixin",
     "MariaDBTableConstraintChangeSuggestionMixin",
     "MariaDBTableIndexChangeSuggestionMixin",
 ]

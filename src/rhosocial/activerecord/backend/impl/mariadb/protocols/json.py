@@ -86,17 +86,6 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """Whether JSON_TABLE is supported (MariaDB 10.6+)."""
         ...
 
-    def supports_json_function(self, function_name: str) -> bool:
-        """Whether a specific JSON function is supported.
-
-        Args:
-            function_name: Name of the JSON function (e.g. 'json_extract')
-
-        Returns:
-            True if the function is supported in current MariaDB version
-        """
-        ...
-
     def supports_json_arrow_operators(self) -> bool:
         """Whether arrows are emitted natively as ``->`` / ``->>``.
 

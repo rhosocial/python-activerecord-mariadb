@@ -95,28 +95,6 @@ class MariaDBJSONMixin:
         """
         return self.version_at_least((10, 2, 3))
 
-    def supports_json_function(self, function_name: str) -> bool:
-        """Check if specific JSON function is supported.
-
-        Args:
-            function_name: Name of JSON function.
-
-        Returns:
-            True if function is supported in current MariaDB version.
-        """
-        if not self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_FUNCTIONS']):
-            return False
-
-        json_functions = {
-            'json_extract', 'json_unquote', 'json_object', 'json_array',
-            'json_contains', 'json_set', 'json_insert', 'json_replace',
-            'json_remove', 'json_type', 'json_valid', 'json_keys',
-            'json_length', 'json_depth', 'json_merge', 'json_merge_patch',
-            'json_search', 'json_array_append', 'json_quote',
-            'json_query', 'json_value',
-        }
-        return function_name.lower() in json_functions
-
     def supports_json_arrow_operators(self) -> bool:
         """Whether native JSON arrow operators (-> and ->>) are usable.
 

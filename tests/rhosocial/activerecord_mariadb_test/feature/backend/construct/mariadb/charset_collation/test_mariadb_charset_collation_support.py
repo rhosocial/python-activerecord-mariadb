@@ -32,8 +32,53 @@ def test_validate_storage_engine_normalizes_case():
 
 
 def test_sequence_engine_version_gated():
-    assert MariaDBDialect(version=(10, 2, 0)).supports_storage_engine("SEQUENCE") is False
-    assert MariaDBDialect(version=(10, 3, 0)).supports_storage_engine("SEQUENCE") is True
+    assert MariaDBDialect(version=(10, 2, 0)).supports_storage_engine_sequence() is False
+    assert MariaDBDialect(version=(10, 3, 0)).supports_storage_engine_sequence() is True
+
+
+def test_storage_engine_switches_match_the_whitelist():
+    """Every switch answers from the same whitelist the validator enforces."""
+    dialect = MariaDBDialect(version=(10, 6, 0))
+    engines = dialect.supported_storage_engines()
+
+    declared = {
+        "innodb": "InnoDB",
+        "myisam": "MyISAM",
+        "aria": "Aria",
+        "memory": "MEMORY",
+        "csv": "CSV",
+        "archive": "ARCHIVE",
+        "blackhole": "BLACKHOLE",
+        "mrg_myisam": "MRG_MyISAM",
+        "sequence": "SEQUENCE",
+        "connect": "CONNECT",
+        "federated": "FEDERATED",
+        "performance_schema": "PERFORMANCE_SCHEMA",
+    }
+    for switch, engine in declared.items():
+        assert getattr(dialect, f"supports_storage_engine_{switch}")() is True, switch
+        assert engine in engines, switch
+
+
+def test_engines_outside_the_whitelist_are_refused_by_both_sides():
+    """NDB/NDBCLUSTER/EXAMPLE are not MariaDB engines; TEMPORARY is not an engine."""
+    dialect = MariaDBDialect(version=(10, 6, 0))
+    for switch in ("ndb", "ndbcluster", "example", "temporary"):
+        assert getattr(dialect, f"supports_storage_engine_{switch}")() is False, switch
+
+
+def test_text_encoding_suggestion():
+    suggestion = MariaDBDialect(version=(10, 6, 0)).suggest_text_encoding()
+    assert suggestion.charset == "utf8mb4"
+    assert suggestion.collation == "utf8mb4_general_ci"
+    assert suggestion.reason
+
+
+def test_storage_engine_suggestion():
+    suggestion = MariaDBDialect(version=(10, 6, 0)).suggest_storage_engine()
+    assert suggestion.engine == "InnoDB"
+    assert suggestion.transactional is True
+    assert suggestion.reason
 
 
 def test_table_options_reject_unknown_values():

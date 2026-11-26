@@ -71,16 +71,10 @@ PROTOCOL_FAMILY_GROUPS: Dict[str, list] = {
     ],
 }
 
-# All possible test arguments for methods that require parameters
-SUPPORT_METHOD_ALL_ARGS: Dict[str, List[str]] = {
-    # ExplainSupport: all possible format types
-    "supports_explain_format": ["TEXT", "JSON", "TREE", "XML", "YAML", "DOT"],
-    # MariaDBJSONFunctionSupport: JSON functions with version-specific support
-    "supports_json_function": [
-        "JSON_EXTRACT", "JSON_ARRAY", "JSON_OBJECT", "JSON_MERGE",
-        "JSON_TABLE", "JSON_VALUE", "JSON_SCHEMA_VALID", "JSON_MERGE_PATCH",
-    ],
-}
+# Arguments for parameterised support probes. Empty by design: ``supports_*``
+# is a parameterless support switch, so no protocol probe takes an argument.
+# The table stays here because the shared core helper accepts one per backend.
+SUPPORT_METHOD_ALL_ARGS: Dict[str, List[str]] = {}
 
 
 def create_parser(subparsers):

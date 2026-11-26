@@ -21,7 +21,6 @@ from rhosocial.activerecord.backend.expression.statements import (
     CreateDomainStatement,
     CreateTypeStatement,
     DomainCheckConstraint,
-    DomainNullability,
     DomainValueExpression,
     DropDomainDefaultAction,
     DropDomainStatement,
@@ -103,16 +102,24 @@ def test_schema_level_type_domain_support_is_false(dialect, method_name):
     assert getattr(dialect, method_name)() is False
 
 
-@pytest.mark.parametrize("nullability", tuple(DomainNullability))
-def test_domain_nullability_support_is_false(dialect, nullability):
-    assert dialect.supports_domain_nullability(nullability) is False
+@pytest.mark.parametrize(
+    "method_name",
+    ("supports_domain_nullable", "supports_domain_not_null"),
+)
+def test_domain_nullability_support_is_false(dialect, method_name):
+    assert getattr(dialect, method_name)() is False
 
 
 def test_type_and_domain_definition_support_is_empty(dialect):
     assert dialect.supported_type_definitions() == ()
-    assert dialect.supports_type_definition(_NegativeTypeDefinition) is False
-    assert dialect.supports_type_alter_action(_NegativeTypeAlterAction) is False
-    assert dialect.supports_alter_domain_action(DropDomainDefaultAction) is False
+
+
+def test_type_and_domain_kind_vocabularies_are_not_capability_switches(dialect):
+    # ``supports_*`` takes no argument: which kinds a backend renders is
+    # answered by the formatters themselves, not by a name-based probe.
+    assert not hasattr(dialect, "supports_type_definition")
+    assert not hasattr(dialect, "supports_type_alter_action")
+    assert not hasattr(dialect, "supports_alter_domain_action")
 
 
 def test_type_and_domain_protocols_are_composed(dialect):

@@ -75,7 +75,6 @@ class TestAliasResolution:
     def test_utf8_accepted_even_though_absent_from_supported_set(self):
         # Accepted-for-input / not-offered-for-output is intentional.
         dialect = _dialect(RC_131)
-        assert dialect.supports_charset("utf8") is True
         assert dialect.validate_charset_name("utf8") == "utf8mb3"
 
     def test_utf8_offered_for_output_below_10_6_where_unambiguous(self):
@@ -106,7 +105,6 @@ class TestCharsetVersionTable:
         # 10.2 predates the explicit utf8mb3 spelling, so the alias passes
         # through -- it is still accepted, and still means the 3-byte family.
         assert _dialect((10, 2, 0)).validate_charset_name("utf8") == "utf8"
-        assert _dialect((10, 2, 0)).supports_charset("utf8") is True
 
 
 class TestCollationVersionTable:

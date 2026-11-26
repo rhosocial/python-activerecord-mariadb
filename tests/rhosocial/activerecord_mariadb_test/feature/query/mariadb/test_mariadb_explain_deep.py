@@ -5,12 +5,12 @@ The shared testsuite contract only asserts that EXPLAIN *can run*. This file
 interprets what MariaDB actually returns, using the expression system for every
 constructed statement (no raw SQL, per the REV2 rule):
 
-* Construction level (no DB): the capability probes are version-gated at 10.6
-  for ANALYZE / FORMAT, and ``format_explain_statement`` renders
-  ``EXPLAIN [ANALYZE] [FORMAT=<TYPE>] ...`` with an equals sign (MariaDB's
-  spelling, unlike core's ``FORMAT <TYPE>``). ``TREE`` is MySQL-only and is
-  never advertised by this dialect. MariaDB's partition expression objects
-  render the ``PARTITION BY RANGE COLUMNS`` clause used for pruning.
+* Construction level (no DB): every EXPLAIN capability is a parameterless
+  switch, gated at 10.6 for ``ANALYZE`` / ``FORMAT=JSON`` / ``FORMAT=TRADITIONAL``
+  and answering False for ``TEXT``/``XML``/``YAML``/``TREE``. The formatter
+  renders ``EXPLAIN [ANALYZE] [FORMAT=<TYPE>] ...`` with an equals sign
+  (MariaDB's spelling, unlike core's ``FORMAT <TYPE>``), and raises for an
+  option MariaDB has no spelling for rather than dropping it.
 * Execution level (real DB in CI): the default tabular plan yields opaque dict
   rows keyed by MariaDB's columns -- ``select_type`` / ``table`` / ``type`` /
   ``key`` / ``Extra`` ... -- from which scan-vs-index evidence is read. The
@@ -34,6 +34,7 @@ directory-owned scenario database and are gated by ``supports_*`` probes.
 from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import (
     AllColumnsWildcard,
     Column,
@@ -121,22 +122,31 @@ class TestMariaDBExplainCapabilities:
         assert _dialect(version).supports_explain_analyze() is expected
 
     @pytest.mark.parametrize(
-        "fmt, expected",
+        "switch, expected_on_10_6",
         [
-            ("JSON", True),
-            ("TRADITIONAL", True),
-            ("json", True),
-            ("TREE", False),
-            ("XML", False),
+            ("supports_explain_format_json", True),
+            ("supports_explain_format_traditional", True),
+            ("supports_explain_format_text", False),
+            ("supports_explain_format_tree", False),
+            ("supports_explain_format_xml", False),
+            ("supports_explain_format_yaml", False),
+            # MariaDB's grammar has none of the option keywords below.
+            ("supports_explain_verbose", False),
+            ("supports_explain_costs", False),
+            ("supports_explain_buffers", False),
+            ("supports_explain_timing", False),
+            ("supports_explain_settings", False),
+            ("supports_explain_wal", False),
         ],
     )
-    def test_supports_explain_format_on_10_6(self, fmt, expected):
-        assert _dialect((10, 6, 0)).supports_explain_format(fmt) is expected
+    def test_support_switch_answers(self, switch, expected_on_10_6):
+        dialect = _dialect((10, 6, 0))
+        assert getattr(dialect, switch)() is expected_on_10_6
 
     def test_supports_explain_format_before_10_6(self):
         dialect = _dialect((10, 5, 4))
-        assert dialect.supports_explain_format("JSON") is False
-        assert dialect.supports_explain_format("TRADITIONAL") is False
+        assert dialect.supports_explain_format_json() is False
+        assert dialect.supports_explain_format_traditional() is False
         assert dialect.supports_explain_analyze() is False
 
     def test_explain_plan_and_partitioning_are_declared(self):
@@ -180,9 +190,16 @@ class TestMariaDBExplainRendering:
         sql, _ = _render(ExplainOptions(analyze=True, format=ExplainFormat.JSON))
         assert sql == f"EXPLAIN ANALYZE FORMAT=JSON {_BASE_SQL}"
 
-    def test_costs_off_and_verbose_are_rendered(self):
-        sql, _ = _render(ExplainOptions(costs=False, verbose=True))
-        assert sql == f"EXPLAIN COSTS OFF VERBOSE {_BASE_SQL}"
+    def test_costs_off_is_refused_not_emitted(self):
+        # MariaDB has no COSTS option. Dropping it silently would answer a
+        # different question than the caller asked, so the formatter refuses.
+        with pytest.raises(UnsupportedFeatureError):
+            _render(ExplainOptions(costs=False))
+
+    def test_verbose_is_refused_not_emitted(self):
+        # MariaDB's spelling is EXTENDED; VERBOSE is not in its grammar.
+        with pytest.raises(UnsupportedFeatureError):
+            _render(ExplainOptions(verbose=True))
 
     def test_render_matches_dialect_formatter(self):
         dialect = _dialect()
@@ -194,13 +211,35 @@ class TestMariaDBExplainRendering:
         expr = ExplainStatement(dialect, statement=query, options=ExplainOptions())
         assert expr.to_sql() == dialect.format_explain_statement(expr)
 
-    def test_tree_format_is_not_advertised(self):
-        # The renderer emits whatever format the caller passes; TREE must be
-        # gated out by supports_explain_format() before it reaches the dialect.
-        dialect = _dialect()
-        assert dialect.supports_explain_format("TREE") is False
-        sql, _ = _render(ExplainOptions(format=ExplainFormat.TREE))
-        assert "FORMAT=TREE" in sql
+    @pytest.mark.parametrize(
+        "fmt",
+        [ExplainFormat.TEXT, ExplainFormat.TREE, ExplainFormat.XML, ExplainFormat.YAML],
+    )
+    def test_formats_mariadb_does_not_accept_are_refused(self, fmt):
+        # The switch answers False and the formatter enforces the same answer.
+        with pytest.raises(UnsupportedFeatureError):
+            _render(ExplainOptions(format=fmt))
+
+    def test_analyze_below_10_6_is_refused(self):
+        with pytest.raises(UnsupportedFeatureError):
+            _render(ExplainOptions(analyze=True), version=(10, 5, 0))
+
+    def test_format_json_below_10_6_is_refused(self):
+        with pytest.raises(UnsupportedFeatureError):
+            _render(ExplainOptions(format=ExplainFormat.JSON), version=(10, 5, 0))
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            ExplainOptions(buffers=True),
+            ExplainOptions(timing=True, analyze=True),
+            ExplainOptions(settings=True),
+            ExplainOptions(wal=True),
+        ],
+    )
+    def test_options_without_a_mariadb_spelling_are_refused(self, options):
+        with pytest.raises(UnsupportedFeatureError):
+            _render(options)
 
 
 @pytest.mark.mariadb
@@ -302,7 +341,7 @@ class TestMariaDBExplainDeepSync:
     def test_format_json_when_supported(self, order_fixtures):
         User, _, _ = order_fixtures
         dialect = self._require_explain(User)
-        if not dialect.supports_explain_format("JSON"):
+        if not dialect.supports_explain_format_json():
             pytest.skip("MariaDB < 10.6 has no FORMAT=JSON")
         plan = User.query().explain(format=ExplainFormat.JSON).aggregate()
         assert isinstance(plan, list) and plan

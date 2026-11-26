@@ -25,17 +25,6 @@ class MariaDBSpatialSupport(Protocol):
     - CRS support improvements: MariaDB 10.2+
     """
 
-    def supports_spatial_type(self, type_name: str) -> bool:
-        """Whether a specific spatial data type is supported.
-
-        Args:
-            type_name: Spatial type name (e.g. 'POINT', 'LINESTRING')
-
-        Returns:
-            True if the spatial type is supported
-        """
-        ...
-
     def supports_spatial_index(self) -> bool:
         """Whether SPATIAL index is supported."""
         ...

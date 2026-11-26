@@ -224,6 +224,8 @@ from .suggestion import (
     MariaDBPartitionTableAlterSuggestionMixin,
     MariaDBPartitionTableDropSuggestionMixin,
     MariaDBStringConcatenationSuggestionMixin,
+    MariaDBStorageEngineSuggestionMixin,
+    MariaDBTextEncodingSuggestionMixin,
     MariaDBTableConstraintChangeSuggestionMixin,
     MariaDBTableIndexChangeSuggestionMixin,
 )
@@ -286,6 +288,11 @@ class MariaDBDialect(
     # consults suggest_concatenation_function(); without this mixin the dialect
     # raises AttributeError instead of rendering CONCAT(a, b).
     MariaDBStringConcatenationSuggestionMixin,
+    # Charset/collation and storage engine answers. Both are plain value
+    # answers read through core's suggestion protocols, and both validate the
+    # words they return against the dialect's own whitelists.
+    MariaDBTextEncodingSuggestionMixin,
+    MariaDBStorageEngineSuggestionMixin,
     # The bases below come in bundles: a backend mixin, then the core bundle
     # it stands in for. The backend's answer has to come first -- a mixin
     # placed after the class it overrides never wins -- so a new mixin goes
@@ -1516,23 +1523,80 @@ class MariaDBDialect(
     # region Explain
 
     def format_explain_statement(self, expr) -> Tuple[str, tuple]:
-        """Format EXPLAIN statement for MariaDB."""
+        """Format EXPLAIN statement for MariaDB.
+
+        MariaDB renders every option it was asked for, or refuses the request:
+        silently dropping one would return a plan for a question the caller did
+        not ask. Each option's gate is its own ``supports_*`` switch, so the
+        answer the capability report shows is the answer enforced here.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.statements import (
+            ExplainFormat,
+            ExplainType,
+        )
+
         statement_sql, statement_params = expr.statement.to_sql()
         options = expr.options
         if options is None:
             return f"EXPLAIN {statement_sql}", statement_params
 
         parts = ["EXPLAIN"]
-        from rhosocial.activerecord.backend.expression.statements import ExplainType
 
         if (hasattr(options, "type") and options.type == ExplainType.ANALYZE) or options.analyze:
+            if not self.supports_explain_analyze():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "EXPLAIN ANALYZE",
+                    "MariaDB has no EXPLAIN ANALYZE spelling below 10.6.",
+                )
             parts.append("ANALYZE")
+
         if options.format:
+            probe = {
+                ExplainFormat.TEXT: "supports_explain_format_text",
+                ExplainFormat.JSON: "supports_explain_format_json",
+                ExplainFormat.XML: "supports_explain_format_xml",
+                ExplainFormat.YAML: "supports_explain_format_yaml",
+                ExplainFormat.TREE: "supports_explain_format_tree",
+                ExplainFormat.TRADITIONAL: "supports_explain_format_traditional",
+            }.get(options.format)
+            if probe is None or not getattr(self, probe)():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    f"EXPLAIN FORMAT={options.format.value}",
+                    "MariaDB accepts FORMAT=JSON and FORMAT=TRADITIONAL only.",
+                )
             parts.append(f"FORMAT={options.format.value.upper()}")
+
         if not options.costs:
+            if not self.supports_explain_costs():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "EXPLAIN COSTS",
+                    "MariaDB has no COSTS option; the plan already reports costs.",
+                )
             parts.append("COSTS OFF")
+
         if options.verbose:
+            if not self.supports_explain_verbose():
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "EXPLAIN VERBOSE",
+                    "MariaDB spells this EXTENDED; VERBOSE is not in its grammar.",
+                )
             parts.append("VERBOSE")
+
+        for requested, probe, spelling in (
+            (options.buffers, "supports_explain_buffers", "EXPLAIN BUFFERS"),
+            (options.timing, "supports_explain_timing", "EXPLAIN TIMING"),
+            (options.settings, "supports_explain_settings", "EXPLAIN SETTINGS"),
+            (options.wal, "supports_explain_wal", "EXPLAIN WAL"),
+        ):
+            if requested:
+                if not getattr(self, probe)():
+                    raise UnsupportedFeatureError(self.name, spelling)
+                parts.append(spelling.split()[-1])
 
         return f"{' '.join(parts)} {statement_sql}", statement_params
 
