@@ -144,7 +144,7 @@ class TestFunctionUpperBound:
         # ``suggest_functions`` lower-cases the names it reads from the
         # function modules before consulting the same table.
         assert _dialect(GA_130)._is_mariadb_function_supported("des_encrypt") is False
-        assert _dialect(RC_131)._is_mariadb_function_supported("des_encrypt") is True
+        assert _dialect(RC_131)._is_mariadb_function_supported("des_encrypt") is False
 
     def test_unbounded_functions_still_supported(self):
         for name in ("json_extract", "elt", "find_in_set"):
