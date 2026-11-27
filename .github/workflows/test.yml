@@ -75,14 +75,6 @@ jobs:
           pip install ".[test]"
           pip install -r requirements-dev.txt
 
-      - name: Formal rules contracts
-        # Isolated from the full suite: these assertions scan this backend's
-        # own source and tests only, and need no database. They run before the
-        # DB-dependent tests so a structural regression fails fast.
-        run: |
-          export PYTHONPATH=src:tests
-          python -m pytest tests/rhosocial/activerecord_mariadb_test/feature/rules -q -p no:warnings
-
       - name: Create MariaDB scenario config
         run: |
           cat > mariadb_scenarios.yaml << EOF
@@ -98,6 +90,14 @@ jobs:
               ssl_disabled: true
           EOF
           echo "MARIADB_SCENARIOS_CONFIG_PATH=$(pwd)/mariadb_scenarios.yaml" >> $GITHUB_ENV
+
+      - name: Formal rules contracts
+        # Isolated from the full suite: these assertions scan this backend's
+        # own source and tests only, and need no database. They run before the
+        # DB-dependent tests so a structural regression fails fast.
+        run: |
+          export PYTHONPATH=src:tests
+          python -m pytest tests/rhosocial/activerecord_mariadb_test/feature/rules -q -p no:warnings
 
       - name: Run tests (skip for coverage job)
         if: matrix.mariadb-version != '11.8'
