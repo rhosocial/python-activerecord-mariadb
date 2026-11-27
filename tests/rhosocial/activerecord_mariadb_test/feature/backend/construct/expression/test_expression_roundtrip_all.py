@@ -1160,15 +1160,10 @@ UNCONSTRUCTIBLE = (
     "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBEnumType",
     "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBSetType",
     # ---- core expressions, arrived with the typed-column work ----------------
-    # UUID constant. `which` must name 'nil' or 'max' and __init__ rejects
-    # anything else, so the filler's guess is refused at construction.
-    "rhosocial.activerecord.backend.expression.uuid.UUIDConstantExpression",
-    # UUID generation. Takes only a dialect and a keyword-only alias, so there
-    # is no parameter the filler can supply a value for.
-    "rhosocial.activerecord.backend.expression.uuid.UUIDGenerationExpression",
-    # UUID cast. `expression` is annotated Any, so the filler hands it a string
-    # where the node needs an expression to cast.
-    "rhosocial.activerecord.backend.expression.uuid.UUIDCastFunction",
+    # The three UUID value nodes left this list when their constructors stopped
+    # refusing a dialect: instantiation now collects and the capability answer
+    # (`UnsupportedFeatureError`) comes from `format_uuid_*` at render time,
+    # which is what the matrix already classifies.
     # Core's rewritten partition clause nodes. Each takes a keyword-only
     # `columns` / `expr` sequence behind a defaulted positional, so the
     # introspective constructor skips it and the class refuses an empty
@@ -1914,6 +1909,13 @@ UNMODELLED_FORMATTERS = {
     ),
     "the TableSource root (every concrete row source overrides its formatter; "
     "the root carries nothing but an alias and is never rendered)": ("format_table_source",),
+    "the UUID value nodes (this dialect composes no UUID support mixin: MariaDB "
+    "spells no UUID generation, constant or text-to-UUID cast, so all three "
+    "nodes reach the dispatch and find no base method declared)": (
+        "format_uuid_generation_expression",
+        "format_uuid_constant_expression",
+        "format_uuid_cast",
+    ),
 }
 
 
