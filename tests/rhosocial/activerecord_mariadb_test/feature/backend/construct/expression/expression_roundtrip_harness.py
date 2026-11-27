@@ -289,6 +289,22 @@ def _try_construct(cls, dialect):
         return None
 
 
+def _mariadb_alter_table_expr(dialect):
+    """MariaDB's wrapper, carrying one real core action."""
+    from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+        AddColumnAction,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.expression.alter_table import (
+        MariaDBAlterTableExpression,
+    )
+
+    return MariaDBAlterTableExpression(
+        dialect,
+        _table(dialect, "t"),
+        AddColumnAction(dialect, column=_column_definition(dialect)),
+    )
+
+
 def special_constructors():
     """Explicit constructors for classes whose ``__init__`` rejects heuristic
     placeholder values. Keyed by a suffix that matches the class's full
@@ -353,6 +369,8 @@ def special_constructors():
         "statements.dml.InsertStatement": _insert_expr,
         "statements.dml.DeleteStatement": _delete_expr,
         "statements.ddl_alter.AlterTableStatement": _alter_table_expr,
+        "alter_table.MariaDBAlterTableExpression": _mariadb_alter_table_expr,
+        "alter_table.MariaDBAlterTableExpression": _mariadb_alter_table_expr,
         "types.array.ArrayType": _array_type,
         "statements.ddl_view.CreateViewStatement": _create_view_expr,
         "graph.GraphVertex": _graph_vertex,
