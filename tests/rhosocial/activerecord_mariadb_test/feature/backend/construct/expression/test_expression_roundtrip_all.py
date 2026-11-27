@@ -575,7 +575,7 @@ def register_specials():
     register_special_constructor(
         "statements.ddl_domain.AlterDomainStatement",
         lambda d: ddl_domain.AlterDomainStatement(
-            d, Domain(d, "dom"), [RenameDomainAction(d, "other")]
+            d, Domain(d, "dom"), RenameDomainAction(d, "other")
         ),
     )
     # A DOMAIN CHECK is DDL: it must render without bind parameters, so its
@@ -599,7 +599,7 @@ def register_specials():
     register_special_constructor(
         "statements.ddl_type.AlterTypeStatement",
         lambda d: ddl_type.AlterTypeStatement(
-            d, type=Type(d, "t"), actions=[_DummyTypeAlterAction(d, new_name="u")]
+            d, type=Type(d, "t"), action=_DummyTypeAlterAction(d, new_name="u")
         ),
     )
     register_special_constructor(

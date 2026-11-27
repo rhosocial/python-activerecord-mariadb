@@ -82,7 +82,7 @@ snapshot_before = builder.build()
 
 # Add `age` column — appended after the existing columns
 add_col = AddColumnAction(dialect, ColumnDefinition(dialect, "age", IntegerType(dialect)))
-alter_expr = AlterTableStatement(dialect, Table(dialect, "users"), [add_col])
+alter_expr = AlterTableStatement(dialect, Table(dialect, "users"), add_col)
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)
 

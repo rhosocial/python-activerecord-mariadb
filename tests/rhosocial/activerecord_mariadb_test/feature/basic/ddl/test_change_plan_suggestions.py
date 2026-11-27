@@ -174,12 +174,12 @@ def test_column_reorder_with_full_definitions_reorders_in_place():
         _columns(dialect, ("id", "created_at")),
     )
     assert answer.state == "actions"
-    assert isinstance(answer.operations[0].actions[0], ModifyColumnAction)
+    assert isinstance(answer.operations[0].action, ModifyColumnAction)
     assert _sql(answer.operations) == [
         "ALTER TABLE `events`  MODIFY COLUMN `id` INT AFTER `created_at`"
     ]
     # In-place repositioning only: no DROP TABLE, no DROP + ADD pair.
-    assert all(isinstance(op.actions[0], ModifyColumnAction) for op in answer.operations)
+    assert all(isinstance(op.action, ModifyColumnAction) for op in answer.operations)
 
 
 def test_column_reorder_uses_first_for_the_new_first_column():
@@ -191,7 +191,7 @@ def test_column_reorder_uses_first_for_the_new_first_column():
         _columns(dialect, ("id", "created_at", "ts")),
     )
     assert answer.state == "actions"
-    action = answer.operations[0].actions[0]
+    action = answer.operations[0].action
     assert action.first is True and action.after_column is None
     assert _sql(answer.operations) == ["ALTER TABLE `events`  MODIFY COLUMN `ts` INT FIRST"]
 
@@ -206,7 +206,7 @@ def test_column_reorder_emits_one_statement_per_moved_column():
     )
     assert answer.state == "actions"
     assert len(answer.operations) == 2
-    assert [op.actions[0].column.name for op in answer.operations] == ["a", "b"]
+    assert [op.action.column.name for op in answer.operations] == ["a", "b"]
     assert _sql(answer.operations) == [
         "ALTER TABLE `events`  MODIFY COLUMN `a` INT AFTER `d`",
         "ALTER TABLE `events`  MODIFY COLUMN `b` INT AFTER `a`",
@@ -224,8 +224,8 @@ def test_column_reorder_reuses_the_points_own_definition_objects():
         new_fields=fields,
     )
     answer = dialect.suggest_column_reorder(point)
-    assert answer.operations[0].actions[0].column is fields["id"]
-    assert answer.operations[0].actions[0].column.data_type is not None
+    assert answer.operations[0].action.column is fields["id"]
+    assert answer.operations[0].action.column.data_type is not None
 
 
 def test_column_reorder_without_a_definition_for_a_moved_column_is_refused():
@@ -259,8 +259,8 @@ def test_constraint_change_renders_drop_then_add():
         )
     )
     assert answer.state == "actions"
-    assert isinstance(answer.operations[0].actions[0], DropTableConstraintAction)
-    assert isinstance(answer.operations[1].actions[0], AddTableConstraintAction)
+    assert isinstance(answer.operations[0].action, DropTableConstraintAction)
+    assert isinstance(answer.operations[1].action, AddTableConstraintAction)
     assert _sql(answer.operations) == [
         "ALTER TABLE `events`  DROP CONSTRAINT `uq_old`",
         "ALTER TABLE `events`  ADD CONSTRAINT `uq_new` UNIQUE (`created_at`)",
@@ -294,7 +294,7 @@ def test_constraint_drop_below_the_drop_constraint_floor_uses_drop_index():
         TableConstraintChangeSuggestion(table_name="events", old_constraints=(constraint,))
     )
     assert answer.state == "actions"
-    assert isinstance(answer.operations[0].actions[0], DropIndexAction)
+    assert isinstance(answer.operations[0].action, DropIndexAction)
     assert _sql(answer.operations) == ["ALTER TABLE `events`  DROP INDEX `uq_old`"]
 
 
@@ -395,7 +395,7 @@ def test_constraint_add_uses_live_declaration_over_ambiguous_frozen_projection()
         )
     )
     assert answer.state == "actions"
-    action = answer.operations[0].actions[0]
+    action = answer.operations[0].action
     assert isinstance(action, AddTableConstraintAction)
     assert action.constraint is declaration
     assert isinstance(action.constraint.branch, TableUniqueConstraint)
@@ -417,7 +417,7 @@ def test_constraint_add_preserves_primary_key_branch_from_live_declaration():
         )
     )
     assert answer.state == "actions"
-    assert isinstance(answer.operations[0].actions[0].constraint.branch, TablePrimaryKeyConstraint)
+    assert isinstance(answer.operations[0].action.constraint.branch, TablePrimaryKeyConstraint)
     assert _sql(answer.operations) == [
         "ALTER TABLE `events`  ADD CONSTRAINT `pk_id` PRIMARY KEY (`id`)"
     ]
@@ -498,8 +498,8 @@ def test_constraint_drop_then_add_uses_both_live_declaration_fields():
         )
     )
     assert answer.state == "actions"
-    assert isinstance(answer.operations[0].actions[0], DropTableConstraintAction)
-    assert answer.operations[1].actions[0].constraint is new
+    assert isinstance(answer.operations[0].action, DropTableConstraintAction)
+    assert answer.operations[1].action.constraint is new
     assert _sql(answer.operations) == [
         "ALTER TABLE `events`  DROP CONSTRAINT `uq_old`",
         "ALTER TABLE `events`  ADD CONSTRAINT `uq_new` UNIQUE (`created_at`)",
@@ -518,8 +518,8 @@ def test_index_change_renders_drop_then_add():
         TableIndexChangeSuggestion(table_name="events", old_indexes=(old,), new_indexes=(new,))
     )
     assert answer.state == "actions"
-    assert isinstance(answer.operations[0].actions[0], DropIndexAction)
-    assert isinstance(answer.operations[1].actions[0], AddIndexAction)
+    assert isinstance(answer.operations[0].action, DropIndexAction)
+    assert isinstance(answer.operations[1].action, AddIndexAction)
     assert _sql(answer.operations) == [
         "ALTER TABLE `events`  DROP INDEX `idx_old`",
         "ALTER TABLE `events`  ADD INDEX `idx_new` (`created_at`)",
@@ -593,8 +593,8 @@ def test_enriched_index_declarations_do_not_change_the_index_answer():
         )
     )
     assert answer.state == "actions"
-    assert isinstance(answer.operations[0].actions[0], DropIndexAction)
-    assert isinstance(answer.operations[1].actions[0], AddIndexAction)
+    assert isinstance(answer.operations[0].action, DropIndexAction)
+    assert isinstance(answer.operations[1].action, AddIndexAction)
     assert _sql(answer.operations) == [
         "ALTER TABLE `events`  DROP INDEX `idx_old`",
         "ALTER TABLE `events`  ADD INDEX `idx_new` (`created_at`)",

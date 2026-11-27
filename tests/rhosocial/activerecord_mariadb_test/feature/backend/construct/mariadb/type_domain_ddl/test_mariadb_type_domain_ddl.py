@@ -62,7 +62,6 @@ TYPE_DOMAIN_SUPPORT_METHODS = (
     "supports_create_type_or_replace",
     "supports_alter_type_if_exists",
     "supports_drop_type_if_exists",
-    "supports_multiple_type_alter_actions",
     "supports_domains",
     "supports_create_domain",
     "supports_alter_domain",
@@ -72,7 +71,6 @@ TYPE_DOMAIN_SUPPORT_METHODS = (
     "supports_named_domain_checks",
     "supports_multiple_domain_checks",
     "supports_domain_collation",
-    "supports_multiple_domain_alter_actions",
     "supports_drop_domain_if_exists",
     "supports_drop_domain_cascade",
     "supports_drop_domain_restrict",
@@ -180,7 +178,7 @@ def test_type_and_domain_formatters_and_expressions_fail_fast(dialect):
         ("format_create_type_statement", CreateTypeStatement(dialect, status_type, definition)),
         (
             "format_alter_type_statement",
-            AlterTypeStatement(dialect, status_type, [alter_action]),
+            AlterTypeStatement(dialect, status_type, alter_action),
         ),
         ("format_drop_type_statement", DropTypeStatement(dialect, status_type)),
         ("format_type_definition", definition),
@@ -191,7 +189,7 @@ def test_type_and_domain_formatters_and_expressions_fail_fast(dialect):
         ),
         (
             "format_alter_domain_statement",
-            AlterDomainStatement(dialect, positive_domain, [domain_action]),
+            AlterDomainStatement(dialect, positive_domain, domain_action),
         ),
         ("format_drop_domain_statement", DropDomainStatement(dialect, positive_domain)),
         ("format_domain_value_expression", DomainValueExpression(dialect)),

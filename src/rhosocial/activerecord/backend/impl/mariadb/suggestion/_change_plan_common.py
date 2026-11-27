@@ -98,7 +98,7 @@ def one_statement(dialect: Any, table: Table, action: Any) -> AlterTableStatemen
     grammar may not combine arbitrary actions; one action per statement keeps
     every returned operation executable on its own.
     """
-    return AlterTableStatement(dialect, table, [action])
+    return AlterTableStatement(dialect, table, action)
 
 
 @dataclass(frozen=True)

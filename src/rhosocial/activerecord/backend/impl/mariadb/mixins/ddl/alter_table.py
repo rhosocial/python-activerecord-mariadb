@@ -130,23 +130,20 @@ class MariaDBAlterTableMixin:
 
         all_params = []
         parts = [table_part]
-        action_parts = []
         # AlterTableAction is an abstract base and cannot be instantiated, so
         # this reports that the entry is not an implementation of it rather
-        # than naming a concrete type. Checked here because the loop below
-        # calls `action.to_sql()` directly, and a non-action carrying the
+        # than naming a concrete type. Checked here because the call below
+        # invokes `action.to_sql()` directly, and a non-action carrying the
         # wrong `format_method` would render as valid SQL.
-        for position, action in enumerate(expr.actions):
-            if not isinstance(action, AlterTableAction):
-                raise TypeError(
-                    f"AlterTableStatement.actions must hold AlterTableAction implementations, "
-                    f"got {type(action).__name__} at position {position}"
-                )
-            action_part, action_params = action.to_sql()
-            action_parts.append(action_part)
-            all_params.extend(action_params)
-        if action_parts:
-            parts.append(" " + ", ".join(action_parts))
+        action = expr.action
+        if not isinstance(action, AlterTableAction):
+            raise TypeError(
+                f"AlterTableStatement.action must be an AlterTableAction implementation, "
+                f"got {type(action).__name__}"
+            )
+        action_part, action_params = action.to_sql()
+        all_params.extend(action_params)
+        parts.append(" " + action_part)
         return " ".join(parts), tuple(all_params)
 
     def format_rename_index_statement(

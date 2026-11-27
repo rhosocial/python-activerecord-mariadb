@@ -31,7 +31,7 @@ def test_probe_is_true(dialect):
 
 def test_add_index_renders(dialect):
     index = IndexDefinition(dialect, "idx_name", ["a", "b"])
-    statement = AlterTableStatement(dialect, Table(dialect, "t"), [AddIndexAction(dialect, index)])
+    statement = AlterTableStatement(dialect, Table(dialect, "t"), AddIndexAction(dialect, index))
     sql, params = statement.to_sql()
     assert "ADD INDEX `idx_name` (`a`, `b`)" in sql
     assert params == ()
@@ -39,7 +39,7 @@ def test_add_index_renders(dialect):
 
 def test_drop_index_renders(dialect):
     statement = AlterTableStatement(
-        dialect, Table(dialect, "t"), [DropIndexAction(dialect, Index(dialect, "idx_name"))]
+        dialect, Table(dialect, "t"), DropIndexAction(dialect, Index(dialect, "idx_name"))
     )
     sql, params = statement.to_sql()
     assert "DROP INDEX `idx_name`" in sql

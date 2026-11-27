@@ -114,7 +114,7 @@ add_col_action = AddColumnAction(
 add_col_expr = AlterTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
-    actions=[add_col_action],
+    action=add_col_action,
 )
 
 sql, params = add_col_expr.to_sql()
@@ -139,7 +139,7 @@ add_age_action = AddColumnAction(
 add_age_expr = AlterTableStatement(
     dialect=dialect,
     table=Table(dialect, 'users'),
-    actions=[add_age_action],
+    action=add_age_action,
 )
 
 sql, params = add_age_expr.to_sql()

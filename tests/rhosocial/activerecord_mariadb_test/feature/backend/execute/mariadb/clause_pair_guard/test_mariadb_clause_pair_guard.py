@@ -737,7 +737,7 @@ class TestTheThreeDeclaredProbesAreLoadBearing:
             dialect, validation=ConstraintValidation.NOVALIDATE
         )
         return AlterTableStatement(
-            dialect, Table(dialect, "probe_t"), actions=[AddTableConstraintAction(dialect, constraint)]
+            dialect, Table(dialect, "probe_t"), action=AddTableConstraintAction(dialect, constraint)
         )
 
     def test_alter_constraint_probe_flip_renders_the_spelling(self):
