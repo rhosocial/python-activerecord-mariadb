@@ -97,20 +97,25 @@ class MariaDBColumnDefinition(ColumnDefinition):
             generated_expression=generated_expression,
             attributes=attributes,
         )
-        if column_format is not None and not isinstance(column_format, MariaDBColumnFormat):
-            raise TypeError(
-                "column_format must be a MariaDBColumnFormat value, "
-                f"got {type(column_format).__name__}"
-            )
-        if storage is not None and not isinstance(storage, MariaDBColumnStorage):
-            raise TypeError(
-                "storage must be a MariaDBColumnStorage value, "
-                f"got {type(storage).__name__}"
-            )
         self.character_set = character_set
         self.column_format = column_format
         self.storage = storage
         self.invisible = invisible
+
+    def check_renderable(self) -> None:
+        """The MariaDB-only attributes must carry their declared enum types."""
+        if self.column_format is not None and not isinstance(
+            self.column_format, MariaDBColumnFormat
+        ):
+            raise TypeError(
+                "column_format must be a MariaDBColumnFormat value, "
+                f"got {type(self.column_format).__name__}"
+            )
+        if self.storage is not None and not isinstance(self.storage, MariaDBColumnStorage):
+            raise TypeError(
+                "storage must be a MariaDBColumnStorage value, "
+                f"got {type(self.storage).__name__}"
+            )
 
 
 class MariaDBColumnOptions(ColumnOptions):

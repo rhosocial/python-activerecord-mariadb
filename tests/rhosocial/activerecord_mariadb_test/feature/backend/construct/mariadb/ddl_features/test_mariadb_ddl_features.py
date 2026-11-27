@@ -515,10 +515,10 @@ class TestMySQLEnumType:
         assert 'a' in repr_str
 
     def test_enum_empty_values_raises_error(self):
-        """Test that empty values list raises ValueError."""
+        """Test that empty values list is refused at render time."""
         dialect = MariaDBDialect()
-        with pytest.raises(ValueError, match="ENUM must have at least one value"):
-            MariaDBEnumType(dialect, [])
+        with pytest.raises(TypeError, match="ENUM must have at least one value"):
+            MariaDBEnumType(dialect, []).to_sql()
 
     def test_enum_in_column_definition(self):
         """Test ENUM type used in column definition."""
@@ -580,10 +580,10 @@ class TestMySQLSetType:
         assert 'MariaDBSetType' in repr_str
 
     def test_set_empty_values_raises_error(self):
-        """Test that empty values list raises ValueError."""
+        """Test that empty values list is refused at render time."""
         dialect = MariaDBDialect()
-        with pytest.raises(ValueError, match="SET must have at least one value"):
-            MariaDBSetType(dialect, [])
+        with pytest.raises(TypeError, match="SET must have at least one value"):
+            MariaDBSetType(dialect, []).to_sql()
 
 
 class TestMySQLTableConstraints:
@@ -768,7 +768,12 @@ class TestMySQLCompleteTableCreation:
                 constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
                 comment=ColumnCommentClause(dialect, 'User status')
             ),
-            ColumnDefinition(dialect, 'created_at', DateTimeType(dialect), comment=ColumnCommentClause(dialect, 'Creation timestamp'))
+            ColumnDefinition(
+                dialect,
+                'created_at',
+                DateTimeType(dialect),
+                comment=ColumnCommentClause(dialect, 'Creation timestamp'),
+            )
         ]
         
         indexes = [

@@ -90,20 +90,29 @@ def test_subpartition_hash_and_key_are_accepted(dialect):
     ],
 )
 def test_subpartition_requires_column_list(dialect, strategy):
-    """Every HASH/KEY subpartition form needs a column list."""
-    with pytest.raises(ValueError, match="requires an expression"):
-        MariaDBSubpartitionClause(dialect, strategy=strategy, count=2)
+    """Every HASH/KEY subpartition form needs a column list.
+
+    The clause collects at construction and is refused when SQL is asked for:
+    a payload constraint belongs to the render step, not the constructor, so a
+    stored artifact is always readable.
+    """
+    with pytest.raises(TypeError, match="requires an expression"):
+        MariaDBSubpartitionClause(dialect, strategy=strategy, count=2).to_sql()
 
 
 @pytest.mark.parametrize("strategy", ["RANGE", "RANGE COLUMNS", "LIST", "LIST COLUMNS"])
 def test_subpartition_range_and_list_are_refused_by_name(dialect, strategy):
     with pytest.raises(UnsupportedFeatureError, match="SUBPARTITION BY"):
-        MariaDBSubpartitionClause(dialect, strategy=strategy)
+        MariaDBSubpartitionClause(
+            dialect, strategy=strategy, expression=Column(dialect, "id")
+        ).to_sql()
 
 
 def test_subpartition_range_is_not_silently_downgraded(dialect):
     with pytest.raises(UnsupportedFeatureError) as caught:
-        MariaDBSubpartitionClause(dialect, strategy="RANGE")
+        MariaDBSubpartitionClause(
+            dialect, strategy="RANGE", expression=Column(dialect, "id")
+        ).to_sql()
     assert "RANGE" in caught.value.feature_name
     assert "HASH" in (caught.value.suggestion or "")
 
@@ -230,8 +239,8 @@ def test_remaining_maintenance_expressions(dialect):
 
 def test_partition_name_lists_are_validated(dialect):
     table = Table(dialect, "events")
-    with pytest.raises(ValueError, match="positive integer"):
-        MariaDBCoalescePartitionExpression(dialect, table, 0)
+    with pytest.raises(TypeError, match="positive integer"):
+        MariaDBCoalescePartitionExpression(dialect, table, 0).to_sql()
     with pytest.raises(ValueError, match="partitions must not be empty"):
         MariaDBAnalyzePartitionExpression(dialect, table, []).to_sql()
     with pytest.raises(ValueError, match="partitions must not be empty"):

@@ -178,7 +178,17 @@ from rhosocial.activerecord.backend.expression.statements import (
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     AlterDatabaseAction,
 )
+from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
+    PartitionByHashClause,
+    PartitionByListClause,
+    PartitionByRangeClause,
+    PartitionDefinitionExpression,
+)
+from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    AlterConstraintAction,
+)
 from rhosocial.activerecord.backend.expression.statements.ddl_domain import (
+    AddDomainCheckAction,
     DomainCheckConstraint,
     RenameDomainAction,
 )
@@ -189,6 +199,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ReferencesClause,
     TableConstraint,
     ColumnNotNullConstraint,
+    TableCheckConstraint,
     TablePrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
@@ -234,7 +245,33 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.match_against import
     MariaDBMatchAgainstExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+    MariaDBAddPartitionExpression,
+    MariaDBAnalyzePartitionExpression,
+    MariaDBCheckPartitionExpression,
+    MariaDBCoalescePartitionExpression,
+    MariaDBDropPartitionExpression,
     MariaDBExchangePartitionStatement,
+    MariaDBOptimizePartitionExpression,
+    MariaDBPartitionByHash,
+    MariaDBPartitionByList,
+    MariaDBPartitionByListColumns,
+    MariaDBPartitionByRange,
+    MariaDBPartitionByRangeColumns,
+    MariaDBPartitionClause,
+    MariaDBPartitionValue,
+    MariaDBRebuildPartitionExpression,
+    MariaDBReorganizePartitionExpression,
+    MariaDBRepairPartitionExpression,
+    MariaDBSubpartitionClause,
+    MariaDBSubpartitionStrategy,
+    MariaDBTruncatePartitionExpression,
+)
+from rhosocial.activerecord.backend.impl.mariadb.expression.column import (
+    MariaDBColumnDefinition,
+)
+from rhosocial.activerecord.backend.impl.mariadb.expression.types import (
+    MariaDBEnumType,
+    MariaDBSetType,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
     MariaDBSTDistanceExpression,
@@ -1025,6 +1062,144 @@ def register_specials():
         ),
     )
 
+    # -- MariaDB partition clauses and lifecycle statements ------------------
+    # Every one of these takes a keyword-only column/partition list behind a
+    # guess the heuristic cannot reach, or a dialect-bound type it cannot
+    # invent. Each is handed the payload its formatter actually spells: a
+    # dialect-bound data type, real ``Column`` keys, one real inline
+    # ``PARTITION ... VALUES LESS THAN`` definition, and partition names.
+    def _partition_definition(d):
+        """One RANGE definition with a real boundary value."""
+        return PartitionDefinitionExpression(
+            d, "p0", less_than=[MariaDBPartitionValue(d, 100)]
+        )
+
+    register_special_constructor(
+        "column.MariaDBColumnDefinition",
+        lambda d: MariaDBColumnDefinition(d, "col", IntegerType(d)),
+    )
+    register_special_constructor(
+        "partition.MariaDBPartitionClause",
+        lambda d: MariaDBPartitionClause(d, "RANGE", [Column(d, "a")]),
+    )
+    register_special_constructor(
+        "partition.MariaDBPartitionByHash",
+        lambda d: MariaDBPartitionByHash(d, [Column(d, "id")], partitions_count=4),
+    )
+    register_special_constructor(
+        "partition.MariaDBPartitionByList",
+        lambda d: MariaDBPartitionByList(d, [Column(d, "region")]),
+    )
+    register_special_constructor(
+        "partition.MariaDBPartitionByListColumns",
+        lambda d: MariaDBPartitionByListColumns(d, [Column(d, "a")]),
+    )
+    register_special_constructor(
+        "partition.MariaDBPartitionByRange",
+        lambda d: MariaDBPartitionByRange(d, [Column(d, "created_at")]),
+    )
+    register_special_constructor(
+        "partition.MariaDBPartitionByRangeColumns",
+        lambda d: MariaDBPartitionByRangeColumns(d, [Column(d, "a")]),
+    )
+    register_special_constructor(
+        "partition.MariaDBSubpartitionClause",
+        lambda d: MariaDBSubpartitionClause(
+            d,
+            MariaDBSubpartitionStrategy.HASH,
+            expression=Column(d, "tenant_id"),
+            count=2,
+        ),
+    )
+    register_special_constructor(
+        "partition.MariaDBAddPartitionExpression",
+        lambda d: MariaDBAddPartitionExpression(
+            d, _table_obj(d, "probe_part"), [_partition_definition(d)]
+        ),
+    )
+    register_special_constructor(
+        "partition.MariaDBAnalyzePartitionExpression",
+        lambda d: MariaDBAnalyzePartitionExpression(d, _table_obj(d, "probe_part"), ["p0"]),
+    )
+    register_special_constructor(
+        "partition.MariaDBCheckPartitionExpression",
+        lambda d: MariaDBCheckPartitionExpression(d, _table_obj(d, "probe_part"), ["p0"]),
+    )
+    register_special_constructor(
+        "partition.MariaDBCoalescePartitionExpression",
+        lambda d: MariaDBCoalescePartitionExpression(d, _table_obj(d, "probe_part"), 2),
+    )
+    register_special_constructor(
+        "partition.MariaDBDropPartitionExpression",
+        lambda d: MariaDBDropPartitionExpression(d, _table_obj(d, "probe_part"), ["p0"]),
+    )
+    register_special_constructor(
+        "partition.MariaDBOptimizePartitionExpression",
+        lambda d: MariaDBOptimizePartitionExpression(d, _table_obj(d, "probe_part"), ["p0"]),
+    )
+    register_special_constructor(
+        "partition.MariaDBRebuildPartitionExpression",
+        lambda d: MariaDBRebuildPartitionExpression(d, _table_obj(d, "probe_part"), ["p0"]),
+    )
+    register_special_constructor(
+        "partition.MariaDBReorganizePartitionExpression",
+        lambda d: MariaDBReorganizePartitionExpression(
+            d, _table_obj(d, "probe_part"), "p0", [_partition_definition(d)]
+        ),
+    )
+    register_special_constructor(
+        "partition.MariaDBRepairPartitionExpression",
+        lambda d: MariaDBRepairPartitionExpression(d, _table_obj(d, "probe_part"), ["p0"]),
+    )
+    register_special_constructor(
+        "partition.MariaDBTruncatePartitionExpression",
+        lambda d: MariaDBTruncatePartitionExpression(d, _table_obj(d, "probe_part"), ["p0"]),
+    )
+    # ENUM / SET hold a label list, which the heuristic skips because the
+    # declaration sits on a defaulted keyword slot.
+    register_special_constructor(
+        "types.MariaDBEnumType",
+        lambda d: MariaDBEnumType(d, ["a", "b"]),
+    )
+    register_special_constructor(
+        "types.MariaDBSetType",
+        lambda d: MariaDBSetType(d, ["a", "b"]),
+    )
+
+    # -- the core clause nodes MariaDB renders --------------------------------
+    # Each takes a key sequence behind a keyword-only position the guess
+    # cannot reach; the real payload is one column expression.
+    register_special_constructor(
+        "ddl_partition.PartitionByHashClause",
+        lambda d: PartitionByHashClause(d, [Column(d, "id")]),
+    )
+    register_special_constructor(
+        "ddl_partition.PartitionByListClause",
+        lambda d: PartitionByListClause(d, [Column(d, "region")]),
+    )
+    register_special_constructor(
+        "ddl_partition.PartitionByRangeClause",
+        lambda d: PartitionByRangeClause(d, [Column(d, "created_at")]),
+    )
+    # ALTER CONSTRAINT carries the enforcement keyword as a parameter and the
+    # kind as a branch class; both are required for the action to be a
+    # statement. MariaDB refuses the feature in its probe, which the matrix
+    # classifies as an unsupported capability rather than as a defect.
+    register_special_constructor(
+        "ddl_alter.AlterConstraintAction",
+        lambda d: AlterConstraintAction(
+            d, "ck", enforced=True, constraint_kind=TableCheckConstraint
+        ),
+    )
+    # ADD DOMAIN CHECK widens a predicate into a DomainCheckConstraint that
+    # renders without bind parameters, so the condition compares two columns.
+    register_special_constructor(
+        "ddl_domain.AddDomainCheckAction",
+        lambda d: AddDomainCheckAction(
+            d, DomainCheckConstraint(d, _column_predicate(d), name="chk")
+        ),
+    )
+
     # -- declared-result annotations -----------------------------------------
     # An annotation renders what it annotates, and ``format_declared_result``
     # reads an alias off both the source and the annotation itself. The ten
@@ -1103,84 +1278,14 @@ register_specials()
 
 #: Classes the generic introspective constructor cannot build.
 #:
-#: Each is a real coverage gap, named here so it is visible rather than lost.
-#: ``test_unconstructible_list_is_exact`` pins the tuple, so a class that gains a
-#: constructor fails here until this entry is removed, and a class that starts
-#: failing to build fails here too -- neither can become a quiet skip.
-#:
-#: The registered constructors in this module bring the total down from
-#: twenty-six to thirteen. What remains is a shape the introspective guess
-#: cannot satisfy: a keyword-only parameter hidden behind a defaulted positional,
-#: or a collection the class requires to be non-empty and does not itself
-#: default.
-#:
-#: XMLTABLE used to be pinned here. The gap it named was never in XMLTABLE but in
-#: the harness: ``columns`` is annotated ``Sequence[XMLTableColumn]``, and the
-#: introspective guess read the annotation's own ``__name__`` -- ``"Sequence"``
-#: -- matched it against the Table/View/Sequence relation pattern, and handed the
-#: parameter a catalogue ``Sequence`` object instead of a list of columns. The
-#: guess now decides a parameterised alias before testing for a relation name, so
-#: XMLTableExpression builds and is pinned in LEGITIMATE_NON_RENDERS instead,
-#: against the formatter MariaDB declares no name for.
-#:
-#: Sorted, because the integrity test compares this against a sorted tuple of
-#: what it observes. The reasons below are grouped by cause, not by module.
-UNCONSTRUCTIBLE = (
-    # ---- this backend's own expressions ------------------------------------
-    # MariaDBColumnDefinition. The generic guess supplies a column name and no
-    # data type; the class needs a dialect-bound type to render, and the guess's
-    # type placeholder is not one.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.column.MariaDBColumnDefinition",
-    # The seven partition clause classes. Each takes a keyword-only `columns` /
-    # `expr` list behind a defaulted positional, so the introspective
-    # constructor skips it and the class is left declaring no members, which it
-    # refuses.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByHash",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByList",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByListColumns",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByRange",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionByRangeColumns",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBPartitionClause",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBSubpartitionClause",
-    # The partition lifecycle expressions take a keyword-only `table` and, for
-    # most of them, a keyword-only partition list or count; the introspective
-    # constructor supplies neither and the class refuses an empty target.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBAddPartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBAnalyzePartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBCheckPartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBCoalescePartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBDropPartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBOptimizePartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBRebuildPartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBReorganizePartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBRepairPartitionExpression",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.partition.MariaDBTruncatePartitionExpression",
-    # ENUM and SET. `values` is keyword-only behind a defaulted positional, so
-    # the introspective constructor skips it and the type declares no members.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBEnumType",
-    "rhosocial.activerecord.backend.impl.mariadb.expression.types.MariaDBSetType",
-    # ---- core expressions, arrived with the typed-column work ----------------
-    # The three UUID value nodes left this list when their constructors stopped
-    # refusing a dialect: instantiation now collects and the capability answer
-    # (`UnsupportedFeatureError`) comes from `format_uuid_*` at render time,
-    # which is what the matrix already classifies.
-    # Core's rewritten partition clause nodes. Each takes a keyword-only
-    # `columns` / `expr` sequence behind a defaulted positional, so the
-    # introspective constructor skips it and the class refuses an empty
-    # payload -- the same gap MariaDB's own partition clause classes have.
-    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByHashClause",
-    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByListClause",
-    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByRangeClause",
-    # ---- core expressions --------------------------------------------------
-    # ALTER CONSTRAINT. `name` and `constraint_type` sit behind defaulted
-    # positionals and are keyword-only, so the introspective constructor skips
-    # them and the class refuses an incomplete action.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraintAction",
-    # ADD DOMAIN CHECK. Widens a SQLPredicate into a DomainCheckConstraint and
-    # needs one; the guess supplies a bare comparison whose literal would have to
-    # render as a bind parameter, which DDL cannot carry.
-    "rhosocial.activerecord.backend.expression.statements.ddl_domain.AddDomainCheckAction",
-)
+#: **Empty.** Every class this matrix covers now either builds from the
+#: heuristic or is handed a real payload by a registered special constructor
+#: above. The tuple and ``test_unconstructible_list_is_exact`` are kept: the pin
+#: re-derives the set in both directions, so it fails the day a class stops
+#: building without an exemption, and it also fails if an entry is added that no
+#: longer describes reality. An exemption here is a visible coverage gap, not a
+#: quiet skip.
+UNCONSTRUCTIBLE = ()
 
 #: Classes that construct but cannot render, for a reason belonging to their own
 #: tree rather than to a defect. Each entry pins the exception type and a message

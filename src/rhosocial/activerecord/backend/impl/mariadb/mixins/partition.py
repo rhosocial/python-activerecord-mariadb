@@ -459,7 +459,15 @@ class MariaDBPartitionMixin:
         if not self.supports_subpartitioning():
             raise UnsupportedFeatureError(self.name, "subpartitioning")
 
-        strategy = expr.strategy.value
+        strategy = " ".join(
+            str(getattr(expr.strategy, "value", expr.strategy)).strip().upper().split()
+        )
+        if strategy in {"RANGE", "RANGE COLUMNS", "LIST", "LIST COLUMNS"}:
+            raise UnsupportedFeatureError(
+                self.name,
+                f"SUBPARTITION BY {strategy}",
+                "MariaDB supports only HASH and KEY subpartitioning.",
+            )
         if strategy not in ("HASH", "LINEAR HASH", "KEY", "LINEAR KEY"):
             raise TypeError(f"Unsupported subpartition strategy: {strategy}")
 

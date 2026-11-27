@@ -64,14 +64,19 @@ def test_combined_attributes(dialect):
 
 
 def test_generic_column_still_renders(dialect):
-    generic = ColumnDefinition(dialect, "name", VarCharType(dialect, length=50), comment=ColumnCommentClause(dialect, "c"))
+    generic = ColumnDefinition(
+        dialect,
+        "name",
+        VarCharType(dialect, length=50),
+        comment=ColumnCommentClause(dialect, "c"),
+    )
     sql, _ = generic.to_sql()
     assert sql == "`name` VARCHAR(50) COMMENT 'c'"
 
 
 def test_invalid_column_format_type(dialect):
     with pytest.raises(TypeError, match="MariaDBColumnFormat"):
-        _column(dialect, column_format="FIXED")
+        _column(dialect, column_format="FIXED").to_sql()
 
 
 def test_options_select_column_class():

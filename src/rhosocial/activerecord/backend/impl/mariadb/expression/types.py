@@ -610,13 +610,22 @@ class MariaDBEnumType(EnumType):
 
     def __init__(self, dialect=None, values: Optional[List[str]] = None,
                  charset: Optional[str] = None, collation: Optional[str] = None):
-        if values is None:
-            raise ValueError("MariaDBEnumType requires values")
-        if not values:
-            raise ValueError("ENUM must have at least one value")
-        super().__init__(dialect, values=values)
+        if values:
+            super().__init__(dialect, values=values)
+        else:
+            # Collect only. An absent or empty list is refused by
+            # :meth:`check_renderable` when SQL is asked for; core's
+            # ``EnumType`` still refuses it at construction, so the partial
+            # payload is stored here instead of handed to it.
+            DataType.__init__(self, dialect)
+            self.values = ()
         self.charset = charset
         self.collation = collation
+
+    def check_renderable(self) -> None:
+        """ENUM needs at least one label."""
+        if not self.values:
+            raise TypeError("ENUM must have at least one value")
 
     PARAMETERS = ("values", "charset", "collation",)
 
@@ -655,13 +664,14 @@ class MariaDBSetType(DataType):
     def __init__(self, dialect=None, values: Optional[List[str]] = None,
                  charset: Optional[str] = None, collation: Optional[str] = None):
         super().__init__(dialect)
-        if values is None:
-            raise ValueError("MariaDBSetType requires values")
-        if not values:
-            raise ValueError("SET must have at least one value")
-        self.values = tuple(values)
+        self.values = tuple(values) if values else ()
         self.charset = charset
         self.collation = collation
+
+    def check_renderable(self) -> None:
+        """SET needs at least one label."""
+        if not self.values:
+            raise TypeError("SET must have at least one value")
 
     PARAMETERS = ("values", "charset", "collation",)
 

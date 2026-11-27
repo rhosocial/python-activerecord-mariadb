@@ -230,11 +230,15 @@ def _build_key_subpartition(dialect: MariaDBDialect):
 
 
 def _refuse_range_subpartition(dialect: MariaDBDialect):
-    return MariaDBSubpartitionClause(dialect, strategy="RANGE")
+    return MariaDBSubpartitionClause(
+        dialect, strategy="RANGE", expression=Column(dialect, "id")
+    ).to_sql()
 
 
 def _refuse_list_subpartition(dialect: MariaDBDialect):
-    return MariaDBSubpartitionClause(dialect, strategy="LIST")
+    return MariaDBSubpartitionClause(
+        dialect, strategy="LIST", expression=Column(dialect, "id")
+    ).to_sql()
 
 
 def _build_partition_options(dialect: MariaDBDialect):

@@ -17,7 +17,6 @@ from enum import Enum
 from math import isfinite
 from typing import Any, Optional, Sequence, TYPE_CHECKING
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
@@ -102,27 +101,15 @@ class MariaDBPartitionValue(BaseExpression):
         return "format_partition_value"
 
 
-def _normalize_subpartition_strategy(
-    dialect: "MariaDBDialect",
-    strategy: Any,
-) -> MariaDBSubpartitionStrategy:
-    """Return the strategy member, refusing RANGE/LIST by name.
+def _subpartition_strategy_word(strategy: Any) -> str:
+    """The normalized word a subpartition strategy spelling carries.
 
-    MariaDB restricts subpartitioning to HASH and KEY (and their LINEAR
-    variants).  ``SUBPARTITION BY RANGE`` is refused with
-    ``UnsupportedFeatureError`` rather than silently downgraded to HASH.
+    Nothing is judged here. An unrecognised word is carried as a word, and
+    ``RANGE`` / ``LIST`` name a capability MariaDB does not have; both are
+    refused where the answer belongs, by the formatter, so a constructor
+    always collects.
     """
-    try:
-        return MariaDBSubpartitionStrategy(strategy)
-    except ValueError as error:
-        word = str(strategy).strip().upper()
-        if word in {"RANGE", "RANGE COLUMNS", "LIST", "LIST COLUMNS"}:
-            raise UnsupportedFeatureError(
-                getattr(dialect, "name", "MariaDB"),
-                f"SUBPARTITION BY {word}",
-                "MariaDB supports only HASH and KEY subpartitioning.",
-            ) from error
-        raise
+    return " ".join(str(getattr(strategy, "value", strategy)).strip().upper().split())
 
 
 class MariaDBSubpartitionClause(BaseExpression):
@@ -132,12 +119,11 @@ class MariaDBSubpartitionClause(BaseExpression):
     When ``definitions`` is provided, those explicit subpartition names
     override the template for each parent partition.
 
-    Raises:
-        ValueError: if strategy is not a MariaDBSubpartitionStrategy word.
-        UnsupportedFeatureError: if strategy names RANGE or LIST subpartitioning.
-        ValueError: if ``expression`` is missing; MariaDB requires a column
-            list for every SUBPARTITION BY HASH/KEY form, including LINEAR.
-        ValueError: if count is provided but is not a positive integer.
+    The constructor only collects. Which strategies MariaDB accepts is a
+    capability question answered by the formatter: ``RANGE`` / ``LIST``
+    subpartitioning is refused there with ``UnsupportedFeatureError``, and a
+    missing column list or a non-positive count is refused by
+    :meth:`check_renderable` with ``TypeError``.
     """
 
     def __init__(
@@ -150,29 +136,34 @@ class MariaDBSubpartitionClause(BaseExpression):
         definitions: Optional[Sequence[SubpartitionDefinitionExpression]] = None,
     ):
         super().__init__(dialect)
-        self.strategy = _normalize_subpartition_strategy(dialect, strategy)
-        if expression is None:
-            raise ValueError(
-                "SUBPARTITION BY %s requires an expression (column list)" % self.strategy.value
-            )
-        if count is not None and (not isinstance(count, int) or count <= 0):
-            raise ValueError("count must be a positive integer when provided")
+        word = _subpartition_strategy_word(strategy)
+        try:
+            self.strategy = MariaDBSubpartitionStrategy(word)
+        except ValueError:
+            # Collect only: an unrecognised word is carried as the word it is,
+            # and the formatter refuses it by name at render time.
+            self.strategy = word
         self.expression = expression
         self.count = count
         self.definitions = list(definitions) if definitions else None
+
+    def check_renderable(self) -> None:
+        """The clause needs a column list and a positive subpartition count."""
+        if not isinstance(self.expression, BaseExpression):
+            raise TypeError(
+                f"{type(self).__name__} requires an expression (column list), got "
+                f"{type(self.expression).__name__}"
+            )
+        if self.count is not None and (not isinstance(self.count, int) or self.count <= 0):
+            raise TypeError(
+                f"{type(self).__name__}.count must be a positive integer when provided, "
+                f"got {self.count!r}"
+            )
 
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
         return "format_subpartition_clause"
-
-
-def _require_subpartition_clause(
-    subpartition_by: Optional["MariaDBSubpartitionClause"],
-) -> None:
-    """Reject a subpartition_by value that is not the MariaDB clause."""
-    if subpartition_by is not None and not isinstance(subpartition_by, MariaDBSubpartitionClause):
-        raise TypeError("subpartition_by must be a MariaDBSubpartitionClause")
 
 
 class MariaDBPartitionClause(PartitionClause):
@@ -183,7 +174,15 @@ class MariaDBPartitionClause(PartitionClause):
     A core strategy clause (``PartitionByRangeClause`` and friends) carries its
     word in ``.method``/``.word``; a legacy string enum in ``.value``; and a
     bare word is itself. All three spell the same ``PARTITION BY`` word.
+
+    The constructor only collects. Whether the word is one MariaDB spells,
+    and whether the key list can carry the clause, is answered by
+    :meth:`check_renderable` when SQL is asked for.
     """
+
+    #: Whether an empty key list is a legal payload. ``PARTITION BY KEY()``
+    #: means "use all primary-key columns", so only the KEY forms allow it.
+    ALLOWS_EMPTY_KEYS = False
 
     def __init__(self, dialect: "MariaDBDialect", method: Any, keys: Sequence[BaseExpression]):
         word = getattr(method, "word", None)
@@ -195,21 +194,32 @@ class MariaDBPartitionClause(PartitionClause):
             word = None
         else:
             word = " ".join(word.strip().upper().split()) or None
-        if word not in _MARIADB_PARTITION_WORDS:
+        BaseExpression.__init__(self, dialect)
+        self.word = word
+        self.method = word
+        self.keys = list(keys or [])
+
+    def check_renderable(self) -> None:
+        """The clause needs a word this dialect spells and its key expressions."""
+        if not isinstance(self.method, str) or self.method not in _MARIADB_PARTITION_WORDS:
             raise TypeError(
-                "method must be one of %s, got %r" % (sorted(_MARIADB_PARTITION_WORDS), word)
+                "method must be one of %s, got %r" % (sorted(_MARIADB_PARTITION_WORDS), self.method)
             )
-        if not keys:
-            raise ValueError("keys are required")
-        for key in keys:
+        if not self.keys and not type(self).ALLOWS_EMPTY_KEYS:
+            raise TypeError("keys are required")
+        for key in self.keys:
             if not isinstance(key, BaseExpression):
                 raise TypeError(
                     "keys must contain BaseExpression instances, " f"got {type(key).__name__}"
                 )
-        BaseExpression.__init__(self, dialect)
-        self.word = word
-        self.method = word
-        self.keys = list(keys)
+        subpartition_by = getattr(self, "subpartition_by", None)
+        if subpartition_by is not None and not isinstance(
+            subpartition_by, MariaDBSubpartitionClause
+        ):
+            raise TypeError(
+                "subpartition_by must be a MariaDBSubpartitionClause, got "
+                f"{type(subpartition_by).__name__}"
+            )
 
 
 class MariaDBPartitionByRange(MariaDBPartitionClause):
@@ -227,7 +237,6 @@ class MariaDBPartitionByRange(MariaDBPartitionClause):
         subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, "RANGE", keys)
-        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
         self.subpartition_by = subpartition_by
 
@@ -247,7 +256,6 @@ class MariaDBPartitionByRangeColumns(MariaDBPartitionClause):
         subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, "RANGE COLUMNS", keys)
-        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
         self.subpartition_by = subpartition_by
 
@@ -267,7 +275,6 @@ class MariaDBPartitionByList(MariaDBPartitionClause):
         subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, "LIST", keys)
-        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
         self.subpartition_by = subpartition_by
 
@@ -287,7 +294,6 @@ class MariaDBPartitionByListColumns(MariaDBPartitionClause):
         subpartition_by: Optional[MariaDBSubpartitionClause] = None,
     ):
         super().__init__(dialect, "LIST COLUMNS", keys)
-        _require_subpartition_clause(subpartition_by)
         self.partitions = list(partitions or [])
         self.subpartition_by = subpartition_by
 
@@ -318,6 +324,9 @@ class MariaDBPartitionByKey(MariaDBPartitionClause):
     expression) and produces ``PARTITION BY KEY()``.
     """
 
+    #: ``KEY()`` is the one partition form whose key list may be empty.
+    ALLOWS_EMPTY_KEYS = True
+
     def __init__(
         self,
         dialect: "MariaDBDialect",
@@ -346,20 +355,23 @@ class MariaDBPartitionTableExpression(BaseExpression):
     database it belongs to, and a dropped qualifier would address a different
     table than the caller meant.
 
-    Raises:
-        TypeError: if ``table`` is not a :class:`Table`.
+    The constructor only collects. That the target is a :class:`Table` is
+    checked by :meth:`check_renderable` when SQL is asked for.
     """
 
     def __init__(self, dialect: "MariaDBDialect", table: Table):
         super().__init__(dialect)
-        if not isinstance(table, Table):
+        self.table = table
+
+    def check_renderable(self) -> None:
+        """The statement needs a :class:`Table` target."""
+        if not isinstance(self.table, Table):
             raise TypeError(
                 f"{type(self).__name__} target must be a Table object, got "
-                f"{type(table).__name__}; pass "
+                f"{type(self.table).__name__}; pass "
                 f"Table(dialect, 'users', catalog_name='app') to name a table "
                 f"in another database"
             )
-        self.table = table
 
 
 class MariaDBAddPartitionExpression(MariaDBPartitionTableExpression):
@@ -452,10 +464,14 @@ class MariaDBCoalescePartitionExpression(MariaDBPartitionTableExpression):
     """Expression for ``ALTER TABLE ... COALESCE PARTITION``."""
 
     def __init__(self, dialect: "MariaDBDialect", table: Table, count: int):
-        if not isinstance(count, int) or count <= 0:
-            raise ValueError("count must be a positive integer")
         super().__init__(dialect, table)
         self.count = count
+
+    def check_renderable(self) -> None:
+        """COALESCE removes partitions, so the count is a positive integer."""
+        super().check_renderable()
+        if not isinstance(self.count, int) or self.count <= 0:
+            raise TypeError("count must be a positive integer")
 
     @property
     def format_method(self) -> str:
