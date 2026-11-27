@@ -62,7 +62,7 @@ class MariaDBSystemVersioningMixin:
         """
         return self.supports_system_versioning()
 
-    def format_for_system_time_as_of(
+    def render_for_system_time_as_of(
         self,
         expr: Any
     ) -> Tuple[str, tuple]:
@@ -80,7 +80,7 @@ class MariaDBSystemVersioningMixin:
             Tuple of (SQL string, parameters tuple).
 
         Example:
-            >>> dialect.format_for_system_time_as_of('2024-01-01 00:00:00')
+            >>> dialect.render_for_system_time_as_of('2024-01-01 00:00:00')
             ("FOR SYSTEM_TIME AS OF '2024-01-01 00:00:00'", ())
         """
         if not self.supports_system_versioning():
@@ -181,7 +181,7 @@ class MariaDBSystemVersioningMixin:
 
         return f"FOR SYSTEM_TIME FROM {start_sql} TO {end_sql}", tuple(all_params)
 
-    def format_for_system_time_all(self) -> Tuple[str, tuple]:
+    def render_for_system_time_all(self) -> Tuple[str, tuple]:
         """Format FOR SYSTEM_TIME ALL clause.
 
         Queries all historical rows including current and deleted rows.
@@ -199,7 +199,7 @@ class MariaDBSystemVersioningMixin:
 
         return "FOR SYSTEM_TIME ALL", ()
 
-    def format_without_system_versioning(self) -> Tuple[str, tuple]:
+    def render_without_system_versioning(self) -> Tuple[str, tuple]:
         """Format WITHOUT SYSTEM VERSIONING clause.
 
         Queries only current data, excluding historical rows.

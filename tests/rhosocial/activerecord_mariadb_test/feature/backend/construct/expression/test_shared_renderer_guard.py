@@ -49,11 +49,6 @@ ALLOWED_SHARED_HELPERS: Dict[Tuple[str, str], str] = {
         "a ``(mode, name, type)`` tuple; takes no statement node and reads no "
         "capability probe."
     ),
-    ("MariaDBPartitionMixin", "_format_partition_key_list"): (
-        "value-level: joins the already-rendered key entries of one list "
-        "through their own ``to_sql``; takes no statement node and reads no "
-        "capability probe."
-    ),
     ("MariaDBTypeSupportMixin", "_format_mariadb_integer"): (
         "value-level: appends ``UNSIGNED`` / ``ZEROFILL`` to an already-rendered "
         "type word and checks the flag's shape; takes no statement node and "

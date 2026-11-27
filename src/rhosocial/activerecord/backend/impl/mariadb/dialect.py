@@ -191,6 +191,22 @@ if TYPE_CHECKING:
     )
 
 
+def _escape_identifier(identifier: str) -> str:
+    """Double the backticks inside a declared identifier atom."""
+    return identifier.replace('`', '``')
+
+
+def _last_word(text: str) -> str:
+    """The final whitespace-delimited word of *text*, read by character scan."""
+    end = len(text)
+    while end and text[end - 1].isspace():
+        end -= 1
+    start = end
+    while start and not text[start - 1].isspace():
+        start -= 1
+    return text[start:end]
+
+
 class MariaDBDialect(
     # Backend suggestions first: no core mixin may shadow their answers. Each
     # partition suggestion point is its own mixin; they all share one base,
@@ -508,7 +524,7 @@ class MariaDBDialect(
                     stacklevel=2,
                 )
             return identifier
-        escaped = identifier.replace('`', '``')
+        escaped = _escape_identifier(identifier)
         return f'`{escaped}`'
 
     # region Type protocol
@@ -1457,7 +1473,7 @@ class MariaDBDialect(
             if requested:
                 if not getattr(self, probe)():
                     raise UnsupportedFeatureError(self.name, spelling)
-                parts.append(spelling.split()[-1])
+                parts.append(_last_word(spelling))
 
         return f"{' '.join(parts)} {statement_sql}", statement_params
 

@@ -109,7 +109,7 @@ class MariaDBDMLOperationSupport(Protocol):
         """
         ...
 
-    def format_replace_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def render_replace_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format REPLACE INTO statement.
 
         Args:

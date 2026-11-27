@@ -7,7 +7,10 @@ MariaDB full-text search features:
 - Query expansion mode
 - MATCH ... AGAINST expression
 """
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..expression.match_against import MariaDBMatchAgainstExpression
 
 
 class MariaDBFullTextSearchMixin:
@@ -56,7 +59,7 @@ class MariaDBFullTextSearchMixin:
             sql += f" WITH PARSER {self.format_identifier(parser_name)}"
         return sql, ()
 
-    def format_match_against_expression(self, expr) -> Tuple[str, tuple]:
+    def format_match_against_expression(self, expr: "MariaDBMatchAgainstExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBMatchAgainstExpression` node."""
         cols_sql = ", ".join(self.format_identifier(c) for c in expr.columns)
 

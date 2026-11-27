@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from ..dialect import MariaDBDialect
 
 
-class ShowExpression(BaseExpression):
+class MariaDBShowExpression(BaseExpression):
     """Base class for MariaDB SHOW command expressions.
 
     All MariaDB SHOW expressions inherit from this class. Parameters are
@@ -51,7 +51,7 @@ class ShowExpression(BaseExpression):
         self.schema = schema
 
 
-class ShowRelationExpression(ShowExpression):
+class MariaDBShowRelationExpression(MariaDBShowExpression):
     """Base for the SHOW commands that name one relation.
 
     ``SHOW CREATE TABLE``, ``SHOW CREATE VIEW``, ``SHOW COLUMNS`` and
@@ -73,9 +73,9 @@ class ShowRelationExpression(ShowExpression):
     between them is the verb and the options, not the name.
     """
 
-    #: The relation kind a bare name is read as. ``ShowCreateTableStatement``
+    #: The relation kind a bare name is read as. ``MariaDBShowCreateTableStatement``
     #: and the table-shaped statements leave this as :class:`Table`;
-    #: ``ShowCreateViewStatement`` narrows it to :class:`View`. Both are
+    #: ``MariaDBShowCreateViewStatement`` narrows it to :class:`View`. Both are
     #: relations, so both render through the same qualified-name path.
     relation_kind: type = Table
 
@@ -111,7 +111,7 @@ class ShowRelationExpression(ShowExpression):
         return self._relation
 
 
-class ShowCreateTableStatement(ShowRelationExpression):
+class MariaDBShowCreateTableStatement(MariaDBShowRelationExpression):
     """Expression for SHOW CREATE TABLE command."""
 
     @property
@@ -120,7 +120,7 @@ class ShowCreateTableStatement(ShowRelationExpression):
         return "format_show_create_table_statement"
 
 
-class ShowCreateViewStatement(ShowRelationExpression):
+class MariaDBShowCreateViewStatement(MariaDBShowRelationExpression):
     """Expression for SHOW CREATE VIEW command."""
 
     #: A view is a relation; naming it as one is what lets the same
@@ -133,7 +133,7 @@ class ShowCreateViewStatement(ShowRelationExpression):
     relation_kind = View
 
 
-class ShowColumnsStatement(ShowRelationExpression):
+class MariaDBShowColumnsStatement(MariaDBShowRelationExpression):
     """Expression for SHOW [FULL] COLUMNS command."""
 
     @property
@@ -151,7 +151,7 @@ class ShowColumnsStatement(ShowRelationExpression):
         self.like_pattern = like_pattern
 
 
-class ShowIndexStatement(ShowRelationExpression):
+class MariaDBShowIndexStatement(MariaDBShowRelationExpression):
     """Expression for SHOW INDEX command."""
 
     @property
@@ -160,7 +160,7 @@ class ShowIndexStatement(ShowRelationExpression):
         return "format_show_index_statement"
 
 
-class ShowTablesStatement(ShowExpression):
+class MariaDBShowTablesStatement(MariaDBShowExpression):
     """Expression for SHOW [FULL] TABLES command.
 
     ``schema`` is declared on this class, not only on the base, because
@@ -182,7 +182,7 @@ class ShowTablesStatement(ShowExpression):
         self.like_pattern = like_pattern
 
 
-class ShowDatabasesStatement(ShowExpression):
+class MariaDBShowDatabasesStatement(MariaDBShowExpression):
     """Expression for SHOW DATABASES command."""
 
     @property
@@ -196,11 +196,11 @@ class ShowDatabasesStatement(ShowExpression):
         self.like_pattern = like_pattern
 
 
-class ShowTableStatusStatement(ShowExpression):
+class MariaDBShowTableStatusStatement(MariaDBShowExpression):
     """Expression for SHOW TABLE STATUS command.
 
     ``schema`` is declared here for the same reason as on
-    :class:`ShowTablesStatement`: the ``FROM`` qualifier has to be a
+    :class:`MariaDBShowTablesStatement`: the ``FROM`` qualifier has to be a
     parameter of the class the serializer reads.
     """
 
@@ -216,7 +216,7 @@ class ShowTableStatusStatement(ShowExpression):
         self.like_pattern = like_pattern
 
 
-class ShowTriggersStatement(ShowExpression):
+class MariaDBShowTriggersStatement(MariaDBShowExpression):
     """Expression for SHOW TRIGGERS command.
 
     ``table_name`` here is a **LIKE pattern**, not a relation reference:
@@ -224,7 +224,7 @@ class ShowTriggersStatement(ShowExpression):
     resolved object. It is therefore kept as a plain string and never
     qualified -- the database comes from ``schema``, which is the ``FROM``
     clause and is declared on this class for the same reason as on
-    :class:`ShowTablesStatement`.
+    :class:`MariaDBShowTablesStatement`.
     """
 
     @property
@@ -239,7 +239,7 @@ class ShowTriggersStatement(ShowExpression):
         self.table_name = table_name
 
 
-class ShowCreateTriggerStatement(ShowExpression):
+class MariaDBShowCreateTriggerStatement(MariaDBShowExpression):
     """Expression for SHOW CREATE TRIGGER command."""
 
     @property
@@ -278,7 +278,7 @@ class ShowCreateTriggerStatement(ShowExpression):
         return self._trigger
 
 
-class ShowVariablesStatement(ShowExpression):
+class MariaDBShowVariablesStatement(MariaDBShowExpression):
     """Expression for SHOW [GLOBAL] VARIABLES command."""
 
     @property
@@ -293,7 +293,7 @@ class ShowVariablesStatement(ShowExpression):
         self.session = session
 
 
-class ShowStatusStatement(ShowExpression):
+class MariaDBShowStatusStatement(MariaDBShowExpression):
     """Expression for SHOW [GLOBAL] STATUS command."""
 
     @property
@@ -308,7 +308,7 @@ class ShowStatusStatement(ShowExpression):
         self.session = session
 
 
-class ShowMasterStatusStatement(ShowExpression):
+class MariaDBShowMasterStatusStatement(MariaDBShowExpression):
     """Expression for SHOW MASTER STATUS command.
 
     The binlog's own file, position, do/ignore databases and executed GTID
@@ -327,7 +327,7 @@ class ShowMasterStatusStatement(ShowExpression):
         return "format_show_master_status_statement"
 
 
-class ShowSlaveStatusStatement(ShowExpression):
+class MariaDBShowSlaveStatusStatement(MariaDBShowExpression):
     """Expression for SHOW SLAVE STATUS command.
 
     The replica side of replication: one row per configured replica, empty
@@ -343,7 +343,7 @@ class ShowSlaveStatusStatement(ShowExpression):
         return "format_show_slave_status_statement"
 
 
-class ShowProcessListStatement(ShowExpression):
+class MariaDBShowProcessListStatement(MariaDBShowExpression):
     """Expression for SHOW [FULL] PROCESSLIST command."""
 
     @property
@@ -357,7 +357,7 @@ class ShowProcessListStatement(ShowExpression):
         self.full = full
 
 
-class ShowWarningsStatement(ShowExpression):
+class MariaDBShowWarningsStatement(MariaDBShowExpression):
     """Expression for SHOW WARNINGS command."""
 
     @property
@@ -371,7 +371,7 @@ class ShowWarningsStatement(ShowExpression):
         self.limit = limit
 
 
-class ShowErrorsStatement(ShowExpression):
+class MariaDBShowErrorsStatement(MariaDBShowExpression):
     """Expression for SHOW ERRORS command."""
 
     @property
@@ -385,7 +385,7 @@ class ShowErrorsStatement(ShowExpression):
         self.limit = limit
 
 
-class ShowEnginesStatement(ShowExpression):
+class MariaDBShowEnginesStatement(MariaDBShowExpression):
     """Expression for SHOW ENGINES command."""
 
     @property
@@ -394,7 +394,7 @@ class ShowEnginesStatement(ShowExpression):
         return "format_show_engines_statement"
 
 
-class ShowCharsetStatement(ShowExpression):
+class MariaDBShowCharsetStatement(MariaDBShowExpression):
     """Expression for SHOW CHARACTER SET command."""
 
     @property
@@ -408,7 +408,7 @@ class ShowCharsetStatement(ShowExpression):
         self.like_pattern = like_pattern
 
 
-class ShowCollationStatement(ShowExpression):
+class MariaDBShowCollationStatement(MariaDBShowExpression):
     """Expression for SHOW COLLATION command."""
 
     @property
@@ -422,7 +422,7 @@ class ShowCollationStatement(ShowExpression):
         self.like_pattern = like_pattern
 
 
-class ShowGrantsStatement(ShowExpression):
+class MariaDBShowGrantsStatement(MariaDBShowExpression):
     """Expression for SHOW GRANTS command."""
 
     @property
@@ -437,7 +437,7 @@ class ShowGrantsStatement(ShowExpression):
         self.host = host
 
 
-class ShowPluginsStatement(ShowExpression):
+class MariaDBShowPluginsStatement(MariaDBShowExpression):
     """Expression for SHOW PLUGINS command."""
 
     @property
@@ -447,27 +447,27 @@ class ShowPluginsStatement(ShowExpression):
 
 
 __all__ = [
-    "ShowExpression",
-    "ShowRelationExpression",
-    "ShowCreateTableStatement",
-    "ShowCreateViewStatement",
-    "ShowColumnsStatement",
-    "ShowIndexStatement",
-    "ShowTablesStatement",
-    "ShowDatabasesStatement",
-    "ShowTableStatusStatement",
-    "ShowTriggersStatement",
-    "ShowCreateTriggerStatement",
-    "ShowVariablesStatement",
-    "ShowStatusStatement",
-    "ShowMasterStatusStatement",
-    "ShowSlaveStatusStatement",
-    "ShowProcessListStatement",
-    "ShowWarningsStatement",
-    "ShowErrorsStatement",
-    "ShowEnginesStatement",
-    "ShowCharsetStatement",
-    "ShowCollationStatement",
-    "ShowGrantsStatement",
-    "ShowPluginsStatement",
+    "MariaDBShowExpression",
+    "MariaDBShowRelationExpression",
+    "MariaDBShowCreateTableStatement",
+    "MariaDBShowCreateViewStatement",
+    "MariaDBShowColumnsStatement",
+    "MariaDBShowIndexStatement",
+    "MariaDBShowTablesStatement",
+    "MariaDBShowDatabasesStatement",
+    "MariaDBShowTableStatusStatement",
+    "MariaDBShowTriggersStatement",
+    "MariaDBShowCreateTriggerStatement",
+    "MariaDBShowVariablesStatement",
+    "MariaDBShowStatusStatement",
+    "MariaDBShowMasterStatusStatement",
+    "MariaDBShowSlaveStatusStatement",
+    "MariaDBShowProcessListStatement",
+    "MariaDBShowWarningsStatement",
+    "MariaDBShowErrorsStatement",
+    "MariaDBShowEnginesStatement",
+    "MariaDBShowCharsetStatement",
+    "MariaDBShowCollationStatement",
+    "MariaDBShowGrantsStatement",
+    "MariaDBShowPluginsStatement",
 ]

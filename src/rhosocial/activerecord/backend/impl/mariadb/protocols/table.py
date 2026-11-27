@@ -10,6 +10,7 @@ if TYPE_CHECKING:
         ColumnConstraint,
         ColumnPrimaryKeyConstraint,
         CreateTableLikeStatement,
+        ReferencesClause,
         TableForeignKeyConstraint,
     )
 
@@ -41,6 +42,14 @@ class MariaDBTableSupport(TableObjectSupport, Protocol):
     - CREATE OR REPLACE TABLE: MariaDB 10.1+
     - System-versioned tables: MariaDB 10.3+
     """
+
+    def format_references_clause(self, expr: "ReferencesClause") -> Tuple[str, tuple]:
+        """Render ``REFERENCES`` with MariaDB's spaced column list.
+
+        Core spells the column list unspaced; this override is the one place
+        the backend's ``SHOW CREATE TABLE``-compatible spelling is produced.
+        """
+        ...  # pragma: no cover
 
     def supports_create_table_as_bind_parameters(self) -> bool:
         """Whether this statement's body may carry bind parameters.

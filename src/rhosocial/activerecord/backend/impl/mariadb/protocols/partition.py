@@ -62,7 +62,7 @@ class MariaDBPartitionSupport(PartitionSupport, Protocol):
         """
         ...
 
-    def format_partition_definition(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_definition(self, expr: Any) -> Tuple[str, tuple]:
         """Format a MariaDB PARTITION definition."""
         ...
 
@@ -110,7 +110,7 @@ class MariaDBPartitionSupport(PartitionSupport, Protocol):
         """Format ALTER TABLE ... COALESCE PARTITION."""
         ...
 
-    def format_partition_name_list(self, expr: Sequence[str]) -> Tuple[str, tuple]:
+    def render_partition_name_list(self, expr: Sequence[str]) -> Tuple[str, tuple]:
         """Format a non-empty list of partition names."""
         ...
 

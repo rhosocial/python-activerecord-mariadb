@@ -181,7 +181,7 @@ class MariaDBSequenceMixin:
         """
         return False
 
-    def format_nextval(self, expr: str) -> Tuple[str, tuple]:
+    def render_nextval(self, expr: str) -> Tuple[str, tuple]:
         """Format NEXTVAL expression.
 
         Args:
@@ -191,12 +191,12 @@ class MariaDBSequenceMixin:
             Tuple of (SQL string, parameters tuple).
 
         Example:
-            >>> dialect.format_nextval('user_seq')
+            >>> dialect.render_nextval('user_seq')
             ('NEXT VALUE FOR `user_seq`', ())
         """
         return f"NEXT VALUE FOR {self.format_identifier(expr)}", ()
 
-    def format_currval(self, expr: str) -> Tuple[str, tuple]:
+    def render_currval(self, expr: str) -> Tuple[str, tuple]:
         """Format CURRVAL expression.
 
         Note: CURRVAL returns the most recent value obtained by NEXTVAL
@@ -209,7 +209,7 @@ class MariaDBSequenceMixin:
             Tuple of (SQL string, parameters tuple).
 
         Example:
-            >>> dialect.format_currval('user_seq')
+            >>> dialect.render_currval('user_seq')
             ('CURRENT VALUE FOR `user_seq`', ())
         """
         return f"CURRENT VALUE FOR {self.format_identifier(expr)}", ()

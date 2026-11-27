@@ -31,7 +31,7 @@ class MariaDBSystemVersioningSupport(Protocol):
         """
         ...
 
-    def format_for_system_time_as_of(
+    def render_for_system_time_as_of(
         self,
         expr: Any
     ) -> Tuple[str, tuple]:

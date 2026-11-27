@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
         ColumnDefinition,
         IndexDefinition,
+        ReferencesClause,
         TableConstraint,
         TableForeignKeyConstraint,
     )
@@ -474,6 +475,77 @@ class MariaDBTableMixin:
             )
         return " PRIMARY KEY", ()
 
+    def format_references_clause(self, expr: "ReferencesClause") -> Tuple[str, tuple]:
+        """MariaDB's spaced ``REFERENCES <table> (<columns>)`` spelling.
+
+        Built from the declared clause rather than by rewriting core's rendered
+        SQL: the column list is the one part MariaDB spells differently, and a
+        formatter stays a pure function of the expression it was handed.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.dialect.mixins.ddl_table import (
+            normalize_foreign_key_match_type,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.statements import ReferentialAction
+
+        if not isinstance(expr.referenced_table, Table):
+            raise TypeError(
+                f"ReferencesClause.referenced_table must be a Table, "
+                f"got {type(expr.referenced_table).__name__}"
+            )
+        if not expr.referenced_columns:
+            raise ValueError("REFERENCES clause requires at least one referenced column.")
+        ref_cols_str = ", ".join(self.format_identifier(col) for col in expr.referenced_columns)
+        result = f"REFERENCES {expr.referenced_table.to_sql()[0]} ({ref_cols_str})"
+        if expr.match_type is not None:
+            match_type = normalize_foreign_key_match_type(expr.match_type)
+            if not self.supports_fk_match():
+                raise UnsupportedFeatureError(
+                    self.name, "FOREIGN KEY MATCH",
+                    f"{self.name} does not support MATCH for foreign keys."
+                )
+            result += f" MATCH {match_type.value}"
+        on_delete = (
+            self._referential_action_value(expr.on_delete)
+            if expr.on_delete is not None
+            else None
+        )
+        if on_delete is not None and on_delete != ReferentialAction.NO_ACTION.value:
+            if not self.supports_foreign_key_on_delete():
+                raise UnsupportedFeatureError(
+                    self.name, "FOREIGN KEY ON DELETE",
+                    f"{self.name} does not support ON DELETE for foreign keys."
+                )
+            result += f" ON DELETE {on_delete}"
+        on_update = (
+            self._referential_action_value(expr.on_update)
+            if expr.on_update is not None
+            else None
+        )
+        if on_update is not None and on_update != ReferentialAction.NO_ACTION.value:
+            if not self.supports_foreign_key_on_update():
+                raise UnsupportedFeatureError(
+                    self.name, "FOREIGN KEY ON UPDATE",
+                    f"{self.name} does not support ON UPDATE for foreign keys."
+                )
+            result += f" ON UPDATE {on_update}"
+        has_deferral = (
+            expr.deferrable
+            or expr.not_deferrable
+            or expr.initially_deferred
+            or expr.initially_immediate
+        )
+        if has_deferral and not self.supports_deferrable_constraint():
+            raise UnsupportedFeatureError(
+                self.name, "DEFERRABLE / INITIALLY clause on a foreign key"
+            )
+        if expr.deferrable or expr.not_deferrable:
+            result += " DEFERRABLE" if expr.deferrable else " NOT DEFERRABLE"
+        if expr.initially_deferred or expr.initially_immediate:
+            result += " INITIALLY DEFERRED" if expr.initially_deferred else " INITIALLY IMMEDIATE"
+        return result, ()
+
     def format_table_foreign_key_constraint(
         self, expr: "TableForeignKeyConstraint"
     ) -> Tuple[str, tuple]:
@@ -484,8 +556,8 @@ class MariaDBTableMixin:
         REFERENCES `p` (`id`)``, and this backend's rendering did the same
         before the two-level nodes: the old ``format_table_constraint`` spelled
         the whole clause itself. Keeping the space is what makes the migration
-        byte-preserving rather than a silent re-spelling, so the reference body
-        is re-spaced here instead of taking core's ``REFERENCES t(c)``.
+        byte-preserving rather than a silent re-spelling, so this backend's
+        ``format_references_clause`` renders the spaced body directly.
 
         The referential actions and ``MATCH`` still ride the shared
         ``ReferencesClause`` machinery, so the capability probes stay consulted
@@ -526,11 +598,10 @@ class MariaDBTableMixin:
             on_update=expr.on_update,
             match_type=expr.match_type,
         )
+        # This backend's ``format_references_clause`` override renders the
+        # spaced column list directly, so the clause needs no post-processing.
         ref_sql, ref_params = self.format_references_clause(references)
-        # The shared clause renders "REFERENCES <table>(<cols>)..."; MariaDB
-        # spells the column list with a space: "REFERENCES <table> (<cols>)...".
-        head, rest = ref_sql.split("(", 1)
-        return f"FOREIGN KEY ({cols_str}) {head} ({rest}", tuple(ref_params)
+        return f"FOREIGN KEY ({cols_str}) {ref_sql}", tuple(ref_params)
 
     def format_index_definition(self, expr: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline index definition (MariaDB-specific)."""

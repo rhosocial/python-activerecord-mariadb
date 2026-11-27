@@ -18,8 +18,8 @@ import pytest
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
-    ShowStatusStatement,
-    ShowVariablesStatement,
+    MariaDBShowStatusStatement,
+    MariaDBShowVariablesStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.status import (
     MariaDBDatabaseListQuery,
@@ -116,12 +116,12 @@ class TestStatusReadsGoThroughShowNodes:
     """The two reads the status introspector used to spell as f-strings."""
 
     def test_session_variables(self, dialect):
-        assert ShowVariablesStatement(
+        assert MariaDBShowVariablesStatement(
             dialect, like_pattern="max_connections"
         ).to_sql() == ("SHOW VARIABLES LIKE %s", ("max_connections",))
 
     def test_global_status(self, dialect):
-        assert ShowStatusStatement(
+        assert MariaDBShowStatusStatement(
             dialect, like_pattern="Threads_connected", session=False
         ).to_sql() == ("SHOW GLOBAL STATUS LIKE %s", ("Threads_connected",))
 
@@ -130,13 +130,13 @@ class TestStatusReadsGoThroughShowNodes:
     )
     def test_a_read_name_is_bound_not_spliced(self, dialect, name):
         """The name is data: it reaches the server as a parameter, never as text."""
-        sql, params = ShowVariablesStatement(dialect, like_pattern=name).to_sql()
+        sql, params = MariaDBShowVariablesStatement(dialect, like_pattern=name).to_sql()
         assert name not in sql
         assert params == (name,)
 
     def test_a_hostile_name_cannot_break_the_statement(self, dialect):
         hostile = "x' OR '1'='1"
-        sql, params = ShowStatusStatement(
+        sql, params = MariaDBShowStatusStatement(
             dialect, like_pattern=hostile, session=False
         ).to_sql()
         assert hostile not in sql

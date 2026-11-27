@@ -25,10 +25,10 @@ Design principle: Sync and Async are separate and cannot coexist.
 from typing import Any, Dict, List, Optional
 
 from ..expression.show import (
-    ShowMasterStatusStatement,
-    ShowSlaveStatusStatement,
-    ShowStatusStatement,
-    ShowVariablesStatement,
+    MariaDBShowMasterStatusStatement,
+    MariaDBShowSlaveStatusStatement,
+    MariaDBShowStatusStatement,
+    MariaDBShowVariablesStatement,
 )
 from ..expression.status import (
     MariaDBDatabaseListQuery,
@@ -299,7 +299,7 @@ class MariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AbstractStatusIn
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowVariablesStatement(
+                sql, params = MariaDBShowVariablesStatement(
                     self._backend.dialect, like_pattern=name
                 ).to_sql()
                 rows = self._execute_query(sql, params)
@@ -313,7 +313,7 @@ class MariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AbstractStatusIn
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowStatusStatement(
+                sql, params = MariaDBShowStatusStatement(
                     self._backend.dialect, like_pattern=name, session=False
                 ).to_sql()
                 rows = self._execute_query(sql, params)
@@ -360,7 +360,7 @@ class MariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AbstractStatusIn
             return self.parse_binary_log_info(variables, [])
         return self.parse_binary_log_info(
             variables,
-            self._execute_query_dict(*ShowMasterStatusStatement(self._backend.dialect).to_sql()),
+            self._execute_query_dict(*MariaDBShowMasterStatusStatement(self._backend.dialect).to_sql()),
         )
 
     def get_replication_info(self) -> MariaDBReplicationInfo:
@@ -374,7 +374,7 @@ class MariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AbstractStatusIn
         variables = self._show_variables(MARIADB_REPLICATION_VARIABLES)
         try:
             rows = self._execute_query_dict(
-                *ShowSlaveStatusStatement(self._backend.dialect).to_sql()
+                *MariaDBShowSlaveStatusStatement(self._backend.dialect).to_sql()
             )
         except Exception:
             rows = None
@@ -526,7 +526,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowVariablesStatement(
+                sql, params = MariaDBShowVariablesStatement(
                     self._backend.dialect, like_pattern=name
                 ).to_sql()
                 rows = await self._execute_query(sql, params)
@@ -540,7 +540,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         result: Dict[str, str] = {}
         for name in names:
             try:
-                sql, params = ShowStatusStatement(
+                sql, params = MariaDBShowStatusStatement(
                     self._backend.dialect, like_pattern=name, session=False
                 ).to_sql()
                 rows = await self._execute_query(sql, params)
@@ -582,7 +582,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         return self.parse_binary_log_info(
             variables,
             await self._execute_query_dict(
-                *ShowMasterStatusStatement(self._backend.dialect).to_sql()
+                *MariaDBShowMasterStatusStatement(self._backend.dialect).to_sql()
             ),
         )
 
@@ -591,7 +591,7 @@ class AsyncMariaDBStatusIntrospector(MariaDBStatusIntrospectorMixin, AsyncAbstra
         variables = await self._show_variables(MARIADB_REPLICATION_VARIABLES)
         try:
             rows = await self._execute_query_dict(
-                *ShowSlaveStatusStatement(self._backend.dialect).to_sql()
+                *MariaDBShowSlaveStatusStatement(self._backend.dialect).to_sql()
             )
         except Exception:
             rows = None

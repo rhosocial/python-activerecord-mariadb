@@ -957,24 +957,24 @@ def register_specials():
     # an expression. Each statement gets the relation object it names, so the
     # rendered SQL is one this backend actually accepts.
     register_special_constructor(
-        "show.ShowRelationExpression",
-        lambda d: maria_show.ShowRelationExpression(d, _table_obj(d, "probe_rel")),
+        "show.MariaDBShowRelationExpression",
+        lambda d: maria_show.MariaDBShowRelationExpression(d, _table_obj(d, "probe_rel")),
     )
     register_special_constructor(
-        "show.ShowColumnsStatement",
-        lambda d: maria_show.ShowColumnsStatement(d, _table_obj(d, "probe_cols")),
+        "show.MariaDBShowColumnsStatement",
+        lambda d: maria_show.MariaDBShowColumnsStatement(d, _table_obj(d, "probe_cols")),
     )
     register_special_constructor(
-        "show.ShowCreateTableStatement",
-        lambda d: maria_show.ShowCreateTableStatement(d, _table_obj(d, "probe_ct")),
+        "show.MariaDBShowCreateTableStatement",
+        lambda d: maria_show.MariaDBShowCreateTableStatement(d, _table_obj(d, "probe_ct")),
     )
     register_special_constructor(
-        "show.ShowCreateViewStatement",
-        lambda d: maria_show.ShowCreateViewStatement(d, View(d, "probe_cv")),
+        "show.MariaDBShowCreateViewStatement",
+        lambda d: maria_show.MariaDBShowCreateViewStatement(d, View(d, "probe_cv")),
     )
     register_special_constructor(
-        "show.ShowCreateTriggerStatement",
-        lambda d: maria_show.ShowCreateTriggerStatement(d, Trigger(d, "probe_trg")),
+        "show.MariaDBShowCreateTriggerStatement",
+        lambda d: maria_show.MariaDBShowCreateTriggerStatement(d, Trigger(d, "probe_trg")),
     )
 
     # -- the two core statements this round's families answer -----------------
@@ -998,8 +998,8 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "show.ShowIndexStatement",
-        lambda d: maria_show.ShowIndexStatement(d, _table_obj(d, "probe_idx")),
+        "show.MariaDBShowIndexStatement",
+        lambda d: maria_show.MariaDBShowIndexStatement(d, _table_obj(d, "probe_idx")),
     )
     register_special_constructor(
         "routine.MariaDBCreateProcedureStatement",
@@ -1414,10 +1414,10 @@ LEGITIMATE_NON_RENDERS = {
     # override, which bypassed the one dispatch path every node takes, so the
     # outcome is now the same canonical "no declaration" report core gives for
     # every other category base.
-    "rhosocial.activerecord.backend.impl.mariadb.expression.show.ShowExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.show.MariaDBShowExpression": (
         NotImplementedError, _NO_FORMATTER
     ),
-    "rhosocial.activerecord.backend.impl.mariadb.expression.show.ShowRelationExpression": (
+    "rhosocial.activerecord.backend.impl.mariadb.expression.show.MariaDBShowRelationExpression": (
         NotImplementedError, _NO_FORMATTER
     ),
     "rhosocial.activerecord.backend.impl.mariadb.expression.routine.MariaDBRoutineExpression": (

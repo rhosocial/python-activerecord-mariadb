@@ -30,8 +30,8 @@ from rhosocial.activerecord.backend.introspection.types import (
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
-    ShowMasterStatusStatement,
-    ShowSlaveStatusStatement,
+    MariaDBShowMasterStatusStatement,
+    MariaDBShowSlaveStatusStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.introspection import (
     AsyncMariaDBStatusIntrospector,
@@ -107,14 +107,14 @@ class TestShowReplicationStatements:
     """The two SHOW nodes the families run render MariaDB's own commands."""
 
     def test_show_master_status(self):
-        assert ShowMasterStatusStatement(_dialect()).to_sql() == ("SHOW MASTER STATUS", ())
+        assert MariaDBShowMasterStatusStatement(_dialect()).to_sql() == ("SHOW MASTER STATUS", ())
 
     def test_show_slave_status(self):
-        assert ShowSlaveStatusStatement(_dialect()).to_sql() == ("SHOW SLAVE STATUS", ())
+        assert MariaDBShowSlaveStatusStatement(_dialect()).to_sql() == ("SHOW SLAVE STATUS", ())
 
     def test_no_parameters_are_bound(self):
         """No bind values on either command: nothing is interpolated."""
-        for expr in (ShowMasterStatusStatement(_dialect()), ShowSlaveStatusStatement(_dialect())):
+        for expr in (MariaDBShowMasterStatusStatement(_dialect()), MariaDBShowSlaveStatusStatement(_dialect())):
             _, params = expr.to_sql()
             assert params == ()
 

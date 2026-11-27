@@ -44,9 +44,6 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBExchangePartitionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.registry import backend_registry
-from rhosocial.activerecord.backend.impl.sqlite.expression.vacuum import (
-    SQLiteVacuumStatement,
-)
 
 VERSION = (10, 6, 0)
 
@@ -108,8 +105,8 @@ def test_declaring_a_formatter_is_what_registers_a_class():
         MariaDBCallStatement,
     )
     from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
-        ShowCreateTableStatement,
-        ShowWarningsStatement,
+        MariaDBShowCreateTableStatement,
+        MariaDBShowWarningsStatement,
     )
 
     registry = backend_registry()
@@ -120,8 +117,8 @@ def test_declaring_a_formatter_is_what_registers_a_class():
         MariaDBLoadDataStatement,
         MariaDBRenameTableStatement,
         MariaDBCallStatement,
-        ShowCreateTableStatement,
-        ShowWarningsStatement,
+        MariaDBShowCreateTableStatement,
+        MariaDBShowWarningsStatement,
     ):
         assert registry.resolve_node(cls.kind()) is cls, (
             f"{cls.__name__} declares format_method and must be discovered by "
@@ -130,8 +127,12 @@ def test_declaring_a_formatter_is_what_registers_a_class():
 
 
 def test_a_foreign_backend_kind_is_refused_by_name():
-    """SQLite's kinds are SQLite's; MariaDB's table does not list them."""
-    foreign = SQLiteVacuumStatement.kind()
+    """SQLite's kinds are SQLite's; MariaDB's table does not list them.
+
+    The foreign kind is named as data: importing another backend's expression
+    module here would make MariaDB's tests depend on that backend's internals.
+    """
+    foreign = "sqlite_vacuum_statement"
     assert foreign not in backend_registry().node_kinds()
     assert foreign not in core_registry().node_kinds()
 

@@ -123,7 +123,7 @@ class MariaDBReturningMixin:
         return self.version_at_least(MARIADB_VERSION_BOUNDARIES['RETURNING_UPDATE'])
 
 
-    def format_returning_clause_from_obj(
+    def render_returning_clause_from_obj(
         self,
         expr: "ReturningClause"
     ) -> Tuple[str, tuple]:

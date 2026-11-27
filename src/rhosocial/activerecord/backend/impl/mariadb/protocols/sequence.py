@@ -142,7 +142,7 @@ class MariaDBSequenceSupport(Protocol):
         """Format ALTER SEQUENCE statement (MariaDB syntax)."""
         ...
 
-    def format_nextval(self, expr: str) -> Tuple[str, tuple]:
+    def render_nextval(self, expr: str) -> Tuple[str, tuple]:
         """Format NEXTVAL expression.
 
         Args:
@@ -153,7 +153,7 @@ class MariaDBSequenceSupport(Protocol):
         """
         ...
 
-    def format_currval(self, expr: str) -> Tuple[str, tuple]:
+    def render_currval(self, expr: str) -> Tuple[str, tuple]:
         """Format CURRVAL expression.
 
         Args:

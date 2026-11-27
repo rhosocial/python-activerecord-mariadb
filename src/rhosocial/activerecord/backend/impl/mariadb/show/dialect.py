@@ -19,27 +19,27 @@ from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..expression.show import (
-        ShowCreateTableStatement,
-        ShowCreateViewStatement,
-        ShowColumnsStatement,
-        ShowIndexStatement,
-        ShowTablesStatement,
-        ShowDatabasesStatement,
-        ShowTableStatusStatement,
-        ShowTriggersStatement,
-        ShowCreateTriggerStatement,
-        ShowVariablesStatement,
-        ShowStatusStatement,
-        ShowMasterStatusStatement,
-        ShowSlaveStatusStatement,
-        ShowProcessListStatement,
-        ShowWarningsStatement,
-        ShowErrorsStatement,
-        ShowEnginesStatement,
-        ShowCharsetStatement,
-        ShowCollationStatement,
-        ShowGrantsStatement,
-        ShowPluginsStatement,
+        MariaDBShowCreateTableStatement,
+        MariaDBShowCreateViewStatement,
+        MariaDBShowColumnsStatement,
+        MariaDBShowIndexStatement,
+        MariaDBShowTablesStatement,
+        MariaDBShowDatabasesStatement,
+        MariaDBShowTableStatusStatement,
+        MariaDBShowTriggersStatement,
+        MariaDBShowCreateTriggerStatement,
+        MariaDBShowVariablesStatement,
+        MariaDBShowStatusStatement,
+        MariaDBShowMasterStatusStatement,
+        MariaDBShowSlaveStatusStatement,
+        MariaDBShowProcessListStatement,
+        MariaDBShowWarningsStatement,
+        MariaDBShowErrorsStatement,
+        MariaDBShowEnginesStatement,
+        MariaDBShowCharsetStatement,
+        MariaDBShowCollationStatement,
+        MariaDBShowGrantsStatement,
+        MariaDBShowPluginsStatement,
     )
 
 
@@ -71,19 +71,19 @@ class MariaDBShowDialectMixin:
         return relation_sql
 
     def format_show_create_table_statement(
-        self, expr: "ShowCreateTableStatement"
+        self, expr: "MariaDBShowCreateTableStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW CREATE TABLE statement."""
         return f"SHOW CREATE TABLE {self._show_relation_target(expr)}", ()
 
     def format_show_create_view_statement(
-        self, expr: "ShowCreateViewStatement"
+        self, expr: "MariaDBShowCreateViewStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW CREATE VIEW statement."""
         return f"SHOW CREATE VIEW {self._show_relation_target(expr)}", ()
 
     def format_show_create_trigger_statement(
-        self, expr: "ShowCreateTriggerStatement"
+        self, expr: "MariaDBShowCreateTriggerStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW CREATE TRIGGER statement.
 
@@ -96,7 +96,7 @@ class MariaDBShowDialectMixin:
 
     # ========== SHOW COLUMNS/INDEX ==========
 
-    def format_show_columns_statement(self, expr: "ShowColumnsStatement") -> Tuple[str, tuple]:
+    def format_show_columns_statement(self, expr: "MariaDBShowColumnsStatement") -> Tuple[str, tuple]:
         """Format SHOW [FULL] COLUMNS statement.
 
         The parameters are read off the node's declared fields: ``full`` and
@@ -119,13 +119,13 @@ class MariaDBShowDialectMixin:
 
         return " ".join(parts), sql_params
 
-    def format_show_index_statement(self, expr: "ShowIndexStatement") -> Tuple[str, tuple]:
+    def format_show_index_statement(self, expr: "MariaDBShowIndexStatement") -> Tuple[str, tuple]:
         """Format SHOW INDEX statement."""
         return f"SHOW INDEX FROM {self._show_relation_target(expr)}", ()
 
     # ========== SHOW TABLES/DATABASES ==========
 
-    def format_show_tables_statement(self, expr: "ShowTablesStatement") -> Tuple[str, tuple]:
+    def format_show_tables_statement(self, expr: "MariaDBShowTablesStatement") -> Tuple[str, tuple]:
         """Format SHOW [FULL] TABLES statement."""
         schema = expr.schema
         full = expr.full
@@ -146,7 +146,7 @@ class MariaDBShowDialectMixin:
         return " ".join(parts), sql_params
 
     def format_show_databases_statement(
-        self, expr: "ShowDatabasesStatement"
+        self, expr: "MariaDBShowDatabasesStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW DATABASES statement."""
         like_pattern = expr.like_pattern
@@ -156,7 +156,7 @@ class MariaDBShowDialectMixin:
         return "SHOW DATABASES", ()
 
     def format_show_table_status_statement(
-        self, expr: "ShowTableStatusStatement"
+        self, expr: "MariaDBShowTableStatusStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW TABLE STATUS statement."""
         schema = expr.schema
@@ -176,7 +176,7 @@ class MariaDBShowDialectMixin:
     # ========== SHOW TRIGGERS ==========
 
     def format_show_triggers_statement(
-        self, expr: "ShowTriggersStatement"
+        self, expr: "MariaDBShowTriggersStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW TRIGGERS statement."""
         schema = expr.schema
@@ -196,7 +196,7 @@ class MariaDBShowDialectMixin:
     # ========== SHOW VARIABLES/STATUS ==========
 
     def format_show_variables_statement(
-        self, expr: "ShowVariablesStatement"
+        self, expr: "MariaDBShowVariablesStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW VARIABLES statement."""
         session = expr.session
@@ -214,7 +214,7 @@ class MariaDBShowDialectMixin:
 
         return " ".join(parts), sql_params
 
-    def format_show_status_statement(self, expr: "ShowStatusStatement") -> Tuple[str, tuple]:
+    def format_show_status_statement(self, expr: "MariaDBShowStatusStatement") -> Tuple[str, tuple]:
         """Format SHOW STATUS statement."""
         session = expr.session
         like_pattern = expr.like_pattern
@@ -242,13 +242,13 @@ class MariaDBShowDialectMixin:
     # failure.
 
     def format_show_master_status_statement(
-        self, expr: "ShowMasterStatusStatement"
+        self, expr: "MariaDBShowMasterStatusStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW MASTER STATUS statement."""
         return "SHOW MASTER STATUS", ()
 
     def format_show_slave_status_statement(
-        self, expr: "ShowSlaveStatusStatement"
+        self, expr: "MariaDBShowSlaveStatusStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW SLAVE STATUS statement."""
         return "SHOW SLAVE STATUS", ()
@@ -256,7 +256,7 @@ class MariaDBShowDialectMixin:
     # ========== SHOW PROCESSLIST/WARNINGS/ERRORS ==========
 
     def format_show_process_list_statement(
-        self, expr: "ShowProcessListStatement"
+        self, expr: "MariaDBShowProcessListStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW PROCESSLIST statement."""
         full = expr.full
@@ -266,7 +266,7 @@ class MariaDBShowDialectMixin:
         return "SHOW PROCESSLIST", ()
 
     def format_show_warnings_statement(
-        self, expr: "ShowWarningsStatement"
+        self, expr: "MariaDBShowWarningsStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW WARNINGS statement."""
         limit = expr.limit
@@ -275,7 +275,7 @@ class MariaDBShowDialectMixin:
             return f"SHOW WARNINGS LIMIT {limit}", ()
         return "SHOW WARNINGS", ()
 
-    def format_show_errors_statement(self, expr: "ShowErrorsStatement") -> Tuple[str, tuple]:
+    def format_show_errors_statement(self, expr: "MariaDBShowErrorsStatement") -> Tuple[str, tuple]:
         """Format SHOW ERRORS statement."""
         limit = expr.limit
 
@@ -285,11 +285,11 @@ class MariaDBShowDialectMixin:
 
     # ========== SHOW ENGINES/CHARSET/COLLATION ==========
 
-    def format_show_engines_statement(self, expr: "ShowEnginesStatement") -> Tuple[str, tuple]:
+    def format_show_engines_statement(self, expr: "MariaDBShowEnginesStatement") -> Tuple[str, tuple]:
         """Format SHOW ENGINES statement."""
         return "SHOW ENGINES", ()
 
-    def format_show_charset_statement(self, expr: "ShowCharsetStatement") -> Tuple[str, tuple]:
+    def format_show_charset_statement(self, expr: "MariaDBShowCharsetStatement") -> Tuple[str, tuple]:
         """Format SHOW CHARACTER SET statement."""
         like_pattern = expr.like_pattern
 
@@ -298,7 +298,7 @@ class MariaDBShowDialectMixin:
         return "SHOW CHARACTER SET", ()
 
     def format_show_collation_statement(
-        self, expr: "ShowCollationStatement"
+        self, expr: "MariaDBShowCollationStatement"
     ) -> Tuple[str, tuple]:
         """Format SHOW COLLATION statement."""
         like_pattern = expr.like_pattern
@@ -309,7 +309,7 @@ class MariaDBShowDialectMixin:
 
     # ========== SHOW GRANTS/PLUGINS ==========
 
-    def format_show_grants_statement(self, expr: "ShowGrantsStatement") -> Tuple[str, tuple]:
+    def format_show_grants_statement(self, expr: "MariaDBShowGrantsStatement") -> Tuple[str, tuple]:
         """Format SHOW GRANTS statement."""
         user = expr.user
         host = expr.host
@@ -320,6 +320,6 @@ class MariaDBShowDialectMixin:
             return f"SHOW GRANTS FOR {self.p()}", (user,)
         return "SHOW GRANTS", ()
 
-    def format_show_plugins_statement(self, expr: "ShowPluginsStatement") -> Tuple[str, tuple]:
+    def format_show_plugins_statement(self, expr: "MariaDBShowPluginsStatement") -> Tuple[str, tuple]:
         """Format SHOW PLUGINS statement."""
         return "SHOW PLUGINS", ()

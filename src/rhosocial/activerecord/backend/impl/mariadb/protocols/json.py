@@ -122,7 +122,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_unquote(self, expr: str) -> Tuple[str, tuple]:
+    def render_json_unquote(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_UNQUOTE function call.
 
         Args:
@@ -174,7 +174,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
 
 
 
-    def format_json_type(self, expr: str) -> Tuple[str, tuple]:
+    def render_json_type(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_TYPE function call.
 
         Args:
@@ -185,7 +185,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_valid(self, expr: str) -> Tuple[str, tuple]:
+    def render_json_valid(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_VALID function call.
 
         Args:
@@ -246,7 +246,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_mariadb_json_table_column(
+    def render_mariadb_json_table_column(
         self, expr: Any
     ) -> Tuple[str, tuple]:
         """Render one entry of a MariaDB ``JSON_TABLE`` column list.
@@ -264,7 +264,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         ...
 
 
-    def format_json_merge(
+    def render_json_merge(
         self,
         expr: List[str]
     ) -> Tuple[str, tuple]:
@@ -278,7 +278,7 @@ class MariaDBJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_merge_patch(
+    def render_json_merge_patch(
         self,
         expr: List[str]
     ) -> Tuple[str, tuple]:

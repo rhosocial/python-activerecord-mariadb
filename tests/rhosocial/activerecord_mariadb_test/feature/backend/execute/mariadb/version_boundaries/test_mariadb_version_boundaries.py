@@ -430,7 +430,7 @@ class TestSharedLockSpelling:
         )
         assert sql == "LOCK IN SHARE MODE"
         assert params == ()
-        assert dialect.format_lock_in_share_mode() == ("LOCK IN SHARE MODE", ())
+        assert dialect.render_lock_in_share_mode() == ("LOCK IN SHARE MODE", ())
 
     @pytest.mark.parametrize("version", LOCK_GRID, ids=lambda v: "v" + ".".join(map(str, v)))
     def test_update_strength_renders_unchanged(self, version):

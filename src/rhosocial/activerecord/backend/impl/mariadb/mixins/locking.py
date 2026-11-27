@@ -178,7 +178,7 @@ class MariaDBLockingMixin:
                 "SHARE (errno 1064 on every measured version, 10.2.44 "
                 "through 13.1.1), and LOCK IN SHARE MODE accepts neither "
                 "NOWAIT nor SKIP LOCKED. Use LockStrength.LOCK_IN_SHARE_MODE, "
-                "or format_lock_in_share_mode(), for a shared lock here.",
+                "or render_lock_in_share_mode(), for a shared lock here.",
             )
         if strength == LockStrength.KEY_SHARE and not self.supports_for_key_share():
             raise UnsupportedFeatureError(self.name, strength.phrase)
@@ -212,7 +212,7 @@ class MariaDBLockingMixin:
                 "modifier are all errno 1064 on every measured version "
                 "(10.2.44 through 13.1.1). Use the bare lock -- "
                 "'FOR UPDATE', or 'LOCK IN SHARE MODE' via "
-                "format_lock_in_share_mode() -- which locks every row the "
+                "render_lock_in_share_mode() -- which locks every row the "
                 "statement reads rather than the tables named, and drop "
                 "of_columns.",
             )
@@ -236,7 +236,7 @@ class MariaDBLockingMixin:
 
         return " ".join(parts), ()
 
-    def format_lock_in_share_mode(self, expr: "ForUpdateClause" = None) -> Tuple[str, tuple]:
+    def render_lock_in_share_mode(self, expr: "ForUpdateClause" = None) -> Tuple[str, tuple]:
         """Format LOCK IN SHARE MODE clause.
 
         This is MariaDB's spelling of the shared lock -- the only one it

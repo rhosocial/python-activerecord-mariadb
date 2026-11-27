@@ -1573,7 +1573,7 @@ class MariaDBIntrospectionMixin:
         )
         from rhosocial.activerecord.backend.expression.objects import Table
         from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
-            ShowCreateTableStatement,
+            MariaDBShowCreateTableStatement,
         )
 
         params = expr.get_params()
@@ -1591,7 +1591,7 @@ class MariaDBIntrospectionMixin:
             )
         schema = params.get("schema")
 
-        return ShowCreateTableStatement(
+        return MariaDBShowCreateTableStatement(
             self, Table(self, object_name, catalog_name=schema or None)
         ).to_sql()
 

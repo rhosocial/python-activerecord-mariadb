@@ -84,7 +84,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_UNQUOTE function."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_unquote('data->"$.name"')
+        sql, params = dialect.render_json_unquote('data->"$.name"')
 
         assert sql == 'JSON_UNQUOTE(data->"$.name")'
         assert params == ()
@@ -210,7 +210,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_TYPE function."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_type('data')
+        sql, params = dialect.render_json_type('data')
 
         assert sql == 'JSON_TYPE(data)'
         assert params == ()
@@ -219,7 +219,7 @@ class TestJSONFunctionProtocol:
         """Test JSON_VALID function."""
         dialect = MariaDBDialect(version=(10, 2, 3))
 
-        sql, params = dialect.format_json_valid('data')
+        sql, params = dialect.render_json_valid('data')
 
         assert sql == 'JSON_VALID(data)'
         assert params == ()

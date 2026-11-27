@@ -17,6 +17,13 @@ if TYPE_CHECKING:
         JSONDocumentValue,
         JSONTextValue,
     )
+    from ..expression.json import (
+        MariaDBJSONArrayExpression,
+        MariaDBJSONContainsExpression,
+        MariaDBJSONExtractExpression,
+        MariaDBJSONObjectExpression,
+    )
+    from ..expression.json_table import MariaDBJSONTableExpression
 
     #: Core has one class per JSON operator, and this dialect renders either
     #: from the same code path -- so the parameter is a union, not one of the
@@ -173,7 +180,7 @@ class MariaDBJSONMixin:
         """
         return self.version_at_least(MARIADB_VERSION_BOUNDARIES['JSON_TABLE'])
 
-    def format_mariadb_json_table_column(
+    def render_mariadb_json_table_column(
         self, expr: "MariaDBJSONTableColumn"
     ) -> Tuple[str, tuple]:
         """Render one entry of a MariaDB ``JSON_TABLE`` column list.
@@ -291,7 +298,7 @@ class MariaDBJSONMixin:
             sql += f" AS {self.format_identifier(expr.alias)}"
         return sql, params
 
-    def format_mariadb_json_table_expression(self, expr) -> Tuple[str, tuple]:
+    def format_mariadb_json_table_expression(self, expr: "MariaDBJSONTableExpression") -> Tuple[str, tuple]:
         """Format this backend's own ``JSON_TABLE`` row source.
 
         The node carries ``json_doc`` plus ``FOR ORDINALITY``, ``EXISTS``,
@@ -317,10 +324,10 @@ class MariaDBJSONMixin:
             )
         doc_sql, params = self._json_document_sql(expr.json_doc)
         path_sql = self.escape_sql_string(expr.path)
-        column_defs = [self.format_mariadb_json_table_column(col)[0] for col in expr.columns]
+        column_defs = [self.render_mariadb_json_table_column(col)[0] for col in expr.columns]
         for nested in expr.nested_paths:
             nested_cols = ", ".join(
-                self.format_mariadb_json_table_column(col)[0] for col in nested.columns
+                self.render_mariadb_json_table_column(col)[0] for col in nested.columns
             )
             # MariaDB's grammar is `NESTED PATH 'p' COLUMNS (...)` with no
             # alias; verified against 12.2 / 12.3 / 13.0 / 13.1, where adding
@@ -367,7 +374,7 @@ class MariaDBJSONMixin:
             f"json_column must be a str or expression, got {type(json_column).__name__}"
         )
 
-    def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_extract_expression(self, expr: "MariaDBJSONExtractExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONExtractExpression` node."""
         sql, params = self._format_json_extract_parts(expr.json_column, expr.path)
         if expr.alias:
@@ -384,7 +391,7 @@ class MariaDBJSONMixin:
         path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_EXTRACT({json_doc}, {path_placeholders})", tuple(all_paths)
 
-    def format_json_unquote(self, expr: str) -> Tuple[str, tuple]:
+    def render_json_unquote(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_UNQUOTE function.
 
         Args:
@@ -395,7 +402,7 @@ class MariaDBJSONMixin:
         """
         return f"JSON_UNQUOTE({expr})", ()
 
-    def format_json_object_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_object_expression(self, expr: "MariaDBJSONObjectExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONObjectExpression` node."""
         sql, params = self._format_json_object_parts(expr.pairs)
         if expr.alias:
@@ -420,7 +427,7 @@ class MariaDBJSONMixin:
 
         return f"JSON_OBJECT({', '.join(parts)})", tuple(params)
 
-    def format_json_array_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_array_expression(self, expr: "MariaDBJSONArrayExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONArrayExpression` node."""
         sql, params = self._format_json_array_parts(expr.values)
         if expr.alias:
@@ -434,7 +441,7 @@ class MariaDBJSONMixin:
         placeholders = ', '.join([self.p() for _ in values])
         return f"JSON_ARRAY({placeholders})", tuple(values)
 
-    def format_json_contains_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_contains_expression(self, expr: "MariaDBJSONContainsExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBJSONContainsExpression` node."""
         sql, params = self._format_json_contains_parts(
             expr.json_column, expr.value, expr.path
@@ -507,7 +514,7 @@ class MariaDBJSONMixin:
         path_placeholders = ', '.join([self.p() for _ in all_paths])
         return f"JSON_REMOVE({json_doc}, {path_placeholders})", tuple(all_paths)
 
-    def format_json_type(self, expr: str) -> Tuple[str, tuple]:
+    def render_json_type(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_TYPE function.
 
         Args:
@@ -518,7 +525,7 @@ class MariaDBJSONMixin:
         """
         return f"JSON_TYPE({expr})", ()
 
-    def format_json_valid(self, expr: str) -> Tuple[str, tuple]:
+    def render_json_valid(self, expr: str) -> Tuple[str, tuple]:
         """Format JSON_VALID function.
 
         Args:
@@ -594,7 +601,7 @@ class MariaDBJSONMixin:
             return f"JSON_UNQUOTE(JSON_EXTRACT({json_doc}, '{escaped_path}'))", ()
         return f"JSON_EXTRACT({json_doc}, '{escaped_path}')", ()
 
-    def format_json_merge(
+    def render_json_merge(
         self,
         expr: List[str]
     ) -> Tuple[str, tuple]:
@@ -610,7 +617,7 @@ class MariaDBJSONMixin:
             raise ValueError("JSON_MERGE requires at least 2 JSON documents")
         return f"JSON_MERGE({', '.join(expr)})", ()
 
-    def format_json_merge_patch(
+    def render_json_merge_patch(
         self,
         expr: List[str]
     ) -> Tuple[str, tuple]:

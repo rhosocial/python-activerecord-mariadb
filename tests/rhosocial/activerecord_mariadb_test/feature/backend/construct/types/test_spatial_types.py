@@ -169,14 +169,14 @@ class TestSpatialFunctionFormatting:
     def test_format_st_as_text(self):
         """Test ST_AsText formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_as_text("geom_col")
+        sql, params = dialect.render_st_as_text("geom_col")
         assert "ST_AsText" in sql
         assert "geom_col" in sql
 
     def test_format_st_as_geojson(self):
         """Test ST_AsGeoJSON formatting."""
         dialect = MariaDBDialect(version=(10, 3, 0))
-        sql, params = dialect.format_st_as_geojson("geom_col")
+        sql, params = dialect.render_st_as_geojson("geom_col")
         assert "ST_AsGeoJSON" in sql
         assert "geom_col" in sql
 

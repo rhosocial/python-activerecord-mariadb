@@ -635,8 +635,8 @@ class TestProtocolMethodSignatureConformance:
         ('ExplainSupport', 'format_explain_statement'),
         # QualifyClauseSupport: MariaDB doesn't support QUALIFY, param name differs
         ('QualifyClauseSupport', 'format_qualify_clause'),
-        # MariaDBLockingSupport: format_lock_in_share_mode uses different param name
-        ('MariaDBLockingSupport', 'format_lock_in_share_mode'),
+        # MariaDBLockingSupport: render_lock_in_share_mode uses different param name
+        ('MariaDBLockingSupport', 'render_lock_in_share_mode'),
         # GraphSupport: format_match_clause uses a different param name (_clause)
         ('GraphSupport', 'format_match_clause'),
         # OrderedSetAggregationSupport: format_ordered_set_aggregation uses a
@@ -646,7 +646,7 @@ class TestProtocolMethodSignatureConformance:
         # parameter of every format_* method to `expr`; the generic protocols
         # still spell these three legacy parameter names.
         ('LockingSupport', 'format_for_update_clause'),
-        ('PartitionSupport', 'format_partition_definition'),
+        ('PartitionSupport', 'render_partition_definition'),
         ('ReturningSupport', 'format_returning_clause'),
     }
 

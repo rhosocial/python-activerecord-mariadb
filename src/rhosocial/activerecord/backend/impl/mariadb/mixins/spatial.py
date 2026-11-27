@@ -4,9 +4,17 @@
 MariaDB supports spatial data types with the same syntax as MySQL.
 Available in MyISAM, Aria, and InnoDB (MariaDB 10.0+).
 """
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.objects import Index, Table
+
+if TYPE_CHECKING:
+    from ..expression.spatial import (
+        MariaDBSTContainsExpression,
+        MariaDBSTDistanceExpression,
+        MariaDBSTGeomFromTextExpression,
+        MariaDBSTWithinExpression,
+    )
 
 
 class MariaDBSpatialMixin:
@@ -78,7 +86,7 @@ class MariaDBSpatialMixin:
             return f"ST_GeomFromText({self.p()}, {self.p()})", (wkt, srid)
         return f"ST_GeomFromText({self.p()})", (wkt,)
 
-    def format_st_geom_from_text_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_geom_from_text_expression(self, expr: "MariaDBSTGeomFromTextExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBSTGeomFromTextExpression` node."""
         sql, params = self._format_spatial_literal_parts(expr.wkt, None)
         if expr.alias:
@@ -103,7 +111,7 @@ class MariaDBSpatialMixin:
             return f"ST_GeomFromWKB({self.p()}, {self.p()})", (wkb, srid)
         return f"ST_GeomFromWKB({self.p()})", (wkb,)
 
-    def format_st_as_text(self, expr: str) -> Tuple[str, tuple]:
+    def render_st_as_text(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsText function.
 
         Args:
@@ -114,7 +122,7 @@ class MariaDBSpatialMixin:
         """
         return f"ST_AsText({expr})", ()
 
-    def format_st_as_geojson(self, expr: str) -> Tuple[str, tuple]:
+    def render_st_as_geojson(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsGeoJSON function.
 
         MariaDB 10.2.3+ supports ST_AsGeoJSON.
@@ -137,7 +145,7 @@ class MariaDBSpatialMixin:
             )
         return f"ST_AsGeoJSON({expr})", ()
 
-    def format_st_distance_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_distance_expression(self, expr: "MariaDBSTDistanceExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBSTDistanceExpression` node."""
         sql = f"ST_Distance({expr.geom1}, {expr.geom2})"
         if expr.alias:
@@ -162,14 +170,14 @@ class MariaDBSpatialMixin:
         """
         return f"ST_Distance_Sphere({geom1}, {geom2})", ()
 
-    def format_st_within_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_within_expression(self, expr: "MariaDBSTWithinExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBSTWithinExpression` node."""
         sql = f"ST_Within({expr.geom1}, {expr.geom2})"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_st_contains_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_contains_expression(self, expr: "MariaDBSTContainsExpression") -> Tuple[str, tuple]:
         """Format a :class:`MariaDBSTContainsExpression` node."""
         sql = f"ST_Contains({expr.geom1}, {expr.geom2})"
         if expr.alias:

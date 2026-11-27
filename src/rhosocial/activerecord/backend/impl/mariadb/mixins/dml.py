@@ -15,6 +15,11 @@ if TYPE_CHECKING:
     from ..expression.load_data import MariaDBLoadDataStatement
 
 
+def _escape_infile_path(value: str) -> str:
+    """Escape a declared LOAD DATA file-path atom before concatenation."""
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
 class MariaDBDMLOperationMixin:
     """MariaDB-specific DML operations mixin.
 
@@ -209,7 +214,7 @@ class MariaDBDMLOperationMixin:
                     "RETURNING clause",
                     "RETURNING clause for INSERT requires MariaDB 10.5 or later."
                 )
-            returning_sql, returning_params = self.format_returning_clause_from_obj(expr.returning)
+            returning_sql, returning_params = self.render_returning_clause_from_obj(expr.returning)
             sql += f" {returning_sql}"
             all_params.extend(returning_params)
 
@@ -284,7 +289,7 @@ class MariaDBDMLOperationMixin:
 
         parts.append("INFILE")
 
-        file_path_escaped = expr.file_path.replace("\\", "\\\\").replace("'", "\\'")
+        file_path_escaped = _escape_infile_path(expr.file_path)
         parts.append(f"'{file_path_escaped}'")
 
         if expr.options.replace:
@@ -336,7 +341,7 @@ class MariaDBDMLOperationMixin:
 
         return ' '.join(parts), tuple(all_params)
 
-    def format_replace_statement(self, expr: "InsertStatement") -> Tuple[str, tuple]:
+    def render_replace_statement(self, expr: "InsertStatement") -> Tuple[str, tuple]:
         """Format REPLACE INTO statement.
 
         REPLACE INTO is a MariaDB/MySQL extension that either:
@@ -402,7 +407,7 @@ class MariaDBDMLOperationMixin:
                     "RETURNING clause",
                     "RETURNING clause for REPLACE requires MariaDB 10.5 or later."
                 )
-            returning_sql, returning_params = self.format_returning_clause_from_obj(expr.returning)
+            returning_sql, returning_params = self.render_returning_clause_from_obj(expr.returning)
             sql += f" {returning_sql}"
             all_params.extend(returning_params)
 

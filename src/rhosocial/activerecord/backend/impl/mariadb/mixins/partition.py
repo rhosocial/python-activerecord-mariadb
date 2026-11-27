@@ -14,6 +14,29 @@ if TYPE_CHECKING:
         PartitionClause,
         PartitionOptionsExpression,
     )
+    from ..expression.partition import (
+        MariaDBAddPartitionExpression,
+        MariaDBAnalyzePartitionExpression,
+        MariaDBCheckPartitionExpression,
+        MariaDBCoalescePartitionExpression,
+        MariaDBDropPartitionExpression,
+        MariaDBExchangePartitionStatement,
+        MariaDBGetPartitionsExpression,
+        MariaDBOptimizePartitionExpression,
+        MariaDBPartitionMaxValue,
+        MariaDBPartitionValue,
+        MariaDBRebuildPartitionExpression,
+        MariaDBRemovePartitioningExpression,
+        MariaDBReorganizePartitionExpression,
+        MariaDBRepairPartitionExpression,
+        MariaDBSubpartitionClause,
+        MariaDBTruncatePartitionExpression,
+    )
+
+
+def _normalise_strategy_words(value: object) -> str:
+    """A declared strategy name upper-cased with its whitespace collapsed."""
+    return " ".join(str(value).strip().upper().split())
 
 
 class MariaDBPartitionMixin:
@@ -149,17 +172,17 @@ class MariaDBPartitionMixin:
 
         method = expr.method.upper()
         if method == "RANGE":
-            return self.format_partition_by_range(expr)
+            return self.render_partition_by_range(expr)
         if method == "RANGE COLUMNS":
-            return self.format_partition_by_range_columns(expr)
+            return self.render_partition_by_range_columns(expr)
         if method == "LIST":
-            return self.format_partition_by_list(expr)
+            return self.render_partition_by_list(expr)
         if method == "LIST COLUMNS":
-            return self.format_partition_by_list_columns(expr)
+            return self.render_partition_by_list_columns(expr)
         if method in {"HASH", "LINEAR HASH"}:
-            return self.format_partition_by_hash(expr)
+            return self.render_partition_by_hash(expr)
         if method in {"KEY", "LINEAR KEY"}:
-            return self.format_partition_by_key(expr)
+            return self.render_partition_by_key(expr)
         raise ValueError(f"Invalid MariaDB partition method: {expr.method}")
 
     def _format_partition_key_list(self, keys: Sequence[Any]) -> Tuple[str, tuple]:
@@ -178,12 +201,12 @@ class MariaDBPartitionMixin:
             return sql, tuple(params)
         definition_sql_parts = []
         for partition in partitions:
-            definition_sql, definition_params = self.format_partition_definition(partition)
+            definition_sql, definition_params = self.render_partition_definition(partition)
             definition_sql_parts.append(definition_sql)
             params.extend(definition_params)
         return f"{sql} ({', '.join(definition_sql_parts)})", tuple(params)
 
-    def format_partition_by_range(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_by_range(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY RANGE (...)`` with optional definitions."""
         if not self.supports_range_table_partitioning():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -208,7 +231,7 @@ class MariaDBPartitionMixin:
         partitions = expr.partitions if isinstance(expr, MariaDBPartitionByRange) else ()
         return self._append_partition_definitions(sql, list(params), partitions)
 
-    def format_partition_by_range_columns(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_by_range_columns(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY RANGE COLUMNS (...)`` with optional definitions."""
         if not self.supports_range_columns_partitioning():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -233,7 +256,7 @@ class MariaDBPartitionMixin:
         partitions = expr.partitions if isinstance(expr, MariaDBPartitionByRangeColumns) else ()
         return self._append_partition_definitions(sql, list(params), partitions)
 
-    def format_partition_by_list(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_by_list(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY LIST (...)`` with optional definitions."""
         if not self.supports_list_table_partitioning():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -256,7 +279,7 @@ class MariaDBPartitionMixin:
         partitions = expr.partitions if isinstance(expr, MariaDBPartitionByList) else ()
         return self._append_partition_definitions(sql, list(params), partitions)
 
-    def format_partition_by_list_columns(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_by_list_columns(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY LIST COLUMNS (...)`` with optional definitions."""
         if not self.supports_list_columns_partitioning():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -281,7 +304,7 @@ class MariaDBPartitionMixin:
         partitions = expr.partitions if isinstance(expr, MariaDBPartitionByListColumns) else ()
         return self._append_partition_definitions(sql, list(params), partitions)
 
-    def format_partition_by_hash(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_by_hash(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY [LINEAR] HASH (...) [PARTITIONS n]``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -309,7 +332,7 @@ class MariaDBPartitionMixin:
             sql = f"{sql} PARTITIONS {partitions_count}"
         return sql, tuple(params)
 
-    def format_partition_by_key(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_by_key(self, expr: Any) -> Tuple[str, tuple]:
         """Format ``PARTITION BY [LINEAR] KEY (...) [PARTITIONS n]``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -337,7 +360,7 @@ class MariaDBPartitionMixin:
             sql = f"{sql} PARTITIONS {partitions_count}"
         return sql, tuple(params)
 
-    def format_partition_definition(self, expr: Any) -> Tuple[str, tuple]:
+    def render_partition_definition(self, expr: Any) -> Tuple[str, tuple]:
         """Format a MariaDB ``PARTITION ... VALUES ...`` definition."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -375,7 +398,7 @@ class MariaDBPartitionMixin:
             raise ValueError("partition definition requires less_than or in_values")
 
         if partition_options is not None:
-            options_sql, options_params = self.format_partition_definition_options(
+            options_sql, options_params = self.render_partition_definition_options(
                 partition_options
             )
             if options_sql:
@@ -388,13 +411,13 @@ class MariaDBPartitionMixin:
                 raise UnsupportedFeatureError(self.name, "subpartition definitions")
             sub_parts = []
             for sub_def in subpartition_defs:
-                sub_sql, sub_params = self.format_subpartition_definition(sub_def)
+                sub_sql, sub_params = self.render_subpartition_definition(sub_def)
                 sub_parts.append(sub_sql)
                 params.extend(sub_params)
             parts.append(f"({', '.join(sub_parts)})")
         return " ".join(parts), tuple(params)
 
-    def format_partition_definition_options(
+    def render_partition_definition_options(
         self, expr: Optional["PartitionOptionsExpression"]
     ) -> Tuple[str, tuple]:
         """Format MariaDB partition definition options from an expression node."""
@@ -440,7 +463,7 @@ class MariaDBPartitionMixin:
                 parts.append(f"{keyword} {value}")
         return " ".join(parts), ()
 
-    def format_subpartition_clause(self, expr: Any) -> Tuple[str, tuple]:
+    def format_subpartition_clause(self, expr: "MariaDBSubpartitionClause") -> Tuple[str, tuple]:
         """Format ``SUBPARTITION BY {HASH|KEY}(...) SUBPARTITIONS N``.
 
         Args:
@@ -459,9 +482,7 @@ class MariaDBPartitionMixin:
         if not self.supports_subpartitioning():
             raise UnsupportedFeatureError(self.name, "subpartitioning")
 
-        strategy = " ".join(
-            str(getattr(expr.strategy, "value", expr.strategy)).strip().upper().split()
-        )
+        strategy = _normalise_strategy_words(getattr(expr.strategy, "value", expr.strategy))
         if strategy in {"RANGE", "RANGE COLUMNS", "LIST", "LIST COLUMNS"}:
             raise UnsupportedFeatureError(
                 self.name,
@@ -483,7 +504,7 @@ class MariaDBPartitionMixin:
             sql = f"{sql} SUBPARTITIONS {expr.count}"
         return sql, tuple(params)
 
-    def format_subpartition_definition(self, expr: Any) -> Tuple[str, tuple]:
+    def render_subpartition_definition(self, expr: Any) -> Tuple[str, tuple]:
         """Format a single ``SUBPARTITION name ...`` clause."""
         if not expr.name or not expr.name.strip():
             raise ValueError("subpartition name must not be empty")
@@ -491,7 +512,7 @@ class MariaDBPartitionMixin:
         params: list = []
         partition_options = getattr(expr, "options", None)
         if partition_options is not None:
-            options_sql, options_params = self.format_partition_definition_options(
+            options_sql, options_params = self.render_partition_definition_options(
                 partition_options
             )
             if options_sql:
@@ -499,7 +520,7 @@ class MariaDBPartitionMixin:
             params.extend(options_params)
         return " ".join(parts), tuple(params)
 
-    def format_partition_max_value(self, expr: Any) -> Tuple[str, tuple]:
+    def format_partition_max_value(self, expr: "MariaDBPartitionMaxValue") -> Tuple[str, tuple]:
         """Format the ``MAXVALUE`` partition boundary token.
 
         A boundary token is not a value: it carries no literal and renders as
@@ -514,7 +535,7 @@ class MariaDBPartitionMixin:
             raise UnsupportedFeatureError(self.name, "MAXVALUE partition boundary")
         return "MAXVALUE", ()
 
-    def format_partition_value(self, expr: Any) -> Tuple[str, tuple]:
+    def format_partition_value(self, expr: "MariaDBPartitionValue") -> Tuple[str, tuple]:
         """Format a MariaDB partition boundary value."""
         from datetime import date, datetime
         from decimal import Decimal
@@ -549,7 +570,7 @@ class MariaDBPartitionMixin:
             f"date, datetime, or None, got {type(value).__name__}"
         )
 
-    def format_add_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_add_partition_statement(self, expr: "MariaDBAddPartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... ADD PARTITION``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -561,36 +582,36 @@ class MariaDBPartitionMixin:
         params: list = list(table_params)
         definition_sql_parts = []
         for partition in expr.partitions:
-            definition_sql, definition_params = self.format_partition_definition(partition)
+            definition_sql, definition_params = self.render_partition_definition(partition)
             definition_sql_parts.append(definition_sql)
             params.extend(definition_params)
         sql = f"ALTER TABLE {table_sql} ADD PARTITION " f"({', '.join(definition_sql_parts)})"
         return sql, tuple(params)
 
-    def format_drop_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_drop_partition_statement(self, expr: "MariaDBDropPartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... DROP PARTITION``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
         if not self.supports_drop_partition():
             raise UnsupportedFeatureError(self.name, "DROP PARTITION")
         table_sql, table_params = expr.table.to_sql()
-        partitions, _ = self.format_partition_name_list(expr.partitions)
+        partitions, _ = self.render_partition_name_list(expr.partitions)
         return f"ALTER TABLE {table_sql} DROP PARTITION {partitions}", tuple(table_params)
 
-    def format_truncate_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_truncate_partition_statement(self, expr: "MariaDBTruncatePartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... TRUNCATE PARTITION``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
         if not self.supports_truncate_partition():
             raise UnsupportedFeatureError(self.name, "TRUNCATE PARTITION")
         table_sql, table_params = expr.table.to_sql()
-        partitions, _ = self.format_partition_name_list(expr.partitions)
+        partitions, _ = self.render_partition_name_list(expr.partitions)
         return (
             f"ALTER TABLE {table_sql} TRUNCATE PARTITION {partitions}",
             tuple(table_params),
         )
 
-    def format_reorganize_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_reorganize_partition_statement(self, expr: "MariaDBReorganizePartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... REORGANIZE PARTITION``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -602,7 +623,7 @@ class MariaDBPartitionMixin:
         params: list = list(table_params)
         into_sql_parts = []
         for partition in expr.into:
-            definition_sql, definition_params = self.format_partition_definition(partition)
+            definition_sql, definition_params = self.render_partition_definition(partition)
             into_sql_parts.append(definition_sql)
             params.extend(definition_params)
         sql = (
@@ -612,7 +633,7 @@ class MariaDBPartitionMixin:
         )
         return sql, tuple(params)
 
-    def format_exchange_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_exchange_partition_statement(self, expr: "MariaDBExchangePartitionStatement") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... EXCHANGE PARTITION ... WITH TABLE ...``.
 
         The validation clause is a two-spelling alternative; each requested
@@ -668,13 +689,13 @@ class MariaDBPartitionMixin:
         )
         return sql, tuple(table_params) + tuple(exchange_table_params)
 
-    def format_partition_name_list(self, expr: Sequence[str]) -> Tuple[str, tuple]:
+    def render_partition_name_list(self, expr: Sequence[str]) -> Tuple[str, tuple]:
         """Format a non-empty partition name list."""
         if not expr:
             raise ValueError("partitions must not be empty")
         return ", ".join(self.format_identifier(partition) for partition in expr), ()
 
-    def format_remove_partitioning_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_remove_partitioning_statement(self, expr: "MariaDBRemovePartitioningExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... REMOVE PARTITIONING``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -683,7 +704,7 @@ class MariaDBPartitionMixin:
         table_sql, table_params = expr.table.to_sql()
         return f"ALTER TABLE {table_sql} REMOVE PARTITIONING", tuple(table_params)
 
-    def format_coalesce_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_coalesce_partition_statement(self, expr: "MariaDBCoalescePartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... COALESCE PARTITION``."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -695,7 +716,7 @@ class MariaDBPartitionMixin:
             tuple(table_params),
         )
 
-    def format_analyze_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_analyze_partition_statement(self, expr: "MariaDBAnalyzePartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... ANALYZE PARTITION``.
 
         Raises:
@@ -707,13 +728,13 @@ class MariaDBPartitionMixin:
 
             raise UnsupportedFeatureError(self.name, "ANALYZE PARTITION")
         table_sql, table_params = expr.table.to_sql()
-        partitions, _ = self.format_partition_name_list(expr.partitions)
+        partitions, _ = self.render_partition_name_list(expr.partitions)
         return (
             f"ALTER TABLE {table_sql} ANALYZE PARTITION {partitions}",
             tuple(table_params),
         )
 
-    def format_check_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_check_partition_statement(self, expr: "MariaDBCheckPartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... CHECK PARTITION``.
 
         Raises:
@@ -725,13 +746,13 @@ class MariaDBPartitionMixin:
 
             raise UnsupportedFeatureError(self.name, "CHECK PARTITION")
         table_sql, table_params = expr.table.to_sql()
-        partitions, _ = self.format_partition_name_list(expr.partitions)
+        partitions, _ = self.render_partition_name_list(expr.partitions)
         return (
             f"ALTER TABLE {table_sql} CHECK PARTITION {partitions}",
             tuple(table_params),
         )
 
-    def format_optimize_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_optimize_partition_statement(self, expr: "MariaDBOptimizePartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... OPTIMIZE PARTITION``.
 
         Raises:
@@ -743,13 +764,13 @@ class MariaDBPartitionMixin:
 
             raise UnsupportedFeatureError(self.name, "OPTIMIZE PARTITION")
         table_sql, table_params = expr.table.to_sql()
-        partitions, _ = self.format_partition_name_list(expr.partitions)
+        partitions, _ = self.render_partition_name_list(expr.partitions)
         return (
             f"ALTER TABLE {table_sql} OPTIMIZE PARTITION {partitions}",
             tuple(table_params),
         )
 
-    def format_rebuild_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_rebuild_partition_statement(self, expr: "MariaDBRebuildPartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... REBUILD PARTITION``.
 
         Raises:
@@ -761,13 +782,13 @@ class MariaDBPartitionMixin:
 
             raise UnsupportedFeatureError(self.name, "REBUILD PARTITION")
         table_sql, table_params = expr.table.to_sql()
-        partitions, _ = self.format_partition_name_list(expr.partitions)
+        partitions, _ = self.render_partition_name_list(expr.partitions)
         return (
             f"ALTER TABLE {table_sql} REBUILD PARTITION {partitions}",
             tuple(table_params),
         )
 
-    def format_repair_partition_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_repair_partition_statement(self, expr: "MariaDBRepairPartitionExpression") -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... REPAIR PARTITION``.
 
         Raises:
@@ -779,13 +800,13 @@ class MariaDBPartitionMixin:
 
             raise UnsupportedFeatureError(self.name, "REPAIR PARTITION")
         table_sql, table_params = expr.table.to_sql()
-        partitions, _ = self.format_partition_name_list(expr.partitions)
+        partitions, _ = self.render_partition_name_list(expr.partitions)
         return (
             f"ALTER TABLE {table_sql} REPAIR PARTITION {partitions}",
             tuple(table_params),
         )
 
-    def format_get_partitions_expression(self, expr: Any) -> Tuple[str, tuple]:
+    def format_get_partitions_expression(self, expr: "MariaDBGetPartitionsExpression") -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,

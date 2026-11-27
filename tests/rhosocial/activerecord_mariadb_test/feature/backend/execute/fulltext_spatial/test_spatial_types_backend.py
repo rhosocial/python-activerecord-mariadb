@@ -168,7 +168,7 @@ class TestSpatialTypes:
         assert result.data[0]['srid'] == 4326
 
     def test_format_st_as_text(self, mariadb_backend):
-        """Test format_st_as_text generates correct SQL."""
+        """Test render_st_as_text generates correct SQL."""
         mariadb_backend.execute("""
             CREATE TEMPORARY TABLE test_astext (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -181,7 +181,7 @@ class TestSpatialTypes:
         )
 
         dialect = mariadb_backend.dialect
-        sql, params = dialect.format_st_as_text('location')
+        sql, params = dialect.render_st_as_text('location')
 
         result = mariadb_backend.execute(
             f"SELECT {sql} as wkt FROM test_astext",
@@ -193,7 +193,7 @@ class TestSpatialTypes:
         mariadb_backend.execute("DROP TEMPORARY TABLE IF EXISTS test_astext")
 
     def test_format_st_as_geojson(self, mariadb_backend):
-        """Test format_st_as_geojson generates correct SQL."""
+        """Test render_st_as_geojson generates correct SQL."""
         dialect = mariadb_backend.dialect
         if hasattr(dialect, 'supports_geojson') and not dialect.supports_geojson():
             pytest.skip("GeoJSON not supported in this MariaDB version")
@@ -210,7 +210,7 @@ class TestSpatialTypes:
         )
 
         dialect = mariadb_backend.dialect
-        sql, params = dialect.format_st_as_geojson('location')
+        sql, params = dialect.render_st_as_geojson('location')
 
         result = mariadb_backend.execute(
             f"SELECT {sql} as geojson FROM test_geojson",
@@ -403,7 +403,7 @@ class TestAsyncSpatialTypes:
 
     @pytest.mark.asyncio
     async def test_async_format_st_as_geojson(self, async_mariadb_backend):
-        """Test format_st_as_geojson generates correct SQL (async)."""
+        """Test render_st_as_geojson generates correct SQL (async)."""
         dialect = async_mariadb_backend.dialect
         if hasattr(dialect, 'supports_geojson') and not dialect.supports_geojson():
             pytest.skip("GeoJSON not supported in this MariaDB version")
@@ -420,7 +420,7 @@ class TestAsyncSpatialTypes:
         )
 
         dialect = async_mariadb_backend.dialect
-        sql, params = dialect.format_st_as_geojson('location')
+        sql, params = dialect.render_st_as_geojson('location')
 
         result = await async_mariadb_backend.execute(
             f"SELECT {sql} as geojson FROM test_async_geojson",

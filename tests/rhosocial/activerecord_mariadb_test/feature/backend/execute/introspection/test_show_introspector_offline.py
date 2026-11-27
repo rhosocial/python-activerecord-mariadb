@@ -21,8 +21,8 @@ import pytest
 from rhosocial.activerecord.backend.expression.objects import Table, Trigger, View
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
-    ShowColumnsStatement,
-    ShowCreateTableStatement,
+    MariaDBShowColumnsStatement,
+    MariaDBShowCreateTableStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.introspection.show_introspector import (
     AsyncShowIntrospector,
@@ -794,15 +794,15 @@ class TestShowMixinHelpers:
         assert isinstance(introspector._target(Trigger, "tr", None), Trigger)
 
     def test_show_relation_without_schema(self, introspector):
-        expr = introspector._show_relation(ShowCreateTableStatement, "users", None)
-        assert isinstance(expr, ShowCreateTableStatement)
+        expr = introspector._show_relation(MariaDBShowCreateTableStatement, "users", None)
+        assert isinstance(expr, MariaDBShowCreateTableStatement)
         assert expr.relation.name == "users"
         assert expr.relation.catalog_name is None
         assert expr.to_sql()[0] == "SHOW CREATE TABLE `users`"
 
     def test_show_relation_with_schema_and_options(self, introspector):
         expr = introspector._show_relation(
-            ShowColumnsStatement, "users", "app", full=True, like_pattern="i%"
+            MariaDBShowColumnsStatement, "users", "app", full=True, like_pattern="i%"
         )
         assert expr.relation.catalog_name == "app"
         assert expr.full is True

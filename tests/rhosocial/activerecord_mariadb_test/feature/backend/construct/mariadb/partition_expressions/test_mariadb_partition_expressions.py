@@ -51,7 +51,7 @@ def test_subpartition_definition_is_expression_node(dialect):
 def test_partition_definition_requires_boundary(dialect):
     definition = PartitionDefinitionExpression(dialect, "p0")
     with pytest.raises(ValueError, match="less_than or in_values"):
-        dialect.format_partition_definition(definition)
+        dialect.render_partition_definition(definition)
 
 
 def test_partition_definition_rejects_both_boundaries(dialect):
@@ -225,7 +225,7 @@ def test_partition_definition_options_are_formatted(dialect):
             },
         ),
     )
-    sql, params = dialect.format_partition_definition(definition)
+    sql, params = dialect.render_partition_definition(definition)
     assert "ENGINE" in sql and "InnoDB" in sql
     assert "COMMENT" in sql and "tenant''s partition" in sql
     assert "MAX_ROWS 1000" in sql
@@ -235,18 +235,18 @@ def test_partition_definition_options_are_formatted(dialect):
 
 def test_partition_definition_options_reject_invalid_options(dialect):
     with pytest.raises(TypeError, match="engine option must be a non-empty string"):
-        dialect.format_partition_definition_options(
+        dialect.render_partition_definition_options(
             PartitionOptionsExpression(dialect, {"engine": ""})
         )
     with pytest.raises(TypeError, match="max_rows option"):
-        dialect.format_partition_definition_options(
+        dialect.render_partition_definition_options(
             PartitionOptionsExpression(dialect, {"max_rows": -1})
         )
 
 
 def test_partition_definition_rejects_invalid_partition_options(dialect):
     with pytest.raises(TypeError, match="partition_options must be a PartitionOptionsExpression"):
-        dialect.format_partition_definition_options("invalid")
+        dialect.render_partition_definition_options("invalid")
 
 
 def test_partition_definition_with_subpartitions(dialect):

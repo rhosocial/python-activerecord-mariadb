@@ -69,7 +69,7 @@ class MariaDBSpatialSupport(Protocol):
         ...
 
 
-    def format_st_as_text(self, expr: str) -> Tuple[str, tuple]:
+    def render_st_as_text(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsText function call.
 
         Args:
@@ -80,7 +80,7 @@ class MariaDBSpatialSupport(Protocol):
         """
         ...
 
-    def format_st_as_geojson(self, expr: str) -> Tuple[str, tuple]:
+    def render_st_as_geojson(self, expr: str) -> Tuple[str, tuple]:
         """Format ST_AsGeoJSON function call.
 
         Args:

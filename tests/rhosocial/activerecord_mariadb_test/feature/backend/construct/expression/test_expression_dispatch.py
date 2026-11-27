@@ -45,8 +45,8 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
     MariaDBDropFunctionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
-    ShowCreateTableStatement,
-    ShowWarningsStatement,
+    MariaDBShowCreateTableStatement,
+    MariaDBShowWarningsStatement,
 )
 
 from expression_roundtrip_harness import collect_expression_classes
@@ -79,10 +79,10 @@ def test_no_expression_class_overrides_the_rendering_entry_point():
             "format_flush_statement",
         ),
         (
-            lambda dialect: ShowCreateTableStatement(dialect, "app.users"),
+            lambda dialect: MariaDBShowCreateTableStatement(dialect, "app.users"),
             "format_show_create_table_statement",
         ),
-        (lambda dialect: ShowWarningsStatement(dialect, limit=3), "format_show_warnings_statement"),
+        (lambda dialect: MariaDBShowWarningsStatement(dialect, limit=3), "format_show_warnings_statement"),
     ],
 )
 def test_an_unbound_node_renders_through_the_dialect_argument(factory, format_method):
