@@ -15,7 +15,8 @@ declares) decides the outcome. The four states must be pairwise distinguishable:
 neither parameter     neither spelling rendered
 parameter A           A's spelling rendered, or refused naming that spelling
 parameter B           B's spelling rendered, or refused naming that spelling
-both parameters       ``ValueError`` at construction
+both parameters       ``ValueError`` at render (or at construction where the
+                      statement still refuses there, e.g. exchange partition)
 ====================  =====================================================
 
 A refusal is an acceptable outcome only where MariaDB cannot express the
@@ -342,7 +343,14 @@ PAIR_IDS = [case.case_id for case in PAIR_CASES]
 
 
 def _outcome(case: PairCase, dialect: Any, kwargs: Dict[str, Any]) -> Tuple[str, str]:
-    """One state's outcome: what was rendered, refused, or raised at build time."""
+    """One state's outcome: construction, then render/refusal, classified.
+
+    Core moved the sequence pair refusals out of ``__init__`` into render-time
+    ``validate_*()``. Every state is therefore built before it is classified --
+    building the both-set statement succeeds now -- and the refusal is caught
+    while rendering, not during setup. Statements that still refuse in their
+    constructor (exchange partition) keep that outcome kind.
+    """
     try:
         expr = case.builder(dialect, **kwargs)
     except ValueError as exc:
@@ -351,6 +359,9 @@ def _outcome(case: PairCase, dialect: Any, kwargs: Dict[str, Any]) -> Tuple[str,
         sql, _params = expr.to_sql()
     except UnsupportedFeatureError as exc:
         return "refused", str(exc)
+    except ValueError as exc:
+        # The pair refusal now reaches us here for the sequence statements.
+        return "render-error", str(exc)
     return "rendered", sql
 
 
@@ -398,8 +409,11 @@ def _state_failure(case: PairCase, dialect: Any) -> str:
             )
 
     kind, detail = states["both"]
-    if kind != "construction-error":
-        return f"setting both parameters must raise ValueError; got {kind}: {detail!r}"
+    if kind not in ("construction-error", "render-error"):
+        return (
+            f"setting both parameters must be refused at construction or render; "
+            f"got {kind}: {detail!r}"
+        )
     if f"{case.a} and {case.b} are mutually exclusive" not in detail:
         return f"the both-set refusal must name the pair; got {detail!r}"
 
