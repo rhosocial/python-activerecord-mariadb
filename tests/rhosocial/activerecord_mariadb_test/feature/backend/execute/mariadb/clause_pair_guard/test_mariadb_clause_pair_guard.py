@@ -601,15 +601,17 @@ class TestAlterConstraintPairIsConsumed:
         # change under this backend with no MariaDB file edited.
         assert _dialect().supports_alter_constraint_enforced() is False
 
-    def test_neither_set_is_refused_at_construction(self):
-        with pytest.raises(ValueError, match="exactly one of enforced=True or not_enforced=True"):
-            self._action()
+    def test_neither_set_is_refused_at_render(self):
+        # The node collects; the mandatory grammar is judged when SQL is asked
+        # for, so a stored artifact can be read back and refused by name.
+        with pytest.raises(TypeError, match="exactly one of enforced=True or not_enforced=True"):
+            self._action().to_sql()
 
-    def test_both_set_is_refused_at_construction(self):
+    def test_both_set_is_refused_at_render(self):
         with pytest.raises(
-            ValueError, match="enforced and not_enforced are mutually exclusive"
+            TypeError, match="enforced and not_enforced are mutually exclusive"
         ):
-            self._action(enforced=True, not_enforced=True)
+            self._action(enforced=True, not_enforced=True).to_sql()
 
     def test_enforced_is_refused_by_name(self):
         with pytest.raises(UnsupportedFeatureError) as excinfo:

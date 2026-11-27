@@ -222,15 +222,17 @@ class TestConstraintSwitchValues:
         """The kind restriction is the expression layer's, not the probe's.
 
         ``AlterConstraintAction`` accepts only a CHECK or FOREIGN KEY branch, by
-        class; anything else is a ``ValueError`` at construction. That is a
+        class. That is asserted when SQL is asked for: the node collects, and a
+        kind that cannot carry the trait is a ``TypeError`` at render. It is a
         different failure from the probe's refusal and the two must not collapse
         into one.
         """
         dialect = _dialect()
-        with pytest.raises(ValueError, match="TableCheckConstraint or TableForeignKeyConstraint"):
-            AlterConstraintAction(
-                dialect, "probe_pk", constraint_kind=TablePrimaryKeyConstraint, enforced=True
-            )
+        action = AlterConstraintAction(
+            dialect, "probe_pk", constraint_kind=TablePrimaryKeyConstraint, enforced=True
+        )
+        with pytest.raises(TypeError, match="CHECK or FOREIGN KEY constraint"):
+            action.to_sql()
 
 
 class TestConstraintSwitchesAreDeclaredLocally:
