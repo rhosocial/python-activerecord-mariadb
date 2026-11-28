@@ -22,98 +22,99 @@ from rhosocial.activerecord.backend.expression.objects import (
 )
 
 
-config = MariaDBConnectionConfig(
-    host=os.getenv("MARIADB_HOST", "localhost"),
-    port=int(os.getenv("MARIADB_PORT", "3306")),
-    database=os.getenv("MARIADB_DATABASE", "test"),
-    username=os.getenv("MARIADB_USER", "root"),
-    password=os.getenv("MARIADB_PASSWORD", ""),
-    charset="utf8mb4",
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-backend.introspect_and_adapt()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv("MARIADB_HOST", "localhost"),
+        port=int(os.getenv("MARIADB_PORT", "3306")),
+        database=os.getenv("MARIADB_DATABASE", "test"),
+        username=os.getenv("MARIADB_USER", "root"),
+        password=os.getenv("MARIADB_PASSWORD", ""),
+        charset="utf8mb4",
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    backend.introspect_and_adapt()
+    dialect = backend.dialect
 
-# Clean up any leftover tables
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableStatement,
-    CreateTableStatement,
-    ColumnDefinition,
-    ColumnConstraint,
-    IndexDefinition,
-    ColumnPrimaryKeyConstraint,
-    ColumnNotNullConstraint,
-)
-from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
-    IntegerType, VarCharType,
-)
+    # Clean up any leftover tables
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        DropTableStatement,
+        CreateTableStatement,
+        ColumnDefinition,
+        ColumnConstraint,
+        IndexDefinition,
+        ColumnPrimaryKeyConstraint,
+        ColumnNotNullConstraint,
+    )
+    from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
+        IntegerType, VarCharType,
+    )
 
-expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+    expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
 
-# Baseline table with a non-unique index on `email`
-expr = CreateTableStatement(
-    dialect=dialect, table=Table(dialect, 'users'), columns=[
-        ColumnDefinition(dialect, "id"[0], integer_auto_increment_parts(dialect, IntegerType(dialect))[0],
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-            ], attributes=integer_auto_increment_parts(dialect, IntegerType(dialect))[1]),
-        ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
-    ],
-    indexes=[IndexDefinition(dialect, "idx_email", ["email"])],
-)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+    # Baseline table with a non-unique index on `email`
+    expr = CreateTableStatement(
+        dialect=dialect, table=Table(dialect, 'users'), columns=[
+            ColumnDefinition(dialect, "id"[0], integer_auto_increment_parts(dialect, IntegerType(dialect))[0],
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ], attributes=integer_auto_increment_parts(dialect, IntegerType(dialect))[1]),
+            ColumnDefinition(dialect, "email", VarCharType(dialect, 255)),
+        ],
+        indexes=[IndexDefinition(dialect, "idx_email", ["email"])],
+    )
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.schema import (  # noqa: E402
-    SyncSchemaSnapshotBuilder,
-)
-from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa: E402
-    MariaDBSchemaDiffer,
-)
-from rhosocial.activerecord.backend.expression.statements.ddl_index import (  # noqa: E402
-    CreateIndexStatement, DropIndexStatement,
-)
-builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
-snapshot_before = builder.build()
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.schema import (  # noqa: E402
+        SyncSchemaSnapshotBuilder,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa: E402
+        MariaDBSchemaDiffer,
+    )
+    from rhosocial.activerecord.backend.expression.statements.ddl_index import (  # noqa: E402
+        CreateIndexStatement, DropIndexStatement,
+    )
+    builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
+    snapshot_before = builder.build()
 
-# Drop the non-unique `idx_email` and add a unique `idx_email_unique`
-# via standalone DROP INDEX / CREATE INDEX statements.
-backend.execute(*DropIndexStatement(
-    dialect, index=Index(dialect, 'idx_email'), table=Table(dialect, 'users')
-).to_sql())
-backend.execute(*CreateIndexStatement(
-    dialect, index=Index(dialect, 'idx_email_unique'), table=Table(dialect, 'users'),
-    columns=["email"], unique=True,
-).to_sql())
+    # Drop the non-unique `idx_email` and add a unique `idx_email_unique`
+    # via standalone DROP INDEX / CREATE INDEX statements.
+    backend.execute(*DropIndexStatement(
+        dialect, index=Index(dialect, 'idx_email'), table=Table(dialect, 'users')
+    ).to_sql())
+    backend.execute(*CreateIndexStatement(
+        dialect, index=Index(dialect, 'idx_email_unique'), table=Table(dialect, 'users'),
+        columns=["email"], unique=True,
+    ).to_sql())
 
-snapshot_after = builder.build()
+    snapshot_after = builder.build()
 
-differ = MariaDBSchemaDiffer()
-diff = differ.compare(snapshot_before, snapshot_after)
+    differ = MariaDBSchemaDiffer()
+    diff = differ.compare(snapshot_before, snapshot_after)
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-print(f"Modified tables: {diff.modified_tables}")
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    print(f"Modified tables: {diff.modified_tables}")
 
-if "users" in diff.table_diffs:
-    td = diff.table_diffs["users"]
-    for idx in td.added_indexes:
-        print(f"  Added index:   {idx.name} unique={idx.is_unique} columns={idx.columns}")
-    for idx in td.removed_indexes:
-        print(f"  Removed index: {idx.name} unique={idx.is_unique} columns={idx.columns}")
+    if "users" in diff.table_diffs:
+        td = diff.table_diffs["users"]
+        for idx in td.added_indexes:
+            print(f"  Added index:   {idx.name} unique={idx.is_unique} columns={idx.columns}")
+        for idx in td.removed_indexes:
+            print(f"  Removed index: {idx.name} unique={idx.is_unique} columns={idx.columns}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()

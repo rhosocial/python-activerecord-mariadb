@@ -25,79 +25,80 @@ from rhosocial.activerecord.backend.expression.objects import (
 )
 
 
-config = MariaDBConnectionConfig(
-    host=os.getenv('MYSQL_HOST', 'localhost'),
-    port=int(os.getenv('MYSQL_PORT', '3306')),
-    database=os.getenv('MYSQL_DATABASE', 'test'),
-    username=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', ''),
-    charset='utf8mb4',
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        port=int(os.getenv('MYSQL_PORT', '3306')),
+        database=os.getenv('MYSQL_DATABASE', 'test'),
+        username=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', ''),
+        charset='utf8mb4',
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-# Drop table first for clean setup
-drop = DropTableStatement(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
-sql, params = drop.to_sql()
-backend.execute(sql, params)
-
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, 'products'),
-    columns=[
-        ColumnDefinition(
-            dialect,
-            'id',
-            IntegerType(dialect),
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-            ],
-        ),
-        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
-        ColumnDefinition(dialect, 'category', VarCharType(dialect, 50)),
-        ColumnDefinition(dialect, 'price', DecimalType(dialect, 10, 2)),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
-
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.expression import CreateIndexStatement, DropIndexStatement
-# Drop index first if exists (MariaDB does not support IF NOT EXISTS in CREATE INDEX)
-try:
-    drop_idx = DropIndexStatement(dialect=dialect, index=Index(dialect, 'idx_category_price'))
-    sql, params = drop_idx.to_sql()
+    # Drop table first for clean setup
+    drop = DropTableStatement(dialect=dialect, table=Table(dialect, 'products'), if_exists=True)
+    sql, params = drop.to_sql()
     backend.execute(sql, params)
-except Exception:
-    pass
 
-create_idx = CreateIndexStatement(
-    dialect=dialect,
-    index=Index(dialect, 'idx_category_price'),
-    table=Table(dialect, 'products'),
-    columns=['category', 'price'],
-)
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, 'products'),
+        columns=[
+            ColumnDefinition(
+                dialect,
+                'id',
+                IntegerType(dialect),
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
+            ColumnDefinition(dialect, 'category', VarCharType(dialect, 50)),
+            ColumnDefinition(dialect, 'price', DecimalType(dialect, 10, 2)),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
 
-sql, params = create_idx.to_sql()
-print(f"SQL: {sql}")
-print(f"Params: {params}")
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.expression import CreateIndexStatement, DropIndexStatement
+    # Drop index first if exists (MariaDB does not support IF NOT EXISTS in CREATE INDEX)
+    try:
+        drop_idx = DropIndexStatement(dialect=dialect, index=Index(dialect, 'idx_category_price'))
+        sql, params = drop_idx.to_sql()
+        backend.execute(sql, params)
+    except Exception:
+        pass
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-backend.execute(sql, params)
-print("Index created successfully")
+    create_idx = CreateIndexStatement(
+        dialect=dialect,
+        index=Index(dialect, 'idx_category_price'),
+        table=Table(dialect, 'products'),
+        columns=['category', 'price'],
+    )
 
-# Verify using introspector
-indexes = backend.introspector.list_indexes('products')
-target_index = [idx for idx in indexes if 'idx_category_price' in str(idx)]
-print(f"Index info: {target_index}")
+    sql, params = create_idx.to_sql()
+    print(f"SQL: {sql}")
+    print(f"Params: {params}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-backend.disconnect()
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    backend.execute(sql, params)
+    print("Index created successfully")
+
+    # Verify using introspector
+    indexes = backend.introspector.list_indexes('products')
+    target_index = [idx for idx in indexes if 'idx_category_price' in str(idx)]
+    print(f"Index info: {target_index}")
+
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    backend.disconnect()

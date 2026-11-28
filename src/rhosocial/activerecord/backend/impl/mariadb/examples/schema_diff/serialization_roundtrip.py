@@ -23,83 +23,84 @@ from rhosocial.activerecord.backend.expression.objects import (
 )
 
 
-config = MariaDBConnectionConfig(
-    host=os.getenv("MARIADB_HOST", "localhost"),
-    port=int(os.getenv("MARIADB_PORT", "3306")),
-    database=os.getenv("MARIADB_DATABASE", "test"),
-    username=os.getenv("MARIADB_USER", "root"),
-    password=os.getenv("MARIADB_PASSWORD", ""),
-    charset="utf8mb4",
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-backend.introspect_and_adapt()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv("MARIADB_HOST", "localhost"),
+        port=int(os.getenv("MARIADB_PORT", "3306")),
+        database=os.getenv("MARIADB_DATABASE", "test"),
+        username=os.getenv("MARIADB_USER", "root"),
+        password=os.getenv("MARIADB_PASSWORD", ""),
+        charset="utf8mb4",
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    backend.introspect_and_adapt()
+    dialect = backend.dialect
 
-# Clean up any leftover tables
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableStatement,
-    CreateTableStatement,
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint,
-    ColumnNotNullConstraint,
-)
-from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
-    IntegerType, VarCharType,
-)
+    # Clean up any leftover tables
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        DropTableStatement,
+        CreateTableStatement,
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint,
+        ColumnNotNullConstraint,
+    )
+    from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
+        IntegerType, VarCharType,
+    )
 
-expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+    expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
 
-expr = CreateTableStatement(
-    dialect=dialect, table=Table(dialect, 'users'), columns=[
-        ColumnDefinition(dialect, "id"[0], integer_auto_increment_parts(dialect, IntegerType(dialect))[0],
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-            ], attributes=integer_auto_increment_parts(dialect, IntegerType(dialect))[1]),
-        ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
-    ]
-)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+    expr = CreateTableStatement(
+        dialect=dialect, table=Table(dialect, 'users'), columns=[
+            ColumnDefinition(dialect, "id"[0], integer_auto_increment_parts(dialect, IntegerType(dialect))[0],
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ], attributes=integer_auto_increment_parts(dialect, IntegerType(dialect))[1]),
+            ColumnDefinition(dialect, "name", VarCharType(dialect, 100)),
+        ]
+    )
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.schema import (  # noqa: E402
-    SyncSchemaSnapshotBuilder, SchemaSnapshot,
-)
-from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa: E402
-    MariaDBSchemaDiffer,
-)
-builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
-snapshot = builder.build()
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.schema import (  # noqa: E402
+        SyncSchemaSnapshotBuilder, SchemaSnapshot,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.schema.differ import (  # noqa: E402
+        MariaDBSchemaDiffer,
+    )
+    builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
+    snapshot = builder.build()
 
-# Serialize -> JSON string -> deserialize
-payload = snapshot.to_dict()
-json_str = json.dumps(payload, default=str, indent=2)
-reloaded = json.loads(json_str)
-snapshot_restored = SchemaSnapshot.from_dict(reloaded)
+    # Serialize -> JSON string -> deserialize
+    payload = snapshot.to_dict()
+    json_str = json.dumps(payload, default=str, indent=2)
+    reloaded = json.loads(json_str)
+    snapshot_restored = SchemaSnapshot.from_dict(reloaded)
 
-# A snapshot compared against itself must produce an empty diff
-differ = MariaDBSchemaDiffer()
-diff = differ.compare(snapshot, snapshot_restored)
+    # A snapshot compared against itself must produce an empty diff
+    differ = MariaDBSchemaDiffer()
+    diff = differ.compare(snapshot, snapshot_restored)
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-print(f"Snapshot tables:       {list(snapshot.tables.keys())}")
-print(f"Restored tables:       {list(snapshot_restored.tables.keys())}")
-print(f"JSON payload length:   {len(json_str)} bytes")
-print(f"Round-trip diff empty: {diff.is_empty}")
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    print(f"Snapshot tables:       {list(snapshot.tables.keys())}")
+    print(f"Restored tables:       {list(snapshot_restored.tables.keys())}")
+    print(f"JSON payload length:   {len(json_str)} bytes")
+    print(f"Round-trip diff empty: {diff.is_empty}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    expr = DropTableStatement(dialect, Table(dialect, "users"), if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()

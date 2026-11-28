@@ -18,144 +18,145 @@ from rhosocial.activerecord.backend.schema import StatementType
 from rhosocial.activerecord.backend.expression.objects import Table, View
 
 
-config = MariaDBConnectionConfig(
-    host=os.getenv('MYSQL_HOST', 'localhost'),
-    port=int(os.getenv('MYSQL_PORT', 3306)),
-    database=os.getenv('MYSQL_DATABASE', 'test'),
-    username=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', ''),
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        port=int(os.getenv('MYSQL_PORT', 3306)),
+        database=os.getenv('MYSQL_DATABASE', 'test'),
+        username=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', ''),
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal, Column
-from rhosocial.activerecord.backend.expression.statements import (
-    ColumnDefinition,
-)
-from rhosocial.activerecord.backend.expression.types import (
-    IntegerType,
-    VarCharType,
-)
+    from rhosocial.activerecord.backend.expression import (
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal, Column
+    from rhosocial.activerecord.backend.expression.statements import (
+        ColumnDefinition,
+    )
+    from rhosocial.activerecord.backend.expression.types import (
+        IntegerType,
+        VarCharType,
+    )
 
-# Drop dependent tables first for clean setup (orders may reference users via FK)
-drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
-sql, params = drop_orders.to_sql()
-backend.execute(sql, params)
+    # Drop dependent tables first for clean setup (orders may reference users via FK)
+    drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+    sql, params = drop_orders.to_sql()
+    backend.execute(sql, params)
 
-drop_users = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
-sql, params = drop_users.to_sql()
-backend.execute(sql, params)
+    drop_users = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+    sql, params = drop_users.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, 'users'),
-    columns=[
-        ColumnDefinition(dialect, 'id', IntegerType(dialect)),
-        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-print(f"Create table SQL: {sql}")
-backend.execute(sql, params)
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, 'users'),
+        columns=[
+            ColumnDefinition(dialect, 'id', IntegerType(dialect)),
+            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100)),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    print(f"Create table SQL: {sql}")
+    backend.execute(sql, params)
 
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, 'users'),
-    columns=['id', 'name'],
-    source=ValuesSource(dialect, [
-        [Literal(dialect, 1), Literal(dialect, 'Alice')],
-        [Literal(dialect, 2), Literal(dialect, 'Bob')],
-    ]),
-)
-sql, params = insert.to_sql()
-print(f"Insert SQL: {sql}")
-backend.execute(sql, params)
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, 'users'),
+        columns=['id', 'name'],
+        source=ValuesSource(dialect, [
+            [Literal(dialect, 1), Literal(dialect, 'Alice')],
+            [Literal(dialect, 2), Literal(dialect, 'Bob')],
+        ]),
+    )
+    sql, params = insert.to_sql()
+    print(f"Insert SQL: {sql}")
+    backend.execute(sql, params)
 
-# ============================================================
-# SECTION: CREATE VIEW
-# ============================================================
-from rhosocial.activerecord.backend.expression import (
-    QueryStatement,
-    CreateViewStatement,
-    DropViewStatement,
-)
-from rhosocial.activerecord.backend.expression.core import AllColumnsWildcard
-query = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, 'name')],
-    from_=Table(dialect, 'users'),
-)
+    # ============================================================
+    # SECTION: CREATE VIEW
+    # ============================================================
+    from rhosocial.activerecord.backend.expression import (
+        QueryStatement,
+        CreateViewStatement,
+        DropViewStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import AllColumnsWildcard
+    query = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, 'name')],
+        from_=Table(dialect, 'users'),
+    )
 
-view_expr = CreateViewStatement(
-    dialect=dialect,
-    view=View(dialect, 'user_names'),
-    query=query,
-)
-sql, params = view_expr.to_sql()
-print(f"CREATE VIEW SQL: {sql}")
-print(f"Params: {params}")
+    view_expr = CreateViewStatement(
+        dialect=dialect,
+        view=View(dialect, 'user_names'),
+        query=query,
+    )
+    sql, params = view_expr.to_sql()
+    print(f"CREATE VIEW SQL: {sql}")
+    print(f"Params: {params}")
 
-options = ExecutionOptions(stmt_type=StatementType.DDL)
-backend.execute(sql, params, options=options)
+    options = ExecutionOptions(stmt_type=StatementType.DDL)
+    backend.execute(sql, params, options=options)
 
-verify_query = QueryStatement(
-    dialect=dialect,
-    select=[AllColumnsWildcard(dialect)],
-    from_=Table(dialect, 'user_names'),
-)
-options = ExecutionOptions(stmt_type=StatementType.DQL)
-sql, params = verify_query.to_sql()
-result = backend.execute(sql, params, options=options)
-print(f"View result: {result.data}")
+    verify_query = QueryStatement(
+        dialect=dialect,
+        select=[AllColumnsWildcard(dialect)],
+        from_=Table(dialect, 'user_names'),
+    )
+    options = ExecutionOptions(stmt_type=StatementType.DQL)
+    sql, params = verify_query.to_sql()
+    result = backend.execute(sql, params, options=options)
+    print(f"View result: {result.data}")
 
-# ============================================================
-# SECTION: CREATE OR REPLACE VIEW
-# ============================================================
-view_expr_replace = CreateViewStatement(
-    dialect=dialect,
-    view=View(dialect, 'user_names'),
-    query=query,
-    replace=True,
-)
-sql, params = view_expr_replace.to_sql()
-print(f"CREATE OR REPLACE VIEW SQL: {sql}")
-backend.execute(sql, params, options=options)
+    # ============================================================
+    # SECTION: CREATE OR REPLACE VIEW
+    # ============================================================
+    view_expr_replace = CreateViewStatement(
+        dialect=dialect,
+        view=View(dialect, 'user_names'),
+        query=query,
+        replace=True,
+    )
+    sql, params = view_expr_replace.to_sql()
+    print(f"CREATE OR REPLACE VIEW SQL: {sql}")
+    backend.execute(sql, params, options=options)
 
-# ============================================================
-# SECTION: DROP VIEW
-# ============================================================
-drop_view = DropViewStatement(
-    dialect=dialect,
-    view=View(dialect, 'user_names'),
-)
-sql, params = drop_view.to_sql()
-print(f"DROP VIEW SQL: {sql}")
-backend.execute(sql, params, options=options)
+    # ============================================================
+    # SECTION: DROP VIEW
+    # ============================================================
+    drop_view = DropViewStatement(
+        dialect=dialect,
+        view=View(dialect, 'user_names'),
+    )
+    sql, params = drop_view.to_sql()
+    print(f"DROP VIEW SQL: {sql}")
+    backend.execute(sql, params, options=options)
 
-# ============================================================
-# SECTION: Teardown
-# ============================================================
-drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
-sql, params = drop_orders.to_sql()
-backend.execute(sql, params)
+    # ============================================================
+    # SECTION: Teardown
+    # ============================================================
+    drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+    sql, params = drop_orders.to_sql()
+    backend.execute(sql, params)
 
-drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
-sql, params = drop_expr.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+    sql, params = drop_expr.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
 
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. Use CreateViewStatement to create views
-# 2. Use replace=True to replace existing view
-# 3. Use DropViewStatement to drop views
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. Use CreateViewStatement to create views
+    # 2. Use replace=True to replace existing view
+    # 3. Use DropViewStatement to drop views

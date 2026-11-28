@@ -20,8 +20,43 @@ permissions:
   statuses: write
 
 jobs:
+  formal-rules-contracts:
+    name: Formal rules contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Install activerecord and testsuite
+        run: |
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/activerecord-migration"  # NOSONAR
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/activerecord-migration"  # NOSONAR
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[test]"
+          pip install -r requirements-dev.txt
+
+      - name: Formal rules contracts
+        # Pure source and signature assertions: no database, no service. Every
+        # database job needs this one, so a structural regression fails here in
+        # a minute instead of after a full matrix run.
+        run: |
+          export PYTHONPATH=src:tests
+          python -m pytest tests/rhosocial/activerecord_mariadb_test/feature/rules -q -p no:warnings
+
   test:
     name: Python ${{ matrix.python-version }} / MariaDB ${{ matrix.mariadb-version }}
+    needs: formal-rules-contracts
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -91,26 +126,18 @@ jobs:
           EOF
           echo "MARIADB_SCENARIOS_CONFIG_PATH=$(pwd)/mariadb_scenarios.yaml" >> $GITHUB_ENV
 
-      - name: Formal rules contracts
-        # Isolated from the full suite: these assertions scan this backend's
-        # own source and tests only, and need no database. They run before the
-        # DB-dependent tests so a structural regression fails fast.
-        run: |
-          export PYTHONPATH=src:tests
-          python -m pytest tests/rhosocial/activerecord_mariadb_test/feature/rules -q -p no:warnings
-
       - name: Run tests (skip for coverage job)
         if: matrix.mariadb-version != '11.8'
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short -n 8 --dist=loadgroup -x --ignore=tests/benchmark
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short -n 8 --dist=loadgroup -x --ignore=tests/benchmark --ignore=tests/rhosocial/activerecord_mariadb_test/feature/rules
 
       - name: Run tests with coverage (only for MariaDB 11.8)
         if: matrix.mariadb-version == '11.8'
         run: |
           export PYTHONPATH=src:tests
           pip install codecov
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=rhosocial.activerecord.backend.impl.mariadb --cov-report=xml -n 8 --dist=loadgroup --ignore=tests/benchmark
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --cov=rhosocial.activerecord.backend.impl.mariadb --cov-report=xml -n 8 --dist=loadgroup --ignore=tests/benchmark --ignore=tests/rhosocial/activerecord_mariadb_test/feature/rules
 
       - name: Upload coverage to Codecov
         if: matrix.mariadb-version == '11.8'
@@ -124,6 +151,7 @@ jobs:
 
   test-python-315:
     name: Python ${{ matrix.python-version }}${{ matrix.freethreaded && 't' || '' }} / MariaDB ${{ matrix.mariadb-version }}
+    needs: formal-rules-contracts
     runs-on: ubuntu-26.04
     permissions:
       contents: read
@@ -189,10 +217,11 @@ jobs:
       - name: Run tests
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --ignore=tests/benchmark
+          python -m pytest tests/ --ignore=tests/rhosocial/activerecord/backend/mariadb --tb=short --ignore=tests/benchmark --ignore=tests/rhosocial/activerecord_mariadb_test/feature/rules
 
   benchmark-python-315:
     name: Run benchmarks with Python 3.15 / MariaDB 12.3
+    needs: formal-rules-contracts
     runs-on: ubuntu-26.04
     permissions:
       contents: read

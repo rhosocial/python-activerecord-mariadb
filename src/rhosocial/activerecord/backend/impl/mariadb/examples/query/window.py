@@ -13,134 +13,135 @@ from rhosocial.activerecord.backend.schema import StatementType
 from rhosocial.activerecord.backend.expression.objects import Table
 
 
-config = MariaDBConnectionConfig(
-    host=os.getenv('MYSQL_HOST', 'localhost'),
-    port=int(os.getenv('MYSQL_PORT', '3306')),
-    database=os.getenv('MYSQL_DATABASE', 'test'),
-    username=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', ''),
-    charset='utf8mb4',
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        port=int(os.getenv('MYSQL_PORT', '3306')),
+        database=os.getenv('MYSQL_DATABASE', 'test'),
+        username=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', ''),
+        charset='utf8mb4',
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal
-from rhosocial.activerecord.backend.expression.statements import (
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint,
-)
-from rhosocial.activerecord.backend.expression.types import (
-    IntegerType,
-    VarCharType,
-    DecimalType,
-)
+    from rhosocial.activerecord.backend.expression import (
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint,
+    )
+    from rhosocial.activerecord.backend.expression.types import (
+        IntegerType,
+        VarCharType,
+        DecimalType,
+    )
 
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, 'sales_data'),
-    columns=[
-        ColumnDefinition(
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, 'sales_data'),
+        columns=[
+            ColumnDefinition(
+                dialect,
+                'id',
+                IntegerType(dialect),
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition(dialect, 'salesperson', VarCharType(dialect, 100)),
+            ColumnDefinition(dialect, 'region', VarCharType(dialect, 50)),
+            ColumnDefinition(dialect, 'amount', DecimalType(dialect, 10, 2)),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
+
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, 'sales_data'),
+        columns=['salesperson', 'region', 'amount'],
+        source=ValuesSource(
             dialect,
-            'id',
-            IntegerType(dialect),
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+            [
+                [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1000)],
+                [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1500)],
+                [Literal(dialect, 'Bob'), Literal(dialect, 'North'), Literal(dialect, 1200)],
+                [Literal(dialect, 'Bob'), Literal(dialect, 'South'), Literal(dialect, 1800)],
+                [Literal(dialect, 'Charlie'), Literal(dialect, 'South'), Literal(dialect, 2000)],
             ],
         ),
-        ColumnDefinition(dialect, 'salesperson', VarCharType(dialect, 100)),
-        ColumnDefinition(dialect, 'region', VarCharType(dialect, 50)),
-        ColumnDefinition(dialect, 'amount', DecimalType(dialect, 10, 2)),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
+    )
+    sql, params = insert.to_sql()
+    backend.execute(sql, params)
 
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, 'sales_data'),
-    columns=['salesperson', 'region', 'amount'],
-    source=ValuesSource(
-        dialect,
-        [
-            [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1000)],
-            [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1500)],
-            [Literal(dialect, 'Bob'), Literal(dialect, 'North'), Literal(dialect, 1200)],
-            [Literal(dialect, 'Bob'), Literal(dialect, 'South'), Literal(dialect, 1800)],
-            [Literal(dialect, 'Charlie'), Literal(dialect, 'South'), Literal(dialect, 2000)],
-        ],
-    ),
-)
-sql, params = insert.to_sql()
-backend.execute(sql, params)
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.expression import (
+        QueryStatement,
+        Column,
+        WindowSpecification,
+        OrderByClause,
+    )
+    from rhosocial.activerecord.backend.expression.core import FunctionCall
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.expression import (
-    QueryStatement,
-    Column,
-    WindowSpecification,
-    OrderByClause,
-)
-from rhosocial.activerecord.backend.expression.core import FunctionCall
-
-query = QueryStatement(
-    dialect=dialect,
-    select=[
-        Column(dialect, 'salesperson'),
-        Column(dialect, 'region'),
-        Column(dialect, 'amount'),
-        FunctionCall(
-            dialect,
-            'ROW_NUMBER',
-            window_spec=WindowSpecification(
-                dialect,
-                partition_by=[Column(dialect, 'region')],
-                order_by=OrderByClause(dialect, expressions=[(Column(dialect, 'amount'), 'DESC')]),
-            ),
-            alias='row_num',
-        ),
-        FunctionCall(
-            dialect,
-            'SUM',
+    query = QueryStatement(
+        dialect=dialect,
+        select=[
+            Column(dialect, 'salesperson'),
+            Column(dialect, 'region'),
             Column(dialect, 'amount'),
-            window_spec=WindowSpecification(
+            FunctionCall(
                 dialect,
-                partition_by=[Column(dialect, 'region')],
+                'ROW_NUMBER',
+                window_spec=WindowSpecification(
+                    dialect,
+                    partition_by=[Column(dialect, 'region')],
+                    order_by=OrderByClause(dialect, expressions=[(Column(dialect, 'amount'), 'DESC')]),
+                ),
+                alias='row_num',
             ),
-            alias='region_total',
-        ),
-    ],
-    from_=Table(dialect, 'sales_data'),
-)
+            FunctionCall(
+                dialect,
+                'SUM',
+                Column(dialect, 'amount'),
+                window_spec=WindowSpecification(
+                    dialect,
+                    partition_by=[Column(dialect, 'region')],
+                ),
+                alias='region_total',
+            ),
+        ],
+        from_=Table(dialect, 'sales_data'),
+    )
 
-sql, params = query.to_sql()
-print(f"SQL: {sql}")
-print(f"Params: {params}")
+    sql, params = query.to_sql()
+    print(f"SQL: {sql}")
+    print(f"Params: {params}")
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-options = ExecutionOptions(stmt_type=StatementType.DQL)
-result = backend.execute(sql, params, options=options)
-print(f"Rows returned: {len(result.data) if result.data else 0}")
-for row in result.data or []:
-    print(f" {row}")
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    options = ExecutionOptions(stmt_type=StatementType.DQL)
+    result = backend.execute(sql, params, options=options)
+    print(f"Rows returned: {len(result.data) if result.data else 0}")
+    for row in result.data or []:
+        print(f" {row}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    backend.disconnect()

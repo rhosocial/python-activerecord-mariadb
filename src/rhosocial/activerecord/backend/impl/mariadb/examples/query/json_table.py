@@ -15,140 +15,141 @@ from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.query_parts import NamedRelationRef
 
 
-config = MariaDBConnectionConfig(
-    host=os.getenv("MYSQL_HOST", "localhost"),
-    port=int(os.getenv("MYSQL_PORT", "3306")),
-    database=os.getenv("MYSQL_DATABASE", "test"),
-    username=os.getenv("MYSQL_USERNAME", "root"),
-    password=os.getenv("MYSQL_PASSWORD", ""),
-    charset="utf8mb4",
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv("MYSQL_HOST", "localhost"),
+        port=int(os.getenv("MYSQL_PORT", "3306")),
+        database=os.getenv("MYSQL_DATABASE", "test"),
+        username=os.getenv("MYSQL_USERNAME", "root"),
+        password=os.getenv("MYSQL_PASSWORD", ""),
+        charset="utf8mb4",
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal
-from rhosocial.activerecord.backend.expression.statements import (
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint,
-)
-from rhosocial.activerecord.backend.expression.types import (
-    IntegerType,
-    JsonType,
-)
+    from rhosocial.activerecord.backend.expression import (
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint,
+    )
+    from rhosocial.activerecord.backend.expression.types import (
+        IntegerType,
+        JsonType,
+    )
 
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'orders'), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, 'orders'),
-    columns=[
-        ColumnDefinition(
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, 'orders'),
+        columns=[
+            ColumnDefinition(
+                dialect,
+                "id",
+                IntegerType(dialect),
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition(dialect, "order_data", JsonType(dialect)),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
+
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, 'orders'),
+        columns=["order_data"],
+        source=ValuesSource(
             dialect,
-            "id",
-            IntegerType(dialect),
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+            [
+                [
+                    Literal(
+                        dialect,
+                        '{"customer": "Alice", "items": '
+                        '[{"product": "Widget", "qty": 5, "price": 10.00}, '
+                        '{"product": "Gadget", "qty": 3, "price": 15.00}]}',
+                    )
+                ],
+                [Literal(dialect, '{"customer": "Bob", "items": [{"product": "Widget", "qty": 2, "price": 10.00}]}')],
             ],
         ),
-        ColumnDefinition(dialect, "order_data", JsonType(dialect)),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
+    )
+    sql, params = insert.to_sql()
+    backend.execute(sql, params)
 
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, 'orders'),
-    columns=["order_data"],
-    source=ValuesSource(
-        dialect,
-        [
-            [
-                Literal(
-                    dialect,
-                    '{"customer": "Alice", "items": '
-                    '[{"product": "Widget", "qty": 5, "price": 10.00}, '
-                    '{"product": "Gadget", "qty": 3, "price": 15.00}]}',
-                )
-            ],
-            [Literal(dialect, '{"customer": "Bob", "items": [{"product": "Widget", "qty": 2, "price": 10.00}]}')],
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.expression import (
+        QueryStatement,
+        Column,
+    )
+    from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+        MariaDBJSONTableExpression,
+        JSONTableColumn,
+    )
+    json_table = MariaDBJSONTableExpression(
+        dialect=dialect,
+        json_doc="o.order_data",
+        path="$.items[*]",
+        columns=[
+            JSONTableColumn(name="product", type="VARCHAR(100)", path="$.product"),
+            JSONTableColumn(name="qty", type="INT", path="$.qty"),
+            JSONTableColumn(name="price", type="DECIMAL(10,2)", path="$.price"),
         ],
-    ),
-)
-sql, params = insert.to_sql()
-backend.execute(sql, params)
+        alias="items",
+    )
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.expression import (
-    QueryStatement,
-    Column,
-)
-from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
-    MariaDBJSONTableExpression,
-    JSONTableColumn,
-)
-json_table = MariaDBJSONTableExpression(
-    dialect=dialect,
-    json_doc="o.order_data",
-    path="$.items[*]",
-    columns=[
-        JSONTableColumn(name="product", type="VARCHAR(100)", path="$.product"),
-        JSONTableColumn(name="qty", type="INT", path="$.qty"),
-        JSONTableColumn(name="price", type="DECIMAL(10,2)", path="$.price"),
-    ],
-    alias="items",
-)
+    json_table_sql, json_table_params = json_table.to_sql()
+    print(f"JSON_TABLE SQL: {json_table_sql}")
 
-json_table_sql, json_table_params = json_table.to_sql()
-print(f"JSON_TABLE SQL: {json_table_sql}")
+    # Build the query using QueryStatement with a comma-separated FROM clause
+    # (equivalent to an implicit CROSS JOIN).
+    # Note: MariaDBJSONTableExpression is not yet in the FromSourceType validation whitelist,
+    # so we temporarily disable strict validation when generating SQL.
+    query = QueryStatement(
+        dialect=dialect,
+        select=[
+            Column(dialect, "id", table="o"),
+            Column(dialect, "product", table="items"),
+            Column(dialect, "qty", table="items"),
+            Column(dialect, "price", table="items"),
+        ],
+        from_=[
+            NamedRelationRef(dialect, Table(dialect, "orders"), alias="o"),
+            json_table,
+        ],
+    )
 
-# Build the query using QueryStatement with a comma-separated FROM clause
-# (equivalent to an implicit CROSS JOIN).
-# Note: MariaDBJSONTableExpression is not yet in the FromSourceType validation whitelist,
-# so we temporarily disable strict validation when generating SQL.
-query = QueryStatement(
-    dialect=dialect,
-    select=[
-        Column(dialect, "id", table="o"),
-        Column(dialect, "product", table="items"),
-        Column(dialect, "qty", table="items"),
-        Column(dialect, "price", table="items"),
-    ],
-    from_=[
-        NamedRelationRef(dialect, Table(dialect, "orders"), alias="o"),
-        json_table,
-    ],
-)
+    # Temporarily disable strict validation to allow MariaDBJSONTableExpression in FROM
+    original_strict = dialect.strict_validation
+    dialect.strict_validation = False
+    sql, params = query.to_sql()
+    dialect.strict_validation = original_strict
+    print(f"Query SQL: {sql}")
 
-# Temporarily disable strict validation to allow MariaDBJSONTableExpression in FROM
-original_strict = dialect.strict_validation
-dialect.strict_validation = False
-sql, params = query.to_sql()
-dialect.strict_validation = original_strict
-print(f"Query SQL: {sql}")
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    result = backend.execute(sql, params)
+    print(f"Rows returned: {len(result.data) if result.data else 0}")
+    for row in result.data or []:
+        print(f" {row}")
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-result = backend.execute(sql, params)
-print(f"Rows returned: {len(result.data) if result.data else 0}")
-for row in result.data or []:
-    print(f" {row}")
-
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    backend.disconnect()

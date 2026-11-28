@@ -35,98 +35,99 @@ from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 from rhosocial.activerecord.backend.expression.objects import Table
 
-config = MariaDBConnectionConfig(
-    host=os.getenv('MYSQL_HOST', 'localhost'),
-    port=int(os.getenv('MYSQL_PORT', 3306)),
-    database=os.getenv('MYSQL_DATABASE', 'test'),
-    username=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', ''),
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        port=int(os.getenv('MYSQL_PORT', 3306)),
+        database=os.getenv('MYSQL_DATABASE', 'test'),
+        username=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', ''),
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
+    dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, 'users'),
-    columns=[
-        ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, 'users'),
+        columns=[
+            ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+            ]),
+            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), constraints=[
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+            ]),
+            ColumnDefinition(dialect, 'email', VarCharType(dialect, 200)),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
+
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+
+    # 1. Insert a row
+    insert_expr = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, 'users'),
+        columns=['name', 'email'],
+        source=ValuesSource(dialect, [
+            [Literal(dialect, 'Alice'), Literal(dialect, 'alice@example.com')],
         ]),
-        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), constraints=[
-            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-        ]),
-        ColumnDefinition(dialect, 'email', VarCharType(dialect, 200)),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
+    )
+    sql, params = insert_expr.to_sql()
+    print(f"INSERT SQL: {sql}")
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    result = backend.execute(sql, params)
+    print(f"Affected rows: {result.affected_rows}")
 
-# 1. Insert a row
-insert_expr = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, 'users'),
-    columns=['name', 'email'],
-    source=ValuesSource(dialect, [
-        [Literal(dialect, 'Alice'), Literal(dialect, 'alice@example.com')],
-    ]),
-)
-sql, params = insert_expr.to_sql()
-print(f"INSERT SQL: {sql}")
+    # 2. Retrieve auto-generated ID using LAST_INSERT_ID()
+    # MariaDB does NOT support RETURNING clause (unlike PostgreSQL/SQLite 3.35+)
+    # Use SELECT LAST_INSERT_ID() instead
+    query_id = QueryStatement(
+        dialect=dialect,
+        select=[FunctionCall(dialect, 'LAST_INSERT_ID').as_('generated_id')],
+    )
+    sql, params = query_id.to_sql()
+    print(f"LAST_INSERT_ID SQL: {sql}")
+    result = backend.execute(sql, params, options=dql_options)
+    print(f"Generated ID: {result.data}")
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-result = backend.execute(sql, params)
-print(f"Affected rows: {result.affected_rows}")
+    # 3. Verify by querying the inserted row
+    verify_query = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, 'id'), Column(dialect, 'name'), Column(dialect, 'email')],
+        from_=Table(dialect, 'users'),
+    )
+    sql, params = verify_query.to_sql()
+    result = backend.execute(sql, params, options=dql_options)
+    print(f"Users: {result.data}")
 
-# 2. Retrieve auto-generated ID using LAST_INSERT_ID()
-# MariaDB does NOT support RETURNING clause (unlike PostgreSQL/SQLite 3.35+)
-# Use SELECT LAST_INSERT_ID() instead
-query_id = QueryStatement(
-    dialect=dialect,
-    select=[FunctionCall(dialect, 'LAST_INSERT_ID').as_('generated_id')],
-)
-sql, params = query_id.to_sql()
-print(f"LAST_INSERT_ID SQL: {sql}")
-result = backend.execute(sql, params, options=dql_options)
-print(f"Generated ID: {result.data}")
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
 
-# 3. Verify by querying the inserted row
-verify_query = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, 'id'), Column(dialect, 'name'), Column(dialect, 'email')],
-    from_=Table(dialect, 'users'),
-)
-sql, params = verify_query.to_sql()
-result = backend.execute(sql, params, options=dql_options)
-print(f"Users: {result.data}")
-
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
-
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. MariaDB does NOT support RETURNING clause (unlike PostgreSQL and SQLite 3.35+)
-# 2. Use SELECT LAST_INSERT_ID() to get the auto-generated ID after INSERT
-# 3. LAST_INSERT_ID() returns the first auto-generated value of the most recent INSERT
-# 4. For batch inserts, LAST_INSERT_ID() returns the first ID; subsequent IDs are consecutive
-# 5. Consider using UPSERT (ON DUPLICATE KEY UPDATE) when you need idempotent inserts
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. MariaDB does NOT support RETURNING clause (unlike PostgreSQL and SQLite 3.35+)
+    # 2. Use SELECT LAST_INSERT_ID() to get the auto-generated ID after INSERT
+    # 3. LAST_INSERT_ID() returns the first auto-generated value of the most recent INSERT
+    # 4. For batch inserts, LAST_INSERT_ID() returns the first ID; subsequent IDs are consecutive
+    # 5. Consider using UPSERT (ON DUPLICATE KEY UPDATE) when you need idempotent inserts

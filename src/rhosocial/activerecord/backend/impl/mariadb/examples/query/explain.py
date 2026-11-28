@@ -41,136 +41,137 @@ from rhosocial.activerecord.backend.expression.types import (
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.objects import Index, Table
 
-config = MariaDBConnectionConfig(
-    host=os.getenv('MYSQL_HOST', 'localhost'),
-    port=int(os.getenv('MYSQL_PORT', 3306)),
-    database=os.getenv('MYSQL_DATABASE', 'test'),
-    username=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', ''),
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
-
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
-
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, 'users'),
-    columns=[
-        ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
-            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-        ]),
-        ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), constraints=[
-            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-        ]),
-        ColumnDefinition(dialect, 'email', VarCharType(dialect, 200)),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
-
-create_index = CreateIndexStatement(
-    dialect=dialect,
-    index=Index(dialect, 'idx_users_email'),
-    table=Table(dialect, 'users'),
-    columns=['email'],
-    if_not_exists=True,
-)
-sql, params = create_index.to_sql()
-backend.execute(sql, params)
-
-users = [
-    ('Alice', 'alice@example.com'),
-    ('Bob', 'bob@example.com'),
-    ('Charlie', 'charlie@example.com'),
-]
-for name, email in users:
-    insert_expr = InsertStatement(
-        dialect=dialect,
-        into=Table(dialect, 'users'),
-        columns=['name', 'email'],
-        source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        port=int(os.getenv('MYSQL_PORT', 3306)),
+        database=os.getenv('MYSQL_DATABASE', 'test'),
+        username=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', ''),
     )
-    sql, params = insert_expr.to_sql()
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
+
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+    sql, params = drop_table.to_sql()
     backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, 'users'),
+        columns=[
+            ColumnDefinition(dialect, 'id', IntegerType(dialect), constraints=[
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+            ]),
+            ColumnDefinition(dialect, 'name', VarCharType(dialect, 100), constraints=[
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+            ]),
+            ColumnDefinition(dialect, 'email', VarCharType(dialect, 200)),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
 
-# 1. EXPLAIN for table scan (no index on name column)
-query1 = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, '*')],
-    from_=Table(dialect, 'users'),
-    where=ComparisonPredicate(
-        dialect, '=', Column(dialect, 'name'), Literal(dialect, 'Alice'),
-    ),
-)
-explain_scan = ExplainStatement(
-    dialect=dialect,
-    statement=query1,
-    options=ExplainOptions(),
-)
-sql, params = explain_scan.to_sql()
-print("1. Table SCAN (no index on name):")
-print(f"SQL: {sql}")
-result = backend.execute(sql, params)
-for row in result.data:
-    print(f"  {row}")
+    create_index = CreateIndexStatement(
+        dialect=dialect,
+        index=Index(dialect, 'idx_users_email'),
+        table=Table(dialect, 'users'),
+        columns=['email'],
+        if_not_exists=True,
+    )
+    sql, params = create_index.to_sql()
+    backend.execute(sql, params)
 
-# 2. EXPLAIN for index search (email has index)
-query2 = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, '*')],
-    from_=Table(dialect, 'users'),
-    where=ComparisonPredicate(
-        dialect, '=', Column(dialect, 'email'), Literal(dialect, 'alice@example.com'),
-    ),
-)
-explain_search = ExplainStatement(
-    dialect=dialect,
-    statement=query2,
-    options=ExplainOptions(),
-)
-sql, params = explain_search.to_sql()
-print("\n2. Index SEARCH (using idx_users_email):")
-print(f"SQL: {sql}")
-result = backend.execute(sql, params)
-for row in result.data:
-    print(f"  {row}")
+    users = [
+        ('Alice', 'alice@example.com'),
+        ('Bob', 'bob@example.com'),
+        ('Charlie', 'charlie@example.com'),
+    ]
+    for name, email in users:
+        insert_expr = InsertStatement(
+            dialect=dialect,
+            into=Table(dialect, 'users'),
+            columns=['name', 'email'],
+            source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
+        )
+        sql, params = insert_expr.to_sql()
+        backend.execute(sql, params)
 
-# 3. EXPLAIN with FORMAT=JSON for detailed analysis
-explain_json = ExplainStatement(
-    dialect=dialect,
-    statement=query2,
-    options=ExplainOptions(format=ExplainFormat.JSON),
-)
-sql, params = explain_json.to_sql()
-print("\n3. EXPLAIN FORMAT=JSON:")
-print(f"SQL: {sql}")
-result = backend.execute(sql, params)
-for row in result.data:
-    print(f"  {row}")
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # 1. EXPLAIN for table scan (no index on name column)
+    query1 = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, '*')],
+        from_=Table(dialect, 'users'),
+        where=ComparisonPredicate(
+            dialect, '=', Column(dialect, 'name'), Literal(dialect, 'Alice'),
+        ),
+    )
+    explain_scan = ExplainStatement(
+        dialect=dialect,
+        statement=query1,
+        options=ExplainOptions(),
+    )
+    sql, params = explain_scan.to_sql()
+    print("1. Table SCAN (no index on name):")
+    print(f"SQL: {sql}")
+    result = backend.execute(sql, params)
+    for row in result.data:
+        print(f"  {row}")
 
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. MariaDB EXPLAIN shows execution plan without executing the query
-# 2. "type" column shows access method: ALL=table scan, ref=index lookup
-# 3. "key" column shows which index is used
-# 4. "rows" column shows estimated rows to examine
-# 5. FORMAT=JSON provides detailed cost information
+    # 2. EXPLAIN for index search (email has index)
+    query2 = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, '*')],
+        from_=Table(dialect, 'users'),
+        where=ComparisonPredicate(
+            dialect, '=', Column(dialect, 'email'), Literal(dialect, 'alice@example.com'),
+        ),
+    )
+    explain_search = ExplainStatement(
+        dialect=dialect,
+        statement=query2,
+        options=ExplainOptions(),
+    )
+    sql, params = explain_search.to_sql()
+    print("\n2. Index SEARCH (using idx_users_email):")
+    print(f"SQL: {sql}")
+    result = backend.execute(sql, params)
+    for row in result.data:
+        print(f"  {row}")
+
+    # 3. EXPLAIN with FORMAT=JSON for detailed analysis
+    explain_json = ExplainStatement(
+        dialect=dialect,
+        statement=query2,
+        options=ExplainOptions(format=ExplainFormat.JSON),
+    )
+    sql, params = explain_json.to_sql()
+    print("\n3. EXPLAIN FORMAT=JSON:")
+    print(f"SQL: {sql}")
+    result = backend.execute(sql, params)
+    for row in result.data:
+        print(f"  {row}")
+
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'users'), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
+
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. MariaDB EXPLAIN shows execution plan without executing the query
+    # 2. "type" column shows access method: ALL=table scan, ref=index lookup
+    # 3. "key" column shows which index is used
+    # 4. "rows" column shows estimated rows to examine
+    # 5. FORMAT=JSON provides detailed cost information

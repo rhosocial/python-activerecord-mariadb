@@ -21,108 +21,109 @@ import os
 from rhosocial.activerecord.backend.impl.mariadb.backend import MariaDBBackend
 from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnectionConfig
 
-config = MariaDBConnectionConfig(
-    host=os.getenv('MYSQL_HOST', 'localhost'),
-    port=int(os.getenv('MYSQL_PORT', '3306')),
-    database=os.getenv('MYSQL_DATABASE', 'test'),
-    username=os.getenv('MYSQL_USER', 'root'),
-    password=os.getenv('MYSQL_PASSWORD', ''),
-    charset='utf8mb4',
-)
-backend = MariaDBBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = MariaDBConnectionConfig(
+        host=os.getenv('MYSQL_HOST', 'localhost'),
+        port=int(os.getenv('MYSQL_PORT', '3306')),
+        database=os.getenv('MYSQL_DATABASE', 'test'),
+        username=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', ''),
+        charset='utf8mb4',
+    )
+    backend = MariaDBBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal
-from rhosocial.activerecord.backend.expression.statements import (
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint,
-)
-from rhosocial.activerecord.backend.expression.types import (
-    IntegerType,
-    VarCharType,
-    DecimalType,
-)
-from rhosocial.activerecord.backend.expression.objects import (
-    Table,
-)
+    from rhosocial.activerecord.backend.expression import (
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint,
+    )
+    from rhosocial.activerecord.backend.expression.types import (
+        IntegerType,
+        VarCharType,
+        DecimalType,
+    )
+    from rhosocial.activerecord.backend.expression.objects import (
+        Table,
+    )
 
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, 'sales_data'), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, 'sales_data'),
-    columns=[
-        ColumnDefinition(
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, 'sales_data'),
+        columns=[
+            ColumnDefinition(
+                dialect,
+                'id',
+                IntegerType(dialect),
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition(dialect, 'salesperson', VarCharType(dialect, 100)),
+            ColumnDefinition(dialect, 'region', VarCharType(dialect, 50)),
+            ColumnDefinition(dialect, 'amount', DecimalType(dialect, 10, 2)),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
+
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, 'sales_data'),
+        columns=['salesperson', 'region', 'amount'],
+        source=ValuesSource(
             dialect,
-            'id',
-            IntegerType(dialect),
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+            [
+                [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1000)],
+                [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1500)],
+                [Literal(dialect, 'Bob'), Literal(dialect, 'North'), Literal(dialect, 1200)],
+                [Literal(dialect, 'Bob'), Literal(dialect, 'South'), Literal(dialect, 1800)],
+                [Literal(dialect, 'Charlie'), Literal(dialect, 'South'), Literal(dialect, 2000)],
             ],
         ),
-        ColumnDefinition(dialect, 'salesperson', VarCharType(dialect, 100)),
-        ColumnDefinition(dialect, 'region', VarCharType(dialect, 50)),
-        ColumnDefinition(dialect, 'amount', DecimalType(dialect, 10, 2)),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
+    )
+    sql, params = insert.to_sql()
+    backend.execute(sql, params)
 
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, 'sales_data'),
-    columns=['salesperson', 'region', 'amount'],
-    source=ValuesSource(
-        dialect,
-        [
-            [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1000)],
-            [Literal(dialect, 'Alice'), Literal(dialect, 'North'), Literal(dialect, 1500)],
-            [Literal(dialect, 'Bob'), Literal(dialect, 'North'), Literal(dialect, 1200)],
-            [Literal(dialect, 'Bob'), Literal(dialect, 'South'), Literal(dialect, 1800)],
-            [Literal(dialect, 'Charlie'), Literal(dialect, 'South'), Literal(dialect, 2000)],
-        ],
-    ),
-)
-sql, params = insert.to_sql()
-backend.execute(sql, params)
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    # Using user variables to emulate window functions in MariaDB 5.6/5.7
+    # Row number with partition by region and order by amount DESC
+    sql = """
+    SELECT
+        salesperson,
+        region,
+        amount,
+        @row_num := IF(@current_region = region,
+            @row_num + 1,
+            1) AS row_num,
+        @current_region := region
+    FROM sales_data,
+        (SELECT @row_num := 0, @current_region := '') AS vars
+    ORDER BY region, amount DESC
+    """
+    params = ()
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-# Using user variables to emulate window functions in MariaDB 5.6/5.7
-# Row number with partition by region and order by amount DESC
-sql = """
-SELECT
-    salesperson,
-    region,
-    amount,
-    @row_num := IF(@current_region = region,
-        @row_num + 1,
-        1) AS row_num,
-    @current_region := region
-FROM sales_data,
-    (SELECT @row_num := 0, @current_region := '') AS vars
-ORDER BY region, amount DESC
-"""
-params = ()
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    result = backend.execute(sql, params)
+    print(f"Rows returned: {len(result.data) if result.data else 0}")
+    for row in result.data or []:
+        print(f" {row}")
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-result = backend.execute(sql, params)
-print(f"Rows returned: {len(result.data) if result.data else 0}")
-for row in result.data or []:
-    print(f" {row}")
-
-backend.disconnect()
+    backend.disconnect()
