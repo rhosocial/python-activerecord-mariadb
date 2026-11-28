@@ -46,6 +46,25 @@ jobs:
           pip install ".[test]"
           pip install -r requirements-dev.txt
 
+      - name: Create MariaDB scenario config
+        # ``tests/conftest.py`` loads this file at collection time, so it has to
+        # exist before pytest starts. Nothing here connects: the gate reads
+        # source only and no service is started in this job.
+        run: |
+          cat > mariadb_scenarios.yaml << EOF
+          scenarios:
+            mariadb_default:
+              host: 127.0.0.1
+              port: 3306
+              database: test_db
+              username: root
+              password: password
+              charset: utf8mb4
+              autocommit: true
+              ssl_disabled: true
+          EOF
+          echo "MARIADB_SCENARIOS_CONFIG_PATH=$(pwd)/mariadb_scenarios.yaml" >> $GITHUB_ENV
+
       - name: Formal rules contracts
         # Pure source and signature assertions: no database, no service. Every
         # database job needs this one, so a structural regression fails here in
