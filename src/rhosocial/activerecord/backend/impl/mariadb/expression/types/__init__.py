@@ -73,6 +73,9 @@ _REEXPORTS = {
     "MariaDBXmlType": ".types",
     "MariaDBYearType": ".types",
 
+    # Private helper: kept reachable from the old module path so callers that
+    # read its documentation (and the doc-citation contract test) still resolve.
+    "_zerofill_signedness": ".types",
 }
 
 
