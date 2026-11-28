@@ -203,8 +203,8 @@ class MariaDBCharsetCollationMixin:
         """MariaDB supports expression-level COLLATE."""
         return True
 
-    def validate_collation_name(self, expr: "CollateFunction") -> str:
-        """Validate a ``CollateFunction`` and return its collation SQL.
+    def validate_collation_name(self, expr: "CollateFunction") -> bool:
+        """One check: a MariaDB ``CollateFunction`` has an acceptable name.
 
         MariaDB has no schema-qualified spelling for COLLATE -- a collation
         names a charset's rule set and lives in no namespace -- so a schema
@@ -220,6 +220,11 @@ class MariaDBCharsetCollationMixin:
                 f"COLLATE schema qualifier: {expr.schema}",
                 "MariaDB collations are not schema-qualified; pass the bare collation name.",
             )
+        self.validate_collation_by_name(expr.collation_name)
+        return True
+
+    def format_collation_name(self, expr: "CollateFunction") -> str:
+        """Spell a validated MariaDB collation name, folded to lowercase."""
         return self.validate_collation_by_name(expr.collation_name)
 
     # --- charset ---------------------------------------------------------
