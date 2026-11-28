@@ -9,8 +9,9 @@ the supported-strategy words, the clause builder, and a common base class the
 eight mixins inherit.
 
 MariaDB mirrors MySQL's partitioning grammar. The clause/statement nodes come
-from this backend's ``expression.partition`` module; the suggestion value
-objects and the generic ``DROP TABLE`` statement come from core.
+from this backend's ``expression.query_parts.partition`` and
+``expression.operators.partition`` modules; the suggestion value objects and
+the generic ``DROP TABLE`` statement come from core.
 
 Each mixin keeps only its own ``suggest_partition_<x>()`` method plus that
 method's dedicated imports. Behaviour is unchanged by the split.
@@ -22,7 +23,7 @@ from typing import Any, Optional, Sequence
 
 from ....expression import Column
 from ....expression.objects import Table
-from ..expression.partition import (
+from ..expression.query_parts.partition import (
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
     MariaDBPartitionByList,

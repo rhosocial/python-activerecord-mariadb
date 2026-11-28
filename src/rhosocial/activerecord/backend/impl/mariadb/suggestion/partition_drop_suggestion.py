@@ -9,7 +9,7 @@ withdrawn server support) answers explicit ``False``.
 from typing import TYPE_CHECKING
 
 from ....suggestion import PartitionDropSuggestion
-from ..expression.partition import MariaDBDropPartitionExpression
+from ..expression.operators.partition import MariaDBDropPartitionExpression
 from ._common import (
     _SUPPORTED,
     _definitions,

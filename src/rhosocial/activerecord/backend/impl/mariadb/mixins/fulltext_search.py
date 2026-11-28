@@ -10,7 +10,7 @@ MariaDB full-text search features:
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..expression.match_against import MariaDBMatchAgainstExpression
+    from ..expression.functions.match_against import MariaDBMatchAgainstExpression
 
 
 class MariaDBFullTextSearchMixin:

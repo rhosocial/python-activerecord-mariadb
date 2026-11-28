@@ -14,7 +14,7 @@ from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     types as maria_types,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.spatial import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.functions.spatial import (
     MariaDBSTGeomFromTextExpression,
     MariaDBSTDistanceExpression,
     MariaDBSTWithinExpression,

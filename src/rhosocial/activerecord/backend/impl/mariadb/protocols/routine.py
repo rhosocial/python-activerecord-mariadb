@@ -4,11 +4,11 @@
 from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+    from rhosocial.activerecord.backend.expression.statements import (
         CreateFunctionStatement,
         DropFunctionStatement,
     )
-    from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
         MariaDBCallStatement,
         MariaDBCreateFunctionStatement,
         MariaDBCreateProcedureStatement,

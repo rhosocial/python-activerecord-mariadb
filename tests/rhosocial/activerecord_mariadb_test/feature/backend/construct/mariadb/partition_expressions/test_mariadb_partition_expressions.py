@@ -9,7 +9,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     PartitionOptionsExpression,
     SubpartitionDefinitionExpression,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import (
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
     MariaDBPartitionByList,

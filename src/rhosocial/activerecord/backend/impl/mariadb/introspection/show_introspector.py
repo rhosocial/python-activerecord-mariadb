@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.introspection.executor import (
     IntrospectorExecutor,
     AsyncIntrospectorExecutor,
 )
-from ..expression.show import (
+from ..expression.statements.show import (
     MariaDBShowCreateTableStatement,
     MariaDBShowCreateViewStatement,
     MariaDBShowColumnsStatement,

@@ -20,7 +20,9 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
     QueryStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Parameter, Column, FunctionCall
+from rhosocial.activerecord.backend.expression.column_types.column import Column
+from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,

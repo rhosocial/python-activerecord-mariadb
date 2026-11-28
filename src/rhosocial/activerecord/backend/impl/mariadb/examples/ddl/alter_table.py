@@ -18,7 +18,7 @@ from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnection
 from rhosocial.activerecord.backend.expression import (
     CreateTableStatement, InsertStatement, ValuesSource, DropTableStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Parameter
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,

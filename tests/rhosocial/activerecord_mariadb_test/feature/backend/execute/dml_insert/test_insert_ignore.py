@@ -13,7 +13,7 @@ import pytest_asyncio
 
 from rhosocial.activerecord.backend.expression.statements import ValuesSource
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
-from rhosocial.activerecord.backend.expression import core
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 
 
@@ -48,7 +48,7 @@ class TestMariaDBInsertIgnore:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "alice@example.com"), core.Parameter(dialect, "Alice")]
+                    [Parameter(dialect, "alice@example.com"), Parameter(dialect, "Alice")]
                 ]
             ),
             columns=["email", "name"],
@@ -87,7 +87,7 @@ class TestMariaDBInsertIgnore:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "bob@example.com"), core.Parameter(dialect, "Bob 2")]
+                    [Parameter(dialect, "bob@example.com"), Parameter(dialect, "Bob 2")]
                 ]
             ),
             columns=["email", "name"],
@@ -126,9 +126,9 @@ class TestMariaDBInsertIgnore:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "new1@example.com"), core.Parameter(dialect, "New 1")],
-                    [core.Parameter(dialect, "existing@example.com"), core.Parameter(dialect, "Duplicate")],
-                    [core.Parameter(dialect, "new2@example.com"), core.Parameter(dialect, "New 2")],
+                    [Parameter(dialect, "new1@example.com"), Parameter(dialect, "New 1")],
+                    [Parameter(dialect, "existing@example.com"), Parameter(dialect, "Duplicate")],
+                    [Parameter(dialect, "new2@example.com"), Parameter(dialect, "New 2")],
                 ]
             ),
             columns=["email", "name"],
@@ -166,7 +166,7 @@ class TestMariaDBInsertIgnore:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "test@example.com"), core.Parameter(dialect, "Duplicate")]
+                    [Parameter(dialect, "test@example.com"), Parameter(dialect, "Duplicate")]
                 ]
             ),
             columns=["email", "name"]
@@ -215,7 +215,7 @@ class TestMariaDBAsyncInsertIgnore:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "async@example.com"), core.Parameter(dialect, "Duplicate")]
+                    [Parameter(dialect, "async@example.com"), Parameter(dialect, "Duplicate")]
                 ]
             ),
             columns=["email", "name"],

@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/mariadb/mixins/status.py
 """MariaDB server-status SQL generation.
 
-The formatters the :mod:`..expression.status` nodes delegate to. Every query is
+The formatters the :mod:`..expression.introspection.status` nodes delegate to. Every query is
 a tree of core expression nodes -- projections, a join, a where clause, an
 ordering -- so what the query *asks* is a structure; only the spellings MariaDB
 owns (the ``@@`` sigil, the catalogue's own relation names) are written here.
@@ -10,7 +10,7 @@ owns (the ``@@`` sigil, the catalogue's own relation names) are written here.
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..expression.status import (
+    from ..expression.introspection.status import (
         MariaDBDatabaseListQuery,
         MariaDBSessionInfoQuery,
         MariaDBStorageSizeQuery,
@@ -242,7 +242,7 @@ class MariaDBStatusDialectMixin:
             QueryStatement,
         )
 
-        from ..expression.status import MariaDBSystemVariableExpression
+        from ..expression.introspection.status import MariaDBSystemVariableExpression
 
         query = QueryStatement(
             self,

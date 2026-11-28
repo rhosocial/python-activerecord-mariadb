@@ -16,7 +16,7 @@ The implementation:
 from typing import Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.objects import Trigger
-from ..expression.show import (
+from ..expression.statements.show import (
     MariaDBShowCreateTableStatement,
     MariaDBShowCreateViewStatement,
     MariaDBShowColumnsStatement,

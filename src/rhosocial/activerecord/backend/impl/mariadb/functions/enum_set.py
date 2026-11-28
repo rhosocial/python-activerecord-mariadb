@@ -14,7 +14,9 @@ exist.
 
 from typing import TYPE_CHECKING
 
-from rhosocial.activerecord.backend.expression import bases, core
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.functions import FunctionCall
+from rhosocial.activerecord.backend.expression.value_types import Parameter
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import MariaDBDialect
@@ -23,8 +25,8 @@ if TYPE_CHECKING:  # pragma: no cover
 def find_in_set(
     dialect: "MariaDBDialect",
     value: str,
-    set_column: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    set_column: "BaseExpression",
+) -> "FunctionCall":
     """Creates a FIND_IN_SET function call.
 
     Finds a value within a SET column.
@@ -39,16 +41,16 @@ def find_in_set(
 
     Version: All MariaDB versions
     """
-    return core.FunctionCall(
-        dialect, "FIND_IN_SET", core.Parameter(dialect, value), set_column,
+    return FunctionCall(
+        dialect, "FIND_IN_SET", Parameter(dialect, value), set_column,
     )
 
 
 def elt(
     dialect: "MariaDBDialect",
-    index: "bases.BaseExpression",
-    *choices: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    index: "BaseExpression",
+    *choices: "BaseExpression",
+) -> "FunctionCall":
     """Creates an ELT function call.
 
     Returns the string at the specified index (1-based).
@@ -72,16 +74,16 @@ def elt(
     Version: All MariaDB versions
     """
     if not choices:
-        return core.FunctionCall(dialect, "ELT")
+        return FunctionCall(dialect, "ELT")
 
-    return core.FunctionCall(dialect, "ELT", index, *choices)
+    return FunctionCall(dialect, "ELT", index, *choices)
 
 
 def field(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-    *values: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    value: "BaseExpression",
+    *values: "BaseExpression",
+) -> "FunctionCall":
     """Creates a FIELD function call.
 
     Returns the index of the first argument that matches the second argument.
@@ -104,9 +106,9 @@ def field(
     Version: All MariaDB versions
     """
     if not values:
-        return core.FunctionCall(dialect, "FIELD", value)
+        return FunctionCall(dialect, "FIELD", value)
 
-    return core.FunctionCall(dialect, "FIELD", value, *values)
+    return FunctionCall(dialect, "FIELD", value, *values)
 
 
 __all__ = [

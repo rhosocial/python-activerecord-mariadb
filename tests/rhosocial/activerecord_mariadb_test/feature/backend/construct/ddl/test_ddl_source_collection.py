@@ -5,7 +5,8 @@ try:
 except ImportError:
     from typing_extensions import Annotated, Optional
 
-from rhosocial.activerecord.backend.expression.core import Column, Parameter
+from rhosocial.activerecord.backend.expression.column_types.column import Column
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     CreateTableStatement,

@@ -24,13 +24,13 @@ Design principle: Sync and Async are separate and cannot coexist.
 
 from typing import Any, Dict, List, Optional
 
-from ..expression.show import (
+from ..expression.statements.show import (
     MariaDBShowMasterStatusStatement,
     MariaDBShowSlaveStatusStatement,
     MariaDBShowStatusStatement,
     MariaDBShowVariablesStatement,
 )
-from ..expression.status import (
+from ..expression.introspection.status import (
     MariaDBDatabaseListQuery,
     MariaDBSessionInfoQuery,
     MariaDBStorageSizeQuery,

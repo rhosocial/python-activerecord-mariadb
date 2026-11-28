@@ -12,7 +12,7 @@ MariaDB-specific features:
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         IndexDefinition,
         ReferencesClause,
@@ -180,7 +180,7 @@ class MariaDBTableMixin:
             if storage_sql:
                 parts.append(storage_sql)
 
-        from rhosocial.activerecord.backend.impl.mariadb.expression.table_options import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
             MariaDBCreateTableOptions,
         )
         # The second read is the same declared field as above: the comment is
@@ -238,7 +238,7 @@ class MariaDBTableMixin:
         :meth:`MariaDBDialect.supports_check_constraint` and
         :meth:`MariaDBDialect.supports_foreign_key_constraint`).
         """
-        from rhosocial.activerecord.backend.impl.mariadb.expression.column import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.column_types import (
             MariaDBColumnDefinition,
         )
 
@@ -574,7 +574,7 @@ class MariaDBTableMixin:
             ValueError: The local columns, the referenced columns or the
                 referenced table are missing.
         """
-        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        from rhosocial.activerecord.backend.expression.statements import (
             ReferencesClause,
         )
 

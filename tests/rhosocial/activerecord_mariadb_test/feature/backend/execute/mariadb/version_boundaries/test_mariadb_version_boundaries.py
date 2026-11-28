@@ -222,7 +222,7 @@ class TestJsonTableAndArrows:
             assert _dialect(version).supports_json_table() is True
 
     def test_json_table_renders(self):
-        from rhosocial.activerecord.backend.expression.query_sources import (
+        from rhosocial.activerecord.backend.expression.sources.query_sources import (
             JSONTableColumn,
             JSONTableExpression,
         )
@@ -239,7 +239,7 @@ class TestJsonTableAndArrows:
         assert sql == "JSON_TABLE(`j`, '$[*]' COLUMNS(`a` INTEGER PATH '$.a')) AS `jt`"
 
     def test_json_table_rejected_before_10_6(self):
-        from rhosocial.activerecord.backend.expression.query_sources import (
+        from rhosocial.activerecord.backend.expression.sources.query_sources import (
             JSONTableColumn,
             JSONTableExpression,
         )

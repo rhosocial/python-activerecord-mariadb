@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     SubpartitionDefinitionExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.operators.partition import (
     MariaDBAddPartitionExpression,
     MariaDBAnalyzePartitionExpression,
     MariaDBCoalescePartitionExpression,
@@ -31,6 +31,13 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBDropPartitionExpression,
     MariaDBGetPartitionsExpression,
     MariaDBOptimizePartitionExpression,
+    MariaDBRebuildPartitionExpression,
+    MariaDBReorganizePartitionExpression,
+    MariaDBRemovePartitioningExpression,
+    MariaDBRepairPartitionExpression,
+    MariaDBTruncatePartitionExpression,
+)
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import (
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
     MariaDBPartitionByList,
@@ -39,13 +46,8 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBPartitionByRangeColumns,
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
-    MariaDBRebuildPartitionExpression,
-    MariaDBReorganizePartitionExpression,
-    MariaDBRemovePartitioningExpression,
-    MariaDBRepairPartitionExpression,
     MariaDBSubpartitionClause,
     MariaDBSubpartitionStrategy,
-    MariaDBTruncatePartitionExpression,
 )
 
 #: A builder receives the dialect and returns one expression or a sequence.

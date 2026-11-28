@@ -50,14 +50,14 @@ import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Column, QueryStatement
 from rhosocial.activerecord.backend.expression.objects import Table
-from rhosocial.activerecord.backend.expression.query_sources import CTEClause
+from rhosocial.activerecord.backend.expression.sources.query_sources import CTEClause
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableAsStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
     TruncateStatement,
 )
-from rhosocial.activerecord.backend.expression.transaction import (
+from rhosocial.activerecord.backend.expression.statements.transaction import (
     BeginTransactionStatement,
     SetTransactionStatement,
 )

@@ -11,8 +11,10 @@ HASH, KEY, and their LINEAR variants.
 ```python
 from rhosocial.activerecord.backend.expression import Column
 from rhosocial.activerecord.backend.expression.statements import PartitionDefinitionExpression
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.operators.partition import (
     MariaDBAddPartitionExpression,
+)
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import (
     MariaDBPartitionByRange,
     MariaDBPartitionValue,
 )
@@ -78,8 +80,9 @@ MariaDB supports subpartitioning only with `HASH` and `KEY` (and their
 `UnsupportedFeatureError` instead of being silently downgraded.
 
 ```python
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
-    MariaDBSubpartitionClause, MariaDBSubpartitionStrategy,
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import (
+    MariaDBSubpartitionClause,
+    MariaDBSubpartitionStrategy,
 )
 
 subpartition_by = MariaDBSubpartitionClause(

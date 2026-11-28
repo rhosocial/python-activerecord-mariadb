@@ -6,7 +6,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
+    from rhosocial.activerecord.backend.expression.statements import (
         TruncateStatement,
     )
 
@@ -146,7 +146,7 @@ class MariaDBTruncateMixin:
         # the core ``TruncateStatement`` declares neither, so which fields
         # exist is a question about the class and is answered with isinstance
         # rather than probed off the instance.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.truncate import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
             MariaDBTruncateExpression,
         )
 

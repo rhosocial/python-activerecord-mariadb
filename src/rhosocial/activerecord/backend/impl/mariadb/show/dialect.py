@@ -18,7 +18,7 @@ All methods follow the pattern:
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..expression.show import (
+    from ..expression.statements.show import (
         MariaDBShowCreateTableStatement,
         MariaDBShowCreateViewStatement,
         MariaDBShowColumnsStatement,

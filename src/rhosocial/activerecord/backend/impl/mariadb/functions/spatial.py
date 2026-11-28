@@ -21,7 +21,9 @@ value had to be guessed from its type alone.  It always guessed "column", so
 
 from typing import Optional, TYPE_CHECKING
 
-from rhosocial.activerecord.backend.expression import bases, core
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.functions import FunctionCall
+from rhosocial.activerecord.backend.expression.value_types import Parameter
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import MariaDBDialect
@@ -31,7 +33,7 @@ def st_geom_from_text(
     dialect: "MariaDBDialect",
     wkt: str,
     srid: Optional[int] = None,
-) -> "core.FunctionCall":
+) -> "FunctionCall":
     """Creates an ST_GeomFromText function call.
 
     Constructs a geometry value from a WKT (Well-Known Text) representation.
@@ -48,18 +50,18 @@ def st_geom_from_text(
 
     Version: MariaDB 10.2+
     """
-    wkt_expr = core.Parameter(dialect, wkt)
+    wkt_expr = Parameter(dialect, wkt)
     if srid is not None:
-        srid_expr = core.Parameter(dialect, srid)
-        return core.FunctionCall(dialect, "ST_GeomFromText", wkt_expr, srid_expr)
-    return core.FunctionCall(dialect, "ST_GeomFromText", wkt_expr)
+        srid_expr = Parameter(dialect, srid)
+        return FunctionCall(dialect, "ST_GeomFromText", wkt_expr, srid_expr)
+    return FunctionCall(dialect, "ST_GeomFromText", wkt_expr)
 
 
 def st_geom_from_wkb(
     dialect: "MariaDBDialect",
     wkb: bytes,
     srid: Optional[int] = None,
-) -> "core.FunctionCall":
+) -> "FunctionCall":
     """Creates an ST_GeomFromWKB function call.
 
     Constructs a geometry value from a WKB (Well-Known Binary) representation.
@@ -75,17 +77,17 @@ def st_geom_from_wkb(
 
     Version: MariaDB 10.2+
     """
-    wkb_expr = core.Parameter(dialect, wkb)
+    wkb_expr = Parameter(dialect, wkb)
     if srid is not None:
-        srid_expr = core.Parameter(dialect, srid)
-        return core.FunctionCall(dialect, "ST_GeomFromWKB", wkb_expr, srid_expr)
-    return core.FunctionCall(dialect, "ST_GeomFromWKB", wkb_expr)
+        srid_expr = Parameter(dialect, srid)
+        return FunctionCall(dialect, "ST_GeomFromWKB", wkb_expr, srid_expr)
+    return FunctionCall(dialect, "ST_GeomFromWKB", wkb_expr)
 
 
 def st_as_text(
     dialect: "MariaDBDialect",
-    geom: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    geom: "BaseExpression",
+) -> "FunctionCall":
     """Creates an ST_AsText function call.
 
     Returns the WKT (Well-Known Text) representation of a geometry.
@@ -99,13 +101,13 @@ def st_as_text(
 
     Version: MariaDB 10.2+
     """
-    return core.FunctionCall(dialect, "ST_AsText", geom)
+    return FunctionCall(dialect, "ST_AsText", geom)
 
 
 def st_as_geojson(
     dialect: "MariaDBDialect",
-    geom: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    geom: "BaseExpression",
+) -> "FunctionCall":
     """Creates an ST_AsGeoJSON function call.
 
     Returns the GeoJSON representation of a geometry.
@@ -119,14 +121,14 @@ def st_as_geojson(
 
     Version: MariaDB 10.2+
     """
-    return core.FunctionCall(dialect, "ST_AsGeoJSON", geom)
+    return FunctionCall(dialect, "ST_AsGeoJSON", geom)
 
 
 def st_distance(
     dialect: "MariaDBDialect",
-    geom1: "bases.BaseExpression",
-    geom2: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    geom1: "BaseExpression",
+    geom2: "BaseExpression",
+) -> "FunctionCall":
     """Creates an ST_Distance function call.
 
     Returns the distance between two geometries.
@@ -141,14 +143,14 @@ def st_distance(
 
     Version: MariaDB 10.2+
     """
-    return core.FunctionCall(dialect, "ST_Distance", geom1, geom2)
+    return FunctionCall(dialect, "ST_Distance", geom1, geom2)
 
 
 def st_within(
     dialect: "MariaDBDialect",
-    geom1: "bases.BaseExpression",
-    geom2: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    geom1: "BaseExpression",
+    geom2: "BaseExpression",
+) -> "FunctionCall":
     """Creates an ST_Within function call.
 
     Checks if geom1 is spatially within geom2.
@@ -163,14 +165,14 @@ def st_within(
 
     Version: MariaDB 10.2+
     """
-    return core.FunctionCall(dialect, "ST_Within", geom1, geom2)
+    return FunctionCall(dialect, "ST_Within", geom1, geom2)
 
 
 def st_contains(
     dialect: "MariaDBDialect",
-    geom1: "bases.BaseExpression",
-    geom2: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    geom1: "BaseExpression",
+    geom2: "BaseExpression",
+) -> "FunctionCall":
     """Creates an ST_Contains function call.
 
     Checks if geom1 spatially contains geom2.
@@ -185,14 +187,14 @@ def st_contains(
 
     Version: MariaDB 10.2+
     """
-    return core.FunctionCall(dialect, "ST_Contains", geom1, geom2)
+    return FunctionCall(dialect, "ST_Contains", geom1, geom2)
 
 
 def st_intersects(
     dialect: "MariaDBDialect",
-    geom1: "bases.BaseExpression",
-    geom2: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    geom1: "BaseExpression",
+    geom2: "BaseExpression",
+) -> "FunctionCall":
     """Creates an ST_Intersects function call.
 
     Checks if two geometries spatially intersect.
@@ -207,7 +209,7 @@ def st_intersects(
 
     Version: MariaDB 10.2+
     """
-    return core.FunctionCall(dialect, "ST_Intersects", geom1, geom2)
+    return FunctionCall(dialect, "ST_Intersects", geom1, geom2)
 
 
 __all__ = [

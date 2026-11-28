@@ -19,7 +19,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     PartitionDefinitionExpression,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import MariaDBPartitionValue
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import MariaDBPartitionValue
 
 
 def _strategy(dialect, word):

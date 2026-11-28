@@ -19,7 +19,7 @@ import inspect
 import pytest
 
 from rhosocial.activerecord.backend.expression.objects import Function
-from rhosocial.activerecord.backend.expression.query_sources import (
+from rhosocial.activerecord.backend.expression.sources.query_sources import (
     JSONTableColumn as CoreJSONTableColumn,
     JSONTableExpression,
 )
@@ -28,23 +28,23 @@ from rhosocial.activerecord.backend.expression.statements.ddl_function import (
     DropFunctionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.admin import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.admin import (
     FlushOption,
     MariaDBFlushStatement,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table import (
     JSONTableColumn as MariaDBJSONTableColumn,
     MariaDBJSONTableExpression,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import (
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.routine import (
     MariaDBCreateFunctionStatement,
     MariaDBDropFunctionStatement,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.show import (
     MariaDBShowCreateTableStatement,
     MariaDBShowWarningsStatement,
 )

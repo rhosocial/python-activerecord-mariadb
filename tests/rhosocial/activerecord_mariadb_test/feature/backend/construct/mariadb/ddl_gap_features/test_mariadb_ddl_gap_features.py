@@ -28,10 +28,10 @@ from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.expression import (
     MariaDBAlterTableExpression,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.rename_index import (
     MariaDBRenameIndexStatement,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.admin import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.admin import (
     AccountSpec,
     GrantPrivilege,
     MariaDBAlterUserStatement,
@@ -48,18 +48,18 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.admin import (
     FlushOption,
     KillTarget,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.maintenance import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.maintenance import (
     MariaDBTableMaintenanceStatement,
     TableMaintenanceOperation,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.routine import (
     MariaDBCallStatement,
     MariaDBCreateFunctionStatement,
     MariaDBCreateProcedureStatement,
     MariaDBDropFunctionStatement,
     MariaDBDropProcedureStatement,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.rename_table import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.rename_table import (
     MariaDBRenameTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import (

@@ -7,7 +7,8 @@ A raw value at a value position is coerced to a bound ``Parameter``.
 """
 import pytest
 
-from rhosocial.activerecord.backend.expression.core import Column, Parameter
+from rhosocial.activerecord.backend.expression.column_types.column import Column
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 

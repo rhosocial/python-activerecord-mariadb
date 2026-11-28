@@ -17,11 +17,11 @@ from ..backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+    from rhosocial.activerecord.backend.expression.statements import (
         CreateFunctionStatement,
         DropFunctionStatement,
     )
-    from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
         MariaDBCallStatement,
         MariaDBCreateFunctionStatement,
         MariaDBCreateProcedureStatement,
@@ -219,7 +219,7 @@ class MariaDBRoutineMixin:
                 own format_method and would render as a well-formed
                 CREATE FUNCTION over the procedure's name.
         """
-        from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+        from rhosocial.activerecord.backend.expression.statements import (
             CreateFunctionStatement,
         )
         from rhosocial.activerecord.backend.expression.objects import Function
@@ -287,7 +287,7 @@ class MariaDBRoutineMixin:
                 CREATE FUNCTION over the procedure's name.
         """
         from rhosocial.activerecord.backend.expression.objects import Function
-        from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
             MariaDBRoutineExpression,
         )
 
@@ -349,7 +349,7 @@ class MariaDBRoutineMixin:
             TypeError: The node is not a core ``DropFunctionStatement``, or
                 the named routine is not a Function.
         """
-        from rhosocial.activerecord.backend.expression.statements.ddl_function import (
+        from rhosocial.activerecord.backend.expression.statements import (
             DropFunctionStatement,
         )
         from rhosocial.activerecord.backend.expression.objects import Function
@@ -410,7 +410,7 @@ class MariaDBRoutineMixin:
                 named routine is not a Function.
         """
         from rhosocial.activerecord.backend.expression.objects import Function
-        from rhosocial.activerecord.backend.impl.mariadb.expression.routine import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
             MariaDBRoutineExpression,
         )
 

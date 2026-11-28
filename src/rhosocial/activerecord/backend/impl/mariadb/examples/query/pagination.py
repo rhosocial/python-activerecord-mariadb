@@ -36,7 +36,8 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Parameter, Column
+    from rhosocial.activerecord.backend.expression.column_types.column import Column
+    from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
     )

@@ -17,13 +17,14 @@ right in both directions -- a column named ``3.7`` was unreachable, and
 
 from typing import TYPE_CHECKING
 
-from rhosocial.activerecord.backend.expression import bases, core
-from rhosocial.activerecord.backend.expression.functions.aggregate import (
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.functions import FunctionCall
+from rhosocial.activerecord.backend.expression.functions import (
     AvgFunction,
     MaxFunction,
     MinFunction,
 )
-from rhosocial.activerecord.backend.expression.functions.math import (
+from rhosocial.activerecord.backend.expression.functions import (
     CeilFunction,
     FloorFunction,
     ModuloFunction,
@@ -39,7 +40,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 def round_(
     dialect: "SQLDialectBase",
-    expr: "bases.BaseExpression",
+    expr: "BaseExpression",
     precision: int = 0,
 ) -> RoundFunction:
     """Creates a ROUND function node.
@@ -66,8 +67,8 @@ def round_(
 
 def pow(
     dialect: "SQLDialectBase",
-    base: "bases.BaseExpression",
-    exponent: "bases.BaseExpression",
+    base: "BaseExpression",
+    exponent: "BaseExpression",
 ) -> PowerFunction:
     """Creates a POWER function node.
 
@@ -95,8 +96,8 @@ def pow(
 
 def power(
     dialect: "SQLDialectBase",
-    base: "bases.BaseExpression",
-    exponent: "bases.BaseExpression",
+    base: "BaseExpression",
+    exponent: "BaseExpression",
 ) -> PowerFunction:
     """Creates a POWER function node.
 
@@ -123,7 +124,7 @@ def power(
 
 def sqrt(
     dialect: "SQLDialectBase",
-    expr: "bases.BaseExpression",
+    expr: "BaseExpression",
 ) -> SquareRootFunction:
     """Creates a SQRT function node.
 
@@ -147,8 +148,8 @@ def sqrt(
 
 def mod(
     dialect: "SQLDialectBase",
-    dividend: "bases.BaseExpression",
-    divisor: "bases.BaseExpression",
+    dividend: "BaseExpression",
+    divisor: "BaseExpression",
 ) -> ModuloFunction:
     """Creates a MOD function node.
 
@@ -173,7 +174,7 @@ def mod(
 
 def ceil(
     dialect: "SQLDialectBase",
-    expr: "bases.BaseExpression",
+    expr: "BaseExpression",
 ) -> CeilFunction:
     """Creates a CEIL function node.
 
@@ -197,7 +198,7 @@ def ceil(
 
 def floor(
     dialect: "SQLDialectBase",
-    expr: "bases.BaseExpression",
+    expr: "BaseExpression",
 ) -> FloorFunction:
     """Creates a FLOOR function node.
 
@@ -221,7 +222,7 @@ def floor(
 
 def trunc(
     dialect: "SQLDialectBase",
-    expr: "bases.BaseExpression",
+    expr: "BaseExpression",
     precision: int = 0,
 ) -> TruncateFunction:
     """Creates a TRUNCATE function node.
@@ -253,8 +254,8 @@ def trunc(
 
 def max_(
     dialect: "SQLDialectBase",
-    *args: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    *args: "BaseExpression",
+) -> "BaseExpression":
     """Creates a GREATEST or MAX function call.
 
     Returns the maximum value from the arguments.
@@ -283,13 +284,13 @@ def max_(
     """
     if len(args) == 1:
         return MaxFunction(dialect, args[0])
-    return core.FunctionCall(dialect, "GREATEST", *args)
+    return FunctionCall(dialect, "GREATEST", *args)
 
 
 def min_(
     dialect: "SQLDialectBase",
-    *args: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    *args: "BaseExpression",
+) -> "BaseExpression":
     """Creates a LEAST or MIN function call.
 
     Returns the minimum value from the arguments.
@@ -318,12 +319,12 @@ def min_(
     """
     if len(args) == 1:
         return MinFunction(dialect, args[0])
-    return core.FunctionCall(dialect, "LEAST", *args)
+    return FunctionCall(dialect, "LEAST", *args)
 
 
 def avg(
     dialect: "SQLDialectBase",
-    expr: "bases.BaseExpression",
+    expr: "BaseExpression",
 ) -> AvgFunction:
     """Creates an AVG function node.
 

@@ -11,8 +11,8 @@ comment is a DDL literal, so it is quoted inline rather than bound.
 
 from typing import Tuple, TYPE_CHECKING
 
-from ..expression.alter_table_options import MariaDBAlterTableOptionsStatement
-from ..expression.table_options import MariaDBCreateTableOptions
+from ..expression.statements.alter_table_options import MariaDBAlterTableOptionsStatement
+from ..expression.statements.table_options import MariaDBCreateTableOptions
 
 if TYPE_CHECKING:  # pragma: no cover
     pass

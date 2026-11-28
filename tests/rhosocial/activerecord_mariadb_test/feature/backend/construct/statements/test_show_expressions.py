@@ -14,7 +14,7 @@ import pytest
 
 from rhosocial.activerecord.backend.expression.objects import Table, Trigger, View
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.show import (
     MariaDBShowCharsetStatement,
     MariaDBShowCollationStatement,
     MariaDBShowColumnsStatement,

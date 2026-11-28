@@ -10,7 +10,7 @@ answers explicit ``False``.
 from typing import TYPE_CHECKING
 
 from ....suggestion import PartitionAddSuggestion
-from ..expression.partition import MariaDBAddPartitionExpression
+from ..expression.operators.partition import MariaDBAddPartitionExpression
 from ._common import (
     _SUPPORTED,
     _definitions,

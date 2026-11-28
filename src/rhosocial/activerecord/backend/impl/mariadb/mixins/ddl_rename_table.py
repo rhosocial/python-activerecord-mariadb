@@ -13,7 +13,7 @@ from .backend import MARIADB_VERSION_BOUNDARIES
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.impl.mariadb.expression.rename_table import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
         MariaDBRenameTableStatement,
     )
 

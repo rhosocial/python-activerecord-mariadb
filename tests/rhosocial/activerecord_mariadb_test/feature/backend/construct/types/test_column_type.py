@@ -308,7 +308,7 @@ class TestDictVersionGate:
         ``UseColumnType`` and gets the column they asked for.
         """
         from rhosocial.activerecord.base.fields import UseColumnType
-        from rhosocial.activerecord.backend.expression.core import Column
+        from rhosocial.activerecord.backend.expression.column_types.column import Column
 
         resolved = resolve(_dialect(PRE_JSON), dict, UseColumnType(Column))
         assert resolved is Column

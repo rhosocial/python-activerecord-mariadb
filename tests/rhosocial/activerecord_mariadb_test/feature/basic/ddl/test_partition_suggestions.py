@@ -41,10 +41,14 @@ from rhosocial.activerecord.backend.suggestion import (
 )
 from rhosocial.activerecord.base.derivation import partition_suggestion_operations
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.operators.partition import (
     MariaDBAddPartitionExpression,
     MariaDBCoalescePartitionExpression,
     MariaDBDropPartitionExpression,
+    MariaDBRemovePartitioningExpression,
+    MariaDBReorganizePartitionExpression,
+)
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import (
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
     MariaDBPartitionByList,
@@ -52,8 +56,6 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
     MariaDBPartitionByRange,
     MariaDBPartitionByRangeColumns,
     MariaDBPartitionValue,
-    MariaDBRemovePartitioningExpression,
-    MariaDBReorganizePartitionExpression,
 )
 
 

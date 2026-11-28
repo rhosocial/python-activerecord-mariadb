@@ -16,7 +16,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import VarCharType
-from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table import (
     MariaDBJSONTableExpression,
     JSONTableColumn,
 )
@@ -85,7 +85,7 @@ def test_mariadb_type_names_are_the_grammar_rule(dialect):
     What a name may be is one rule for all of them; whether the server knows
     the type is the server's answer, not ours.
     """
-    from rhosocial.activerecord.backend.expression.type_name import (
+    from rhosocial.activerecord.backend.expression.bases.type_name import (
         InvalidTypeNameError,
         validate_type_name,
     )
@@ -110,10 +110,10 @@ def test_mariadba_type_position_refuses_a_payload(dialect):
     from rhosocial.activerecord.backend.expression.statements import (
         AlterColumnAction,
     )
-    from rhosocial.activerecord.backend.expression.type_name import (
+    from rhosocial.activerecord.backend.expression.bases.type_name import (
         InvalidTypeNameError,
     )
-    from rhosocial.activerecord.backend.expression.xml import (
+    from rhosocial.activerecord.backend.expression.functions.xml import (
         XMLSerializeExpression,
     )
 
@@ -297,7 +297,7 @@ class TestJSONTableTypeValidation:
         model, whose grammar decides what a name may be.  The payload is
         refused there, before any statement text is built.
         """
-        from rhosocial.activerecord.backend.expression.type_name import (
+        from rhosocial.activerecord.backend.expression.bases.type_name import (
             InvalidTypeNameError,
         )
         dialect = json_table_dialect
@@ -393,7 +393,7 @@ class TestJSONTableColumnOptions:
         assert "`has` INT EXISTS PATH '$.h'" in sql
 
     def test_nested_path_rendered(self, json_table_dialect):
-        from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table import (
             NestedPath,
         )
         dialect = json_table_dialect

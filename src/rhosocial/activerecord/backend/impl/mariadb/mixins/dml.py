@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
         InsertStatement,
     )
-    from ..expression.load_data import MariaDBLoadDataStatement
+    from ..expression.statements.load_data import MariaDBLoadDataStatement
 
 
 def _escape_infile_path(value: str) -> str:
@@ -144,7 +144,7 @@ class MariaDBDMLOperationMixin:
         # ``InsertStatement`` declares neither, so which modifiers exist is a
         # question about the class and is answered with isinstance rather
         # than probed off the instance.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.dml import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
             MariaDBInsertExpression,
         )
 

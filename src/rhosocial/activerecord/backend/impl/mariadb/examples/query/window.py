@@ -32,7 +32,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Parameter
+    from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         ColumnConstraint,
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         WindowSpecification,
         OrderByClause,
     )
-    from rhosocial.activerecord.backend.expression.core import FunctionCall
+    from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
 
     query = QueryStatement(
         dialect=dialect,

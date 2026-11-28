@@ -21,7 +21,7 @@ from rhosocial.activerecord.backend.expression import (
     Parameter,
     QueryStatement,
 )
-from rhosocial.activerecord.backend.expression.core import FunctionCall
+from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
 from rhosocial.activerecord.backend.expression.functions.datetime import (
     current_timestamp,
     current_date,

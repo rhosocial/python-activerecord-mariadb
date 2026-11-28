@@ -9,7 +9,7 @@ from typing import Optional
 
 from rhosocial.activerecord.backend.protocols import ConcurrencyHint
 
-from ..expression.show import MariaDBShowVariablesStatement
+from ..expression.statements.show import MariaDBShowVariablesStatement
 
 
 class MariaDBConcurrencyMixin:

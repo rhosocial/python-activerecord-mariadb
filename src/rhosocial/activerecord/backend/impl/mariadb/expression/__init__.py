@@ -6,45 +6,57 @@ This module provides expression classes that are specific to MariaDB, such as
 LOAD DATA INFILE, JSON_TABLE, JSON functions, spatial functions, vector
 functions, MATCH...AGAINST expressions, and row-level locking expressions.
 
-Directory structure:
-- load_data.py      - LOAD DATA INFILE expression
-- json_table.py    - JSON_TABLE expression
-- json.py           - JSON function expressions
-- spatial.py         - Spatial function expressions
-- match_against.py - MATCH...AGAINST expression
-- locking.py        - Row-level locking expressions (FOR UPDATE, LOCK IN SHARE MODE)
+Directory structure (canonical top-level names):
+- functions/      - JSON, MATCH...AGAINST and spatial function expressions
+- objects/        - schema-object expression nodes
+- sources/        - JSON_TABLE query source
+- statements/     - DDL/DML/LOAD DATA/SHOW/routine/admin statements
+- types/          - MariaDB data types
+- predicates/     - MATCH...AGAINST predicate vocabulary
+- query_parts/    - PARTITION BY clause nodes
+- operators/      - ALTER TABLE partition operations
+- value_types/    - SET literals and CREATE TABLE option values
+- column_types/   - column definition/format/storage expressions
+- introspection/  - introspection queries and status expressions
 """
 
-from .load_data import MariaDBLoadDataStatement, LoadDataOptions
-from .json_table import MariaDBJSONTableExpression, JSONTableColumn, NestedPath
-from .json import (
+from .functions import (
     MariaDBJSONExtractExpression,
     MariaDBJSONObjectExpression,
     MariaDBJSONArrayExpression,
     MariaDBJSONContainsExpression,
-)
-from .spatial import (
     MariaDBSTGeomFromTextExpression,
     MariaDBSTDistanceExpression,
     MariaDBSTWithinExpression,
     MariaDBSTContainsExpression,
+    MariaDBMatchAgainstExpression,
 )
-from .match_against import MariaDBMatchAgainstExpression, MatchAgainstMode
-from .rename_table import MariaDBRenameTableStatement
-from .rename_index import MariaDBRenameIndexStatement
-from .routine import (
+
+from .predicates import MatchAgainstMode
+
+from .sources import (
+    MariaDBJSONTableExpression,
+    JSONTableColumn,
+    NestedPath,
+)
+
+from .statements import (
+    MariaDBLoadDataStatement,
+    LoadDataOptions,
+    MariaDBRenameTableStatement,
+    MariaDBRenameIndexStatement,
+    MariaDBAlterTableExpression,
+    MariaDBTableMaintenanceStatement,
+    TableMaintenanceOperation,
+    MariaDBCreateTableOptions,
+    MariaDBAlterTableOptionsStatement,
+    MariaDBInsertExpression,
+    MariaDBTruncateExpression,
     MariaDBCallStatement,
     MariaDBCreateFunctionStatement,
     MariaDBCreateProcedureStatement,
     MariaDBDropFunctionStatement,
     MariaDBDropProcedureStatement,
-)
-from .set_type import (
-    MariaDBSetLiteralExpression,
-    MariaDBFindInSetExpression,
-    MariaDBSetContainsExpression,
-)
-from .admin import (
     AccountSpec,
     GrantPrivilege,
     MariaDBAlterUserStatement,
@@ -59,22 +71,8 @@ from .admin import (
     MariaDBRevokeStatement,
     MariaDBShutdownStatement,
 )
-from .alter_table_options import MariaDBAlterTableOptionsStatement
-from .table_options import MariaDBRowFormat, MariaDBCreateTableOptions
-from .dml import MariaDBInsertExpression
-from .truncate import MariaDBTruncateExpression
-from .alter_table import MariaDBAlterTableExpression
-from .column import (
-    MariaDBColumnFormat,
-    MariaDBColumnStorage,
-    MariaDBColumnDefinition,
-    MariaDBColumnOptions,
-)
-from .maintenance import (
-    MariaDBTableMaintenanceStatement,
-    TableMaintenanceOperation,
-)
-from .partition import (
+
+from .query_parts import (
     MariaDBSubpartitionStrategy,
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
@@ -86,6 +84,9 @@ from .partition import (
     MariaDBPartitionByListColumns,
     MariaDBPartitionByHash,
     MariaDBPartitionByKey,
+)
+
+from .operators import (
     MariaDBPartitionTableExpression,
     MariaDBAddPartitionExpression,
     MariaDBDropPartitionExpression,
@@ -102,7 +103,20 @@ from .partition import (
     MariaDBExchangePartitionStatement,
 )
 
-# DataType subclasses for DDL
+from .value_types import (
+    MariaDBRowFormat,
+    MariaDBSetLiteralExpression,
+    MariaDBFindInSetExpression,
+    MariaDBSetContainsExpression,
+)
+
+from .column_types import (
+    MariaDBColumnFormat,
+    MariaDBColumnStorage,
+    MariaDBColumnDefinition,
+    MariaDBColumnOptions,
+)
+
 from .types import (
     MariaDBBigIntType,
     MariaDBBinaryType,
@@ -132,6 +146,7 @@ from .types import (
     MariaDBVarBinaryType,
     MariaDBYearType,
 )
+
 
 __all__ = [
     "MariaDBLoadDataStatement",
@@ -255,7 +270,7 @@ __all__ = [
 import importlib as _importlib
 import pkgutil as _pkgutil
 
-from rhosocial.activerecord.backend.expression.core import BaseExpression as _BaseExpression
+from rhosocial.activerecord.backend.expression.bases.bases import BaseExpression as _BaseExpression
 
 _MARIADB_OWNED_KINDS = ("MariaDB",)
 

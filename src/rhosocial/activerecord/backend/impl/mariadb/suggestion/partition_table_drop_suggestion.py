@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from ....expression import DropTableStatement
 from ....suggestion import PartitionTableDropSuggestion
-from ..expression.partition import MariaDBRemovePartitioningExpression
+from ..expression.operators.partition import MariaDBRemovePartitioningExpression
 from ._common import _MariaDBPartitionSuggestionBase, _table
 
 if TYPE_CHECKING:  # pragma: no cover

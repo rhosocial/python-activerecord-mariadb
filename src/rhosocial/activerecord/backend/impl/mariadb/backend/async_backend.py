@@ -30,7 +30,7 @@ from rhosocial.activerecord.logging.redaction import unwrap_sensitive
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
-from ..expression.status import MariaDBVersionQuery
+from ..expression.introspection.status import MariaDBVersionQuery
 from ..async_transaction import AsyncMariaDBTransactionManager
 from ..mixins import AsyncMariaDBConcurrencyMixin, MariaDBBackendMixin
 from .backend import _SERVER_PARAMETERS_QUERY, _UNSCOPED_PARAMETERS

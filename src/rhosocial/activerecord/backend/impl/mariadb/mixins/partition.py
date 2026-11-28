@@ -14,7 +14,7 @@ if TYPE_CHECKING:
         PartitionClause,
         PartitionOptionsExpression,
     )
-    from ..expression.partition import (
+    from ..expression.operators.partition import (
         MariaDBAddPartitionExpression,
         MariaDBAnalyzePartitionExpression,
         MariaDBCheckPartitionExpression,
@@ -23,14 +23,16 @@ if TYPE_CHECKING:
         MariaDBExchangePartitionStatement,
         MariaDBGetPartitionsExpression,
         MariaDBOptimizePartitionExpression,
-        MariaDBPartitionMaxValue,
-        MariaDBPartitionValue,
         MariaDBRebuildPartitionExpression,
         MariaDBRemovePartitioningExpression,
         MariaDBReorganizePartitionExpression,
         MariaDBRepairPartitionExpression,
-        MariaDBSubpartitionClause,
         MariaDBTruncatePartitionExpression,
+    )
+    from ..expression.query_parts.partition import (
+        MariaDBPartitionMaxValue,
+        MariaDBPartitionValue,
+        MariaDBSubpartitionClause,
     )
 
 
@@ -217,7 +219,7 @@ class MariaDBPartitionMixin:
         sql = f" PARTITION BY RANGE ({keys_sql})"
         # Named definitions belong to the MariaDB clause node; the core
         # clause carries none, so their presence is a class question.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts import (
             MariaDBPartitionByRange,
         )
 
@@ -242,7 +244,7 @@ class MariaDBPartitionMixin:
         sql = f" PARTITION BY RANGE COLUMNS ({keys_sql})"
         # Named definitions belong to the MariaDB clause node; the core
         # clause carries none, so their presence is a class question.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts import (
             MariaDBPartitionByRangeColumns,
         )
 
@@ -267,7 +269,7 @@ class MariaDBPartitionMixin:
         sql = f" PARTITION BY LIST ({keys_sql})"
         # Named definitions belong to the MariaDB clause node; the core
         # clause carries none, so their presence is a class question.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts import (
             MariaDBPartitionByList,
         )
 
@@ -290,7 +292,7 @@ class MariaDBPartitionMixin:
         sql = f" PARTITION BY LIST COLUMNS ({keys_sql})"
         # Named definitions belong to the MariaDB clause node; the core
         # clause carries none, so their presence is a class question.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts import (
             MariaDBPartitionByListColumns,
         )
 
@@ -319,7 +321,7 @@ class MariaDBPartitionMixin:
         sql = f" PARTITION BY {keyword} ({keys_sql})"
         # ``partitions_count`` belongs to the MariaDB clause node; the core
         # clause has no count, so its presence is a class question.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts import (
             MariaDBPartitionByHash,
         )
 
@@ -347,7 +349,7 @@ class MariaDBPartitionMixin:
         sql = f" PARTITION BY {keyword} ({keys_sql})"
         # ``partitions_count`` belongs to the MariaDB clause node; the core
         # clause has no count, so its presence is a class question.
-        from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts import (
             MariaDBPartitionByKey,
         )
 

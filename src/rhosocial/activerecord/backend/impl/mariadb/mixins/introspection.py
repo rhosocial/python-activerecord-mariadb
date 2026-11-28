@@ -33,7 +33,7 @@ if TYPE_CHECKING:
         DDLStatementQueryStatement,
         RuntimeMetricsQueryStatement,
     )
-    from rhosocial.activerecord.backend.expression.sources.relation import NamedRelationRef
+    from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
     from rhosocial.activerecord.backend.expression.objects import Table
     from rhosocial.activerecord.backend.impl.mariadb.expression.introspection import (
         MariaDBSequenceQuery,
@@ -219,7 +219,7 @@ class MariaDBIntrospectionMixin:
 
     def _relation_ref(self, table: "Table", alias: str) -> "NamedRelationRef":
         """Name *table* inside a FROM/JOIN list under *alias*."""
-        from rhosocial.activerecord.backend.expression.sources.relation import (
+        from rhosocial.activerecord.backend.expression.sources import (
             NamedRelationRef,
         )
 
@@ -1416,7 +1416,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import Column, QueryStatement
         from rhosocial.activerecord.backend.expression.objects import Table
         from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
-        from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
+        from rhosocial.activerecord.backend.expression.statements import OrderByClause
 
         statement = QueryStatement(
             self,
@@ -1499,7 +1499,7 @@ class MariaDBIntrospectionMixin:
         )
         from rhosocial.activerecord.backend.expression.objects import Table
         from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
-        from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
+        from rhosocial.activerecord.backend.expression.statements import OrderByClause
 
         params = expr.get_params()
         schema = params.get("schema", "")
@@ -1572,7 +1572,7 @@ class MariaDBIntrospectionMixin:
             UnsupportedFeatureError,
         )
         from rhosocial.activerecord.backend.expression.objects import Table
-        from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
             MariaDBShowCreateTableStatement,
         )
 
@@ -1697,7 +1697,7 @@ class MariaDBIntrospectionMixin:
         """A constant label as a named select-list entry.
 
         ``Parameter`` is deliberately unaliasable -- a value has nothing to name
-        (see :class:`~...expression.core.Parameter`) -- so the constant is cast
+        (see :class:`~...expression.value_types.parameter.Parameter`) -- so the constant is cast
         to text, which is the smallest node in the tree that produces a named
         result. The cast is not there for its type: it is there so the label
         can be called ``column_name`` or ``source``, which is what the parser
@@ -1708,11 +1708,9 @@ class MariaDBIntrospectionMixin:
         because MariaDB's ``CAST`` accepts ``CHAR`` bare and a label has no
         width to declare.
         """
-        from rhosocial.activerecord.backend.expression.core import (
-            CastExpression,
-            Parameter,
-        )
-        from rhosocial.activerecord.backend.expression.types.string import CharType
+        from rhosocial.activerecord.backend.expression.functions import CastExpression
+        from rhosocial.activerecord.backend.expression.value_types import Parameter
+        from rhosocial.activerecord.backend.expression.types import CharType
 
         return CastExpression(self, Parameter(self, text, inline=True), CharType(self), alias=alias)
 
@@ -1853,7 +1851,7 @@ class MariaDBIntrospectionMixin:
         # one node rather than a join of rendered strings: the operator word is
         # the dialect's, and the projection, identifiers and bind parameters of
         # every arm stay with the renderer that owns them.
-        from rhosocial.activerecord.backend.expression.query_sources import (
+        from rhosocial.activerecord.backend.expression.sources import (
             SetOperationKind,
         )
         from rhosocial.activerecord.backend.expression.statements import (

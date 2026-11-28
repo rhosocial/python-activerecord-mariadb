@@ -5,7 +5,7 @@ from typing import Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.advanced_functions import ArrayOperation
+    from rhosocial.activerecord.backend.expression.functions import ArrayOperation
 
 _SUGGESTION_ARRAY = "MariaDB does not support native array types. Use JSON arrays instead."
 

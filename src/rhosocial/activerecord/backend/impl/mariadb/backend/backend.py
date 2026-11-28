@@ -47,7 +47,7 @@ from rhosocial.activerecord.logging.redaction import unwrap_sensitive
 
 from ..config import MariaDBConnectionConfig
 from ..dialect import MariaDBDialect
-from ..expression.status import MariaDBVersionQuery
+from ..expression.introspection.status import MariaDBVersionQuery
 from ..transaction import MariaDBTransactionManager
 from ..mixins import CONNECTION_ERROR_CODES, MariaDBBackendMixin, MariaDBConcurrencyMixin
 

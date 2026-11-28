@@ -7,23 +7,23 @@ JSON arrow operators (-> and ->>).
 from typing import Union, Any, List, Optional, Tuple, TYPE_CHECKING
 
 from .backend import MARIADB_VERSION_BOUNDARIES
-from rhosocial.activerecord.backend.expression import bases
-from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.impl.mariadb.expression.sources import (
     JSONTableColumn as MariaDBJSONTableColumn,
 )
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.advanced_functions import (
+    from rhosocial.activerecord.backend.expression.functions import (
         JSONDocumentValue,
         JSONTextValue,
     )
-    from ..expression.json import (
+    from ..expression.functions.json import (
         MariaDBJSONArrayExpression,
         MariaDBJSONContainsExpression,
         MariaDBJSONExtractExpression,
         MariaDBJSONObjectExpression,
     )
-    from ..expression.json_table import MariaDBJSONTableExpression
+    from ..expression.sources.json_table import MariaDBJSONTableExpression
 
     #: Core has one class per JSON operator, and this dialect renders either
     #: from the same code path -- so the parameter is a union, not one of the
@@ -146,7 +146,7 @@ class MariaDBJSONMixin:
         - `->`  -> JSON_EXTRACT(column, path)
         - `->>` -> JSON_UNQUOTE(JSON_EXTRACT(column, path))
         """
-        if isinstance(expr.column, bases.BaseExpression):
+        if isinstance(expr.column, BaseExpression):
             col_sql, col_params = expr.column.to_sql()
         else:
             col_sql, col_params = self.format_identifier(str(expr.column)), ()
@@ -279,7 +279,7 @@ class MariaDBJSONMixin:
                 column type is not a plain SQL type, or an ``error_handling``
                 mode is not recognised.
         """
-        from rhosocial.activerecord.backend.expression.query_sources import (
+        from rhosocial.activerecord.backend.expression.sources import (
             JSONTableExpression,
         )
 
@@ -312,7 +312,7 @@ class MariaDBJSONMixin:
                 column type is not a plain SQL type, or an ``error_handling``
                 mode is not recognised.
         """
-        from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.sources import (
             MariaDBJSONTableExpression,
         )
 
@@ -345,13 +345,13 @@ class MariaDBJSONMixin:
     def _json_document_sql(self, json_doc) -> Tuple[str, tuple]:
         """Render a JSON document argument.
 
-        A :class:`~...expression.bases.BaseExpression` is rendered as SQL; a
+        A :class:`~...expression.bases.bases.BaseExpression` is rendered as SQL; a
         plain string is a JSON document and is emitted as a quoted literal, so
         a caller cannot smuggle SQL in through it.
         """
-        from rhosocial.activerecord.backend.expression import bases
+        from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
-        if isinstance(json_doc, bases.BaseExpression):
+        if isinstance(json_doc, BaseExpression):
             return json_doc.to_sql()
         if isinstance(json_doc, str):
             return f"'{self.escape_sql_string(json_doc)}'", ()
@@ -364,9 +364,9 @@ class MariaDBJSONMixin:
 
         A plain string names a column and is quoted as an identifier.
         """
-        from rhosocial.activerecord.backend.expression import bases
+        from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
-        if isinstance(json_column, bases.BaseExpression):
+        if isinstance(json_column, BaseExpression):
             return json_column.to_sql()
         if isinstance(json_column, str):
             return self.format_identifier(json_column), ()

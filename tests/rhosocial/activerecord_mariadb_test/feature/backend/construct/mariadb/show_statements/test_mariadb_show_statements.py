@@ -17,11 +17,11 @@ as rendered.
 import pytest
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.show import (
     MariaDBShowStatusStatement,
     MariaDBShowVariablesStatement,
 )
-from rhosocial.activerecord.backend.impl.mariadb.expression.status import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.introspection.status import (
     MariaDBDatabaseListQuery,
     MariaDBSessionInfoQuery,
     MariaDBStorageSizeQuery,

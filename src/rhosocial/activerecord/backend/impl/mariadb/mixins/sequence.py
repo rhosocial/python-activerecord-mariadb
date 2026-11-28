@@ -9,7 +9,7 @@ from typing import Tuple, TYPE_CHECKING
 from .backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_sequence import (
+    from rhosocial.activerecord.backend.expression.statements import (
         CreateSequenceStatement,
         DropSequenceStatement,
         AlterSequenceStatement,

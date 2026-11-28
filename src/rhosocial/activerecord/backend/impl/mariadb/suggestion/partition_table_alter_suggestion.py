@@ -9,7 +9,7 @@ support probe and answers explicit ``False`` when withdrawn or unknown.
 from typing import TYPE_CHECKING
 
 from ....suggestion import PartitionTableAlterSuggestion
-from ..expression.partition import (
+from ..expression.operators.partition import (
     MariaDBCoalescePartitionExpression,
     MariaDBRemovePartitioningExpression,
 )

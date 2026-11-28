@@ -7,7 +7,7 @@ Functions: match_against
 
 from typing import Union, List, Optional, TYPE_CHECKING
 
-from rhosocial.activerecord.backend.expression import bases
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import MariaDBDialect
@@ -18,7 +18,7 @@ def match_against(
     columns: Union[str, List[str]],
     search_string: str,
     mode: Optional[str] = None,
-) -> "bases.BaseExpression":
+) -> "BaseExpression":
     """Creates a MATCH ... AGAINST expression for full-text search.
 
     Usage rules:
@@ -42,7 +42,7 @@ def match_against(
 
     Version: All MariaDB versions (with FULLTEXT index on MyISAM, Aria, or InnoDB)
     """
-    from rhosocial.activerecord.backend.impl.mariadb.expression.match_against import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.functions import (
         MariaDBMatchAgainstExpression,
     )
 

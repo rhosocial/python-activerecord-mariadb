@@ -41,7 +41,7 @@ import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.errors import IntegrityError
-from rhosocial.activerecord.backend.expression.core import Column
+from rhosocial.activerecord.backend.expression.column_types.column import Column
 from rhosocial.activerecord.backend.expression.objects import (
     Function,
     Sequence,
@@ -74,12 +74,12 @@ from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
     DropViewStatement,
 )
-from rhosocial.activerecord.backend.expression.transaction import (
+from rhosocial.activerecord.backend.expression.statements.transaction import (
     BeginTransactionStatement,
     SetTransactionStatement,
 )
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.operators.partition import (
     MariaDBExchangePartitionStatement,
 )
 

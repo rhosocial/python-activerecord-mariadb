@@ -6,7 +6,7 @@ Tests for expression-level COLLATE support on MariaDB.
 import pytest
 
 from rhosocial.activerecord.backend.expression import Column, Parameter
-from rhosocial.activerecord.backend.expression.collation import CollateFunction
+from rhosocial.activerecord.backend.expression.functions.collation import CollateFunction
 from rhosocial.activerecord.backend.impl.mariadb.mixins import MariaDBCollation
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 

@@ -12,7 +12,7 @@ partitions are all newer than the cutoff answers ``None`` (nothing to expire).
 from typing import TYPE_CHECKING
 
 from ....suggestion import PartitionRetentionSuggestion
-from ..expression.partition import MariaDBDropPartitionExpression
+from ..expression.operators.partition import MariaDBDropPartitionExpression
 from ._common import (
     _RANGE_WORDS,
     _definitions,

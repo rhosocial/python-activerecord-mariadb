@@ -14,7 +14,7 @@ from enum import Enum
 from typing import FrozenSet, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.collation import CollateFunction
+    from rhosocial.activerecord.backend.expression.functions import CollateFunction
 
 __all__ = [
     "MariaDBCharset",

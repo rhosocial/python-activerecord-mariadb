@@ -136,7 +136,7 @@ class TestLiveDefaultRoundTrip:
     """
 
     def test_sentinel_rejection_is_visible(self, mariadb_backend_single):
-        from rhosocial.activerecord.backend.expression.execution_testing import (
+        from rhosocial.activerecord.backend.expression.statements.execution_testing import (
             ExecutionOutcome,
             classify_execution,
         )
@@ -147,7 +147,7 @@ class TestLiveDefaultRoundTrip:
         )
 
     def test_binary_default_reads_back_as_bytes(self, mariadb_backend_single):
-        from rhosocial.activerecord.backend.expression.execution_testing import (
+        from rhosocial.activerecord.backend.expression.statements.execution_testing import (
             ExecutionOutcome,
             confirm_expression_execution,
         )
@@ -195,7 +195,7 @@ class TestLiveDefaultRoundTrip:
             backend.execute(drop.to_sql()[0], drop.to_sql()[1])
 
     def test_uuid_default_reads_back_as_text(self, mariadb_backend_single):
-        from rhosocial.activerecord.backend.expression.execution_testing import (
+        from rhosocial.activerecord.backend.expression.statements.execution_testing import (
             ExecutionOutcome,
             confirm_expression_execution,
         )

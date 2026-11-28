@@ -17,7 +17,7 @@ This module tests MariaDB-specific JSON function functionality including:
 """
 import pytest
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.json import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.functions.json import (
     MariaDBJSONExtractExpression,
     MariaDBJSONObjectExpression,
     MariaDBJSONArrayExpression,

@@ -46,11 +46,13 @@ from rhosocial.activerecord.backend.suggestion.protocols import (
 from rhosocial.activerecord.migration.schema_change import _freeze
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.partition import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.operators.partition import (
     MariaDBCoalescePartitionExpression,
     MariaDBDropPartitionExpression,
-    MariaDBPartitionValue,
     MariaDBRemovePartitioningExpression,
+)
+from rhosocial.activerecord.backend.impl.mariadb.expression.query_parts.partition import (
+    MariaDBPartitionValue,
 )
 from rhosocial.activerecord.backend.impl.mariadb.suggestion.column_reorder_suggestion import (
     UNSUPPORTED_REASON as REORDER_REASON,

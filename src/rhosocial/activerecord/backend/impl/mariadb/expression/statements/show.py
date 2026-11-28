@@ -1,0 +1,473 @@
+# src/rhosocial/activerecord/backend/impl/mariadb/expression/statements/show.py
+"""
+MariaDB SHOW command expression classes.
+
+This module defines expression classes for MariaDB SHOW commands.
+Each expression class collects parameters and delegates SQL generation
+to the dialect's format_show_* methods.
+
+MariaDB SHOW commands are fully compatible with MySQL SHOW commands.
+
+Expression classes inherit from BaseExpression and declare ``format_method``,
+following the expression-dialect pattern used throughout the codebase.
+
+Key design:
+- Expressions collect every parameter at construction; there is no fluent
+  builder, so an instance is complete the moment ``get_params()`` reads it
+  back (the artifact is the constructor call, nothing else).
+- Expressions hold a dialect reference
+- ``format_method`` names the dialect's format_show_* method that renders the
+  node; ``BaseExpression.to_sql`` resolves that name against the bound dialect
+- Dialect handles actual SQL generation
+"""
+
+from typing import Optional, TYPE_CHECKING, Union
+
+from rhosocial.activerecord.backend.expression.bases.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import (
+    RelationObject,
+    Table,
+    Trigger,
+    View,
+)
+
+if TYPE_CHECKING:
+    from ..dialect import MariaDBDialect
+
+
+class MariaDBShowExpression(BaseExpression):
+    """Base class for MariaDB SHOW command expressions.
+
+    All MariaDB SHOW expressions inherit from this class. Parameters are
+    declared by each ``__init__`` -- that signature is the wire contract, so
+    a parameter is always passed where the node is built rather than filled
+    in afterwards.
+    """
+
+    def __init__(self, dialect: "MariaDBDialect", *, schema: Optional[str] = None):
+        super().__init__(dialect)
+        # Stored under the parameter's own name so get_params() reads it
+        # without a detour.
+        self.schema = schema
+
+
+class MariaDBShowRelationExpression(MariaDBShowExpression):
+    """Base for the SHOW commands that name one relation.
+
+    ``SHOW CREATE TABLE``, ``SHOW CREATE VIEW``, ``SHOW COLUMNS`` and
+    ``SHOW INDEX`` all name a single relation, and a relation is one
+    concept: it lives in a namespace and has a name inside it. Treating
+    the table and the view as two separate things here duplicated the
+    same identity four times over and left nowhere for the database to
+    live, which is why a ``SHOW COLUMNS FROM app.users`` could not be
+    written without hand-building the qualified name.
+
+    The relation is therefore one attribute, :attr:`relation`, and the
+    database travels inside it -- :class:`~...objects.relation.Table` and
+    :class:`~...objects.relation.View` carry ``catalog_name``. A bare string
+    is accepted as shorthand for an unqualified relation; a
+    ``(database, name)`` tuple is refused, because an ordered pair cannot
+    say which part is which.
+
+    Each concrete statement keeps its own dialect formatter: what differs
+    between them is the verb and the options, not the name.
+    """
+
+    #: The relation kind a bare name is read as. ``MariaDBShowCreateTableStatement``
+    #: and the table-shaped statements leave this as :class:`Table`;
+    #: ``MariaDBShowCreateViewStatement`` narrows it to :class:`View`. Both are
+    #: relations, so both render through the same qualified-name path.
+    relation_kind: type = Table
+
+    def __init__(self, dialect: "MariaDBDialect", relation: Union[RelationObject, str]):
+        super().__init__(dialect)
+        self._relation: RelationObject = self._as_relation(relation)
+
+    def _as_relation(self, relation: Union[RelationObject, str]) -> RelationObject:
+        """Return *relation* as a relation object of this statement's kind.
+
+        Raises:
+            TypeError: *relation* is neither a relation object nor a
+                string.
+        """
+        if isinstance(relation, RelationObject):
+            return relation
+        if isinstance(relation, str):
+            return self.relation_kind(self._dialect, relation)
+        if isinstance(relation, tuple):
+            raise TypeError(
+                "SHOW targets are schema objects, not (database, name) "
+                f"tuples: pass {self.relation_kind.__name__}({relation[-1]!r}, "
+                f"catalog_name={relation[0]!r}) instead of {relation!r}"
+            )
+        raise TypeError(
+            f"relation must be a {self.relation_kind.__name__} or a name string, "
+            f"got {type(relation).__name__}"
+        )
+
+    @property
+    def relation(self) -> RelationObject:
+        """The relation this statement names, database included."""
+        return self._relation
+
+
+class MariaDBShowCreateTableStatement(MariaDBShowRelationExpression):
+    """Expression for SHOW CREATE TABLE command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_create_table_statement"
+
+
+class MariaDBShowCreateViewStatement(MariaDBShowRelationExpression):
+    """Expression for SHOW CREATE VIEW command."""
+
+    #: A view is a relation; naming it as one is what lets the same
+    #: qualified-name renderer serve both SHOW CREATE forms.
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_create_view_statement"
+
+    relation_kind = View
+
+
+class MariaDBShowColumnsStatement(MariaDBShowRelationExpression):
+    """Expression for SHOW [FULL] COLUMNS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_columns_statement"
+
+    def __init__(self, dialect: "MariaDBDialect", relation: Union[RelationObject, str],
+                 *, full: bool = False, like_pattern: Optional[str] = None):
+        super().__init__(dialect, relation)
+        # Both stored under their parameter names, and both given at
+        # construction: a column list is fully described by its target, its
+        # verbosity and its pattern.
+        self.full = full
+        self.like_pattern = like_pattern
+
+
+class MariaDBShowIndexStatement(MariaDBShowRelationExpression):
+    """Expression for SHOW INDEX command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_index_statement"
+
+
+class MariaDBShowTablesStatement(MariaDBShowExpression):
+    """Expression for SHOW [FULL] TABLES command.
+
+    ``schema`` is declared on this class, not only on the base, because
+    ``get_params()`` reads the class's own ``__init__`` signature: a
+    qualifier stored by the base alone would be invisible to the
+    serializer and the ``FROM`` clause would fall out of the artifact.
+    """
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_tables_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, schema: Optional[str] = None,
+                 full: bool = False, like_pattern: Optional[str] = None):
+        super().__init__(dialect, schema=schema)
+        self.full = full
+        self.like_pattern = like_pattern
+
+
+class MariaDBShowDatabasesStatement(MariaDBShowExpression):
+    """Expression for SHOW DATABASES command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_databases_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, like_pattern: Optional[str] = None):
+        super().__init__(dialect)
+        self.like_pattern = like_pattern
+
+
+class MariaDBShowTableStatusStatement(MariaDBShowExpression):
+    """Expression for SHOW TABLE STATUS command.
+
+    ``schema`` is declared here for the same reason as on
+    :class:`MariaDBShowTablesStatement`: the ``FROM`` qualifier has to be a
+    parameter of the class the serializer reads.
+    """
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_table_status_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, schema: Optional[str] = None,
+                 like_pattern: Optional[str] = None):
+        super().__init__(dialect, schema=schema)
+        self.like_pattern = like_pattern
+
+
+class MariaDBShowTriggersStatement(MariaDBShowExpression):
+    """Expression for SHOW TRIGGERS command.
+
+    ``table_name`` here is a **LIKE pattern**, not a relation reference:
+    MariaDB's ``SHOW TRIGGERS`` filters on the name it prints, not on a
+    resolved object. It is therefore kept as a plain string and never
+    qualified -- the database comes from ``schema``, which is the ``FROM``
+    clause and is declared on this class for the same reason as on
+    :class:`MariaDBShowTablesStatement`.
+    """
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_triggers_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, schema: Optional[str] = None,
+                 table_name: Optional[str] = None):
+        super().__init__(dialect, schema=schema)
+        self.table_name = table_name
+
+
+class MariaDBShowCreateTriggerStatement(MariaDBShowExpression):
+    """Expression for SHOW CREATE TRIGGER command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_create_trigger_statement"
+
+    def __init__(self, dialect: "MariaDBDialect", trigger: Union[Trigger, str]):
+        super().__init__(dialect)
+        self._trigger: Trigger = self._as_trigger(trigger)
+
+    def _as_trigger(self, trigger: Union[Trigger, str]) -> Trigger:
+        """Return *trigger* as a :class:`Trigger`.
+
+        Raises:
+            TypeError: *trigger* is neither a trigger object nor a string.
+        """
+        if isinstance(trigger, Trigger):
+            return trigger
+        if isinstance(trigger, str):
+            return Trigger(self._dialect, trigger)
+        if isinstance(trigger, tuple):
+            raise TypeError(
+                "a trigger name is a schema object, not a (database, name) "
+                f"tuple: pass Trigger({trigger[-1]!r}, "
+                f"catalog_name={trigger[0]!r}) instead of {trigger!r}"
+            )
+        raise TypeError(
+            f"trigger must be a Trigger or a name string, "
+            f"got {type(trigger).__name__}"
+        )
+
+    @property
+    def trigger(self) -> Trigger:
+        """The trigger this statement names, database included."""
+        return self._trigger
+
+
+class MariaDBShowVariablesStatement(MariaDBShowExpression):
+    """Expression for SHOW [GLOBAL] VARIABLES command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_variables_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, like_pattern: Optional[str] = None, session: bool = True):
+        super().__init__(dialect)
+        self.like_pattern = like_pattern
+        self.session = session
+
+
+class MariaDBShowStatusStatement(MariaDBShowExpression):
+    """Expression for SHOW [GLOBAL] STATUS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_status_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, like_pattern: Optional[str] = None, session: bool = True):
+        super().__init__(dialect)
+        self.like_pattern = like_pattern
+        self.session = session
+
+
+class MariaDBShowMasterStatusStatement(MariaDBShowExpression):
+    """Expression for SHOW MASTER STATUS command.
+
+    The binlog's own file, position, do/ignore databases and executed GTID
+    set -- the facts of the log the server is writing. No parameter, and no
+    mode flag: the whole command is the question, which is what a class
+    names.
+
+    MariaDB answers with an *empty set* while ``log_bin`` is off, which is a
+    different answer from an error, so the caller reads the row count rather
+    than catching a failure.
+    """
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_master_status_statement"
+
+
+class MariaDBShowSlaveStatusStatement(MariaDBShowExpression):
+    """Expression for SHOW SLAVE STATUS command.
+
+    The replica side of replication: one row per configured replica, empty
+    when this server pulls from nothing. ``SHOW REPLICA STATUS`` is MariaDB
+    10.5's alias for the same row set; this node renders the spelling every
+    server in the supported range answers, because the alias is newer than
+    the backend's floor and the row is the same either way.
+    """
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_slave_status_statement"
+
+
+class MariaDBShowProcessListStatement(MariaDBShowExpression):
+    """Expression for SHOW [FULL] PROCESSLIST command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_process_list_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, full: bool = False):
+        super().__init__(dialect)
+        self.full = full
+
+
+class MariaDBShowWarningsStatement(MariaDBShowExpression):
+    """Expression for SHOW WARNINGS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_warnings_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, limit: Optional[int] = None):
+        super().__init__(dialect)
+        self.limit = limit
+
+
+class MariaDBShowErrorsStatement(MariaDBShowExpression):
+    """Expression for SHOW ERRORS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_errors_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, limit: Optional[int] = None):
+        super().__init__(dialect)
+        self.limit = limit
+
+
+class MariaDBShowEnginesStatement(MariaDBShowExpression):
+    """Expression for SHOW ENGINES command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_engines_statement"
+
+
+class MariaDBShowCharsetStatement(MariaDBShowExpression):
+    """Expression for SHOW CHARACTER SET command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_charset_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, like_pattern: Optional[str] = None):
+        super().__init__(dialect)
+        self.like_pattern = like_pattern
+
+
+class MariaDBShowCollationStatement(MariaDBShowExpression):
+    """Expression for SHOW COLLATION command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_collation_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, like_pattern: Optional[str] = None):
+        super().__init__(dialect)
+        self.like_pattern = like_pattern
+
+
+class MariaDBShowGrantsStatement(MariaDBShowExpression):
+    """Expression for SHOW GRANTS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_grants_statement"
+
+    def __init__(self, dialect: "MariaDBDialect",
+                 *, user: Optional[str] = None, host: Optional[str] = None):
+        super().__init__(dialect)
+        self.user = user
+        self.host = host
+
+
+class MariaDBShowPluginsStatement(MariaDBShowExpression):
+    """Expression for SHOW PLUGINS command."""
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_show_plugins_statement"
+
+
+__all__ = [
+    "MariaDBShowExpression",
+    "MariaDBShowRelationExpression",
+    "MariaDBShowCreateTableStatement",
+    "MariaDBShowCreateViewStatement",
+    "MariaDBShowColumnsStatement",
+    "MariaDBShowIndexStatement",
+    "MariaDBShowTablesStatement",
+    "MariaDBShowDatabasesStatement",
+    "MariaDBShowTableStatusStatement",
+    "MariaDBShowTriggersStatement",
+    "MariaDBShowCreateTriggerStatement",
+    "MariaDBShowVariablesStatement",
+    "MariaDBShowStatusStatement",
+    "MariaDBShowMasterStatusStatement",
+    "MariaDBShowSlaveStatusStatement",
+    "MariaDBShowProcessListStatement",
+    "MariaDBShowWarningsStatement",
+    "MariaDBShowErrorsStatement",
+    "MariaDBShowEnginesStatement",
+    "MariaDBShowCharsetStatement",
+    "MariaDBShowCollationStatement",
+    "MariaDBShowGrantsStatement",
+    "MariaDBShowPluginsStatement",
+]

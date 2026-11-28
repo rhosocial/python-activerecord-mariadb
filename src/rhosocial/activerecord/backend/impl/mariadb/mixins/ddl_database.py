@@ -7,7 +7,7 @@ from typing import Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_database import (
+    from rhosocial.activerecord.backend.expression.statements import (
         AlterDatabaseStatement,
         CreateDatabaseStatement,
         DropDatabaseStatement,
@@ -94,7 +94,7 @@ class MariaDBDatabaseMixin:
         self, expr: AlterDatabaseStatement
     ) -> Tuple[str, tuple]:
         from rhosocial.activerecord.backend.expression.objects import Database
-        from rhosocial.activerecord.backend.expression.statements.ddl_database import AlterDatabaseAction
+        from rhosocial.activerecord.backend.expression.statements import AlterDatabaseAction
 
         if not isinstance(expr.database, Database):
             raise TypeError(

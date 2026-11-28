@@ -36,7 +36,8 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Parameter, Column
+    from rhosocial.activerecord.backend.expression.column_types.column import Column
+    from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
     )
@@ -88,7 +89,7 @@ if __name__ == "__main__":
         CreateViewStatement,
         DropViewStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import AllColumnsWildcard
+    from rhosocial.activerecord.backend.expression.value_types.wildcards import AllColumnsWildcard
     query = QueryStatement(
         dialect=dialect,
         select=[Column(dialect, 'name')],

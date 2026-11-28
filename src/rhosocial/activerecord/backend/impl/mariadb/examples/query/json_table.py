@@ -34,7 +34,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Parameter
+    from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         ColumnConstraint,
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         QueryStatement,
         Column,
     )
-    from rhosocial.activerecord.backend.impl.mariadb.expression.json_table import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table import (
         MariaDBJSONTableExpression,
         JSONTableColumn,
     )

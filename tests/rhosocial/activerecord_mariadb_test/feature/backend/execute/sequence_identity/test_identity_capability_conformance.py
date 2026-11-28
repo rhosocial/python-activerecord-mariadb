@@ -28,7 +28,7 @@ from rhosocial.activerecord.base.derivation import integer_auto_increment_parts 
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.execution_testing import (
+from rhosocial.activerecord.backend.expression.statements.execution_testing import (
     ExecutionOutcome,
     classify_execution,
     confirm_expression_execution,

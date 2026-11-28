@@ -13,7 +13,7 @@ import pytest_asyncio
 
 from rhosocial.activerecord.backend.expression.statements import ValuesSource
 from rhosocial.activerecord.backend.impl.mariadb.expression import MariaDBInsertExpression
-from rhosocial.activerecord.backend.expression import core
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 
 
@@ -48,7 +48,7 @@ class TestMariaDBReplaceInto:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "alice@example.com"), core.Parameter(dialect, "Alice")]
+                    [Parameter(dialect, "alice@example.com"), Parameter(dialect, "Alice")]
                 ]
             ),
             columns=["email", "name"],
@@ -94,7 +94,7 @@ class TestMariaDBReplaceInto:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "bob@example.com"), core.Parameter(dialect, "Bob 2")]
+                    [Parameter(dialect, "bob@example.com"), Parameter(dialect, "Bob 2")]
                 ]
             ),
             columns=["email", "name"],
@@ -134,9 +134,9 @@ class TestMariaDBReplaceInto:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "new1@example.com"), core.Parameter(dialect, "New 1")],
-                    [core.Parameter(dialect, "existing@example.com"), core.Parameter(dialect, "Replaced")],
-                    [core.Parameter(dialect, "new2@example.com"), core.Parameter(dialect, "New 2")],
+                    [Parameter(dialect, "new1@example.com"), Parameter(dialect, "New 1")],
+                    [Parameter(dialect, "existing@example.com"), Parameter(dialect, "Replaced")],
+                    [Parameter(dialect, "new2@example.com"), Parameter(dialect, "New 2")],
                 ]
             ),
             columns=["email", "name"],
@@ -174,7 +174,7 @@ class TestMariaDBReplaceInto:
                 into=test_table,
                 source=ValuesSource(
                     dialect,
-                    [[core.Parameter(dialect, "test@example.com"), core.Parameter(dialect, "Test")]]
+                    [[Parameter(dialect, "test@example.com"), Parameter(dialect, "Test")]]
                 ),
                 columns=["email", "name"],
                 replace=True,
@@ -192,7 +192,7 @@ class TestMariaDBReplaceInto:
                 into=test_table,
                 source=ValuesSource(
                     dialect,
-                    [[core.Parameter(dialect, "test@example.com"), core.Parameter(dialect, "Test")]]
+                    [[Parameter(dialect, "test@example.com"), Parameter(dialect, "Test")]]
                 ),
                 columns=["email", "name"],
                 replace=True,
@@ -235,7 +235,7 @@ class TestMySQLAsyncReplaceInto:
             source=ValuesSource(
                 dialect,
                 [
-                    [core.Parameter(dialect, "async@example.com"), core.Parameter(dialect, "Replaced Async")]
+                    [Parameter(dialect, "async@example.com"), Parameter(dialect, "Replaced Async")]
                 ]
             ),
             columns=["email", "name"],

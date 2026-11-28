@@ -1,0 +1,136 @@
+# src/rhosocial/activerecord/backend/impl/mariadb/expression/sources/json_table.py
+"""
+MariaDB-specific JSON_TABLE expression.
+
+This module provides MariaDBJSONTableExpression, JSONTableColumn, and NestedPath
+for MariaDB's JSON_TABLE functionality.
+"""
+
+from dataclasses import dataclass
+from typing import Any, List, Optional, TYPE_CHECKING, Union
+
+from rhosocial.activerecord.backend.expression.bases.bases import BaseExpression
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.dialect import SQLDialectBase
+    from rhosocial.activerecord.backend.expression.types import DataType
+
+
+@dataclass
+class JSONTableColumn:
+    """Column definition for JSON_TABLE.
+
+    Attributes:
+        name: Column name
+        type: The column's type -- a type node (``VarCharType(dialect, 255)``)
+            or a type name, which this backend's own rule decides
+        path: JSON path expression for the column value
+        ordinality: If True, use FOR ORDINALITY (row number)
+        exists: If True, use EXISTS (boolean for path existence)
+        error_handling: Error handling mode ('NULL', 'ERROR', 'DEFAULT')
+        default_value: Default value when error handling is 'DEFAULT'
+    """
+    name: str
+    type: Optional[Union[str, "DataType"]] = None
+    path: Optional[str] = None
+    ordinality: bool = False
+    exists: bool = False
+    error_handling: Optional[str] = None  # 'NULL', 'ERROR', 'DEFAULT'
+    default_value: Optional[Any] = None
+
+
+@dataclass
+class NestedPath:
+    """NESTED PATH definition for JSON_TABLE.
+
+    Attributes:
+        path: JSON path expression for nested data
+        columns: List of column definitions within this nested path
+        alias: Optional alias for the nested table
+    """
+    path: str
+    columns: List['JSONTableColumn']
+    alias: Optional[str] = None
+
+
+class MariaDBJSONTableExpression(BaseExpression):
+    """MariaDB JSON_TABLE expression.
+
+    Generates JSON_TABLE function for converting JSON data to relational format.
+    Supported in MariaDB 10.6+.
+
+    Attributes:
+        json_doc: JSON document **string literal**, or a
+            :class:`~...expression.bases.bases.BaseExpression` when the document
+            lives in a column. A plain ``str`` is always emitted as a quoted
+            JSON literal, so ``'{"a": 1}'`` is a document and ``"j"`` is the
+            two-character JSON text ``j`` -- pass ``Column(dialect, "j")`` to
+            reference a column.
+        path: JSON path expression for the root array/object
+        columns: List of column definitions
+        nested_paths: Optional list of NESTED PATH definitions. MariaDB's
+            grammar does not allow an alias on a NESTED PATH, so
+            ``NestedPath.alias`` is not rendered.
+        alias: Table alias. Required by MariaDB when the result is joined.
+    """
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_mariadb_json_table_expression"
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        json_doc: str,
+        path: str,
+        columns: List[JSONTableColumn],
+        nested_paths: Optional[List[NestedPath]] = None,
+        alias: Optional[str] = None
+    ):
+        """Initialize JSON_TABLE expression.
+
+        Args:
+            dialect: SQL dialect
+            json_doc: JSON document string or expression
+            path: JSON path expression for the root
+            columns: List of column definitions
+            nested_paths: Optional list of NESTED PATH definitions
+            alias: Table alias
+        """
+        super().__init__(dialect)
+        self.json_doc = json_doc
+        self.path = path
+        self.columns = columns
+        self.nested_paths = nested_paths or []
+        self.alias = alias
+
+    def validate(self, strict: bool = True) -> None:
+        """Validate expression parameters.
+
+        Args:
+            strict: Enable strict validation
+
+        Raises:
+            TypeError: If parameters have wrong types
+            ValueError: If column definitions are invalid
+        """
+        if not strict:
+            return
+
+        if not isinstance(self.json_doc, str):
+            raise TypeError(f"json_doc must be str, got {type(self.json_doc)}")
+
+        if not isinstance(self.path, str):
+            raise TypeError(f"path must be str, got {type(self.path)}")
+
+        if not isinstance(self.columns, list):
+            raise TypeError(f"columns must be list, got {type(self.columns)}")
+
+        for col in self.columns:
+            if not isinstance(col, JSONTableColumn):
+                raise TypeError(f"columns must contain JSONTableColumn, got {type(col)}")
+
+        for nested in self.nested_paths:
+            if not isinstance(nested, NestedPath):
+                raise TypeError(f"nested_paths must contain NestedPath, got {type(nested)}")

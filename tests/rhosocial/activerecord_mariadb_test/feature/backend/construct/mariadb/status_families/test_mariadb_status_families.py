@@ -29,7 +29,7 @@ from rhosocial.activerecord.backend.introspection.types import (
 )
 
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
-from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.statements.show import (
     MariaDBShowMasterStatusStatement,
     MariaDBShowSlaveStatusStatement,
 )

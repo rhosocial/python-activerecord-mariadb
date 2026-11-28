@@ -9,7 +9,7 @@ expression layer.
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.bases.bases import BaseExpression
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from partition_syntax_fixtures import CASES, partition_syntax_case
 

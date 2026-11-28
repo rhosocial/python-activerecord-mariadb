@@ -11,7 +11,7 @@ MariaDB SET type features:
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.mariadb.expression.set_type import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.value_types import (
         MariaDBSetLiteralExpression,
         MariaDBFindInSetExpression,
         MariaDBSetContainsExpression,

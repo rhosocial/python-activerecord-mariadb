@@ -8,7 +8,7 @@ ANALYZE TABLE ... PERSISTENT FOR persistent statistics.
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.impl.mariadb.expression.maintenance import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
         MariaDBTableMaintenanceStatement,
     )
 

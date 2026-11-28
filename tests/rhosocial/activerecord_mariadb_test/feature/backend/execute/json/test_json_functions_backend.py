@@ -7,7 +7,7 @@ This module tests the MariaDB-specific JSON function functionality with actual d
 Note: JSON type and functions require MariaDB 10.2.3+
 """
 import pytest
-from rhosocial.activerecord.backend.impl.mariadb.expression.json import (
+from rhosocial.activerecord.backend.impl.mariadb.expression.functions.json import (
     MariaDBJSONExtractExpression,
 )
 

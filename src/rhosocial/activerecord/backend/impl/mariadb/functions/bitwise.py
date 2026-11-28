@@ -22,7 +22,9 @@ the character the backend spells.
 
 from typing import TYPE_CHECKING
 
-from rhosocial.activerecord.backend.expression import bases, core
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.functions import FunctionCall
+from rhosocial.activerecord.backend.expression.value_types import Parameter
 from rhosocial.activerecord.backend.expression.operators import BinaryExpression
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -31,9 +33,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 def bit_and(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-    *values: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    value: "BaseExpression",
+    *values: "BaseExpression",
+) -> "BaseExpression":
     """Returns the bitwise AND of values.
 
     Note: MariaDB's BIT_AND() is an aggregate function. For scalar bitwise AND,
@@ -57,9 +59,9 @@ def bit_and(
 
 def bit_or(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-    *values: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    value: "BaseExpression",
+    *values: "BaseExpression",
+) -> "BaseExpression":
     """Returns the bitwise OR of values.
 
     Note: MariaDB's BIT_OR() is an aggregate function. For scalar bitwise OR,
@@ -83,9 +85,9 @@ def bit_or(
 
 def bit_xor(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-    *values: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    value: "BaseExpression",
+    *values: "BaseExpression",
+) -> "BaseExpression":
     """Returns the bitwise XOR of values.
 
     Note: MariaDB's BIT_XOR() is an aggregate function. For scalar bitwise XOR,
@@ -109,8 +111,8 @@ def bit_xor(
 
 def bit_count(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-) -> "core.FunctionCall":
+    value: "BaseExpression",
+) -> "FunctionCall":
     """Returns the number of bits set to 1 in the binary representation.
 
     Args:
@@ -122,14 +124,14 @@ def bit_count(
 
     Version: MariaDB 10.0+
     """
-    return core.FunctionCall(dialect, "BIT_COUNT", value)
+    return FunctionCall(dialect, "BIT_COUNT", value)
 
 
 def bit_get_bit(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-    bit: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    value: "BaseExpression",
+    bit: "BaseExpression",
+) -> "BaseExpression":
     """Returns the value of a specific bit (0 or 1).
 
     Note: MariaDB does not have a BIT_GET_BIT function in all versions.
@@ -146,14 +148,14 @@ def bit_get_bit(
     Version: Native operators available in all MariaDB versions
     """
     shifted = BinaryExpression(dialect, ">>", value, bit)
-    return BinaryExpression(dialect, "&", shifted, core.Parameter(dialect, 1))
+    return BinaryExpression(dialect, "&", shifted, Parameter(dialect, 1))
 
 
 def bit_shift_left(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-    count: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    value: "BaseExpression",
+    count: "BaseExpression",
+) -> "BaseExpression":
     """Returns the value left-shifted by count bits.
 
     Note: MariaDB does not have BIT_SHIFT_LEFT function in all versions.
@@ -174,9 +176,9 @@ def bit_shift_left(
 
 def bit_shift_right(
     dialect: "MariaDBDialect",
-    value: "bases.BaseExpression",
-    count: "bases.BaseExpression",
-) -> "bases.BaseExpression":
+    value: "BaseExpression",
+    count: "BaseExpression",
+) -> "BaseExpression":
     """Returns the value right-shifted by count bits.
 
     Note: MariaDB does not have BIT_SHIFT_RIGHT function in all versions.

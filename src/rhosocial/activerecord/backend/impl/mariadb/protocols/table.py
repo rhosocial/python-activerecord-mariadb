@@ -6,7 +6,7 @@ from typing import Any, Protocol, Tuple, TYPE_CHECKING, runtime_checkable
 from rhosocial.activerecord.backend.dialect.protocols import TableObjectSupport
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    from rhosocial.activerecord.backend.expression.statements import (
         ColumnConstraint,
         ColumnPrimaryKeyConstraint,
         CreateTableLikeStatement,

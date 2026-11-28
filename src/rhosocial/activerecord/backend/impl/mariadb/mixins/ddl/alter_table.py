@@ -16,10 +16,10 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from ..backend import MARIADB_VERSION_BOUNDARIES
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    from rhosocial.activerecord.backend.expression.statements import (
         AlterTableStatement,
     )
-    from rhosocial.activerecord.backend.impl.mariadb.expression.rename_index import (
+    from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
         MariaDBRenameIndexStatement,
     )
 
@@ -80,10 +80,10 @@ class MariaDBAlterTableMixin:
                 would otherwise be named as if it were the table being altered.
         """
         from rhosocial.activerecord.backend.expression.objects import Table
-        from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+        from rhosocial.activerecord.backend.expression.statements import (
             AlterTableAction,
         )
-        from rhosocial.activerecord.backend.impl.mariadb.expression.alter_table import (
+        from rhosocial.activerecord.backend.impl.mariadb.expression.statements import (
             MariaDBAlterTableExpression,
         )
 

@@ -10,7 +10,7 @@ An unsupported strategy (or withdrawn server support) answers explicit
 from typing import TYPE_CHECKING
 
 from ....suggestion import PartitionSplitSuggestion
-from ..expression.partition import MariaDBReorganizePartitionExpression
+from ..expression.operators.partition import MariaDBReorganizePartitionExpression
 from ._common import (
     _SUPPORTED,
     _definitions,

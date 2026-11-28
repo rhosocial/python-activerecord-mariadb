@@ -45,9 +45,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ....expression.statements import PartitionDefinitionExpression
 from ....suggestion import PartitionSchemeChangeSuggestion
-from ..expression.partition import (
+from ..expression.query_parts.partition import (
     MariaDBPartitionMaxValue,
     MariaDBPartitionValue,
+)
+from ..expression.operators.partition import (
     MariaDBRemovePartitioningExpression,
 )
 from ._change_plan_common import _PartitionPlan, canonical, params_of, table_for

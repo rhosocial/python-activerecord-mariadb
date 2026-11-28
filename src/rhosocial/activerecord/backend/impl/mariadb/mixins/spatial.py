@@ -9,7 +9,7 @@ from typing import Optional, Tuple, Union, TYPE_CHECKING
 from rhosocial.activerecord.backend.expression.objects import Index, Table
 
 if TYPE_CHECKING:
-    from ..expression.spatial import (
+    from ..expression.functions.spatial import (
         MariaDBSTContainsExpression,
         MariaDBSTDistanceExpression,
         MariaDBSTGeomFromTextExpression,
