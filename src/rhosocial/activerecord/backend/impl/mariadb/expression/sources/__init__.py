@@ -1,40 +1,40 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/expression/sources/__init__.py
+# rhosocial/activerecord/backend/impl/mariadb/expression/sources/__init__.py
 """MariaDB query-source expression nodes.
 
 Public names are re-exported lazily (PEP 562): importing this package does not
 import the modules that define the nodes. A name is resolved on first access,
-then cached in ``globals()``.
-"""
+then cached in ``globals()``."""
 
-from importlib import import_module as _import_module
+import importlib
 
-__all__ = [
-    "JSONTableColumn",
-    "MariaDBJSONTableExpression",
-    "NestedPath",
-
-]
-
-#: name -> defining module, relative to this package
-_REEXPORTS = {
-    "JSONTableColumn": ".json_table",
-    "MariaDBJSONTableExpression": ".json_table",
-    "NestedPath": ".json_table",
-
+# Public name -> defining module. Private names here stay reachable
+# through this package but are not part of __all__.
+_EXPORTS = {
+    'Any': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'BaseExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'JSONTableColumn': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'List': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'MariaDBJSONTableExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'NestedPath': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'Optional': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'TYPE_CHECKING': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'Union': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
+    'dataclass': 'rhosocial.activerecord.backend.impl.mariadb.expression.sources.json_table',
 }
 
+__all__ = [
+    'JSONTableColumn',
+    'MariaDBJSONTableExpression',
+    'NestedPath',
+]
 
-def __getattr__(name: str):
-    """Resolve a re-exported name on first access (PEP 562)."""
-    try:
-        module_name = _REEXPORTS[name]
-    except KeyError:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
-    value = _import_module(module_name, __name__).__dict__[name]
-    globals()[name] = value  # cache: subsequent access is a plain attribute lookup
+
+def __getattr__(name):
+    """Resolve a public name from this namespace lazily (no import cycles)."""
+    module_name = _EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = importlib.import_module(module_name)
+    value = vars(module)[name]
+    globals()[name] = value
     return value
-
-
-def __dir__() -> list:
-    """Make the lazy re-exports visible to ``dir()``."""
-    return sorted(set(globals()) | set(__all__))

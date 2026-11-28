@@ -1,52 +1,53 @@
-# src/rhosocial/activerecord/backend/impl/mariadb/expression/functions/__init__.py
+# rhosocial/activerecord/backend/impl/mariadb/expression/functions/__init__.py
 """MariaDB function expression nodes.
 
 Public names are re-exported lazily (PEP 562): importing this package does not
 import the modules that define the nodes. A name is resolved on first access,
-then cached in ``globals()``.
-"""
+then cached in ``globals()``."""
 
-from importlib import import_module as _import_module
+import importlib
 
-__all__ = [
-    "MariaDBJSONArrayExpression",
-    "MariaDBJSONContainsExpression",
-    "MariaDBJSONExtractExpression",
-    "MariaDBJSONObjectExpression",
-    "MariaDBMatchAgainstExpression",
-    "MariaDBSTContainsExpression",
-    "MariaDBSTDistanceExpression",
-    "MariaDBSTGeomFromTextExpression",
-    "MariaDBSTWithinExpression",
-
-]
-
-#: name -> defining module, relative to this package
-_REEXPORTS = {
-    "MariaDBJSONArrayExpression": ".json",
-    "MariaDBJSONContainsExpression": ".json",
-    "MariaDBJSONExtractExpression": ".json",
-    "MariaDBJSONObjectExpression": ".json",
-    "MariaDBMatchAgainstExpression": ".match_against",
-    "MariaDBSTContainsExpression": ".spatial",
-    "MariaDBSTDistanceExpression": ".spatial",
-    "MariaDBSTGeomFromTextExpression": ".spatial",
-    "MariaDBSTWithinExpression": ".spatial",
-
+# Public name -> defining module. Private names here stay reachable
+# through this package but are not part of __all__.
+_EXPORTS = {
+    'AliasableMixin': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'Any': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'ComparisonMixin': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'Dict': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'List': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'MariaDBJSONArrayExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'MariaDBJSONContainsExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'MariaDBJSONExtractExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'MariaDBJSONObjectExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'MariaDBMatchAgainstExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.match_against',
+    'MariaDBSTContainsExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.spatial',
+    'MariaDBSTDistanceExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.spatial',
+    'MariaDBSTGeomFromTextExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.spatial',
+    'MariaDBSTWithinExpression': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.spatial',
+    'Optional': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'SQLValue': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
+    'TYPE_CHECKING': 'rhosocial.activerecord.backend.impl.mariadb.expression.functions.json',
 }
 
+__all__ = [
+    'MariaDBJSONArrayExpression',
+    'MariaDBJSONContainsExpression',
+    'MariaDBJSONExtractExpression',
+    'MariaDBJSONObjectExpression',
+    'MariaDBMatchAgainstExpression',
+    'MariaDBSTContainsExpression',
+    'MariaDBSTDistanceExpression',
+    'MariaDBSTGeomFromTextExpression',
+    'MariaDBSTWithinExpression',
+]
 
-def __getattr__(name: str):
-    """Resolve a re-exported name on first access (PEP 562)."""
-    try:
-        module_name = _REEXPORTS[name]
-    except KeyError:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
-    value = _import_module(module_name, __name__).__dict__[name]
-    globals()[name] = value  # cache: subsequent access is a plain attribute lookup
+
+def __getattr__(name):
+    """Resolve a public name from this namespace lazily (no import cycles)."""
+    module_name = _EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = importlib.import_module(module_name)
+    value = vars(module)[name]
+    globals()[name] = value
     return value
-
-
-def __dir__() -> list:
-    """Make the lazy re-exports visible to ``dir()``."""
-    return sorted(set(globals()) | set(__all__))
