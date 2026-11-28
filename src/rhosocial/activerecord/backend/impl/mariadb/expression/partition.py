@@ -79,7 +79,7 @@ class MariaDBPartitionMaxValue(BaseExpression):
 
 
 class MariaDBPartitionValue(BaseExpression):
-    """Literal value used in MariaDB partition boundary definitions."""
+    """A boundary value used in MariaDB partition definitions."""
 
     def __init__(self, dialect: "MariaDBDialect", value: Any):
         super().__init__(dialect)

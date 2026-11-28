@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.expression import (
     InsertStatement,
     ValuesSource,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column
+from rhosocial.activerecord.backend.expression.core import Parameter, AllColumnsWildcard, Column
 from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         dialect=dialect,
         into=Table(dialect, 'users'),
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'Alice'), Literal(dialect, 'alice@example.com')],
+            [Parameter(dialect, 'Alice'), Parameter(dialect, 'alice@example.com')],
         ]),
         columns=['name', 'email'],
     )
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         where=ComparisonPredicate(
             dialect, '=',
             Column(dialect, 'name'),
-            Literal(dialect, 'Alice'),
+            Parameter(dialect, 'Alice'),
         ),
     )
     sql, params = verify_query.to_sql()
@@ -125,7 +125,7 @@ if __name__ == "__main__":
         dialect=dialect,
         into=Table(dialect, 'users'),
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'Bob'), Literal(dialect, 'bob@example.com')],
+            [Parameter(dialect, 'Bob'), Parameter(dialect, 'bob@example.com')],
         ]),
         columns=['name', 'email'],
     )

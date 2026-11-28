@@ -14,7 +14,7 @@ import pytest
 
 from rhosocial.activerecord.backend.expression import (
     Column,
-    Literal,
+    Parameter,
     QueryStatement,
     SecondsBetweenExpression,
     seconds_between,
@@ -50,8 +50,8 @@ class TestMariaDBSecondsBetweenSpelling:
     def test_bind_parameters_follow_sql_order(self, mariadb_dialect):
         expr = seconds_between(
             mariadb_dialect,
-            Literal(mariadb_dialect, "2026-01-01 00:00:00"),
-            Literal(mariadb_dialect, "2026-01-02 00:00:00"),
+            Parameter(mariadb_dialect, "2026-01-01 00:00:00"),
+            Parameter(mariadb_dialect, "2026-01-02 00:00:00"),
         )
 
         sql, params = expr.to_sql()
@@ -122,7 +122,7 @@ class TestMariaDBSecondsBetweenSpelling:
 def _elapsed(backend, start: str, end: str) -> float:
     """Run ``seconds_between(start, end)`` and return the scalar."""
     dialect = backend.dialect
-    expr = seconds_between(dialect, Literal(dialect, start), Literal(dialect, end))
+    expr = seconds_between(dialect, Parameter(dialect, start), Parameter(dialect, end))
     query = QueryStatement(dialect, select=[expr.as_("seconds")])
     sql, params = query.to_sql()
     result = backend.execute(sql, params, options=DQL_OPTIONS)
@@ -132,7 +132,7 @@ def _elapsed(backend, start: str, end: str) -> float:
 async def _async_elapsed(backend, start: str, end: str) -> float:
     """Run ``seconds_between(start, end)`` asynchronously and return the scalar."""
     dialect = backend.dialect
-    expr = seconds_between(dialect, Literal(dialect, start), Literal(dialect, end))
+    expr = seconds_between(dialect, Parameter(dialect, start), Parameter(dialect, end))
     query = QueryStatement(dialect, select=[expr.as_("seconds")])
     sql, params = query.to_sql()
     result = await backend.execute(sql, params, options=DQL_OPTIONS)

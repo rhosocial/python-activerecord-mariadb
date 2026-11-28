@@ -13,7 +13,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     DropTypeSupport,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression import Literal
+from rhosocial.activerecord.backend.expression import Parameter
 from rhosocial.activerecord.backend.expression.objects import Domain, Type
 from rhosocial.activerecord.backend.expression.statements import (
     AlterDomainStatement,
@@ -166,7 +166,7 @@ def test_type_and_domain_formatters_and_expressions_fail_fast(dialect):
     definition = _NegativeTypeDefinition(dialect)
     alter_action = _NegativeTypeAlterAction(dialect)
     domain_action = DropDomainDefaultAction(dialect)
-    condition = DomainValueExpression(dialect) > Literal(
+    condition = DomainValueExpression(dialect) > Parameter(
         dialect,
         0,
         inline=True,

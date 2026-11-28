@@ -18,7 +18,7 @@ from rhosocial.activerecord.backend.impl.mariadb.config import MariaDBConnection
 from rhosocial.activerecord.backend.expression import (
     CreateTableStatement, InsertStatement, ValuesSource, DropTableStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Literal
+from rhosocial.activerecord.backend.expression.core import Parameter
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         columns=['name'],
         source=ValuesSource(
             dialect,
-            [[Literal(dialect, 'Alice')]],
+            [[Parameter(dialect, 'Alice')]],
         ),
     )
     sql, params = insert.to_sql()
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         columns=['name'],
         source=ValuesSource(
             dialect,
-            [[Literal(dialect, 'Alice')]],
+            [[Parameter(dialect, 'Alice')]],
         ),
     )
     sql, params = insert.to_sql()
@@ -132,7 +132,7 @@ if __name__ == "__main__":
             'age',
             IntegerType(dialect),
             constraints=[
-                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, 0))),
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Parameter(dialect, 0))),
             ],
         ),
     )

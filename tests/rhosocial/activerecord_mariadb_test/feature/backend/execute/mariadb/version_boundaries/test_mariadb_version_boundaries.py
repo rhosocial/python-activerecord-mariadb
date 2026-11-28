@@ -177,7 +177,7 @@ class TestUpdateReturning:
     def test_unsupported_version_raises_rather_than_silently_dropping(self):
         from rhosocial.activerecord.backend.expression import (
             Column,
-            Literal,
+            Parameter,
             UpdateStatement,
         )
         from rhosocial.activerecord.backend.expression.objects import Table
@@ -188,7 +188,7 @@ class TestUpdateReturning:
         expr = UpdateStatement(
             dialect,
             table=table,
-            assignments={"v": Literal(dialect, 1)},
+            assignments={"v": Parameter(dialect, 1)},
             returning=ReturningClause(dialect, expressions=[Column(dialect, "id")]),
         )
         with pytest.raises(UnsupportedFeatureError):
@@ -197,7 +197,7 @@ class TestUpdateReturning:
     def test_supported_version_renders_the_clause(self):
         from rhosocial.activerecord.backend.expression import (
             Column,
-            Literal,
+            Parameter,
             UpdateStatement,
         )
         from rhosocial.activerecord.backend.expression.objects import Table
@@ -208,7 +208,7 @@ class TestUpdateReturning:
         expr = UpdateStatement(
             dialect,
             table=table,
-            assignments={"v": Literal(dialect, 1)},
+            assignments={"v": Parameter(dialect, 1)},
             returning=ReturningClause(dialect, expressions=[Column(dialect, "id")]),
         )
         sql, _ = dialect.format_update_statement(expr)

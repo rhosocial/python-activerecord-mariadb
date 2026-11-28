@@ -32,7 +32,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal
+    from rhosocial.activerecord.backend.expression.core import Parameter
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         ColumnConstraint,
@@ -75,14 +75,14 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, 'MariaDB Tutorial'),
-                 Literal(dialect, 'This tutorial covers MariaDB database basics '
+                [Parameter(dialect, 'MariaDB Tutorial'),
+                 Parameter(dialect, 'This tutorial covers MariaDB database basics '
                                  'and advanced features.')],
-                [Literal(dialect, 'PostgreSQL Guide'),
-                 Literal(dialect, 'Learn PostgreSQL from beginner '
+                [Parameter(dialect, 'PostgreSQL Guide'),
+                 Parameter(dialect, 'Learn PostgreSQL from beginner '
                                  'to advanced level.')],
-                [Literal(dialect, 'Database Design'),
-                 Literal(dialect, 'Best practices for designing relational '
+                [Parameter(dialect, 'Database Design'),
+                 Parameter(dialect, 'Best practices for designing relational '
                                  'databases including MariaDB and PostgreSQL.')],
             ],
         ),

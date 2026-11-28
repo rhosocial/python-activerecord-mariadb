@@ -426,19 +426,6 @@ class MariaDBDialect(
         if version is not None:
             self.version = version
 
-    def artifact_registry(self):
-        """The kinds this backend can read: core's kinds plus MariaDB's own.
-
-        MariaDB owns its expression package, so the composition lives here
-        rather than in core: ``backend_registry()`` is
-        ``registry_for_packages("...impl.mariadb.expression", base=core_registry())``,
-        frozen and cached. The base dialect's answer is core's table alone, which
-        would refuse every kind this backend alone declares.
-        """
-        from .registry import backend_registry
-
-        return backend_registry()
-
     @property
     def version(self) -> Tuple[int, int, int]:
         return SQLDialectBase.version.fget(self)

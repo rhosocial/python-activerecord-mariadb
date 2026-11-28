@@ -13,7 +13,7 @@ written as rendered.
 """
 import pytest
 
-from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 from rhosocial.activerecord.backend.expression.introspection import (
     ColumnInfoQueryStatement,
     DatabaseInfoQueryStatement,
@@ -368,5 +368,5 @@ class TestQueryNodesStayStructures:
 
     def test_the_projection_is_an_expression_list(self, dialect):
         """What a query asks is a tree, and the caller can read it."""
-        query = QueryStatement(dialect, select=[Literal(dialect, 1, inline=True)])
+        query = QueryStatement(dialect, select=[Parameter(dialect, 1, inline=True)])
         assert query.to_sql() == ("SELECT 1", ())

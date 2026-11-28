@@ -400,12 +400,12 @@ class MariaDBBackendMixin:
         cached = getattr(self, "_liveness_probe_sql", None)
         if cached is None:
             from rhosocial.activerecord.backend.expression import (
-                Literal,
+                Parameter,
                 QueryStatement,
             )
 
             cached = QueryStatement(
-                self.dialect, select=[Literal(self.dialect, 1, inline=True)]
+                self.dialect, select=[Parameter(self.dialect, 1, inline=True)]
             ).to_sql()
             self._liveness_probe_sql = cached
         return cached

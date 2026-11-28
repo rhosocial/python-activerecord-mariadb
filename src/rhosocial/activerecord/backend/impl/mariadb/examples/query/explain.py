@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.expression import (
     CreateIndexStatement,
     DropTableStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, Column
+from rhosocial.activerecord.backend.expression.core import Parameter, Column
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -94,7 +94,7 @@ if __name__ == "__main__":
             dialect=dialect,
             into=Table(dialect, 'users'),
             columns=['name', 'email'],
-            source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
+            source=ValuesSource(dialect, [[Parameter(dialect, name), Parameter(dialect, email)]]),
         )
         sql, params = insert_expr.to_sql()
         backend.execute(sql, params)
@@ -109,7 +109,7 @@ if __name__ == "__main__":
         select=[Column(dialect, '*')],
         from_=Table(dialect, 'users'),
         where=ComparisonPredicate(
-            dialect, '=', Column(dialect, 'name'), Literal(dialect, 'Alice'),
+            dialect, '=', Column(dialect, 'name'), Parameter(dialect, 'Alice'),
         ),
     )
     explain_scan = ExplainStatement(
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         select=[Column(dialect, '*')],
         from_=Table(dialect, 'users'),
         where=ComparisonPredicate(
-            dialect, '=', Column(dialect, 'email'), Literal(dialect, 'alice@example.com'),
+            dialect, '=', Column(dialect, 'email'), Parameter(dialect, 'alice@example.com'),
         ),
     )
     explain_search = ExplainStatement(

@@ -8,7 +8,7 @@ Includes: round, pow, power, sqrt, mod, ceil, floor, truncate, max, min, avg
 Functions: round_, pow, power, sqrt, mod, ceil, floor, trunc, max_, min_, avg
 
 Every operand is an expression: pass a ``Column`` to read a column and a
-``Literal`` to write a number.  Operands used to be accepted as bare strings
+``Parameter`` to write a number.  Operands used to be accepted as bare strings
 and bare numbers, and a string was *parsed* to find out which: ``"3.7"`` was
 read as the number 3.7 and ``"price"`` as a column.  That parse could not be
 right in both directions -- a column named ``3.7`` was unreachable, and
@@ -77,8 +77,8 @@ def pow(
     one standard node instead of two spellings of the same call.
 
     Usage:
-        - pow(dialect, Literal(dialect, 2), Literal(dialect, 3)) -> POWER(2, 3)
-        - pow(dialect, Column(dialect, "x"), Literal(dialect, 2)) -> POWER("x", 2)
+        - pow(dialect, Parameter(dialect, 2), Parameter(dialect, 3)) -> POWER(2, 3)
+        - pow(dialect, Column(dialect, "x"), Parameter(dialect, 2)) -> POWER("x", 2)
 
     Args:
         dialect: The SQL dialect instance
@@ -105,7 +105,7 @@ def power(
     this backend renders the class's ``POWER``.
 
     Usage:
-        - power(dialect, Literal(dialect, 2), Literal(dialect, 3)) -> POWER(2, 3)
+        - power(dialect, Parameter(dialect, 2), Parameter(dialect, 3)) -> POWER(2, 3)
         - power(dialect, Column(dialect, "x"), Column(dialect, "y")) -> POWER("x", "y")
 
     Args:
@@ -130,7 +130,7 @@ def sqrt(
     Returns the square root of the argument.
 
     Usage:
-        - sqrt(dialect, Literal(dialect, 16)) -> SQRT(16)
+        - sqrt(dialect, Parameter(dialect, 16)) -> SQRT(16)
         - sqrt(dialect, Column(dialect, "value")) -> SQRT("value")
 
     Args:
@@ -155,8 +155,8 @@ def mod(
     Returns the remainder of dividend divided by divisor.
 
     Usage:
-        - mod(dialect, Literal(dialect, 10), Literal(dialect, 3)) -> MOD(10, 3)
-        - mod(dialect, Column(dialect, "total"), Literal(dialect, 10)) -> MOD("total", 10)
+        - mod(dialect, Parameter(dialect, 10), Parameter(dialect, 3)) -> MOD(10, 3)
+        - mod(dialect, Column(dialect, "total"), Parameter(dialect, 10)) -> MOD("total", 10)
 
     Args:
         dialect: The SQL dialect instance
@@ -180,7 +180,7 @@ def ceil(
     Returns the smallest integer value not less than the argument.
 
     Usage:
-        - ceil(dialect, Literal(dialect, 3.14)) -> CEIL(3.14)
+        - ceil(dialect, Parameter(dialect, 3.14)) -> CEIL(3.14)
         - ceil(dialect, Column(dialect, "price")) -> CEIL("price")
 
     Args:
@@ -204,7 +204,7 @@ def floor(
     Returns the largest integer value not greater than the argument.
 
     Usage:
-        - floor(dialect, Literal(dialect, 3.14)) -> FLOOR(3.14)
+        - floor(dialect, Parameter(dialect, 3.14)) -> FLOOR(3.14)
         - floor(dialect, Column(dialect, "price")) -> FLOOR("price")
 
     Args:
@@ -229,8 +229,8 @@ def trunc(
     Returns the value truncated to the specified number of decimal places.
 
     Usage:
-        - trunc(dialect, Literal(dialect, 3.14)) -> TRUNCATE(3.14, 0)
-        - trunc(dialect, Literal(dialect, 3.14), 2) -> TRUNCATE(3.14, 2)
+        - trunc(dialect, Parameter(dialect, 3.14)) -> TRUNCATE(3.14, 0)
+        - trunc(dialect, Parameter(dialect, 3.14), 2) -> TRUNCATE(3.14, 2)
         - trunc(dialect, Column(dialect, "price"), 2) -> TRUNCATE("price", 2)
 
     Note:

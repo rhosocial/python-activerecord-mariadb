@@ -686,7 +686,7 @@ class TestMySQLTableConstraints:
 
     def test_check_constraint(self):
         """Test CHECK table constraint."""
-        from rhosocial.activerecord.backend.expression import Column, Literal
+        from rhosocial.activerecord.backend.expression import Column, Parameter
         from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
         # Versioned, because the CHECK probe is version-gated at 10.2.1 and a
         # dialect with no version cannot answer it.
@@ -696,7 +696,7 @@ class TestMySQLTableConstraints:
             ColumnDefinition(dialect, "age", IntegerType(dialect)),
         ]
         check = TableConstraint(dialect, branch=TableCheckConstraint(dialect, ComparisonPredicate(
-                dialect, ">=", Column(dialect, "age"), Literal(dialect, 0, inline=True)
+                dialect, ">=", Column(dialect, "age"), Parameter(dialect, 0, inline=True)
             )))
         expr = CreateTableStatement(
             dialect=dialect, table=Table(dialect, "users"), columns=columns, table_constraints=[check],

@@ -52,12 +52,12 @@ so the bind parameters follow the placeholders rather than the constructor's
 argument order:
 
 ```python
-from rhosocial.activerecord.backend.expression import Literal, seconds_between
+from rhosocial.activerecord.backend.expression import Parameter, seconds_between
 
 expr = seconds_between(
     dialect,
-    Literal(dialect, "2026-01-01 00:00:00"),
-    Literal(dialect, "2026-01-02 00:00:00"),
+    Parameter(dialect, "2026-01-01 00:00:00"),
+    Parameter(dialect, "2026-01-02 00:00:00"),
 )
 sql, params = expr.to_sql()
 # sql: "(TIMESTAMPDIFF(MICROSECOND, %s, %s) / 1000000)"

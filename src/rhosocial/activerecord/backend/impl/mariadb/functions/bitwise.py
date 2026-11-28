@@ -8,7 +8,7 @@ Functions: bit_and, bit_or, bit_xor, bit_count, bit_get_bit,
 Note: MariaDB has native bitwise operators and functions similar to MySQL.
 
 Every operand is an expression: pass a ``Column`` to read a column and a
-``Literal`` to write a value.  An operand used to be accepted as a bare
+``Parameter`` to write a value.  An operand used to be accepted as a bare
 string and a bare number, and which of the two it was had to be worked out
 from its type at run time; the number was right, but the string could not say
 which it meant, and a column named ``16`` was read as the number sixteen.
@@ -146,7 +146,7 @@ def bit_get_bit(
     Version: Native operators available in all MariaDB versions
     """
     shifted = BinaryExpression(dialect, ">>", value, bit)
-    return BinaryExpression(dialect, "&", shifted, core.Literal(dialect, 1))
+    return BinaryExpression(dialect, "&", shifted, core.Parameter(dialect, 1))
 
 
 def bit_shift_left(

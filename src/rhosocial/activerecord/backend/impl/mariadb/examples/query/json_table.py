@@ -34,7 +34,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal
+    from rhosocial.activerecord.backend.expression.core import Parameter
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         ColumnConstraint,
@@ -76,14 +76,14 @@ if __name__ == "__main__":
             dialect,
             [
                 [
-                    Literal(
+                    Parameter(
                         dialect,
                         '{"customer": "Alice", "items": '
                         '[{"product": "Widget", "qty": 5, "price": 10.00}, '
                         '{"product": "Gadget", "qty": 3, "price": 15.00}]}',
                     )
                 ],
-                [Literal(dialect, '{"customer": "Bob", "items": [{"product": "Widget", "qty": 2, "price": 10.00}]}')],
+                [Parameter(dialect, '{"customer": "Bob", "items": [{"product": "Widget", "qty": 2, "price": 10.00}]}')],
             ],
         ),
     )

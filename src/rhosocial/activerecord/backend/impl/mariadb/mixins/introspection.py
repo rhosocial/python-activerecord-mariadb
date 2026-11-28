@@ -238,7 +238,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             InPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
         )
 
@@ -246,7 +246,7 @@ class MariaDBIntrospectionMixin:
             self,
             "NOT",
             InPredicate(
-                self, Column(self, "TABLE_SCHEMA"), Literal(self, SYSTEM_SCHEMAS, inline=True)
+                self, Column(self, "TABLE_SCHEMA"), Parameter(self, SYSTEM_SCHEMAS, inline=True)
             ),
         )
 
@@ -266,7 +266,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             QueryStatement,
             WhereClause,
         )
@@ -284,7 +284,7 @@ class MariaDBIntrospectionMixin:
             where=WhereClause(
                 self,
                 ComparisonPredicate(
-                    self, "eq", Column(self, "SCHEMA_NAME"), Literal(self, schema)
+                    self, "eq", Column(self, "SCHEMA_NAME"), Parameter(self, schema)
                 ),
             ),
         )
@@ -317,7 +317,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             QueryStatement,
             WhereClause,
@@ -330,14 +330,14 @@ class MariaDBIntrospectionMixin:
         table_type = params.get("table_type")
 
         conditions = [
-            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema)),
+            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Parameter(self, schema)),
             # ``ne`` writes ``<>``: MariaDB's spelling of "not equal", and the
             # one that reads as the set difference this listing means.
             ComparisonPredicate(
                 self,
                 "ne",
                 Column(self, "TABLE_TYPE"),
-                Literal(self, "SEQUENCE", inline=True),
+                Parameter(self, "SEQUENCE", inline=True),
             ),
         ]
 
@@ -349,13 +349,13 @@ class MariaDBIntrospectionMixin:
                     self,
                     "eq",
                     Column(self, "TABLE_TYPE"),
-                    Literal(self, "BASE TABLE", inline=True),
+                    Parameter(self, "BASE TABLE", inline=True),
                 )
             )
         if table_type:
             conditions.append(
                 ComparisonPredicate(
-                    self, "eq", Column(self, "TABLE_TYPE"), Literal(self, table_type)
+                    self, "eq", Column(self, "TABLE_TYPE"), Parameter(self, table_type)
                 )
             )
 
@@ -412,7 +412,7 @@ class MariaDBIntrospectionMixin:
             ComparisonPredicate,
             JoinClause,
             JoinType,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -480,13 +480,13 @@ class MariaDBIntrospectionMixin:
                     self,
                     "AND",
                     ComparisonPredicate(
-                        self, "eq", Column(self, "TABLE_SCHEMA", table="c"), Literal(self, schema)
+                        self, "eq", Column(self, "TABLE_SCHEMA", table="c"), Parameter(self, schema)
                     ),
                     ComparisonPredicate(
                         self,
                         "eq",
                         Column(self, "TABLE_NAME", table="c"),
-                        Literal(self, table_name),
+                        Parameter(self, table_name),
                     ),
                 ),
             ),
@@ -510,7 +510,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -539,10 +539,10 @@ class MariaDBIntrospectionMixin:
                     self,
                     "AND",
                     ComparisonPredicate(
-                        self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema)
+                        self, "eq", Column(self, "TABLE_SCHEMA"), Parameter(self, schema)
                     ),
                     ComparisonPredicate(
-                        self, "eq", Column(self, "TABLE_NAME"), Literal(self, table_name)
+                        self, "eq", Column(self, "TABLE_NAME"), Parameter(self, table_name)
                     ),
                 ),
             ),
@@ -570,7 +570,7 @@ class MariaDBIntrospectionMixin:
             Column,
             ComparisonPredicate,
             JoinClause,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -629,13 +629,13 @@ class MariaDBIntrospectionMixin:
                         self,
                         "eq",
                         Column(self, "TABLE_SCHEMA", table="kcu"),
-                        Literal(self, schema),
+                        Parameter(self, schema),
                     ),
                     ComparisonPredicate(
                         self,
                         "eq",
                         Column(self, "TABLE_NAME", table="kcu"),
-                        Literal(self, table_name),
+                        Parameter(self, table_name),
                     ),
                     Column(self, "REFERENCED_TABLE_NAME", table="kcu").is_not_null(),
                 ),
@@ -666,7 +666,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -678,7 +678,7 @@ class MariaDBIntrospectionMixin:
         include_system = params.get("include_system", False)
 
         conditions = [
-            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema))
+            ComparisonPredicate(self, "eq", Column(self, "TABLE_SCHEMA"), Parameter(self, schema))
         ]
 
         if not include_system:
@@ -714,7 +714,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             QueryStatement,
             WhereClause,
@@ -739,10 +739,10 @@ class MariaDBIntrospectionMixin:
                     self,
                     "AND",
                     ComparisonPredicate(
-                        self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, schema)
+                        self, "eq", Column(self, "TABLE_SCHEMA"), Parameter(self, schema)
                     ),
                     ComparisonPredicate(
-                        self, "eq", Column(self, "TABLE_NAME"), Literal(self, view_name)
+                        self, "eq", Column(self, "TABLE_NAME"), Parameter(self, view_name)
                     ),
                 ),
             ),
@@ -765,7 +765,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -777,13 +777,13 @@ class MariaDBIntrospectionMixin:
         table_name = params.get("table_name")
 
         conditions = [
-            ComparisonPredicate(self, "eq", Column(self, "TRIGGER_SCHEMA"), Literal(self, schema))
+            ComparisonPredicate(self, "eq", Column(self, "TRIGGER_SCHEMA"), Parameter(self, schema))
         ]
 
         if table_name:
             conditions.append(
                 ComparisonPredicate(
-                    self, "eq", Column(self, "EVENT_OBJECT_TABLE"), Literal(self, table_name)
+                    self, "eq", Column(self, "EVENT_OBJECT_TABLE"), Parameter(self, table_name)
                 )
             )
 
@@ -828,7 +828,7 @@ class MariaDBIntrospectionMixin:
             ComparisonPredicate,
             JoinClause,
             JoinType,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -839,19 +839,19 @@ class MariaDBIntrospectionMixin:
 
         conditions = [
             ComparisonPredicate(
-                self, "eq", Column(self, "TABLE_SCHEMA", table="t"), Literal(self, expr.schema)
+                self, "eq", Column(self, "TABLE_SCHEMA", table="t"), Parameter(self, expr.schema)
             ),
             ComparisonPredicate(
                 self,
                 "eq",
                 Column(self, "TABLE_TYPE", table="t"),
-                Literal(self, "SEQUENCE", inline=True),
+                Parameter(self, "SEQUENCE", inline=True),
             ),
         ]
         if expr.name is not None:
             conditions.append(
                 ComparisonPredicate(
-                    self, "eq", Column(self, "TABLE_NAME", table="t"), Literal(self, expr.name)
+                    self, "eq", Column(self, "TABLE_NAME", table="t"), Parameter(self, expr.name)
                 )
             )
 
@@ -921,7 +921,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -930,7 +930,7 @@ class MariaDBIntrospectionMixin:
 
         conditions = [
             ComparisonPredicate(
-                self, "eq", Column(self, "TABLE_SCHEMA"), Literal(self, expr.schema)
+                self, "eq", Column(self, "TABLE_SCHEMA"), Parameter(self, expr.schema)
             )
         ]
         if expr.table_name is not None:
@@ -939,7 +939,7 @@ class MariaDBIntrospectionMixin:
                     self,
                     "eq",
                     Column(self, "TABLE_NAME"),
-                    Literal(self, expr.table_name),
+                    Parameter(self, expr.table_name),
                 )
             )
 
@@ -1000,7 +1000,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -1012,13 +1012,13 @@ class MariaDBIntrospectionMixin:
                 self,
                 "eq",
                 Column(self, "TABLE_SCHEMA"),
-                Literal(self, expr.schema),
+                Parameter(self, expr.schema),
             ),
             ComparisonPredicate(
                 self,
                 "eq",
                 Column(self, "TABLE_NAME"),
-                Literal(self, expr.table_name),
+                Parameter(self, expr.table_name),
             ),
             Column(self, "PARTITION_NAME").is_not_null(),
         ]
@@ -1094,7 +1094,7 @@ class MariaDBIntrospectionMixin:
             ComparisonPredicate,
             JoinClause,
             JoinType,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -1140,7 +1140,7 @@ class MariaDBIntrospectionMixin:
                 self,
                 "eq",
                 Column(self, "ROUTINE_SCHEMA", table="r"),
-                Literal(self, expr.schema),
+                Parameter(self, expr.schema),
             )
         ]
         if expr.name is not None:
@@ -1149,7 +1149,7 @@ class MariaDBIntrospectionMixin:
                     self,
                     "eq",
                     Column(self, "ROUTINE_NAME", table="r"),
-                    Literal(self, expr.name),
+                    Parameter(self, expr.name),
                 )
             )
         if expr.kind is not None:
@@ -1158,7 +1158,7 @@ class MariaDBIntrospectionMixin:
                     self,
                     "eq",
                     Column(self, "ROUTINE_TYPE", table="r"),
-                    Literal(self, expr.kind),
+                    Parameter(self, expr.kind),
                 )
             )
 
@@ -1227,7 +1227,7 @@ class MariaDBIntrospectionMixin:
             ComparisonPredicate,
             JoinClause,
             JoinType,
-            Literal,
+            Parameter,
             LogicalPredicate,
             OrderByClause,
             QueryStatement,
@@ -1269,19 +1269,19 @@ class MariaDBIntrospectionMixin:
                 self,
                 "eq",
                 Column(self, "TABLE_SCHEMA", table="tc"),
-                Literal(self, expr.schema),
+                Parameter(self, expr.schema),
             ),
             ComparisonPredicate(
                 self,
                 "eq",
                 Column(self, "TABLE_NAME", table="tc"),
-                Literal(self, expr.table_name),
+                Parameter(self, expr.table_name),
             ),
             ComparisonPredicate(
                 self,
                 "eq",
                 Column(self, "CONSTRAINT_TYPE", table="tc"),
-                Literal(self, "CHECK", inline=True),
+                Parameter(self, "CHECK", inline=True),
             ),
         ]
 
@@ -1492,7 +1492,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             ComparisonPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             QueryStatement,
             WhereClause,
@@ -1510,13 +1510,13 @@ class MariaDBIntrospectionMixin:
                 self,
                 "eq",
                 Column(self, "CONSTRAINT_SCHEMA"),
-                Literal(self, schema),
+                Parameter(self, schema),
             )
         ]
         if object_name:
             conditions.append(
                 ComparisonPredicate(
-                    self, "eq", Column(self, "TABLE_NAME"), Literal(self, object_name)
+                    self, "eq", Column(self, "TABLE_NAME"), Parameter(self, object_name)
                 )
             )
 
@@ -1696,8 +1696,8 @@ class MariaDBIntrospectionMixin:
     def _profile_label(self, text: "Optional[str]", alias: str):
         """A constant label as a named select-list entry.
 
-        ``Literal`` is deliberately unaliasable -- a value has nothing to name
-        (see :class:`~...expression.core.Literal`) -- so the constant is cast
+        ``Parameter`` is deliberately unaliasable -- a value has nothing to name
+        (see :class:`~...expression.core.Parameter`) -- so the constant is cast
         to text, which is the smallest node in the tree that produces a named
         result. The cast is not there for its type: it is there so the label
         can be called ``column_name`` or ``source``, which is what the parser
@@ -1710,11 +1710,11 @@ class MariaDBIntrospectionMixin:
         """
         from rhosocial.activerecord.backend.expression.core import (
             CastExpression,
-            Literal,
+            Parameter,
         )
         from rhosocial.activerecord.backend.expression.types.string import CharType
 
-        return CastExpression(self, Literal(self, text, inline=True), CharType(self), alias=alias)
+        return CastExpression(self, Parameter(self, text, inline=True), CharType(self), alias=alias)
 
     def _profile_arm(self, table_name: str, schema: "Optional[str]", column_name: str):
         """One column's arm of the profile, as a node.
@@ -1738,7 +1738,7 @@ class MariaDBIntrospectionMixin:
             CountFunction,
             FunctionCall,
             IsNullPredicate,
-            Literal,
+            Parameter,
             QueryStatement,
             RowCountWildcard,
             SumFunction,
@@ -1756,10 +1756,10 @@ class MariaDBIntrospectionMixin:
                         cases=[
                             (
                                 IsNullPredicate(self, Column(self, column_name)),
-                                Literal(self, 1, inline=True),
+                                Parameter(self, 1, inline=True),
                             )
                         ],
-                        else_result=Literal(self, 0, inline=True),
+                        else_result=Parameter(self, 0, inline=True),
                     ),
                 ).as_("null_count"),
                 CountFunction(self, Column(self, column_name), distinct=True).as_("distinct_count"),
@@ -1824,7 +1824,7 @@ class MariaDBIntrospectionMixin:
         """
         from rhosocial.activerecord.backend.expression import (
             ComparisonPredicate,
-            Literal,
+            Parameter,
             QueryStatement,
             WhereClause,
         )
@@ -1843,8 +1843,8 @@ class MariaDBIntrospectionMixin:
                     ComparisonPredicate(
                         self,
                         "eq",
-                        Literal(self, 0, inline=True),
-                        Literal(self, 1, inline=True),
+                        Parameter(self, 0, inline=True),
+                        Parameter(self, 1, inline=True),
                     ),
                 ),
             ).to_sql()
@@ -1942,7 +1942,7 @@ class MariaDBIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             FunctionCall,
             InPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
             QueryStatement,
             RowCountWildcard,
@@ -2001,7 +2001,7 @@ class MariaDBIntrospectionMixin:
                         self,
                         "NULLIF",
                         CountFunction(self, column, distinct=True),
-                        Literal(self, 0, inline=True),
+                        Parameter(self, 0, inline=True),
                     )
                 ],
                 from_=source,

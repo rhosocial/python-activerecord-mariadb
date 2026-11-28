@@ -34,7 +34,7 @@ if __name__ == "__main__":
         ValuesSource,
         QueryStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, Column
+    from rhosocial.activerecord.backend.expression.core import Parameter, Column
     from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['username', 'email', 'login_count'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'alice'), Literal(dialect, 'alice@example.com'), Literal(dialect, 1)],
+            [Parameter(dialect, 'alice'), Parameter(dialect, 'alice@example.com'), Parameter(dialect, 1)],
         ]),
     )
     sql, params = insert_expr.to_sql()
@@ -114,7 +114,7 @@ if __name__ == "__main__":
             Column(dialect, 'login_count'),
         ],
         from_=Table(dialect, 'users'),
-        where=ComparisonPredicate(dialect, '=', Column(dialect, 'username'), Literal(dialect, 'alice')),
+        where=ComparisonPredicate(dialect, '=', Column(dialect, 'username'), Parameter(dialect, 'alice')),
     )
     sql, params = query.to_sql()
     result = backend.execute(sql, params, options=dql_options)
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['username', 'email', 'login_count'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'alice'), Literal(dialect, 'alice@example.com'), Literal(dialect, 1)],
+            [Parameter(dialect, 'alice'), Parameter(dialect, 'alice@example.com'), Parameter(dialect, 1)],
         ]),
         on_conflict=OnConflictClause(
             dialect,
@@ -155,7 +155,7 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['username', 'email', 'login_count'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'charlie'), Literal(dialect, 'charlie@example.com'), Literal(dialect, 1)],
+            [Parameter(dialect, 'charlie'), Parameter(dialect, 'charlie@example.com'), Parameter(dialect, 1)],
         ]),
     )
     sql, params = insert_result.to_sql()
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['username', 'email', 'login_count'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'charlie'), Literal(dialect, 'charlie@example.com'), Literal(dialect, 1)],
+            [Parameter(dialect, 'charlie'), Parameter(dialect, 'charlie@example.com'), Parameter(dialect, 1)],
         ]),
         on_conflict=OnConflictClause(
             dialect,
@@ -191,8 +191,8 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['username', 'email', 'login_count'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'david'), Literal(dialect, 'david@example.com'), Literal(dialect, 1)],
-            [Literal(dialect, 'eve'), Literal(dialect, 'eve@example.com'), Literal(dialect, 1)],
+            [Parameter(dialect, 'david'), Parameter(dialect, 'david@example.com'), Parameter(dialect, 1)],
+            [Parameter(dialect, 'eve'), Parameter(dialect, 'eve@example.com'), Parameter(dialect, 1)],
         ]),
         on_conflict=OnConflictClause(
             dialect,

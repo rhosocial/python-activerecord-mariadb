@@ -49,26 +49,9 @@ from rhosocial.activerecord.backend.impl.mariadb.expression.show import (
     MariaDBShowWarningsStatement,
 )
 
-from expression_roundtrip_harness import collect_expression_classes
-
-MARIADB_EXPR_PKG = "rhosocial.activerecord.backend.impl.mariadb.expression"
-
 
 def _dialect() -> MariaDBDialect:
     return MariaDBDialect((10, 6, 0))
-
-
-def test_no_expression_class_overrides_the_rendering_entry_point():
-    """Dispatch is declared, never re-implemented, anywhere in the package."""
-    offenders = []
-    for fqn, cls in collect_expression_classes(MARIADB_EXPR_PKG).items():
-        for name in ("to_sql", "_render"):
-            if name in vars(cls):
-                offenders.append(f"{fqn}.{name}")
-    assert not offenders, (
-        "These expressions bypass BaseExpression's dispatch by overriding it: "
-        f"{sorted(offenders)}. Delete the override and declare `format_method`."
-    )
 
 
 @pytest.mark.parametrize(

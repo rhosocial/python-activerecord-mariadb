@@ -5,7 +5,7 @@ try:
 except ImportError:
     from typing_extensions import Annotated, Optional
 
-from rhosocial.activerecord.backend.expression.core import Column, Literal
+from rhosocial.activerecord.backend.expression.core import Column, Parameter
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     CreateTableStatement,
@@ -59,7 +59,7 @@ SQL_TYPE = MariaDBIntType(unsigned=True)
 FALLBACK_SQL_TYPE = MariaDBTextType()
 SQL_TYPE_MARKER = UseSqlType(SQL_TYPE, FALLBACK_SQL_TYPE)
 # A DDL position inlines its value, so the literal says so itself.
-DEFAULT_VALUE = Literal(DIALECT, "new", inline=True)
+DEFAULT_VALUE = Parameter(DIALECT, "new", inline=True)
 DEFAULT_CONSTRAINT = UseConstraint(
     ColumnDefaultConstraint,
     name="df_status_default",

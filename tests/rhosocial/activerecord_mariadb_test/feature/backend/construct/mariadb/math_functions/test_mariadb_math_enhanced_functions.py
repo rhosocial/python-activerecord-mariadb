@@ -4,11 +4,11 @@ Tests for MariaDB-specific enhanced math functions.
 
 These include additional mathematical functions beyond the basic math module.
 
-Every operand is an expression: a ``Column`` for a column, a ``Literal`` for a
+Every operand is an expression: a ``Column`` for a column, a ``Parameter`` for a
 number.  The factories used to parse a bare string to decide which of the two
 it was, so a column named ``3.7`` could not be read at all.
 """
-from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.expression import Column, Parameter
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.functions.math_enhanced import (
     round_,
@@ -43,7 +43,7 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_round__with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test round_() with literal value."""
-        result = round_(mariadb_dialect, Literal(mariadb_dialect, 3.14159), 2)
+        result = round_(mariadb_dialect, Parameter(mariadb_dialect, 3.14159), 2)
         sql, _ = result.to_sql()
         assert "ROUND(" in sql
 
@@ -55,7 +55,7 @@ class TestMySQLMathEnhancedFunctions:
         power() answer with the same class.
         """
         result = pow(mariadb_dialect, Column(mariadb_dialect, "base"),
-                     Literal(mariadb_dialect, 2))
+                     Parameter(mariadb_dialect, 2))
         sql, _ = result.to_sql()
         assert "POWER(" in sql
 
@@ -71,8 +71,8 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_power(self, mariadb_dialect: MariaDBDialect):
         """Test power() function (the same standard node as pow())."""
-        result = power(mariadb_dialect, Literal(mariadb_dialect, 2),
-                       Literal(mariadb_dialect, 3))
+        result = power(mariadb_dialect, Parameter(mariadb_dialect, 2),
+                       Parameter(mariadb_dialect, 3))
         sql, _ = result.to_sql()
         assert "POWER(" in sql
 
@@ -85,14 +85,14 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_sqrt_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test sqrt() with literal value."""
-        result = sqrt(mariadb_dialect, Literal(mariadb_dialect, 16))
+        result = sqrt(mariadb_dialect, Parameter(mariadb_dialect, 16))
         sql, _ = result.to_sql()
         assert "SQRT(" in sql
 
     def test_mod(self, mariadb_dialect: MariaDBDialect):
         """Test mod() function."""
         result = mod(mariadb_dialect, Column(mariadb_dialect, "total"),
-                    Literal(mariadb_dialect, 10))
+                    Parameter(mariadb_dialect, 10))
         sql, _ = result.to_sql()
         assert "MOD(" in sql
 
@@ -115,7 +115,7 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_ceil_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test ceil() with literal value."""
-        result = ceil(mariadb_dialect, Literal(mariadb_dialect, 3.14))
+        result = ceil(mariadb_dialect, Parameter(mariadb_dialect, 3.14))
         sql, _ = result.to_sql()
         assert "CEIL(" in sql
 
@@ -128,7 +128,7 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_floor_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test floor() with literal value."""
-        result = floor(mariadb_dialect, Literal(mariadb_dialect, 3.14))
+        result = floor(mariadb_dialect, Parameter(mariadb_dialect, 3.14))
         sql, _ = result.to_sql()
         assert "FLOOR(" in sql
 
@@ -141,13 +141,13 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_trunc_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test trunc() with literal value."""
-        result = trunc(mariadb_dialect, Literal(mariadb_dialect, 3.14))
+        result = trunc(mariadb_dialect, Parameter(mariadb_dialect, 3.14))
         sql, _ = result.to_sql()
         assert "TRUNCATE(" in sql
 
     def test_trunc_with_precision(self, mariadb_dialect: MariaDBDialect):
         """Test trunc() with precision."""
-        result = trunc(mariadb_dialect, Literal(mariadb_dialect, 3.14159), 2)
+        result = trunc(mariadb_dialect, Parameter(mariadb_dialect, 3.14159), 2)
         sql, _ = result.to_sql()
         assert "TRUNCATE(" in sql
 
@@ -170,8 +170,8 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_max__with_literals(self, mariadb_dialect: MariaDBDialect):
         """Test max_() with literal values (uses GREATEST)."""
-        result = max_(mariadb_dialect, Literal(mariadb_dialect, 1),
-                      Literal(mariadb_dialect, 2), Literal(mariadb_dialect, 3))
+        result = max_(mariadb_dialect, Parameter(mariadb_dialect, 1),
+                      Parameter(mariadb_dialect, 2), Parameter(mariadb_dialect, 3))
         sql, _ = result.to_sql()
         assert "GREATEST(" in sql
 
@@ -200,8 +200,8 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_min__with_literals(self, mariadb_dialect: MariaDBDialect):
         """Test min_() with literal values (uses LEAST)."""
-        result = min_(mariadb_dialect, Literal(mariadb_dialect, 1),
-                      Literal(mariadb_dialect, 2), Literal(mariadb_dialect, 3))
+        result = min_(mariadb_dialect, Parameter(mariadb_dialect, 1),
+                      Parameter(mariadb_dialect, 2), Parameter(mariadb_dialect, 3))
         sql, _ = result.to_sql()
         assert "LEAST(" in sql
 
@@ -220,20 +220,20 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_avg_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test avg() with literal value."""
-        result = avg(mariadb_dialect, Literal(mariadb_dialect, 100))
+        result = avg(mariadb_dialect, Parameter(mariadb_dialect, 100))
         sql, _ = result.to_sql()
         assert "AVG(" in sql
 
     def test_round__with_integer(self, mariadb_dialect: MariaDBDialect):
         """The number 123 is a value, and is bound rather than parsed."""
-        result = round_(mariadb_dialect, Literal(mariadb_dialect, 123), 2)
+        result = round_(mariadb_dialect, Parameter(mariadb_dialect, 123), 2)
         sql, params = result.to_sql()
         assert "ROUND(%s, %s)" == sql
         assert params == (123, 2)
 
     def test_round__with_float(self, mariadb_dialect: MariaDBDialect):
         """The number 3.14159 is a value, and is bound rather than parsed."""
-        result = round_(mariadb_dialect, Literal(mariadb_dialect, 3.14159), 2)
+        result = round_(mariadb_dialect, Parameter(mariadb_dialect, 3.14159), 2)
         sql, params = result.to_sql()
         assert "ROUND(%s, %s)" == sql
         assert params == (3.14159, 2)
@@ -251,7 +251,7 @@ class TestMySQLMathEnhancedFunctions:
         exponent binds like every data-position value.
         """
         result = pow(mariadb_dialect, Column(mariadb_dialect, "base"),
-                     Literal(mariadb_dialect, 2))
+                     Parameter(mariadb_dialect, 2))
         sql, params = result.to_sql()
         assert "POWER(`base`, %s)" == sql
         assert params == (2,)
@@ -269,7 +269,7 @@ class TestMySQLMathEnhancedFunctions:
     def test_mod_with_integer_divisor(self, mariadb_dialect: MariaDBDialect):
         """Test mod() with an integer divisor."""
         result = mod(mariadb_dialect, Column(mariadb_dialect, "total"),
-                     Literal(mariadb_dialect, 10))
+                     Parameter(mariadb_dialect, 10))
         sql, params = result.to_sql()
         assert "MOD(`total`, %s)" == sql
         assert params == (10,)
@@ -290,7 +290,7 @@ class TestMySQLMathEnhancedFunctions:
 
     def test_avg_with_number(self, mariadb_dialect: MariaDBDialect):
         """Test avg() with the number 100."""
-        result = avg(mariadb_dialect, Literal(mariadb_dialect, 100))
+        result = avg(mariadb_dialect, Parameter(mariadb_dialect, 100))
         sql, params = result.to_sql()
         assert "AVG(%s)" == sql
         assert params == (100,)

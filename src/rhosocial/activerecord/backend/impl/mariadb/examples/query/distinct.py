@@ -35,7 +35,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, Column
+    from rhosocial.activerecord.backend.expression.core import Parameter, Column
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
     )
@@ -71,9 +71,9 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['id', 'name'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 1), Literal(dialect, 'Alice')],
-            [Literal(dialect, 2), Literal(dialect, 'Bob')],
-            [Literal(dialect, 3), Literal(dialect, 'Alice')],
+            [Parameter(dialect, 1), Parameter(dialect, 'Alice')],
+            [Parameter(dialect, 2), Parameter(dialect, 'Bob')],
+            [Parameter(dialect, 3), Parameter(dialect, 'Alice')],
         ]),
     )
     sql, params = insert.to_sql()

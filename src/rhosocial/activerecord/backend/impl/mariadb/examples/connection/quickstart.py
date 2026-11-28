@@ -21,7 +21,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
     WhereClause,
 )
-from rhosocial.activerecord.backend.expression.core import Column, Literal
+from rhosocial.activerecord.backend.expression.core import Column, Parameter
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
@@ -122,8 +122,8 @@ if __name__ == "__main__":
             source=ValuesSource(
                 dialect,
                 [
-                    [Literal(dialect, 'Alice'), Literal(dialect, 'active')],
-                    [Literal(dialect, 'Bob'), Literal(dialect, 'inactive')],
+                    [Parameter(dialect, 'Alice'), Parameter(dialect, 'active')],
+                    [Parameter(dialect, 'Bob'), Parameter(dialect, 'inactive')],
                 ],
             ),
         )
@@ -157,7 +157,7 @@ if __name__ == "__main__":
                 dialect,
                 '=',
                 Column(dialect, 'status'),
-                Literal(dialect, 'active'),
+                Parameter(dialect, 'active'),
             ),
         ),
     )
@@ -192,12 +192,12 @@ if __name__ == "__main__":
                 dialect,
                 '=',
                 Column(dialect, 'id'),
-                Literal(dialect, 1),
+                Parameter(dialect, 1),
             ) & ComparisonPredicate(
                 dialect,
                 '=',
                 Column(dialect, 'status'),
-                Literal(dialect, 'active'),
+                Parameter(dialect, 'active'),
             ),
         ),
     )
@@ -212,7 +212,7 @@ if __name__ == "__main__":
             dialect=dialect,
             into=Table(dialect, 'quickstart_logs'),
             columns=['message'],
-            source=ValuesSource(dialect, [[Literal(dialect, 'quickstart transaction')]]),
+            source=ValuesSource(dialect, [[Parameter(dialect, 'quickstart transaction')]]),
         )
         execute_expression(insert_log)
 

@@ -49,10 +49,6 @@ from rhosocial.activerecord.backend.expression.objects import (
     View,
 )
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
-from rhosocial.activerecord.backend.expression.serialization import (
-    deserialize_json,
-    serialize_json,
-)
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
     AddTableConstraintAction,
     AlterConstraintAction,
@@ -532,65 +528,6 @@ class TestTheGuardCanSeeADroppedSpelling:
         failure = _state_failure(deaf, _dialect())
         assert failure != "", "the walk did not notice a dropped spelling"
         assert "must be refused" in failure or "must spell" in failure or "indistinguishable" in failure, failure
-
-
-class TestPairParametersSurviveSerialization:
-    """The new pair fields round-trip through the serialization channels.
-
-    ``test_expression_roundtrip_all.py`` builds every class with default
-    parameters, so it cannot see a field the serializer drops. These cases set
-    the second spelling and assert the decoded object still carries it -- a
-    dropped field would render "unspecified" and silently lose the clause.
-    """
-
-    @pytest.mark.parametrize(
-        "factory, field",
-        [
-            (lambda d: CreateSequenceStatement(d, _seq(d), no_cycle=True), "no_cycle"),
-            (lambda d: CreateSequenceStatement(d, _seq(d), no_cache=True), "no_cache"),
-            (lambda d: AlterSequenceStatement(d, _seq(d), no_order=True), "no_order"),
-            (lambda d: TruncateStatement(d, _table(d), continue_identity=True), "continue_identity"),
-            (lambda d: TruncateStatement(d, _table(d), restrict=True), "restrict"),
-            (lambda d: _check(d, not_enforced=True), "not_enforced"),
-            (lambda d: _fk(d, deferrable=True), "deferrable"),
-            (lambda d: BeginTransactionStatement(d, deferrable=True), "deferrable"),
-            (lambda d: SetTransactionStatement(d, not_deferrable=True), "not_deferrable"),
-            (
-                lambda d: MariaDBExchangePartitionStatement(
-                    d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), with_validation=True
-                ),
-                "with_validation",
-            ),
-            (
-                lambda d: MariaDBExchangePartitionStatement(
-                    d, _table(d, "probe_part"), "p0", _table(d, "probe_exch"), without_validation=True
-                ),
-                "without_validation",
-            ),
-        ],
-        ids=[
-            "CreateSequenceStatement.no_cycle",
-            "CreateSequenceStatement.no_cache",
-            "AlterSequenceStatement.no_order",
-            "TruncateStatement.continue_identity",
-            "TruncateStatement.restrict",
-            "TableConstraint.not_enforced",
-            "TableConstraint.deferrable",
-            "BeginTransactionStatement.deferrable",
-            "SetTransactionStatement.not_deferrable",
-            "MariaDBExchangePartitionStatement.with_validation",
-            "MariaDBExchangePartitionStatement.without_validation",
-        ],
-    )
-    def test_second_spelling_survives_the_round_trip(self, factory, field):
-        dialect = _dialect()
-        expr = factory(dialect)
-        # No registration: the dialect hands the reader its backend's composed
-        # table (core's kinds plus MariaDB's own), frozen and cached, so a
-        # MariaDB-owned kind and a core kind both resolve without anyone mutating
-        # a process-global whitelist.
-        decoded = deserialize_json(serialize_json(expr), dialect)
-        assert getattr(decoded, field) is True
 
 
 class TestAlterConstraintPairIsConsumed:

@@ -38,7 +38,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, Column
+    from rhosocial.activerecord.backend.expression.core import Parameter, Column
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         ColumnConstraint,
@@ -81,9 +81,9 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['name'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'Alice')],
-            [Literal(dialect, 'Bob')],
-            [Literal(dialect, 'Charlie')],
+            [Parameter(dialect, 'Alice')],
+            [Parameter(dialect, 'Bob')],
+            [Parameter(dialect, 'Charlie')],
         ]),
     )
     sql, params = insert.to_sql()
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     delete_expr = DeleteStatement(
         dialect=dialect,
         tables=Table(dialect, 'users'),
-        where=ComparisonPredicate(dialect, '=', Column(dialect, 'name'), Literal(dialect, 'Alice')),
+        where=ComparisonPredicate(dialect, '=', Column(dialect, 'name'), Parameter(dialect, 'Alice')),
     )
     sql, params = delete_expr.to_sql()
     print(f"Delete SQL: {sql}")
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     delete_expr = DeleteStatement(
         dialect=dialect,
         tables=Table(dialect, 'users'),
-        where=ComparisonPredicate(dialect, '=', Column(dialect, 'name'), Literal(dialect, 'Bob')),
+        where=ComparisonPredicate(dialect, '=', Column(dialect, 'name'), Parameter(dialect, 'Bob')),
     )
     sql, params = delete_expr.to_sql()
     print(f"Delete SQL: {sql}")

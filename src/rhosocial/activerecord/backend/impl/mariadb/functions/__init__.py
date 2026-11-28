@@ -25,7 +25,7 @@ Or import directly from submodules:
 
 Value arguments:
     Every value argument is an expression, so the caller states what it has:
-    a ``Column`` to read a column and a ``Literal`` to write a value.  Data
+    a ``Column`` to read a column and a ``Parameter`` to write a value.  Data
     that is not a number or a string -- a geometry given as WKT or WKB --
     is turned into an expression by a named constructor here
     (``st_geom_from_text``, ``st_geom_from_wkb``), not by the function that

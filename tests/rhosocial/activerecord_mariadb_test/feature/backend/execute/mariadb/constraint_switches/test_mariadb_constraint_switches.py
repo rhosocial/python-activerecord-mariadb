@@ -32,7 +32,7 @@ trusting the docstring.
 
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Column, Literal
+from rhosocial.activerecord.backend.expression.core import Column, Parameter
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
     AlterConstraintAction,
@@ -447,7 +447,7 @@ class TestTheDeclaredProbesAreLoadBearing:
         constraint = TableConstraint(
             dialect,
             branch=TableCheckConstraint(
-                dialect, ComparisonPredicate(dialect, ">", Column(dialect, "a"), Literal(dialect, 0))
+                dialect, ComparisonPredicate(dialect, ">", Column(dialect, "a"), Parameter(dialect, 0))
             ),
             name="probe_ck",
             validation=ConstraintValidation.NOVALIDATE,

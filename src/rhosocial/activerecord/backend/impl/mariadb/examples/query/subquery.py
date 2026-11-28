@@ -32,7 +32,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal
+    from rhosocial.activerecord.backend.expression.core import Parameter
     from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         ColumnConstraint,
@@ -100,8 +100,8 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, 'Engineering'), Literal(dialect, 1000000)],
-                [Literal(dialect, 'Sales'), Literal(dialect, 500000)],
+                [Parameter(dialect, 'Engineering'), Parameter(dialect, 1000000)],
+                [Parameter(dialect, 'Sales'), Parameter(dialect, 500000)],
             ],
         ),
     )
@@ -115,10 +115,10 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, 'Alice'), Literal(dialect, 80000), Literal(dialect, 1)],
-                [Literal(dialect, 'Bob'), Literal(dialect, 90000), Literal(dialect, 1)],
-                [Literal(dialect, 'Charlie'), Literal(dialect, 60000), Literal(dialect, 2)],
-                [Literal(dialect, 'David'), Literal(dialect, 70000), Literal(dialect, 2)],
+                [Parameter(dialect, 'Alice'), Parameter(dialect, 80000), Parameter(dialect, 1)],
+                [Parameter(dialect, 'Bob'), Parameter(dialect, 90000), Parameter(dialect, 1)],
+                [Parameter(dialect, 'Charlie'), Parameter(dialect, 60000), Parameter(dialect, 2)],
+                [Parameter(dialect, 'David'), Parameter(dialect, 70000), Parameter(dialect, 2)],
             ],
         ),
     )

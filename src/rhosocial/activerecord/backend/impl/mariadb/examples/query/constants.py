@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # ============================================================
     # SECTION: SELECT with multiple functions
     # ============================================================
-    from rhosocial.activerecord.backend.expression.core import Literal
+    from rhosocial.activerecord.backend.expression.core import Parameter
 
     query_multi = QueryStatement(
         dialect=dialect,
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     query_format = QueryStatement(
         dialect=dialect,
         select=[
-            FunctionCall(dialect, 'DATE_FORMAT', F.now(dialect), Literal(dialect, '%Y-%m-%d')).as_('formatted_date'),
+            FunctionCall(dialect, 'DATE_FORMAT', F.now(dialect), Parameter(dialect, '%Y-%m-%d')).as_('formatted_date'),
         ],
     )
     sql, params = query_format.to_sql()

@@ -38,7 +38,7 @@ class MariaDBStatusDialectMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             InPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
         )
 
@@ -48,7 +48,7 @@ class MariaDBStatusDialectMixin:
             self,
             "NOT",
             InPredicate(
-                self, Column(self, "TABLE_SCHEMA"), Literal(self, SYSTEM_SCHEMAS, inline=True)
+                self, Column(self, "TABLE_SCHEMA"), Parameter(self, SYSTEM_SCHEMAS, inline=True)
             ),
         )
 
@@ -130,7 +130,7 @@ class MariaDBStatusDialectMixin:
             GroupByHavingClause,
             JoinClause,
             JoinType,
-            Literal,
+            Parameter,
             NamedRelationRef,
             OrderByClause,
             QueryStatement,
@@ -150,9 +150,9 @@ class MariaDBStatusDialectMixin:
                                 self,
                                 "eq",
                                 Column(self, "table_type", table="t"),
-                                Literal(self, table_type, inline=True),
+                                Parameter(self, table_type, inline=True),
                             ),
-                            Literal(self, 1, inline=True),
+                            Parameter(self, 1, inline=True),
                         )
                     ],
                 ),

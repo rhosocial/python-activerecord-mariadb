@@ -14,7 +14,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
 )
 from rhosocial.activerecord.backend.expression import functions as F
-from rhosocial.activerecord.backend.expression.core import Literal
+from rhosocial.activerecord.backend.expression.core import Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
@@ -108,7 +108,7 @@ def main() -> None:
                 dialect=dialect,
                 into=Table(dialect, TABLE_NAME),
                 columns=["name", "price"],
-                source=ValuesSource(dialect, [[Literal(dialect, "Widget"), Literal(dialect, 9.99)]]),
+                source=ValuesSource(dialect, [[Parameter(dialect, "Widget"), Parameter(dialect, 9.99)]]),
             ),
         )
 

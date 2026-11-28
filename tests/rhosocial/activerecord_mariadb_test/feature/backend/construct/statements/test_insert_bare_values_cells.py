@@ -11,7 +11,7 @@ answer; both now delegate, and these cases pin that.
 The assertions are render-only: the SQL text and the parameter tuple are
 the contract being checked, and a live execution would add nothing to it.
 """
-from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.expression import Column, Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     InsertStatement,
@@ -71,7 +71,7 @@ class TestInsertBareValuesCells:
             columns=["a", "b", "c"],
             source=ValuesSource(
                 mariadb_dialect,
-                [[Literal(mariadb_dialect, 3), "w", Column(mariadb_dialect, "d")]],
+                [[Parameter(mariadb_dialect, 3), "w", Column(mariadb_dialect, "d")]],
             ),
         )
         sql, params = expr.to_sql()

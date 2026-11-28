@@ -11,7 +11,7 @@ refusal.
 import inspect
 import re
 
-from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.expression import Column, Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements import (
@@ -430,7 +430,7 @@ def test_constraint_add_of_all_spellable_kinds_from_live_declarations():
         branch=TableCheckConstraint(
             dialect,
             ComparisonPredicate(
-                dialect, ">=", Column(dialect, "age"), Literal(dialect, 0, inline=True)
+                dialect, ">=", Column(dialect, "age"), Parameter(dialect, 0, inline=True)
             ),
         ),
         name="ck_age",
@@ -469,7 +469,7 @@ def test_check_constraint_add_is_gated_at_the_10_2_1_floor():
             branch=TableCheckConstraint(
                 dialect,
                 ComparisonPredicate(
-                    dialect, ">=", Column(dialect, "age"), Literal(dialect, 0, inline=True)
+                    dialect, ">=", Column(dialect, "age"), Parameter(dialect, 0, inline=True)
                 ),
             ),
             name="ck_age",

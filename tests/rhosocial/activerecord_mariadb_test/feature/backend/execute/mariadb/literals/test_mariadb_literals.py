@@ -1,7 +1,7 @@
 # tests/rhosocial/activerecord_mariadb_test/feature/backend/execute/mariadb/literals/test_mariadb_literals.py
 """MariaDB's spellings for the value kinds a literal can carry.
 
-One node carries every value; ``Literal.inline`` decides whether the value
+One node carries every value; ``Parameter.inline`` decides whether the value
 binds behind a placeholder (the data position) or is written as SQL text
 through the dialect's literal construction (the DDL syntax position), and
 MariaDB's own spellings live in one place: the tier-2 branches of
@@ -36,7 +36,7 @@ from rhosocial.activerecord.backend.expression import (
     ColumnDefinition,
     CreateTableStatement,
     DropTableStatement,
-    Literal,
+    Parameter,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import (
@@ -50,11 +50,11 @@ class TestMariaDBBinarySpelling:
     """``X'0102FF'`` -- the x-quoted upper-case hex form."""
 
     def test_data_position_binds_host_bytes(self, mariadb_dialect):
-        expr = Literal(mariadb_dialect, b"\x01\x02\xff")
+        expr = Parameter(mariadb_dialect, b"\x01\x02\xff")
         assert expr.to_sql() == ("%s", (b"\x01\x02\xff",))
 
     def test_ddl_position_renders_x_hex(self, mariadb_dialect):
-        expr = Literal(mariadb_dialect, b"\x01\x02\xff", inline=True)
+        expr = Parameter(mariadb_dialect, b"\x01\x02\xff", inline=True)
         assert expr.to_sql() == ("X'0102FF'", ())
 
 
@@ -65,11 +65,11 @@ class TestMariaDBUUIDSpelling:
 
     def test_data_position_binds_host_uuid(self, mariadb_dialect):
         host = uuid.UUID(self.CANONICAL)
-        expr = Literal(mariadb_dialect, host)
+        expr = Parameter(mariadb_dialect, host)
         assert expr.to_sql() == ("%s", (host,))
 
     def test_ddl_position_renders_quoted_text(self, mariadb_dialect):
-        expr = Literal(
+        expr = Parameter(
             mariadb_dialect, uuid.UUID(self.CANONICAL), inline=True
         )
         assert expr.to_sql() == (f"'{self.CANONICAL}'", ())
@@ -86,13 +86,13 @@ class TestMariaDBIntervalHasNoLiteral:
     def test_data_position_binds_host_timedelta(self, mariadb_dialect):
         from datetime import timedelta
 
-        expr = Literal(mariadb_dialect, timedelta(days=1))
+        expr = Parameter(mariadb_dialect, timedelta(days=1))
         assert expr.to_sql() == ("%s", (timedelta(days=1),))
 
     def test_ddl_position_refuses_explicitly(self, mariadb_dialect):
         from datetime import timedelta
 
-        expr = Literal(mariadb_dialect, timedelta(days=1), inline=True)
+        expr = Parameter(mariadb_dialect, timedelta(days=1), inline=True)
         with pytest.raises(TypeError) as raised:
             expr.to_sql()
         assert "no inline SQL literal form" in str(raised.value)
@@ -107,23 +107,23 @@ class TestTier1AuditAgreesWithBase:
     """
 
     def test_boolean_spells_true_false(self, mariadb_dialect):
-        assert Literal(mariadb_dialect, True, inline=True).to_sql() == ("TRUE", ())
-        assert Literal(mariadb_dialect, False, inline=True).to_sql() == ("FALSE", ())
+        assert Parameter(mariadb_dialect, True, inline=True).to_sql() == ("TRUE", ())
+        assert Parameter(mariadb_dialect, False, inline=True).to_sql() == ("FALSE", ())
 
     def test_integer_spells_numeric_text(self, mariadb_dialect):
-        assert Literal(mariadb_dialect, 42, inline=True).to_sql() == ("42", ())
+        assert Parameter(mariadb_dialect, 42, inline=True).to_sql() == ("42", ())
 
     def test_float_spells_repr(self, mariadb_dialect):
-        assert Literal(mariadb_dialect, 1.5, inline=True).to_sql() == ("1.5", ())
+        assert Parameter(mariadb_dialect, 1.5, inline=True).to_sql() == ("1.5", ())
 
     def test_string_spells_quoted_doubled_quotes(self, mariadb_dialect):
         assert (
-            Literal(mariadb_dialect, "x'y", inline=True).to_sql() == ("'x''y'", ())
+            Parameter(mariadb_dialect, "x'y", inline=True).to_sql() == ("'x''y'", ())
         )
 
     def test_date_spells_quoted_iso(self, mariadb_dialect):
         assert (
-            Literal(mariadb_dialect, date(2026, 10, 17), inline=True).to_sql()
+            Parameter(mariadb_dialect, date(2026, 10, 17), inline=True).to_sql()
             == ("'2026-10-17'", ())
         )
 
@@ -160,7 +160,7 @@ class TestLiveDefaultRoundTrip:
                 ColumnConstraint(
                     dialect,
                     branch=ColumnDefaultConstraint(
-                        dialect, Literal(dialect, 1, inline=True)
+                        dialect, Parameter(dialect, 1, inline=True)
                     ),
                 )
             ]),
@@ -173,7 +173,7 @@ class TestLiveDefaultRoundTrip:
                         dialect,
                         branch=ColumnDefaultConstraint(
                             dialect,
-                            Literal(dialect, b"\x01\x02\xff", inline=True),
+                            Parameter(dialect, b"\x01\x02\xff", inline=True),
                         ),
                     )
                 ],
@@ -208,7 +208,7 @@ class TestLiveDefaultRoundTrip:
                 ColumnConstraint(
                     dialect,
                     branch=ColumnDefaultConstraint(
-                        dialect, Literal(dialect, 1, inline=True)
+                        dialect, Parameter(dialect, 1, inline=True)
                     ),
                 )
             ]),
@@ -221,7 +221,7 @@ class TestLiveDefaultRoundTrip:
                         dialect,
                         branch=ColumnDefaultConstraint(
                             dialect,
-                            Literal(
+                            Parameter(
                                 dialect,
                                 uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
                                 inline=True,

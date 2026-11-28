@@ -6,7 +6,7 @@ Functions: json_extract, json_unquote, json_object, json_array, json_contains,
 json_set, json_remove, json_type, json_valid, json_search
 
 The document argument of every function here is an expression: pass a
-``Column`` to read a column and a ``Literal`` to write a document.  It used to
+``Column`` to read a column and a ``Parameter`` to write a document.  It used to
 be accepted as a bare string, which always became a column reference -- so a
 document given as data reached the server as an identifier, and
 ``json_extract(dialect, '{"a": 1}', "$.a")`` rendered a reference to a column
@@ -33,7 +33,7 @@ def json_extract(
 
     Usage rules:
     - To extract from a column: json_extract(dialect, Column(dialect, "json_col"), "$.name")
-    - To extract from a literal: json_extract(dialect, Literal(dialect, '{"a": 1}'), "$.a")
+    - To extract from a literal: json_extract(dialect, Parameter(dialect, '{"a": 1}'), "$.a")
     - Multiple paths: json_extract(dialect, col, "$.name", "$.age")
 
     Args:
@@ -47,9 +47,9 @@ def json_extract(
 
     Version: MariaDB 10.2.3+
     """
-    args = [json_doc, core.Literal(dialect, path)]
+    args = [json_doc, core.Parameter(dialect, path)]
     for p in paths:
-        args.append(core.Literal(dialect, p))
+        args.append(core.Parameter(dialect, p))
     return core.FunctionCall(dialect, "JSON_EXTRACT", *args)
 
 
@@ -98,7 +98,7 @@ def json_object(
         return core.FunctionCall(dialect, "JSON_OBJECT")
     args = []
     for _i, val in enumerate(key_value_pairs):
-        args.append(core.Literal(dialect, val))
+        args.append(core.Parameter(dialect, val))
     return core.FunctionCall(dialect, "JSON_OBJECT", *args)
 
 
@@ -125,7 +125,7 @@ def json_array(
     """
     if not values:
         return core.FunctionCall(dialect, "JSON_ARRAY")
-    args = [core.Literal(dialect, v) for v in values]
+    args = [core.Parameter(dialect, v) for v in values]
     return core.FunctionCall(dialect, "JSON_ARRAY", *args)
 
 
@@ -150,9 +150,9 @@ def json_contains(
 
     Version: MariaDB 10.2.3+
     """
-    candidate_expr = core.Literal(dialect, candidate)
+    candidate_expr = core.Parameter(dialect, candidate)
     if path is not None:
-        path_expr = core.Literal(dialect, path)
+        path_expr = core.Parameter(dialect, path)
         return core.FunctionCall(dialect, "JSON_CONTAINS", target, candidate_expr, path_expr)
     return core.FunctionCall(dialect, "JSON_CONTAINS", target, candidate_expr)
 
@@ -180,11 +180,11 @@ def json_set(
 
     Version: MariaDB 10.2.3+
     """
-    args = [json_doc, core.Literal(dialect, path), core.Literal(dialect, value)]
+    args = [json_doc, core.Parameter(dialect, path), core.Parameter(dialect, value)]
     for i in range(0, len(path_value_pairs), 2):
         if i + 1 < len(path_value_pairs):
-            args.append(core.Literal(dialect, path_value_pairs[i]))
-            args.append(core.Literal(dialect, path_value_pairs[i + 1]))
+            args.append(core.Parameter(dialect, path_value_pairs[i]))
+            args.append(core.Parameter(dialect, path_value_pairs[i + 1]))
     return core.FunctionCall(dialect, "JSON_SET", *args)
 
 
@@ -209,9 +209,9 @@ def json_remove(
 
     Version: MariaDB 10.2.3+
     """
-    args = [json_doc, core.Literal(dialect, path)]
+    args = [json_doc, core.Parameter(dialect, path)]
     for p in paths:
-        args.append(core.Literal(dialect, p))
+        args.append(core.Parameter(dialect, p))
     return core.FunctionCall(dialect, "JSON_REMOVE", *args)
 
 
@@ -279,13 +279,13 @@ def json_search(
     Version: MariaDB 10.2.3+
     """
     one_or_all = "all" if search_all else "one"
-    one_or_all_expr = core.Literal(dialect, one_or_all)
-    search_expr = core.Literal(dialect, search_str)
+    one_or_all_expr = core.Parameter(dialect, one_or_all)
+    search_expr = core.Parameter(dialect, search_str)
     if path is not None:
-        path_expr = core.Literal(dialect, path)
+        path_expr = core.Parameter(dialect, path)
         return core.FunctionCall(
             dialect, "JSON_SEARCH", json_doc, one_or_all_expr, search_expr,
-            core.Literal(dialect, None), path_expr,
+            core.Parameter(dialect, None), path_expr,
         )
     return core.FunctionCall(dialect, "JSON_SEARCH", json_doc, one_or_all_expr, search_expr)
 

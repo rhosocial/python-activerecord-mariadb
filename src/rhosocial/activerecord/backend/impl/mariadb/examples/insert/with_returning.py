@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
     QueryStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, Column, FunctionCall
+from rhosocial.activerecord.backend.expression.core import Parameter, Column, FunctionCall
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         into=Table(dialect, 'users'),
         columns=['name', 'email'],
         source=ValuesSource(dialect, [
-            [Literal(dialect, 'Alice'), Literal(dialect, 'alice@example.com')],
+            [Parameter(dialect, 'Alice'), Parameter(dialect, 'alice@example.com')],
         ]),
     )
     sql, params = insert_expr.to_sql()

@@ -14,7 +14,7 @@ from rhosocial.activerecord.backend.dialect import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import (
     Column,
     InsertStatement,
-    Literal,
+    Parameter,
     OnConflictClause,
     ValuesSource,
 )
@@ -41,7 +41,7 @@ class TestMariaDBOnConflictCapabilities:
 
     def test_multiple_on_conflict_clauses_rejected(self, dialect):
         """MariaDB ON DUPLICATE KEY UPDATE allows only one clause per INSERT."""
-        source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
+        source = ValuesSource(dialect, values_list=[[Parameter(dialect, 1)]])
         clause1 = OnConflictClause(dialect, conflict_target=["col_a"], do_nothing=True)
         clause2 = OnConflictClause(dialect, conflict_target=["col_b"], do_nothing=True)
         expr = InsertStatement(dialect, into=Table(dialect, "t"), source=source, on_conflict=[clause1, clause2])
@@ -54,7 +54,7 @@ class TestMariaDBOnConflictRendering:
     """SQL rendering tests for a single ON CONFLICT (ON DUPLICATE KEY) clause."""
 
     def test_on_duplicate_key_update(self, dialect):
-        source = ValuesSource(dialect, values_list=[[Literal(dialect, 1), Literal(dialect, "new")]])
+        source = ValuesSource(dialect, values_list=[[Parameter(dialect, 1), Parameter(dialect, "new")]])
         clause = OnConflictClause(
             dialect,
             conflict_target=["id"],
@@ -72,7 +72,7 @@ class TestMariaDBOnConflictRendering:
 
     def test_on_duplicate_key_do_nothing_noop(self, dialect):
         """do_nothing renders the MariaDB no-op UPDATE id = id."""
-        source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
+        source = ValuesSource(dialect, values_list=[[Parameter(dialect, 1)]])
         clause = OnConflictClause(dialect, conflict_target=["id"], do_nothing=True)
         expr = InsertStatement(dialect, into=Table(dialect, "users"), columns=["id"], source=source, on_conflict=clause)
         sql, params = expr.to_sql()
@@ -84,7 +84,7 @@ class TestMariaDBOnConflictRendering:
 
     def test_insert_ignore_and_replace_still_work(self, dialect):
         """REPLACE INTO / INSERT IGNORE remain unaffected by the capability gate."""
-        source = ValuesSource(dialect, values_list=[[Literal(dialect, 1)]])
+        source = ValuesSource(dialect, values_list=[[Parameter(dialect, 1)]])
 
         expr = MariaDBInsertExpression(
             dialect, into=Table(dialect, "users"), columns=["id"], source=source, replace=True

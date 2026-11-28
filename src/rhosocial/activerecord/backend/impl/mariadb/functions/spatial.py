@@ -48,9 +48,9 @@ def st_geom_from_text(
 
     Version: MariaDB 10.2+
     """
-    wkt_expr = core.Literal(dialect, wkt)
+    wkt_expr = core.Parameter(dialect, wkt)
     if srid is not None:
-        srid_expr = core.Literal(dialect, srid)
+        srid_expr = core.Parameter(dialect, srid)
         return core.FunctionCall(dialect, "ST_GeomFromText", wkt_expr, srid_expr)
     return core.FunctionCall(dialect, "ST_GeomFromText", wkt_expr)
 
@@ -75,9 +75,9 @@ def st_geom_from_wkb(
 
     Version: MariaDB 10.2+
     """
-    wkb_expr = core.Literal(dialect, wkb)
+    wkb_expr = core.Parameter(dialect, wkb)
     if srid is not None:
-        srid_expr = core.Literal(dialect, srid)
+        srid_expr = core.Parameter(dialect, srid)
         return core.FunctionCall(dialect, "ST_GeomFromWKB", wkb_expr, srid_expr)
     return core.FunctionCall(dialect, "ST_GeomFromWKB", wkb_expr)
 

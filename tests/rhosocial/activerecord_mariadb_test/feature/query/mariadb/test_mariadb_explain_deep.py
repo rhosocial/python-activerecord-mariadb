@@ -40,7 +40,7 @@ from rhosocial.activerecord.backend.expression import (
     Column,
     ComparisonPredicate,
     ExplainStatement,
-    Literal,
+    Parameter,
     QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
@@ -75,7 +75,7 @@ def _query(dialect: MariaDBDialect) -> QueryStatement:
         from_=NamedRelationRef(dialect, Table(dialect, "users")),
         where=WhereClause(
             dialect,
-            condition=ComparisonPredicate(dialect, "=", Column(dialect, "id"), Literal(dialect, 1)),
+            condition=ComparisonPredicate(dialect, "=", Column(dialect, "id"), Parameter(dialect, 1)),
         ),
     )
 

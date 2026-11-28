@@ -10,11 +10,11 @@ are implemented using native MySQL operators (&, |, ^, <<, >>) since the
 function versions (BIT_AND, etc.) are aggregate functions that require
 GROUP BY context.
 
-Every operand is an expression: a ``Column`` for a column, a ``Literal`` for a
+Every operand is an expression: a ``Column`` for a column, a ``Parameter`` for a
 value.
 """
 
-from rhosocial.activerecord.backend.expression import Column, Literal
+from rhosocial.activerecord.backend.expression import Column, Parameter
 from rhosocial.activerecord.backend.impl.mariadb.dialect import MariaDBDialect
 from rhosocial.activerecord.backend.impl.mariadb.functions.bitwise import (
     bit_and,
@@ -53,7 +53,7 @@ class TestMySQLBitwiseFunctions:
 
     def test_bit_and_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test bit_and() with literal value."""
-        result = bit_and(mariadb_dialect, Literal(mariadb_dialect, 255))
+        result = bit_and(mariadb_dialect, Parameter(mariadb_dialect, 255))
         sql, _ = result.to_sql()
         assert "%s" in sql
 
@@ -78,7 +78,7 @@ class TestMySQLBitwiseFunctions:
 
     def test_bit_or_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test bit_or() with literal value."""
-        result = bit_or(mariadb_dialect, Literal(mariadb_dialect, 0xFF))
+        result = bit_or(mariadb_dialect, Parameter(mariadb_dialect, 0xFF))
         sql, _ = result.to_sql()
         assert "%s" in sql
 
@@ -103,7 +103,7 @@ class TestMySQLBitwiseFunctions:
 
     def test_bit_xor_with_literal(self, mariadb_dialect: MariaDBDialect):
         """Test bit_xor() with literal value."""
-        result = bit_xor(mariadb_dialect, Literal(mariadb_dialect, 0xAA))
+        result = bit_xor(mariadb_dialect, Parameter(mariadb_dialect, 0xAA))
         sql, _ = result.to_sql()
         assert "%s" in sql
 
@@ -116,14 +116,14 @@ class TestMySQLBitwiseFunctions:
 
     def test_bit_count_literal(self, mariadb_dialect: MariaDBDialect):
         """Test bit_count() with a literal value."""
-        result = bit_count(mariadb_dialect, Literal(mariadb_dialect, 255))
+        result = bit_count(mariadb_dialect, Parameter(mariadb_dialect, 255))
         sql, _ = result.to_sql()
         assert "BIT_COUNT(" in sql
         assert "%s" in sql
 
     def test_bit_count_binary(self, mariadb_dialect: MariaDBDialect):
         """Test bit_count() with a binary value."""
-        result = bit_count(mariadb_dialect, Literal(mariadb_dialect, 0b10101010))
+        result = bit_count(mariadb_dialect, Parameter(mariadb_dialect, 0b10101010))
         sql, _ = result.to_sql()
         assert "BIT_COUNT(" in sql
         assert "%s" in sql
@@ -135,7 +135,7 @@ class TestMySQLBitwiseFunctions:
         result = bit_get_bit(
             mariadb_dialect,
             Column(mariadb_dialect, "value"),
-            Literal(mariadb_dialect, 0),
+            Parameter(mariadb_dialect, 0),
         )
         sql, _ = result.to_sql()
         assert "`value`" in sql
@@ -161,7 +161,7 @@ class TestMySQLBitwiseFunctions:
         result = bit_shift_left(
     mariadb_dialect,
     Column(mariadb_dialect, "value"),
-    Literal(mariadb_dialect, 1),
+    Parameter(mariadb_dialect, 1),
 )
         sql, _ = result.to_sql()
         assert "`value`" in sql
@@ -185,7 +185,7 @@ class TestMySQLBitwiseFunctions:
         result = bit_shift_right(
     mariadb_dialect,
     Column(mariadb_dialect, "value"),
-    Literal(mariadb_dialect, 2),
+    Parameter(mariadb_dialect, 2),
 )
         sql, _ = result.to_sql()
         assert "`value`" in sql
@@ -207,7 +207,7 @@ class TestMySQLBitwiseFunctions:
     def test_bit_shift_left_with_literal_base(self, mariadb_dialect: MariaDBDialect):
         """Test bit_shift_left() with literal base value."""
         result = bit_shift_left(
-            mariadb_dialect, Literal(mariadb_dialect, 1), Literal(mariadb_dialect, 8),
+            mariadb_dialect, Parameter(mariadb_dialect, 1), Parameter(mariadb_dialect, 8),
         )
         sql, _ = result.to_sql()
         assert "<<" in sql
@@ -216,7 +216,7 @@ class TestMySQLBitwiseFunctions:
     def test_bit_shift_right_with_literal_base(self, mariadb_dialect: MariaDBDialect):
         """Test bit_shift_right() with literal base value."""
         result = bit_shift_right(
-            mariadb_dialect, Literal(mariadb_dialect, 256), Literal(mariadb_dialect, 4),
+            mariadb_dialect, Parameter(mariadb_dialect, 256), Parameter(mariadb_dialect, 4),
         )
         sql, _ = result.to_sql()
         assert ">>" in sql
@@ -237,7 +237,7 @@ class TestMySQLBitwiseFunctions:
 
     def test_bit_count_with_the_number_255(self, mariadb_dialect: MariaDBDialect):
         """The number 255 is a value, and renders as a bound parameter."""
-        result = bit_count(mariadb_dialect, Literal(mariadb_dialect, 255))
+        result = bit_count(mariadb_dialect, Parameter(mariadb_dialect, 255))
         sql, params = result.to_sql()
         assert "BIT_COUNT(%s)" == sql
         assert params == (255,)

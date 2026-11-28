@@ -5,7 +5,7 @@ MariaDB Enum and SET type function factories.
 Functions: find_in_set, elt, field
 
 Every argument except :func:`find_in_set`'s searched value is an expression:
-pass a ``Column`` to read a column and a ``Literal`` to write a value.  Those
+pass a ``Column`` to read a column and a ``Parameter`` to write a value.  Those
 arguments used to be accepted as bare strings, and a bare string became a
 column reference -- so ``ELT(1, "a", "b", "c")`` did not choose "a" but read a
 column called ``a``, and returned its contents when such a column happened to
@@ -40,7 +40,7 @@ def find_in_set(
     Version: All MariaDB versions
     """
     return core.FunctionCall(
-        dialect, "FIND_IN_SET", core.Literal(dialect, value), set_column,
+        dialect, "FIND_IN_SET", core.Parameter(dialect, value), set_column,
     )
 
 

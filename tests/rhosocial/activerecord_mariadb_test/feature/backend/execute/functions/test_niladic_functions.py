@@ -18,7 +18,7 @@ import pytest_asyncio
 from rhosocial.activerecord.backend.expression import (
     CreateTableStatement,
     DropTableStatement,
-    Literal,
+    Parameter,
     QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.core import FunctionCall
@@ -211,7 +211,7 @@ class TestNiladicDDLContext:
                         dialect,
                         branch=ColumnDefaultConstraint(
                             dialect,
-                            current_timestamp(dialect, Literal(dialect, 6, inline=True)),
+                            current_timestamp(dialect, Parameter(dialect, 6, inline=True)),
                         ),
                     ),
                 ]),

@@ -16,7 +16,7 @@ stmt = QueryStatement(
     from_=Table(dialect, "orders"),
     where=WhereClause(
         dialect,
-        condition=ComparisonPredicate(dialect, "=", Column(dialect, "status"), Literal(dialect, "paid")),
+        condition=ComparisonPredicate(dialect, "=", Column(dialect, "status"), Parameter(dialect, "paid")),
     ),
 )
 result = backend.explain(stmt)
