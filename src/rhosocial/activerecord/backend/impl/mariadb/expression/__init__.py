@@ -246,14 +246,18 @@ __all__ = [
 # no class overrides ``kind()`` and class name, kind and formatter entry keep
 # one source.
 #
-# The loop walks this package's own modules rather than an exported name
-# list, for the reason the sqlite package's note gives: a hand-maintained
-# list can only ever be out of date, and a node that is defined but not
-# re-exported here would silently keep the split spelling.
+# Ownership is structural, not a spelling test: a node *defined* in this
+# package is MariaDB's, whether or not it is re-exported above. Judging by a
+# name prefix would let a rename change the wire contract silently, and a
+# hand-maintained name list would let a new node keep the split spelling. The
+# defining module is the declaration, so the walk keys off ``__module__``
+# alone; the reserved tokens are an explicit owned-name tuple.
 import importlib as _importlib
 import pkgutil as _pkgutil
 
 from rhosocial.activerecord.backend.expression.core import BaseExpression as _BaseExpression
+
+_MARIADB_OWNED_KINDS = ("MariaDB",)
 
 for _module_info in _pkgutil.walk_packages(
     __path__, prefix=__name__ + ".", onerror=lambda _error: None
@@ -263,8 +267,7 @@ for _module_info in _pkgutil.walk_packages(
         if (
             isinstance(_value, type)
             and issubclass(_value, _BaseExpression)
-            and _value.__name__.startswith("MariaDB")
             and _value.__module__ == _module_info.name
         ):
-            _value.KIND_RESERVED = ("MariaDB",)
-del _module_info, _module, _value, _importlib, _pkgutil, _BaseExpression
+            _value.KIND_RESERVED = _MARIADB_OWNED_KINDS
+del _MARIADB_OWNED_KINDS, _module_info, _module, _value, _importlib, _pkgutil, _BaseExpression

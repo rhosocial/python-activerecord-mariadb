@@ -104,12 +104,16 @@ class MariaDBPartitionValue(BaseExpression):
 def _subpartition_strategy_word(strategy: Any) -> str:
     """The normalized word a subpartition strategy spelling carries.
 
+    A member of the strategy enum carries its word in ``.value``; a bare word
+    is itself. The two are told apart by type, not by probing attribute names,
+    so a word that happens to look like an attribute name is still just a word.
     Nothing is judged here. An unrecognised word is carried as a word, and
     ``RANGE`` / ``LIST`` name a capability MariaDB does not have; both are
     refused where the answer belongs, by the formatter, so a constructor
     always collects.
     """
-    return " ".join(str(getattr(strategy, "value", strategy)).strip().upper().split())
+    word = strategy.value if isinstance(strategy, Enum) else strategy
+    return " ".join(str(word).strip().upper().split())
 
 
 class MariaDBSubpartitionClause(BaseExpression):
@@ -166,14 +170,35 @@ class MariaDBSubpartitionClause(BaseExpression):
         return "format_subpartition_clause"
 
 
+def _partition_word(method: Any) -> Optional[str]:
+    """The normalized ``PARTITION BY`` word a strategy value carries.
+
+    A core clause node -- including MariaDB's own, which mirrors the word in
+    ``.word`` -- carries it in ``.method``; a legacy string enum carries it in
+    ``.value``; a bare word is itself. Which of these a value is follows from
+    its type, so no attribute name is probed at run time.
+    """
+    if isinstance(method, Enum):
+        value = method.value
+    elif isinstance(method, PartitionClause):
+        value = method.method
+    elif isinstance(method, str):
+        value = method
+    else:
+        return None
+    if not isinstance(value, str):
+        return None
+    return " ".join(value.strip().upper().split()) or None
+
+
 class MariaDBPartitionClause(PartitionClause):
     """Base MariaDB partition clause, carrying a plain strategy word.
 
     MariaDB spells eight ``PARTITION BY`` words, so the clause validates the
     word against :data:`_MARIADB_PARTITION_WORDS` instead of a strategy enum.
     A core strategy clause (``PartitionByRangeClause`` and friends) carries its
-    word in ``.method``/``.word``; a legacy string enum in ``.value``; and a
-    bare word is itself. All three spell the same ``PARTITION BY`` word.
+    word in ``.method``; a legacy string enum in ``.value``; and a bare word is
+    itself. All three spell the same ``PARTITION BY`` word.
 
     The constructor only collects. Whether the word is one MariaDB spells,
     and whether the key list can carry the clause, is answered by
@@ -184,16 +209,12 @@ class MariaDBPartitionClause(PartitionClause):
     #: means "use all primary-key columns", so only the KEY forms allow it.
     ALLOWS_EMPTY_KEYS = False
 
+    #: Declared once here so every form has the attribute; the RANGE and LIST
+    #: forms override it with the clause their caller supplied.
+    subpartition_by: Optional["MariaDBSubpartitionClause"] = None
+
     def __init__(self, dialect: "MariaDBDialect", method: Any, keys: Sequence[BaseExpression]):
-        word = getattr(method, "word", None)
-        if not isinstance(word, str):
-            word = getattr(method, "method", None)
-        if not isinstance(word, str):
-            word = getattr(method, "value", method)
-        if not isinstance(word, str):
-            word = None
-        else:
-            word = " ".join(word.strip().upper().split()) or None
+        word = _partition_word(method)
         BaseExpression.__init__(self, dialect)
         self.word = word
         self.method = word
@@ -212,7 +233,7 @@ class MariaDBPartitionClause(PartitionClause):
                 raise TypeError(
                     "keys must contain BaseExpression instances, " f"got {type(key).__name__}"
                 )
-        subpartition_by = getattr(self, "subpartition_by", None)
+        subpartition_by = self.subpartition_by
         if subpartition_by is not None and not isinstance(
             subpartition_by, MariaDBSubpartitionClause
         ):
